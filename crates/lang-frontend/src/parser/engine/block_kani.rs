@@ -129,8 +129,7 @@ macro_rules! define_exhaustive_enum_any {
     (
         $fn_name:ident,
         $enum_ty:ty,
-        [$(($idx:literal, $pat:pat => $ctor:expr)),+ $(,)?],
-        count = $count:literal
+        [$($pat:pat => $ctor:expr),+ $(,)?]
     ) => {
         fn $fn_name() -> $enum_ty {
             #[deny(unreachable_patterns)]
@@ -140,14 +139,23 @@ macro_rules! define_exhaustive_enum_any {
                 }
             }
 
-            let tag: u8 = kani::any();
-            kani::assume(tag < $count);
-            let picked = match tag {
-                $($idx => $ctor,)+
-                _ => unreachable!(),
-            };
-            assert_exhaustive(picked);
-            picked
+            const COUNT: usize = 0usize $(+ {
+                let _ = stringify!($pat);
+                1usize
+            })+;
+            let tag: usize = kani::any();
+            kani::assume(tag < COUNT);
+
+            let mut cursor = 0usize;
+            $(
+                if tag == cursor {
+                    let picked = $ctor;
+                    assert_exhaustive(picked);
+                    return picked;
+                }
+                cursor += 1;
+            )+
+            unreachable!()
         }
     };
 }
@@ -156,32 +164,30 @@ define_exhaustive_enum_any!(
     any_token_kind,
     TokenKind,
     [
-        (0, TokenKind::Identifier => TokenKind::Identifier),
-        (1, TokenKind::IntegerLiteral(_) => TokenKind::IntegerLiteral(any_integer_literal_suffix())),
-        (2, TokenKind::FloatLiteral(_) => TokenKind::FloatLiteral(any_float_literal_suffix())),
-        (3, TokenKind::CharLiteral => TokenKind::CharLiteral),
-        (4, TokenKind::StringStart => TokenKind::StringStart),
-        (5, TokenKind::StringText => TokenKind::StringText),
-        (6, TokenKind::InterpolationStart => TokenKind::InterpolationStart),
-        (7, TokenKind::InterpolationEnd => TokenKind::InterpolationEnd),
-        (8, TokenKind::StringEnd => TokenKind::StringEnd),
-        (9, TokenKind::Keyword(_) => TokenKind::Keyword(any_keyword())),
-        (10, TokenKind::ReservedWord(_) => TokenKind::ReservedWord(any_reserved_word())),
-        (11, TokenKind::Symbol(_) => TokenKind::Symbol(any_symbol())),
-    ],
-    count = 12
+        TokenKind::Identifier => TokenKind::Identifier,
+        TokenKind::IntegerLiteral(_) => TokenKind::IntegerLiteral(any_integer_literal_suffix()),
+        TokenKind::FloatLiteral(_) => TokenKind::FloatLiteral(any_float_literal_suffix()),
+        TokenKind::CharLiteral => TokenKind::CharLiteral,
+        TokenKind::StringStart => TokenKind::StringStart,
+        TokenKind::StringText => TokenKind::StringText,
+        TokenKind::InterpolationStart => TokenKind::InterpolationStart,
+        TokenKind::InterpolationEnd => TokenKind::InterpolationEnd,
+        TokenKind::StringEnd => TokenKind::StringEnd,
+        TokenKind::Keyword(_) => TokenKind::Keyword(any_keyword()),
+        TokenKind::ReservedWord(_) => TokenKind::ReservedWord(any_reserved_word()),
+        TokenKind::Symbol(_) => TokenKind::Symbol(any_symbol()),
+    ]
 );
 
 define_exhaustive_enum_any!(
     any_lexeme_kind,
     LexemeKind,
     [
-        (0, LexemeKind::Token(_) => LexemeKind::Token(any_token_kind())),
-        (1, LexemeKind::Trivia(_) => LexemeKind::Trivia(any_trivia_kind())),
-        (2, LexemeKind::Invalid(_) => LexemeKind::Invalid(any_invalid_kind())),
-        (3, LexemeKind::Eof => LexemeKind::Eof),
-    ],
-    count = 4
+        LexemeKind::Token(_) => LexemeKind::Token(any_token_kind()),
+        LexemeKind::Trivia(_) => LexemeKind::Trivia(any_trivia_kind()),
+        LexemeKind::Invalid(_) => LexemeKind::Invalid(any_invalid_kind()),
+        LexemeKind::Eof => LexemeKind::Eof,
+    ]
 );
 
 #[kani::proof]

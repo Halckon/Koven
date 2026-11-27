@@ -364,6 +364,17 @@ impl Parser<'_> {
         let current = self.current()?;
         let outer_hard_stop = outer_stops.contains_hard(current);
         let is_poison = self.is_poison_kind(current.kind());
+        if !block_element_separator_required(
+            current.kind(),
+            outer_hard_stop,
+            is_poison,
+            false,
+            true,
+            false,
+            false,
+        ) {
+            return Ok(());
+        }
         let is_unsupported = self.is_unsupported_block_element()?;
         let can_start_expr = self.can_start_expression(current);
         if !block_element_separator_required(

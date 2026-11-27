@@ -30,7 +30,7 @@
      - `runMissingBlockRootEnd_ignores_trailing_trivia_and_after_eof`（B7：任意前置流后追加尾部 trivia 与 `eof` 后任意后缀均不改变结果）
 3. **轨道 2（Kani 零堆分配生产 Rust 符号检验，`validated (bounded Rust)`）**：
    - [block_kani.rs](../../../crates/lang-frontend/src/parser/engine/block_kani.rs)（`#[cfg(kani)]` 隔离，零堆分配）提供 3 条 harness：
-     - `verify_block_unsupported_line_break_and_explicit_start`：直接调用生产 `unsupported_block_element_kind`、`block_expression_line_break_boundary` 与 `is_explicit_block_start`，通过单源宏（`define_exhaustive_unit_enum_any!` / `define_exhaustive_enum_any!` + `#[deny(unreachable_patterns)]`）在编译期同时阻断漏项与重复项，符号覆盖生产 `LexemeKind` 全部变体及 `Option<LexemeKind>`。
+     - `verify_block_unsupported_line_break_and_explicit_start`：直接调用生产 `unsupported_block_element_kind`、`block_expression_line_break_boundary` 与 `is_explicit_block_start`，通过单源宏（`define_exhaustive_unit_enum_any!` / `define_exhaustive_enum_any!`）从同一份变体清单自动派生采样上界、采样分支与 `#[deny(unreachable_patterns)]` 无通配符穷举 `match`，在编译期同时阻断漏项、重复项与上界漂移，符号覆盖生产 `LexemeKind` 全部变体及 `Option<LexemeKind>`。
      - `verify_block_element_separator_required_matrix`：直接调用生产 `block_element_separator_required`，符号覆盖全部生产 `LexemeKind` 与全部 6 个布尔控制位（64 种组合），并专项校验 `while`/`for` 豁免。
      - `verify_missing_block_root_end_run_len_6`：直接调用 `run_missing_block_root_end`（驱动生产 `step_missing_block_root_end`，`#[kani::unwind(8)]`），符号覆盖长度 `0..=6` 的任意 `(LexemeKind, usize)` 序列。
 4. **路径触发轻量 CI 扩展**：
