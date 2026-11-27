@@ -126,18 +126,18 @@ origin_target     = origin_root
 
 - **下游同步范围（本轮均为范围外，进入正式 Guide 前须逐项补齐）**：
   - **F4c Formatter 往返投影**：新增 `flows … into`、`view T`、`p.origins` 的规范打印与往返测试。
-  - **F4a 独立参考差分语料**：将上述 20 组正反例并入独立参考声明切片语料，并与生产 parser 做差分。
+  - **F4a 独立参考差分语料**：将上述 21 组正反例并入独立参考声明切片语料，并与生产 parser 做差分。
   - **F4b Tree-sitter 漂移账本**：在 `tree-sitter` 文法同步前，将三项候选登记为已知待同步漂移项。
 - **F5 评审放行清单自检（对照 [syntax-gate-checklist.md §2](syntax-gate-checklist.md#评审放行清单进入-guide-前)）**：
   - [x] 规则增量回链唯一 Guide 章节，未在多章复制矛盾条件。
-  - [ ] 冲突变化已由 GNU Bison 2.3 实测并汇总于 §2.2（含 `from s into v` 1 S/R、跨行 `flows` 1 R/R、`origins` 撞名 2 R/R），但**完整 `.y` 基准/增量输入文件与原始 `.output` 报告未固化入仓**（临时目录已清理）；进入正式 Guide 提案前须随案固化可复核的完整输入与原始报告。
+  - [x] 冲突变化已由仓库内可复跑套件 `scripts/loan_kernel/f5_od4_grammar_probe.py`（单测 `scripts/tests/test_f5_od4_grammar_probe.py`）固化全部 9 组基准/增量/对照 Bison 文法并实测通过（含 `from s into v` 1 S/R、跨行 `flows` 1 R/R、`origins` 撞名 2 R/R，以及 `3_combined_od4` 11 正例 + 10 反例编译实跑）。
   - [x] 软词（`flows`/`into`/`view`/`origins`）未破坏普通 `Identifier` 或词法错误交接（R4）。
-  - [ ] 正反例已覆盖抽象 `NL` / 分号阻断、重复修饰、误作 `into` 目标与撞名边界，但**尚未在真实 Lexer/Parser 上验证 CRLF、含换行块注释、未闭合回退及恢复期调用方边界保留**；进入正式 Guide 提案前须补齐对应见证。
+  - [ ] 正反例已覆盖抽象 `NL` / 分号阻断、重复修饰、带空格 `<view >`、误作 `into` 目标与撞名边界，但**尚未在真实 Lexer/Parser 上验证 CRLF、含换行块注释、未闭合回退及恢复期调用方边界保留**；进入正式 Guide 提案前须补齐对应见证。
   - [x] 未将 Bison 或 Tree-sitter 提升为第二规范，未夸称有限用例为全语言证明。
 
 ## 7. 验证与未运行项
 
 - **已运行**：
-  - macOS AArch64 下 `/usr/bin/bison`（GNU Bison 2.3，`%expect 0`，无 `%left`/`%right`）运行全部 10 组文法对照实验，以及 `cc -Wall -Wextra -Werror` 编译 `3_combined_od4` 跑通 20 组正反例见证（`POS 10/10, NEG 10/10`）；临时目录已清理。
+  - macOS AArch64 下 `python3 -m unittest scripts.tests.test_f5_od4_grammar_probe`（Python 3.12+ 与 Python 3.9 双版本均通过）：通过 GNU Bison 2.3（`%expect 0`，无 `%left`/`%right`）复现全部 9 组文法冲突计数，并用 `cc -Wall -Wextra -Werror` 编译 `3_combined_od4` 跑通 21 组正反例见证（`POS 11/11, NEG 10/10`）。
   - `/opt/homebrew/bin/python3 scripts/check_docs.py && /opt/homebrew/bin/python3 -m unittest scripts.tests.test_check_docs`。
-- **未运行**：未修改 `docs/guide/`、`crates/`、Formatter、Tree-sitter 或 CI；未启用 OD4 任何候选语法；未运行 `cargo test` 或 `scripts/loan_kernel/` 测试。
+- **未运行**：未修改 `docs/guide/`、`crates/`、Formatter、Tree-sitter 或 CI；未启用 OD4 任何候选语法；未在真实生产 Lexer/Parser 上运行 CRLF/含换行块注释/恢复边界测试；未运行 `cargo test`。
