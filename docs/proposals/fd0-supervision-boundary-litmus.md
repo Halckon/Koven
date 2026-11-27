@@ -36,8 +36,8 @@ enum class LockError {
     Poisoned
 }
 
-// 单个监督句柄：所有权转移进入显式监督边界（只接受 Transferable 捕获，与边界外无共享 Rc）
-class SupervisedHandle<T> {
+// 单个监督句柄：跨线程/监督边界的所有捕获与返回值 T 均须满足 Transferable（防止 Rc 等线程局部值跨边界交付）
+class SupervisedHandle<T : Transferable> {
     // 阻塞等待该执行单元结束并返回 Result；不自动传播失败
     own fun joinCatching(): Result<T, Failure> { ... }
 
@@ -49,13 +49,14 @@ class SupervisedHandle<T> {
 }
 
 // 监督池：管理运行时数量不定的监督句柄，解决“只有阻塞 join 无法在 accept 循环中回收”的问题
-class SupervisorPool<T> {
+class SupervisorPool<T : Transferable> {
     companion {
-        // Guide 08：companion 不捕获外层类型参数，泛型关联函数须自行声明 <T>
-        fun <T> empty(): SupervisorPool<T> { ... }
+        // Guide 08：companion 不捕获外层类型参数，泛型关联函数须自行声明 <T : Transferable>
+        fun <T : Transferable> empty(): SupervisorPool<T> { ... }
     }
 
-    // 启动一个隔离的监督工作单元；内部普通失败展开至边界并被记录为 Failure
+    // 启动一个隔离的监督工作单元（捕获环境与返回值 T 均须满足 Transferable）；
+    // 内部普通失败展开至边界并被记录为 Failure
     inout fun spawn(own task: move () -> T): Unit { ... }
 
     // 非阻塞回收当前已结束的工作单元结果，供日志/指标统计，避免句柄无限增长
@@ -75,38 +76,51 @@ class ServerStats(
     var failedConnections: Int
 )
 
+enum class ReadLineError {
+    Timeout,
+    Closed,
+    IoFailed
+}
+
 fun handleConnection(
     own stream: TcpStream,
     statsLock: Arc<Mutex<ServerStats>>,
+    shutdownFlag: Arc<AtomicBoolean>,
     connId: Int
 ): Unit {
     // 连接内若因 bug 触发 error() / 越界：
     // 1. 先向 stderr 写出 abort 报告；
     // 2. 在本监督边界内自内向外执行待运行析构（stream.deinit 关闭套接字，锁守卫释放并标中毒）；
     // 3. 监督边界接住失败并打包为 Err(Failure)，主线程与其他连接不受影响。
-    val lineResult = stream.readLine(4096)
-    val line = when (lineResult) {
-        is Ok -> lineResult.value
-        is Err -> return
-    }
-
-    // 模拟单连接程序错误：只终止本连接单元，不拖垮整个进程
-    if (line == "__trigger_bug__") {
-        error("simulated per-connection invariant failure")
-    }
-
-    val writeResult = stream.writeLine(line)
-    when (writeResult) {
-        is Ok -> {
-            val lockResult = statsLock.withLock { inout stats ->
-                stats.okConnections = stats.okConnections + 1
-            }
-            when (lockResult) {
-                is Ok -> { }
-                is Err -> return // 对端曾在持锁时异常终止（LockError.Poisoned），本连接安全退出
+    while (!shutdownFlag.load(MemoryOrder.Acquire)) {
+        // 使用带超时的读操作，确保空闲连接在收到停机信号后按有界延迟退出，不阻塞 joinAll()
+        val lineResult = stream.readLineWithTimeout(4096, 100)
+        val line = when (lineResult) {
+            is Ok -> lineResult.success
+            is Err -> when (lineResult.error) {
+                is ReadLineError.Timeout -> continue
+                else -> return
             }
         }
-        is Err -> return
+
+        // 模拟单连接程序错误：只终止本连接单元，不拖垮整个进程
+        if (line == "__trigger_bug__") {
+            error("simulated per-connection invariant failure")
+        }
+
+        val writeResult = stream.writeLine(line)
+        when (writeResult) {
+            is Ok -> {
+                val lockResult = statsLock.withLock { inout stats ->
+                    stats.okConnections = stats.okConnections + 1
+                }
+                when (lockResult) {
+                    is Ok -> { }
+                    is Err -> return // 对端曾在持锁时异常终止（LockError.Poisoned），本连接安全退出
+                }
+            }
+            is Err -> return
+        }
     }
 }
 
@@ -115,7 +129,7 @@ fun recordCompleted(
     statsLock: Arc<Mutex<ServerStats>>
 ): Unit {
     var i = 0
-    val n = completed.size()
+    val n = completed.size
     while (i < n) {
         borrow val outcome = completed[i]
         when (outcome) {
@@ -141,12 +155,14 @@ fun runEchoServer(
 ): Unit {
     var pool = SupervisorPool.empty<Unit>()
     val statsLock = Arc.new(Mutex.new(ServerStats(0, 0)))
+    val shutdownFlag = Arc.new(AtomicBoolean.new(false))
     var nextConnId = 1
 
     while (true) {
-        // 1. 检查停机信号（非阻塞）
+        // 1. 检查停机信号（非阻塞）；置位停机标志以唤醒并结束所有空闲连接线程
         val stop = shutdownSignal.tryReceive()
         if (stop != null) {
+            shutdownFlag.store(true, MemoryOrder.Release)
             break
         }
 
@@ -157,21 +173,22 @@ fun runEchoServer(
         // 3. 接受新连接（带短超时以便定期轮询停机与回收）
         val accepted = listener.acceptWithTimeout(100)
         val stream = when (accepted) {
-            is Ok -> accepted.value
+            is Ok -> accepted.success
             is Err -> continue
         }
 
         val connId = nextConnId
         nextConnId = nextConnId + 1
         val lockHandle = statsLock.share()
+        val stopHandle = shutdownFlag.share()
 
         // 4. 在显式监督边界内派发独立工作单元
         pool.spawn(move {
-            handleConnection(stream, lockHandle, connId)
+            handleConnection(stream, lockHandle, stopHandle, connId)
         })
     }
 
-    // 5. 优雅停机：等齐全部未结束连接单元并记录最终结果
+    // 5. 优雅停机：所有空闲连接在读超时后观察到 shutdownFlag 并退出，joinAll() 有界完成
     val remaining = pool.joinAll()
     recordCompleted(remaining, statsLock)
 }

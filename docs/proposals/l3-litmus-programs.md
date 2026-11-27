@@ -38,8 +38,10 @@ view class Token(
     val byteOffset: Int
 )
 
+// StringView 自身是 Copyable 的非逃逸视图描述符，按值存入 ConfigTokenizer 即可继承其来源，
+// 避免对 line.view() 临时描述符建立借用导致语句末悬垂。
 view class ConfigTokenizer(
-    borrow val source: StringView,
+    val source: StringView,
     var cursor: Int
 ) {
     // 转发合同（Forwards）：返回的 Token 依赖 source，而不依赖 tokenizer 本身。
@@ -107,7 +109,8 @@ fun isAllDigits(view: StringView): Boolean {
 ```kotlin
 // 应用层：零 from、零生命周期参数、零 String 拷贝
 fun parseSinglePair(line: String): Int? {
-    var tz = ConfigTokenizer(line.view(), 0)
+    val src = line.view()
+    var tz = ConfigTokenizer(src, 0)
 
     val key = tz.nextToken()
     if (key == null) {
@@ -182,7 +185,7 @@ view class ArrayIter<T>(
 ) : Iterator<borrow T> {
     // 合同细化：source 被 this.origins 覆盖，满足接口合同
     override inout fun next(): Step<borrow T> from source {
-        if (this.index >= this.source.size()) {
+        if (this.index >= this.source.size) {
             return Step.Done
         }
         val i = this.index
@@ -191,8 +194,8 @@ view class ArrayIter<T>(
     }
 }
 
-// 泛型算法只写一次：既可接收按值迭代器（T = String），也可接收借用迭代器（T = borrow String）
-fun <view T, I : Iterator<T>> countMatching(
+// 泛型算法只写一次：同时放开 T 与 I 的 Escapable 上界（ArrayIter 本身是不可逃逸的 view class）
+fun <view T, view I : Iterator<T>> countMatching(
     inout iter: I,
     predicate: (T) -> Boolean
 ): Int {
@@ -299,7 +302,7 @@ class ExprArena(private var nodes: MutableList<Expr>) {
     }
 
     inout fun alloc(own expr: Expr): NodeId {
-        val id = NodeId(this.nodes.size())
+        val id = NodeId(this.nodes.size)
         this.nodes.add(expr)
         return id
     }
@@ -339,10 +342,12 @@ fun buildSampleAst(inout arena: ExprArena): NodeId {
 // 阶段二（求值与分析）：通过只读视图零拷贝访问节点，应用层无 from、无生命周期
 fun evalExpr(view: ArenaView, id: NodeId): Int {
     val resolved = view.resolve(id)
-    return when (resolved.expr) {
-        is Expr.Lit -> resolved.expr.value
-        is Expr.Neg -> 0 - evalExpr(view, resolved.expr.inner)
-        is Expr.Add -> evalExpr(view, resolved.expr.left) + evalExpr(view, resolved.expr.right)
+    // 先绑定到稳定局部变量再匹配，满足 Guide 06 的 smart cast 稳定 place 要求
+    borrow val expr = resolved.expr
+    return when (expr) {
+        is Expr.Lit -> expr.value
+        is Expr.Neg -> 0 - evalExpr(view, expr.inner)
+        is Expr.Add -> evalExpr(view, expr.left) + evalExpr(view, expr.right)
     }
 }
 

@@ -125,10 +125,11 @@ fun siftDown(
 ): Unit {
     var root = start
     while (true) {
-        val left = root * 2 + 1
-        if (left > end) {
+        // 先用无溢出条件判断左子节点是否存在，避免超大堆（> 2^30）在叶节点计算 root * 2 + 1 溢出 abort
+        if (end == 0 || root > (end - 1) / 2) {
             break
         }
+        val left = root * 2 + 1
         var largest = root
         if (heap[largest].priority < heap[left].priority) {
             largest = left
@@ -147,7 +148,7 @@ fun siftDown(
 }
 
 fun heapSortByPriority(inout items: MutableList<JobEntry>): Unit {
-    val n = items.size()
+    val n = items.size
     if (n <= 1) {
         return
     }
@@ -189,7 +190,7 @@ fun runMoveOnlyHeapSort(): Int {
 对应[之五](evolution-05-data-structure-fitness.md) §3（条件变量作用域档：`withLockWhen` 把等待与条件谓词打包，等待期间不向用户交出任何借用，因此不依赖 L4 的可移动独占 guard；同时响应 FD0 / Z1 的锁中毒返回位）。
 
 ```kotlin
-// 候选源码（依赖 C3/C4：Arc、Mutex、条件变量作用域档 withLockWhen 与 LockError）
+// 候选源码（依赖 C3/C4：Arc、Mutex、独立 Condvar、作用域档 withLockWhen 与 LockError）
 enum class QueueError {
     Closed,
     Poisoned
@@ -201,59 +202,72 @@ class QueueState<T>(
     var closed: Boolean
 )
 
-class BoundedQueue<T>(
-    private val inner: Arc<Mutex<QueueState<T>>>
+// 生产者与消费者分持独立条件变量（notFull / notEmpty），杜绝单条件变量 notifyOne() 的丢唤醒死锁
+class BoundedQueue<T : Transferable>(
+    private val inner: Arc<Mutex<QueueState<T>>>,
+    private val notFull: Arc<Condvar>,
+    private val notEmpty: Arc<Condvar>
 ) {
     companion {
-        // Guide 08：companion 不捕获外层类型参数，泛型工厂函数自行声明 <T>
-        fun <T> withCapacity(capacity: Int): BoundedQueue<T> {
+        // Guide 08：companion 不捕获外层类型参数，泛型工厂函数自行声明 <T : Transferable>
+        fun <T : Transferable> withCapacity(capacity: Int): BoundedQueue<T> {
             if (capacity <= 0) {
                 error("BoundedQueue capacity must be positive")
             }
             val initState = QueueState<T>(MutableList(), capacity, false)
-            return BoundedQueue(Arc.new(Mutex.new(initState)))
+            return BoundedQueue(
+                Arc.new(Mutex.new(initState)),
+                Arc.new(Condvar.new()),
+                Arc.new(Condvar.new())
+            )
         }
     }
 
-    fun share(): BoundedQueue<T> = BoundedQueue(this.inner.share())
+    fun share(): BoundedQueue<T> =
+        BoundedQueue(this.inner.share(), this.notFull.share(), this.notEmpty.share())
 
-    // 阻塞入队：等待“未满或已关闭”；等待期间不交出 state 借用，唤醒并重新持锁后才进入 body
+    // 阻塞入队：通过 own payload 实参把 MoveOnly 元素安全移交至仅执行一次的持锁体，
+    // 等待期间不交出 state 借用；成功后唤醒等待“非空”的消费者条件变量
     fun put(own item: T): Result<Unit, QueueError> {
         val outcome = this.inner.withLockWhen(
-            { state -> state.items.size() < state.capacity || state.closed },
-            { inout state ->
+            this.notFull,
+            item,
+            { state -> state.items.size < state.capacity || state.closed },
+            { inout state, own pending ->
                 if (state.closed) {
                     Err(QueueError.Closed)
                 } else {
-                    state.items.add(item)
-                    // 通知等待消费的线程（作用域档在释放锁前/后唤醒等待者）
-                    state.notifyOne()
+                    state.items.add(pending)
+                    this.notEmpty.notifyOne()
                     Ok(Unit)
                 }
             }
         )
         return when (outcome) {
-            is Ok -> outcome.value
+            is Ok -> outcome.success
             is Err -> Err(QueueError.Poisoned)
         }
     }
 
-    // 阻塞出队：等待“非空或已关闭”；队列关闭且排空后返回 Ok(null)
-    fun take(): Result<T?, QueueError> {
+    // 阻塞出队：返回 Result<T, QueueError>（不折叠 T?），
+    // 队列关闭且排空时返回 Err(QueueError.Closed)，合法的 null 元素返回 Ok(null)
+    fun take(): Result<T, QueueError> {
         val outcome = this.inner.withLockWhen(
-            { state -> state.items.size() > 0 || state.closed },
-            { inout state ->
-                if (state.items.size() == 0) {
-                    Ok(null)
+            this.notEmpty,
+            Unit,
+            { state -> state.items.size > 0 || state.closed },
+            { inout state, own _ ->
+                if (state.items.size == 0) {
+                    Err(QueueError.Closed)
                 } else {
                     val first = state.items.removeAt(0)
-                    state.notifyOne()
+                    this.notFull.notifyOne()
                     Ok(first)
                 }
             }
         )
         return when (outcome) {
-            is Ok -> outcome.value
+            is Ok -> outcome.success
             is Err -> Err(QueueError.Poisoned)
         }
     }
@@ -261,7 +275,8 @@ class BoundedQueue<T>(
     fun close(): Result<Unit, QueueError> {
         val outcome = this.inner.withLock { inout state ->
             state.closed = true
-            state.notifyAll()
+            this.notFull.notifyAll()
+            this.notEmpty.notifyAll()
         }
         return when (outcome) {
             is Ok -> Ok(Unit)
@@ -270,14 +285,15 @@ class BoundedQueue<T>(
     }
 }
 
+// 使用 MoveOnly 元素（String）验证所有权交付与关闭排空
 fun runBoundedQueueDemo(): Int {
-    val queue = BoundedQueue.withCapacity<Int>(4)
+    val queue = BoundedQueue.withCapacity<String>(4)
     val producerQueue = queue.share()
 
     val producer = thread(move {
         var i = 1
         while (i <= 10) {
-            val res = producerQueue.put(i)
+            val res = producerQueue.put("msg-${i}")
             when (res) {
                 is Ok -> { }
                 is Err -> break
@@ -287,26 +303,29 @@ fun runBoundedQueueDemo(): Int {
         producerQueue.close()
     })
 
-    var sum = 0
+    var count = 0
     while (true) {
         val taken = queue.take()
-        val maybeVal = when (taken) {
-            is Ok -> taken.value
-            is Err -> break
+        when (taken) {
+            is Ok -> {
+                val msg = taken.success
+                if (msg.byteLength() > 0) {
+                    count = count + 1
+                }
+            }
+            is Err -> break // Closed（已排空）或 Poisoned 时退出
         }
-        if (maybeVal == null) {
-            break
-        }
-        sum = sum + maybeVal
     }
     producer.join()
-    return sum // 预期 55
+    return count // 预期 10
 }
 ```
 
 **验证要点与边界**：
-- **为何不依赖 L4**：等待与重加锁全部封闭在 `withLockWhen` 内部，用户代码仅在持锁的第二个 lambda 内获得 `inout state`，不会在等待点跨越任何存活独占借用（满足 KB2 与[之五](evolution-05-data-structure-fitness.md) §3）。
-- **语法注意**：`withLockWhen` 接受两个位置 lambda 实参（谓词 + 持锁体），避免在命名实参后接无名尾 lambda，lambda 内以 `if/else` 表达式收尾，不依赖尚未启用的 `return@label` 标签返回语法。
+- **独立条件变量防死锁**：生产者等 `notFull`、消费者等 `notEmpty`，避免单条件变量下容量为 1 时 `notifyOne()` 错唤醒同类线程导致永久等待；`close()` 广播唤醒两个条件变量。
+- **MoveOnly 交付与不折叠 `T?`**：`withLockWhen` 通过显式 `own payload` 实参把 `MoveOnly` 元素移交至至多执行一次的持锁体（不依赖普通闭包按共享借用捕获 `item`）；`take()` 返回 `Result<T, QueueError>`，即使实例化为 `BoundedQueue<String?>` 也能严格区分 `Ok(null)` 与 `Err(QueueError.Closed)`。
+- **为何不依赖 L4**：等待与重加锁全部封闭在 `withLockWhen` 内部，用户代码仅在持锁 lambda 内获得 `inout state`，不会在等待点跨越任何存活独占借用（满足 KB2 与[之五](evolution-05-data-structure-fitness.md) §3）。
+- **语法注意**：`withLockWhen` 使用位置实参，lambda 内以 `if/else` 表达式收尾，不依赖尚未启用的 `return@label` 标签返回语法。
 - **与 L4 通用档的分界**：仅当调用方需要在一次持锁期间、按运行时动态条件多次交替等待不同条件变量时，才需要 L4 的可移动 `MutexGuard` + `Condvar.wait(own guard): MutexGuard`。
 
 ## 5. 试金石五：`AtomicLong` 多线程计数（验证 C2 / C3 / U1 合验）
@@ -334,14 +353,23 @@ trusted Shareable class AtomicLong(
     }
 
     // AL7 / AL8：接收者为 borrow this，但因递归含 RawCell，后端严禁发射 readonly；
-    // 方法只做整值原子操作，严禁交出指向内部存储的安全 borrow/inout 引用
+    // 方法只做整值原子操作，严禁交出指向内部存储的安全 borrow/inout 引用；
+    // 进入 unsafe intrinsic 前拒绝 MM3 非法次序组合（正式库也可拆分为 LoadOrder / StoreOrder 静态阻止）
     fun load(order: MemoryOrder): Long {
+        when (order) {
+            is MemoryOrder.Release -> error("Release ordering is invalid for atomic load")
+            else -> { }
+        }
         unsafe {
             return intrinsic_atomic_load_i64(this.cell.rawPtr(), order)
         }
     }
 
     fun store(value: Long, order: MemoryOrder): Unit {
+        when (order) {
+            is MemoryOrder.Acquire -> error("Acquire ordering is invalid for atomic store")
+            else -> { }
+        }
         unsafe {
             intrinsic_atomic_store_i64(this.cell.rawPtr(), value, order)
         }
@@ -364,7 +392,7 @@ trusted Shareable class AtomicLong(
 // 应用层：零 unsafe、零裸指针、零锁竞争
 fun runParallelCounter(workerCount: Int, incrementsPerWorker: Long): Long {
     val counter = Arc.new(AtomicLong.new(0))
-    var handles = MutableList<ThreadHandle<Unit>>()
+    var handles = MutableList<Thread<Unit>>()
 
     var w = 0
     while (w < workerCount) {
@@ -382,8 +410,8 @@ fun runParallelCounter(workerCount: Int, incrementsPerWorker: Long): Long {
     }
 
     // MM2 先后次序：每个 join() 返回后，对应工作线程的全部原子写入对主线程可见
-    while (handles.size() > 0) {
-        val h = handles.removeAt(handles.size() - 1)
+    while (handles.size > 0) {
+        val h = handles.removeAt(handles.size - 1)
         h.join()
     }
 
