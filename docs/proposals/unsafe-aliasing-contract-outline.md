@@ -178,8 +178,8 @@
 
 | 条款 | 违反编号 | 自动化检测手段 | 迁入前实测登记状态（用例 / 捕获器 / 结果，详见[硬门槛证据账本](u0-ub-harness-evidence.md)） | 未覆盖边界（人工审查） |
 |---|---|---|---|---|
-| 借用、来历与配对释放 | UB1、UB2、UB10、UB11 | ASan（堆/栈越界、释放后使用、非法/重复释放与布局不匹配）、参考解释器（[之十](evolution-10-coverage-gaps.md) W13）带借用栈/来历与分配表追踪（类似 Miri/Tree Borrows） | UB2/UB10/UB11 预 U1 代理已由 ASan/UBSan 跑通；**UB1 借用栈捕获与 AL1/AL2 原型接入仍待补**（阻塞迁入） | 原生发布构建中的静态优化假设违背 |
-| 有效性、初始化与析构 | UB3、UB4、UB5 | UBSan、MSan / 参考解释器逐字节初始化位图与析构计数校验；FS8 在每个 FS1 操作处注入失败 | UB3（UBSan）/UB4（ASan）预 U1 代理已跑通；**UB5 未初始化存储捕获仍待补**（macOS 无 MSan，阻塞迁入） | 外部 C 库内部构造的非法位模式 |
+| 借用、来历与配对释放 | UB1、UB2、UB10、UB11 | ASan（堆/栈越界、释放后使用、非法/重复释放与布局不匹配）、参考解释器（[之十](evolution-10-coverage-gaps.md) W13）带借用栈/来历与分配表追踪（类似 Miri/Tree Borrows） | **预 U1 已跑通**：UB1 与 AL1/AL2 已由 `u0_raw_model.py` 原型单测闭合；UB2/UB10/UB11 预 U1 代理已由 ASan/UBSan 跑通（U1 后换 Koven 源码复跑） | 原生发布构建中的静态优化假设违背 |
+| 有效性、初始化与析构 | UB3、UB4、UB5 | UBSan、MSan / 参考解释器逐字节初始化位图与析构计数校验；FS8 在每个 FS1 操作处注入失败 | **预 U1 已跑通**：UB3（UBSan）/UB4（ASan + FS8 原型）/UB5（`u0_raw_model.py` 槽位状态机原型）已跑通（U1 后在 Linux 补 MSan 复跑） | 外部 C 库内部构造的非法位模式 |
 | 并发内存模型（真实数据竞争） | UB6（数据竞争） | TSan（运行时数据竞争检测） | **预 U1 TSan 代理已实跑捕获**（`ThreadSanitizer: data race`）；U1 后换 Koven 源码复跑 | — |
 | 并发内存模型（弱内存交错） | UB6（弱内存重排） | 内存模型级并发模型检查（Loom / GenMC 风格，建模普通内存位置、原子操作与 happens-before；注：[失败与清理模型](failure-cleanup-model.md)仅建模任务失败、析构与在途 IO，不表达数据竞争） | 待补 / **U1 验收欠项**（不挡 U0 迁入，亦不得与 TSan 互代） | 弱内存序（`Relaxed`/`Acquire`/`Release`）在特定硬件架构上的罕见重排 |
 | 受信任合同与能力 | UB7、UB8 | 试金石程序 + 反例矩阵（之五）、参考检查器附加前提检验、TR4 全类型成员审查 | 静态/原型范围（非运行时 UB 门槛） | `trusted` 签名背后任意算法不变量 |
