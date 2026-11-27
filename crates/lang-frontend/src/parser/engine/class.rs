@@ -1,4 +1,6 @@
 mod supertypes;
+#[cfg(kani)]
+mod supertypes_kani;
 
 use super::*;
 
