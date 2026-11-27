@@ -615,6 +615,20 @@ fun main(): Unit {
     assert_both_native_entries(source, expected.as_bytes());
 }
 
+#[test]
+fn short_circuit_loop_exits_end_borrows_and_drop_resources_in_both_entries() {
+    let source = include_str!("../../../lang-codegen/tests/fixtures/short-circuit-loop-exits.ko");
+    let expected = concat!(
+        "case:continue\nread:first\nobserve\ndrop:continue-arg\ndrop:second\ndrop:first\n",
+        "read:first\nbody\ndrop:second\ndrop:first\nread:outer\ndrop:outer\nzero\n",
+        "case:break\nread:first\nobserve\ndrop:break-arg\ndrop:second\ndrop:first\n",
+        "read:outer\ndrop:outer\nzero\n",
+        "case:return\nread:first\nobserve\ndrop:return-arg\nresult\ndrop:result-arg\n",
+        "drop:second\ndrop:first\ndrop:outer\nseven\n",
+    );
+    assert_both_native_entries(source, expected.as_bytes());
+}
+
 fn short_circuit_resource_source(condition: &str) -> String {
     format!(
         r#"

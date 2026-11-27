@@ -1,0 +1,27 @@
+class Guard(val label: String) { deinit() { println(label) } }
+fun observed(item: Guard): Boolean { println("observe"); return true }
+fun result(item: Guard): Int { println("result"); return 7 }
+fun exercise(mode: Int): Int {
+    val outer = Guard("drop:outer")
+    var n = 0
+    while (n < 2) {
+        n = n + 1
+        val first = Guard("drop:first")
+        val second = Guard("drop:second")
+        if (first.label == "drop:first") { println("read:first") }
+        if (mode == 0 && n == 1 && observed(Guard("drop:continue-arg"))) { continue }
+        if (mode == 1 && observed(Guard("drop:break-arg"))) { break }
+        if (mode == 2 && observed(Guard("drop:return-arg"))) { return result(Guard("drop:result-arg")) }
+        println("body")
+    }
+    if (outer.label == "drop:outer") { println("read:outer") }
+    return 0
+}
+fun main(): Unit {
+    println("case:continue")
+    if (exercise(0) == 0) { println("zero") }
+    println("case:break")
+    if (exercise(1) == 0) { println("zero") }
+    println("case:return")
+    if (exercise(2) == 7) { println("seven") }
+}

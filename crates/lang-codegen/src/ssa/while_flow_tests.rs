@@ -286,6 +286,9 @@ fn verify_last_enum_read_precedes_drop(program: &super::model::Program) -> Resul
     Ok(())
 }
 
+#[path = "while_flow_tests/mixed_exit_events.rs"]
+mod mixed_exit_events;
+
 #[path = "while_flow_tests/proof_cases.rs"]
 pub(in crate::ssa) mod proof_cases;
 
