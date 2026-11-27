@@ -104,10 +104,10 @@ fun quickSort(own slice: MutSlice<Int>): Unit {
 
     // 参数模式 own 由 splitAt 的期望函数类型提供；调用处不写参数模式，也不依赖 view class 解构
     working.splitAt(p, { left, rightWithPivot ->
+        quickSort(left)
         var rwp = rightWithPivot
         // 跳过下标 0 的枢轴元素，只对枢轴右侧 [1, len) 递归
         rwp.splitAt(1, { pivotSlice, right ->
-            quickSort(left)
             quickSort(right)
         })
     })
