@@ -116,14 +116,22 @@ theorem supertypeDeinitDecision_spec
   cases owner <;> cases inDelegationRecovery <;> cases inUnsupportedSuffix <;>
     cases nextLine <;> cases callBodyFollows <;> simp [supertypeDeinitDecision]
 
-/-- T4: Exact classification of delegation lambda tail tokens under line-break and paired-closer guards. -/
+/-- T4: Exact characterization of all 6 delegation lambda tail event classes under line-break and paired-closer guards. -/
 theorem classifyDelegationLambdaToken_spec
     (kind : SupertypeTokenKind)
     (hasLineBreak hasCallCloser : Bool) :
+    (classifyDelegationLambdaToken kind hasLineBreak hasCallCloser = .trivia ↔
+      kind = .trivia) ∧
+    (classifyDelegationLambdaToken kind hasLineBreak hasCallCloser = .sameLineClosedCall ↔
+      kind = .leftParen ∧ hasLineBreak = false ∧ hasCallCloser = true) ∧
+    (classifyDelegationLambdaToken kind hasLineBreak hasCallCloser = .lineBreakLeftParen ↔
+      kind = .leftParen ∧ hasLineBreak = true) ∧
+    (classifyDelegationLambdaToken kind hasLineBreak hasCallCloser = .unclosedLeftParen ↔
+      kind = .leftParen ∧ hasLineBreak = false ∧ hasCallCloser = false) ∧
     (classifyDelegationLambdaToken kind hasLineBreak hasCallCloser = .outerHeaderDelimiter ↔
       kind = .comma ∨ kind = .leftBrace) ∧
-    (classifyDelegationLambdaToken kind hasLineBreak hasCallCloser = .sameLineClosedCall ↔
-      kind = .leftParen ∧ hasLineBreak = false ∧ hasCallCloser = true) := by
+    (classifyDelegationLambdaToken kind hasLineBreak hasCallCloser = .other ↔
+      kind = .eof ∨ kind = .rightBrace ∨ kind = .other) := by
   cases kind <;> cases hasLineBreak <;> cases hasCallCloser <;>
     simp [classifyDelegationLambdaToken]
 

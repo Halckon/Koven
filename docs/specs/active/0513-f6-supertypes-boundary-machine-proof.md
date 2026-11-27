@@ -24,13 +24,13 @@
      - `isDirectDelegationBoundary_spec`（T1：直接委托边界当且仅当 `eof`、`,`、`{`、`}`）
      - `delegationSuffixExtraStop_spec`（T2：委托后缀附加停止位严格按 `invalidTarget > poison > unsupportedSuffix` 优先且三分支互斥）
      - `supertypeDeinitDecision_spec`（T3：成员 `deinit` 后缀决策矩阵精确等价于生产四象限短路语义）
-     - `classifyDelegationLambdaToken_spec`（T4：委托尾 lambda 词法事件分类完全覆盖 trivia、同行闭合调用、换行左括号、未闭合左括号、外层头分隔符与其它记号）
+     - `classifyDelegationLambdaToken_spec`（T4：对全部 6 类委托尾 lambda 词法事件 `trivia`、`sameLineClosedCall`、`lineBreakLeftParen`、`unclosedLeftParen`、`outerHeaderDelimiter`、`other` 逐一给出精确充要条件）
      - `runDelegationLambdaTail_iff`（T5：任意长度尾事件流接受当且仅当存在全由 `trivia`/`sameLineClosedCall` 组成的前缀紧接 `outerHeaderDelimiter`）
      - `runDelegationLambdaTail_rejects_breaks_and_eof`（T6：无外层头分隔符的纯可继续流（EOF 截断）永不接受，且首遇换行左括号、未闭合左括号或其它记号即刻拒绝）
 3. **轨道 2（Kani 零堆分配生产 Rust 符号检验，`validated (bounded Rust)`）**：
    - [supertypes_kani.rs](../../../crates/lang-frontend/src/parser/engine/class/supertypes_kani.rs)（`#[cfg(kani)]` 隔离，零堆分配）提供 3 条 harness：
-     - `verify_supertype_direct_boundary_and_lambda_token_classification`：直接调用生产 `is_direct_delegation_boundary_kind` 与 `classify_delegation_lambda_token`，通过 `any_lexeme_kind()` 与编译期无通配符穷举见证 `assert_lexeme_kind_exhaustive` 符号覆盖生产 `LexemeKind` 的全部变体（含全部 `TriviaKind`、`InvalidKind`、`Eof` 及 `TokenKind` 全部 36 个 `Keyword`、43 个 `Symbol`、11 个 `ReservedWord` 与字面量后缀）以及任意 `has_line_break` / `has_call_closer`。
-     - `verify_supertype_deinit_and_suffix_stop_decisions`：直接调用生产 `supertype_deinit_suffix_decision` 与 `delegation_suffix_extra_stop`，符号覆盖全部 3 种 `ClassifierHeaderOwner` 与全部布尔组合，并核对三个 `DeclarationStops` 位掩码常量两两互斥。
+     - `verify_supertype_direct_boundary_and_lambda_token_classification`：直接调用生产 `is_direct_delegation_boundary_kind` 与 `classify_delegation_lambda_token`，由单源宏（`define_exhaustive_unit_enum_any!` / `define_exhaustive_enum_any!`）从同一份变体清单同步生成采样数组与 `#[deny(unreachable_patterns)]` 无通配符穷举 `match`，在编译期同时阻断漏项与重复项，符号覆盖生产 `LexemeKind` 全部变体（含全部 `TriviaKind`、`InvalidKind`、`Eof` 及 `TokenKind` 全部 36 个 `Keyword`、43 个 `Symbol`、11 个 `ReservedWord` 与字面量后缀）以及任意 `has_line_break` / `has_call_closer`。
+     - `verify_supertype_deinit_and_suffix_stop_decisions`：直接调用生产 `supertype_deinit_suffix_decision` 与 `delegation_suffix_extra_stop`，符号覆盖全部 3 种 `ClassifierHeaderOwner` 与全部布尔组合，并逐对断言三个 `DeclarationStops` 位掩码常量非零、两两按位互斥（`a & b == 0`）且 `in_unsupported_delegation_suffix()` 仅在 `!invalid_target && !poison` 时为真。
      - `verify_delegation_lambda_tail_run_len_6`：直接调用 `run_delegation_lambda_tail`（驱动生产 `step_delegation_lambda_tail`，`#[kani::unwind(8)]`），符号覆盖长度 `0..=6` 的任意 `DelegationLambdaTailEvent` 序列。
 4. **路径触发轻量 CI 扩展**：
    - [.github/workflows/parser-formal-f6.yml](../../../.github/workflows/parser-formal-f6.yml) 同步触发 `formal/parser/f6_supertypes/**`、`crates/lang-frontend/src/parser/engine/class.rs`、`crates/lang-frontend/src/parser/engine/class/supertypes.rs` 与 `crates/lang-frontend/src/parser/engine/class/supertypes_kani.rs`，统一校验全部 **13 份 F6 Lean 4 证明工程（88 条定理）与 32 个 Kani harness**。
