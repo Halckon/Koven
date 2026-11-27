@@ -33,6 +33,10 @@ Proposal 本身不修改现行 v0.46、不批准 Spec，也不代表实现优先
   - [之十三：实施路线——从当前到 v1，从 v1 到之后](evolution-13-implementation-roadmap.md)
 - [v1 冻结前的兼容性约束（Z1–Z11）](v1-freeze-decisions.md)：可并入 v1 条目 Spec 的条款，已登记为路线图决策 D16
 - [unsafe 别名、失败安全与外部边界合同（U0 + FF0）](unsafe-aliasing-contract-outline.md)：完整候选合同（AL1–AL8、FS1–FS8、MM1–MM7、UB1–UB11、TR1–TR4、FFI1–FFI5 与检测矩阵）
+- [L3 试金石程序与 Kotlin 风格人机工程评审](l3-litmus-programs.md)：分词器、借用迭代器、区域分配三组只写源码的 L3 试金石及库/应用双侧人机工程评审
+- [FD0：显式监督边界预留与“每连接一线程”服务器试金石](fd0-supervision-boundary-litmus.md)：J48 四项预留核对、每连接一线程监督回显服务器试金石与行为草案第 3–4 条收口建议
+- [编译单元依赖、接口产物与语言版本规则提案（之十一 J45–J47）](compilation-unit-dependency-rules.md)：J45 两层无环依赖、J46 接口产物导出合同、J47 按单元语言版本隔离及与 J37/标准库三分的衔接
+- [数据结构与并发试金石程序集（之五 §5）](data-structure-concurrency-litmus.md)：百万节点链表析构（G3）、迭代式遍历（G4）、`MoveOnly` 堆排序（G5）、有界阻塞队列（C4）与 `AtomicLong` 并发计数（C2/C3/U1）五组候选试金石
 - [借用内核演算（内核 MVP 第 1–3 步）](loan-kernel-calculus.md)：参考检查器原型的语法、规则、用例清单与原型得到的发现
 - [内核原型的覆盖与欠账](kernel-prototype-coverage.md)：各内核基底的原型覆盖状态，未覆盖项按“先做 / 记账后集中做”排期
 - [内核演进两项悬决策略的裁决纪要与 3A 取消接口对比（2026-11）](kernel-open-decisions-2026-11.md)：OD1（A1 / 1A-ext）与 OD2（B1 / 首个已提交的普通失败）三轮讨论收口、Guide 合法位置示例、3A 取消接口两方案调用例对比与待补多任务验收清单
