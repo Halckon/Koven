@@ -461,13 +461,14 @@ impl Parser<'_> {
                 },
             );
         }
+        let opener_raw = self.current_raw()?;
         let opener = self.bump()?.span();
         let mut entries = Vec::new();
         while !self.current_is_symbol(Symbol::RightBrace)
             && !outer_stops.contains_hard(self.current()?)
         {
             let before = self.index;
-            entries.push(self.parse_when_entry(outer_stops, subject.is_some())?);
+            entries.push(self.parse_when_entry(outer_stops, subject.is_some(), opener_raw)?);
             if self.index <= before {
                 return Err(ParserInternalError::InvalidLexemeStream);
             }
@@ -513,6 +514,7 @@ impl Parser<'_> {
         &mut self,
         outer_stops: Stops,
         has_subject: bool,
+        when_opener: usize,
     ) -> Result<WhenEntry, ParserInternalError> {
         let start = self.current()?.span().start();
         let (conditions, else_span) = if self.current_is_keyword(Keyword::Else) {
@@ -536,11 +538,19 @@ impl Parser<'_> {
             self.emit(codes::EXPECTED_WHEN_ARROW, "expected when arrow", span)?;
             self.empty_at(self.previous_significant_end())?
         };
+        let previous = self
+            .lexical_recoveries
+            .active_when_body_opener
+            .replace(Some(when_opener));
         let body = self.parse_control_body(
             outer_stops
                 .with(Stops::RIGHT_BRACE)
                 .as_when_entry_body(has_subject),
-        )?;
+        );
+        self.lexical_recoveries
+            .active_when_body_opener
+            .set(previous);
+        let body = body?;
         let end = self.statement_span(body)?.end().max(arrow_span.end());
         Ok(WhenEntry {
             span: self.span(start, end)?,

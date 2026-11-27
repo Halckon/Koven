@@ -129,7 +129,7 @@ initializer 保持既有入口行为。lambda 顶层 body 与内嵌普通 block 
 边界。三个 body dispatch 的分隔校验在后继 element 起点以空 Span 报 L0169；恢复保留真实
 后继，不补造分号。已有缺 operand/poison 错误不追加同根分隔诊断。
 
-when 分支体在换行后遇到已配对的圆括号或花括号 lambda 条件时，只在 selector 后缀到达同层真实箭头后让出该分组（`brace_when_entry_follows` 防止前一条分支的闭合调用把下一条 `{ -> ... } -> ...` 吞作跨行尾 lambda）。
+when 分支体在换行后遇到配对圆括号或 lambda 时，在 selector 后缀到达同层箭头后让出分组。同行分组须直属当前 when 的左花括号。直接箭头，或以中缀、条件逗号和表达式后缀续接到同层箭头时，保留下一臂并在其起点报告 L0065。裸尾随 lambda 沿用同行约束。配对组的形状和复合扫描结果可复用；Parser 游标和探针共享 strict trial 的显著 token 索引，换行判断沿用 SourceMap 的行索引。后缀探针按候选处的 if/else 深度和 selector 逗号排除不能分臂的位置。
 扫描复用类型和配对索引跳过内层箭头，遵守普通及泛型尾 lambda 换行规则。探针按 when 主体区分裸 is/in 与中缀续行，常规入口保留裸条件的类型诊断。 循环内的 break/continue 按零操作数扫描。只有已配对的括号才可覆盖 block 的普通换行边界。
 分支结束后遇到 EOF 或调用者拥有的硬停止符时，`when` 保留该边界并走缺闭合符的恢复路径。
 `L0065` 的同行分隔检查只在解析还能进入下一臂时执行。

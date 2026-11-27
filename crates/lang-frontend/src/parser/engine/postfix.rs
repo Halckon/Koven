@@ -110,18 +110,24 @@ impl Parser<'_> {
             return Ok(true);
         }
         if let Some(body) = stops.when_entry_body
-            && let Some(next_entry) = self.grouped_when_entry_follows(receiver, body)?
+            && (self.current_is_symbol(Symbol::LeftParen)
+                || self.current_is_symbol(Symbol::LeftBrace))
+            && let Some(next_entry) =
+                self.paired_when_entry_follows(self.expression_span(receiver)?.end(), body)?
         {
-            // Only a paired group can override the surrounding block's line break.
             return Ok(next_entry);
         }
         self.at_block_expression_line_break(receiver, stops)
     }
 
     pub(super) fn is_postfix_start(&self) -> bool {
+        self.peek(0).is_some_and(Self::is_postfix_start_token)
+    }
+
+    pub(super) const fn is_postfix_start_token(token: Lexeme) -> bool {
         matches!(
-            self.peek(0).map(Lexeme::kind),
-            Some(LexemeKind::Token(TokenKind::Symbol(
+            token.kind(),
+            LexemeKind::Token(TokenKind::Symbol(
                 Symbol::Dot
                     | Symbol::QuestionDot
                     | Symbol::LeftParen
@@ -129,7 +135,7 @@ impl Parser<'_> {
                     | Symbol::BangBang
                     | Symbol::Question
                     | Symbol::ColonColon
-            )))
+            ))
         )
     }
 
@@ -484,7 +490,7 @@ impl Parser<'_> {
         };
         let next_when_entry = match outer_stops.when_entry_body {
             Some(body) if closed && self.current_is_symbol(Symbol::LeftBrace) => {
-                self.brace_when_entry_follows(end, body)?
+                self.paired_when_entry_follows(end, body)?.unwrap_or(false)
             }
             _ => false,
         };

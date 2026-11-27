@@ -15,6 +15,9 @@ use parser_test_assertions::{parse_block_twice, parse_expression_twice, parse_fi
 #[path = "parser_control_flow/when_operand_recovery.rs"]
 mod when_operand_recovery;
 
+#[path = "parser_control_flow/when_separator_recovery.rs"]
+mod when_separator_recovery;
+
 fn add_source(sources: &mut SourceMap, text: &str) -> SourceId {
     sources
         .add_source("control.ko", text)

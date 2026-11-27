@@ -2,33 +2,16 @@ use super::*;
 
 impl Parser<'_> {
     pub(super) fn significant(&self, ordinal: usize) -> Option<(usize, Lexeme)> {
-        // Nested TypeRefs can unwind without advancing across the file separator's
-        // trivia. Cache its first significant position without consuming that trivia.
-        let recovery = self.file_angle.as_ref();
-        let start = recovery
-            .and_then(|recovery| recovery.significant_start.get())
-            .filter(|(cursor, _)| *cursor == self.index)
-            .map_or(self.index, |(_, start)| start);
-        let mut remaining = ordinal;
-        for (index, lexeme) in self.lexed.lexemes()[start..].iter().enumerate() {
-            #[cfg(test)]
-            self.significant_raw_visits
-                .set(self.significant_raw_visits.get() + 1);
-            if matches!(lexeme.kind(), LexemeKind::Trivia(_)) {
-                continue;
-            }
-            let raw = start + index;
-            if remaining == ordinal
-                && let Some(recovery) = recovery
-            {
-                recovery.significant_start.set(Some((self.index, raw)));
-            }
-            if remaining == 0 {
-                return Some((raw, *lexeme));
-            }
-            remaining -= 1;
-        }
-        None
+        self.significant_from(self.index, ordinal)
+    }
+
+    pub(super) fn significant_from(&self, raw: usize, ordinal: usize) -> Option<(usize, Lexeme)> {
+        let raw = self.strict_trials.significant_raw(raw, ordinal)?;
+        let lexeme = self.lexed.lexemes().get(raw).copied()?;
+        #[cfg(test)]
+        self.significant_raw_visits
+            .set(self.significant_raw_visits.get() + 1);
+        Some((raw, lexeme))
     }
 
     pub(super) fn enter_recursion(&mut self) -> Result<(), ParserInternalError> {

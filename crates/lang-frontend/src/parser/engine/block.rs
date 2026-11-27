@@ -59,7 +59,7 @@ impl Parser<'_> {
         if end <= start {
             return Ok(false);
         }
-        Ok(self.sources.slice(self.span(start, end)?)?.contains('\n'))
+        Ok(self.sources.span_has_line_break(self.span(start, end)?)?)
     }
 
     pub(super) fn at_block_expression_line_break(

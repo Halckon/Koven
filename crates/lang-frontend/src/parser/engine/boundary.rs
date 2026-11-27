@@ -86,7 +86,6 @@ pub(super) enum TypeParameterOwner {
 pub(super) struct FileAngleRecovery {
     pub(super) groups: RefCell<recovery::FileAngleGroups>,
     pub(super) boundary: Cell<Option<(usize, bool)>>,
-    pub(super) significant_start: Cell<Option<(usize, usize)>>,
 }
 
 impl Parser<'_> {
