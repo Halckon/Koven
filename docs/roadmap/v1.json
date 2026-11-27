@@ -687,7 +687,7 @@
       "stage": "P0",
       "area": "tooling",
       "priority": "must",
-      "status": "active",
+      "status": "done",
       "guide": "enabled",
       "phases": [
         4,
@@ -697,7 +697,7 @@
       "specs": [
         "0369"
       ],
-      "note": "发布决定已接受；最终产物、源码路径及 macOS/Linux LLDB 实施验收进行中。"
+      "note": "生产实现已合入 main（9d9bc3d8），macOS dSYM/LLDB 与 Linux ELF/LLDB 均已验收并归档；部分发布失败例外保留为后续独立议题。"
     },
     {
       "id": "B19",

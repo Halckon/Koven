@@ -211,16 +211,16 @@ fun handleRequest(path: String) {
 
 **暂缓结论**：两种方案在 OD2 · B1 的提交全序语义上完全兼容，分歧集中在表面人机工程——是否允许 `Cancelled` 污染业务错误 `E`、以及是否值得为 `ScopedResult` 扩展 `?` 传播或组合子。等路线 S 的 `suspend` 表面与[之十一 §1.5](evolution-11-failure-interfaces-units.md) `E2`/`E3`（`?` 错误转换与通用 `Error` 接口）推进到同一截面时再拍板。
 
-## 4. 后续原型落地与 3A 欠项二清单
+## 4. 原型验收落地记录（2026-11-26 已完成，不修改编译器或现行 Guide）
 
-三轮讨论收口后，原型侧需按顺序补齐两组证据（均不修改编译器或现行 Guide）：
+三轮讨论收口要求的两组原型证据均已落地并通过双版本 Python 单元测试（共 139 条）：
 
 1. **OD1 原型收口（`scripts/loan_kernel/`）**：
-   - 将 `checker.py` 默认 `local_borrow_ref_policy` 由 `"undecided"` 切换为 `"forbid"`（1A-ext），拒绝裸借用绑定槽的显式取址与隐式调整；
-   - 补齐绑定槽拒绝 vs 合法接收者重借、`borrow val`、字段投影、`for` 来源及合法 place 的 `replace`/`swap` 正反例测试。
+   - 已将 `checker.py` 默认 `local_borrow_ref_policy` 由 `"undecided"` 切换为 `"forbid"`（1A-ext），拒绝裸借用绑定槽的显式取址与隐式调整；同步更新 `Z44.lk`、`Z46.lk`（保留 `undecided` 6 处漏报与 `second_order` 显式对照）；
+   - 新增 `scripts/loan_kernel/cases/Z47.lk` 与 `test_od1_binding_slot_rejection_vs_legal_reborrow`，覆盖绑定槽拒绝 vs 合法接收者重借（含两阶段借用）、新绑定换局部来源、字段投影、`for` 来源、合法 mutable place 的 `replace`/`swap` 与显式 `Slot` 正反例。
 2. **3A 欠项二：多任务原型验收扩充（`scripts/loan_kernel/failure_model.py` + `scripts/tests/test_failure_model.py`）**：
-   - 现有模型 A2 / A2-ext 仅为两任务（子 A + 子 B）单向场景，**不能替代**以下四类验收证据，须新增独立状态模型与测试：
+   - 新增独立状态模型 **A3（`scope_b1_multitask_model`）** 与 `ScopeB1MultitaskModel` 单元测试（详见[失败与清理模型 §6.5](failure-cleanup-model.md)），完整覆盖四类验收且安全 B1 策略零违反、零卡住、状态图严格无环：
      1. **双向竞态**：覆盖两组同轮待定对称分支——① 外部取消观测 vs 子任务普通失败（取消先提交与失败先提交）；② 外部取消观测 vs 作用域成功提交（末子任务完成清理时同轮收到外部取消，验证先提交者胜出且未返回的成功值恰好清理一次）；
-     2. **三个以上子任务**：至少 3 个并发子任务（如子 A、子 B、子 C）交错失败、阻塞、清理与重阻塞，检验多子任务排空后才释放父帧；
-     3. **带资源次错的恰好一次清理**：后到普通失败（或取消先提交后的失败/未返回成功值）携带须析构的资源句柄，验证未返回的值与资源**恰好清理一次**（无泄漏、无重复释放）；
-     4. **胜出返回值在父帧释放后安全返回**：验证胜出主错 `err_A`（以及情形 3b 中的胜出成功值 `v`）不持有指向已释放父帧的悬垂借用，在父帧释放后可安全移交给调用方。
+     2. **三个以上子任务**：3 个并发子任务（A、B、C）交错失败、阻塞、清理与有界重阻塞，验证全部 3 个子任务实际终止后才释放父帧（并在反例中捕获第三子任务未终止提前释放的 `UAF`）；
+     3. **带资源次错的恰好一次清理**：后到普通失败（及取消先提交后的失败/未返回成功值）携带资源句柄，验证未返回的值与资源**恰好清理一次**（反例覆盖泄漏 `UNDISCHARGED` 与重复清理 `DOUBLE_CLEANUP`）；
+     4. **胜出返回值在父帧释放后安全返回**：验证胜出主错 `err_A` 与胜出成功值 `v` 在父帧释放后安全交付调用方（反例捕获携带父帧借用的 `DANGLING_RETURN` 与吞掉 `deinit` 失败的 `DEINIT_FAIL_SUPPRESSED`）。
