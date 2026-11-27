@@ -81,6 +81,7 @@ class U0RawInterpreter:
     def __init__(self) -> None:
         self.owners: Dict[str, OwnerState] = {}
         self.loans: Dict[int, Loan] = {}
+        self.loan_history: Dict[int, Loan] = {}
         self.ptrs: Dict[int, RawPtr] = {}
         self.handles_dropped: Dict[int, int] = {}
         self.next_alloc_id = 1
@@ -135,7 +136,9 @@ class U0RawInterpreter:
         assert kind in ("Shared", "Exclusive")
         loan_id = self.next_loan_id
         self.next_loan_id += 1
-        self.loans[loan_id] = Loan(loan_id=loan_id, place=place, kind=kind, parent_id=parent_id)
+        loan = Loan(loan_id=loan_id, place=place, kind=kind, parent_id=parent_id)
+        self.loans[loan_id] = loan
+        self.loan_history[loan_id] = loan
         return loan_id
 
     def end_loan(self, loan_id: int) -> None:
@@ -143,13 +146,15 @@ class U0RawInterpreter:
         self.loans.pop(loan_id, None)
 
     def _effective_provenance(self, derived_mode: str, derived_loan_id: Optional[int]) -> str:
-        """按借用派生链核对真实权限：任一祖先为 Shared 时，不得提权为 Exclusive。"""
+        """沿完整借用派生历史核对真实权限：即便父借用已结束，任一祖先为 Shared 均不得提权为 Exclusive。"""
         if derived_loan_id is None:
             return derived_mode
         cur: Optional[int] = derived_loan_id
         saw_shared = False
-        while cur is not None and cur in self.loans:
-            loan = self.loans[cur]
+        visited: Set[int] = set()
+        while cur is not None and cur in self.loan_history and cur not in visited:
+            visited.add(cur)
+            loan = self.loan_history[cur]
             if loan.kind == "Shared":
                 saw_shared = True
             cur = loan.parent_id

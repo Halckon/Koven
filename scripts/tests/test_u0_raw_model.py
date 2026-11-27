@@ -165,6 +165,17 @@ class U0RawModelTests(unittest.TestCase):
         interp2.raw_write(forged_nested)
         self.assertEqual(["UB1"], [v.code for v in interp2.violations])
 
+    def test_al1_ub1_ended_parent_shared_loan_still_restricts_child_provenance(self):
+        """AL1 / UB1：父 Shared loan 提前结束后，由其派生的子 loan 仍不得提权为 Exclusive 写入非 RawCell。"""
+        interp = U0.U0RawInterpreter()
+        interp.alloc_owner("x", initialized=True, is_cell=False)
+        shared_parent = interp.borrow("x", "Shared")
+        child = interp.borrow("x", "Exclusive", parent_id=shared_parent)
+        interp.end_loan(shared_parent)
+        ptr = interp.address_of("x", derived_mode="Exclusive", derived_loan_id=child)
+        interp.raw_write(ptr)
+        self.assertEqual(["UB1"], [v.code for v in interp.violations])
+
     def test_al2_ub2_old_ptr_rejected_after_same_name_reallocation(self):
         """AL2 / UB2：旧 owner 析构后重新分配同名存储，旧指针仍须因分配实例不匹配报 UB2。"""
         interp = U0.U0RawInterpreter()
