@@ -1,4 +1,4 @@
-# SPEC-0511：F6 第十二片 `WhenEntryBody` / `SelectorScanState` 换行新选择器与 `if`/`else` 平衡双轨证明
+# SPEC-0512：F6 第十二片 `WhenEntryBody` / `SelectorScanState` 换行新选择器与 `if`/`else` 平衡双轨证明
 
 > **性质**：交付合同 · **状态**：in-progress · **读取时机**：实施或验收 F6 第十二片局部机器证明与双轨 CI 时 · **唯一真源**：本页验收账本
 
@@ -7,10 +7,10 @@
 | 状态 | in-progress |
 | 所属 Phase | Phase 1 局部形式化验证（F6） |
 | 语言规范 | [Guide v0.47](../../guide/README.md) |
-| 基线 | `main@e339b881` |
+| 基线 | `main@4c8fc369`（合并同步自 `main@e339b881` 并重编号自原 0511） |
 | 分支 | `feature/spec-0511-f6-when-boundary` |
 
-本 Spec 承接 [F6 局部机器证明前置设计](../../proposals/parser-formal-verification/f6-machine-proof-design.md) 与 [SPEC-0509](../../archive/specs/0509-f6-lambda-trial-machine-proof.md)（编号 `0511` 避让并发中的 `SPEC-0510`），
+本 Spec 承接 [F6 局部机器证明前置设计](../../proposals/parser-formal-verification/f6-machine-proof-design.md) 与 [SPEC-0509](../../archive/specs/0509-f6-lambda-trial-machine-proof.md)（编号 `0512` 避让并发中的 `SPEC-0510` 与主干已合入的 [SPEC-0511](0511-lsp-workspace-manifest-and-diagnostic-context.md)），
 对 [when_boundary.rs](../../../crates/lang-frontend/src/parser/engine/when_boundary.rs) 中 `selector_arrow_after_group` 的换行新选择器判定与 `if`/`else` 平衡状态机内核交付 **Lean 4（无界状态与任意长度事件流模型定理）+ Kani（零堆分配生产 Rust 符号检验）** 双轨证明，并接入 `.github/workflows/parser-formal-f6.yml`。
 生产解析行为与公开 Rust API 零变化，不引入 Cargo 生产依赖，不宣称全输入生产 G4。
 
