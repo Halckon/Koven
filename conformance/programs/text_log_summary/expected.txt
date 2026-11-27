@@ -1,0 +1,11 @@
+[good]
+  api:ok -> 12ms
+  db_:ok -> 28ms
+  cch:ok -> 5ms
+  guard good closed
+total: 45ms
+[broken]
+  api:ok -> 10ms
+  guard broken closed
+err: line 2: bad digit
+utf8 rejected at 1

@@ -161,12 +161,16 @@ KOVENC=target/release/kovenc scripts/conformance_matrix.sh > matrix.tsv
 
 | 目录 | 题目 | 覆盖面 | 归属章节 | 当前状态 | 前置 Probe 就绪 | 路线图阻塞项 |
 |---|---|---|---|---|---:|---|
-| `word_count` | 词频 | `MutableMap` 插入序遍历、`String.clone()`、`in` 包含检查 | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `known_unimplemented` | 5 / 7 | `N02`, `N03` |
+| `word_count` | 词频 | `MutableMap` 插入序遍历、`String.clone()`、`in` 包含检查 | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `known_unimplemented` | 5 / 8 | `N02`, `N03`, `L1`, `L2` |
 | `config_parse` | 配置解析 | 逐字符解析 `key = value`、注释与空行、`Display` 实现、`Result` 与 `?` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `known_unimplemented` | 4 / 7 | `N02`, `N08`, `L1`, `L2` |
-| `expr_eval` | 表达式求值 | 递归下降解析、`Box` 递归 enum、`Result` 传播与除零报错 | [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | `known_unimplemented` | 3 / 8 | `N02`, `N05`, `N07`, `N08`, `L7` |
-| `raii_state_machine` | RAII 状态机 | `deinit` 资源、`replace`、词法作用域逆序析构、enum 状态迁移 | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | `known_unimplemented` | 5 / 7 | `N01`, `N02` |
-| `varint_codec` | 二进制编解码 | ZigZag + LEB128、具名位运算、`UByte` 转换、截断与超长报错 | [03-types-generics.md](../docs/guide/03-types-generics.md) | `known_unimplemented` | 5 / 7 | `N01`, `N08`, `L3b` |
-| `linked_stack` | 链表/栈 | 拥有所有权的 class 节点、`replace` 接合、原地反转、`Box` cons 列表 | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | `known_unimplemented` | 4 / 7 | `N01`, `N03`, `N07`, `L7` |
+| `expr_eval` | 表达式求值 | 递归下降解析、`Box` 递归 enum、`Result` 传播与除零报错 | [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | `known_unimplemented` | 3 / 8 | `N02`, `N05`, `N07`, `N08`, `L1`, `L2`, `L7` |
+| `raii_state_machine` | RAII 状态机 | `deinit` 资源、`replace`、词法作用域逆序析构、enum 状态迁移 | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | `known_unimplemented` | 5 / 7 | `N01`, `N02`, `L1`, `L2` |
+| `varint_codec` | 二进制编解码 | ZigZag + LEB128、具名位运算、`UByte` 转换、截断与超长报错 | [03-types-generics.md](../docs/guide/03-types-generics.md) | `known_unimplemented` | 5 / 7 | `N01`, `N08`, `L1`, `L2`, `L3b` |
+| `linked_stack` | 链表/栈 | 拥有所有权的 class 节点、`replace` 接合、原地反转、`Box` cons 列表 | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | `known_unimplemented` | 4 / 7 | `N01`, `N03`, `N07`, `L1`, `L2`, `L7` |
+| `text_log_summary` | 文本日志汇总 | `koven.text` 严格 UTF-8 与 `parseLong`、`const val`、`deinit` × `?` 早返回清理、`main(): Result` | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | `known_unimplemented` | 3 / 7 | `L1`, `L2`, `L5`, `L21`, `N08` |
+| `query_pipeline` | 泛型查询管道 | 泛型 `interface` bound、`by` 接口委托、`value class` 自动哈希与按名解构、可变/`move` 闭包、`::f`、`borrow T from`、`Double`、`toIntOrNull` | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | `known_unimplemented` | 4 / 10 | `N04`, `N05`, `N06`, `L1`, `L2`, `L3b`, `L11`, `S1` |
+| `dag_refcount` | 共享 DAG 析构 | `Rc<T>` 共享所有权（`.share()`/`.value`）与 `Rc`/`Box<enum>`/`MutableList` 复合 `deinit` 析构 | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | `known_unimplemented` | 3 / 6 | `N07`, `L1`, `L2`, `L7` |
+| `worker_pipeline` | 受限并发管道 | `thread(move { })`、`channel<T>()` 按名解构、`Sender.clone()`、`Transferable` 转移、`join()` 与隐式 join | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | `known_unimplemented` | 3 / 5 | `T1`, `N04`, `L1`, `L2` |
 
 这些程序按 Guide v0.47 编写（v0.47 完整继承 v0.46），是 V1 的**目标**而不是当前实现能力：今天不能编译或运行并不算
 失败，只说明对应能力尚未实现。每个程序不读输入、输出确定；验收以 stdout 与 `expected.txt`
@@ -179,19 +183,19 @@ KOVENC=target/release/kovenc scripts/conformance_matrix.sh > matrix.tsv
 
 | Guide v0.47 章节 | Probe 总数 | `run_ok` | `compile_fail` | `runtime_abort` | `known_unimplemented` | 能力通过 (`capability_passed`) |
 |---|---:|---:|---:|---:|---:|---:|
-| [01-lexical.md](../docs/guide/01-lexical.md) | 4 | 1 | 0 | 0 | 3 | 1 / 4 |
+| [01-lexical.md](../docs/guide/01-lexical.md) | 5 | 1 | 1 | 0 | 3 | 2 / 5 |
 | [02-names-files-packages.md](../docs/guide/02-names-files-packages.md) | 7 | 2 | 3 | 0 | 2 | 5 / 7 |
 | [03-types-generics.md](../docs/guide/03-types-generics.md) | 11 | 6 | 1 | 1 | 3 | 8 / 11 |
 | [04-expressions-operators.md](../docs/guide/04-expressions-operators.md) | 5 | 3 | 1 | 1 | 0 | 5 / 5 |
 | [05-declarations-callables.md](../docs/guide/05-declarations-callables.md) | 4 | 2 | 2 | 0 | 0 | 4 / 4 |
 | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | 19 | 16 | 2 | 0 | 1 | 18 / 19 |
-| [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | 8 | 6 | 0 | 0 | 2 | 6 / 8 |
-| [08-class-family-members.md](../docs/guide/08-class-family-members.md) | 16 | 15 | 0 | 0 | 1 | 15 / 16 |
+| [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | 9 | 6 | 1 | 0 | 2 | 7 / 9 |
+| [08-class-family-members.md](../docs/guide/08-class-family-members.md) | 18 | 16 | 1 | 0 | 1 | 17 / 18 |
 | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | 16 | 12 | 1 | 1 | 2 | 14 / 16 |
 | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | 9 | 6 | 2 | 0 | 1 | 8 / 9 |
-| [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | 3 | 2 | 0 | 0 | 1 | 2 / 3 |
+| [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | 5 | 3 | 1 | 0 | 1 | 4 / 5 |
 | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | 48 | 47 | 1 | 0 | 0 | 48 / 48 |
-| [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | 4 | 3 | 0 | 0 | 1 | 3 / 4 |
-| **合计** | **154** | **121** | **13** | **3** | **17** | **137 / 154** |
+| [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | 8 | 3 | 1 | 0 | 4 | 4 / 8 |
+| **合计** | **164** | **123** | **18** | **3** | **20** | **144 / 164** |
 
 

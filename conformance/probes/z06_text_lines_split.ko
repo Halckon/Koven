@@ -1,0 +1,17 @@
+import koven.text.parseLong
+
+fun main(): Unit {
+    val raw = "a,42\n"
+    val lines = raw.lines()
+    val parts = lines[0].split(",")
+    when (parts) {
+        is Ok -> {
+            val parsed = parseLong(parts.success[1])
+            when (parsed) {
+                is Ok -> if (parsed.success == 42L) { println("text-ok") }
+                is Err -> println("parse-err")
+            }
+        }
+        is Err -> println("split-err")
+    }
+}

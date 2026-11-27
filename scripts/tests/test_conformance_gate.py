@@ -626,8 +626,8 @@ sys.exit(0)
         repo_base_path = repo_corpus / "baseline-aef3f4f8.tsv"
 
         loaded = gate.load_expectations(repo_exp_path, corpus_root=repo_corpus)
-        self.assertEqual(len(loaded["probes"]), 154)
-        self.assertEqual(len(loaded["programs"]), 6)
+        self.assertEqual(len(loaded["probes"]), 164)
+        self.assertEqual(len(loaded["programs"]), 10)
 
         raw_checked_in = json.loads(repo_exp_path.read_text(encoding="utf-8"))
         derived = gate.derive_static_expectations(repo_corpus, repo_base_path)
@@ -901,10 +901,10 @@ sys.exit(1)
         self.assertEqual(rc_audit, 0)
         parsed_audit = json.loads(audit_out.getvalue())
         self.assertEqual(parsed_audit["schema"], "koven.conformance-audit-summary.v1")
-        self.assertEqual(parsed_audit["total_probes"], 154)
-        self.assertEqual(parsed_audit["probe_capability_passed"], 137)
+        self.assertEqual(parsed_audit["total_probes"], 164)
+        self.assertEqual(parsed_audit["probe_capability_passed"], 144)
         self.assertEqual(parsed_audit["foundational_p2"]["group_a_runnable"], 58)
-        self.assertEqual(parsed_audit["project_transform"]["explicit_import_probes"], 5)
+        self.assertEqual(parsed_audit["project_transform"]["explicit_import_probes"], 7)
 
 
 if __name__ == "__main__":

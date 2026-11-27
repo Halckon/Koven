@@ -1,0 +1,51 @@
+// 受限并发管道：覆盖 Guide 13 的 thread(move { })、channel<T>() 按名解构、
+// Sender.clone() 多生产者、Transferable String 所有权跨线程移交、join() 与作用域隐式 join。
+
+fun runImplicitJoin(): Unit {
+    val bg: Thread<Unit> = thread(move {
+        val msg = "bg-work"
+        if (msg == "bg-work") {
+            return
+        } else {
+            return
+        }
+    })
+}
+
+fun main(): Unit {
+    val (sender, receiver) = channel<String>()
+    val s1 = sender.clone()
+    val s2 = sender.clone()
+
+    val w1: Thread<Int> = thread(move {
+        s1.send("a")
+        s1.send("bb")
+        return 2
+    })
+    val w2: Thread<Int> = thread(move {
+        s2.send("ccc")
+        return 1
+    })
+
+    val c1 = w1.join()
+    val c2 = w2.join()
+    println("sent: ${c1 + c2}")
+
+    var count = 0
+    var valid = 0
+    var i = 0
+    while (i < c1 + c2) {
+        val item = receiver.receive()
+        if (item != null) {
+            count = count + 1
+            if (item == "a" || item == "bb" || item == "ccc") {
+                valid = valid + 1
+            }
+        }
+        i = i + 1
+    }
+    println("received: ${count}, valid: ${valid}")
+
+    runImplicitJoin()
+    println("implicit join ok")
+}

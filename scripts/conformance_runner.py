@@ -490,7 +490,11 @@ def evaluate_suite(
     baseline = (
         parse_tsv_matrix(
             baseline_path.read_text(encoding="utf-8"),
-            expected_names=set(expectations["probes"].keys()),
+            expected_names={
+                k
+                for k, v in expectations["probes"].items()
+                if v.get("baseline_marker") != "POST_BASELINE"
+            },
         )
         if baseline_path is not None
         else {}

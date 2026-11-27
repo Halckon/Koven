@@ -123,12 +123,15 @@ def summarize_baseline_evolution(expectations: dict[str, Any]) -> dict[str, list
         "upgraded_to_compile_fail": [],
         "baseline_compile_fail_preserved": [],
         "remaining_known_unimplemented": [],
+        "post_baseline_added": [],
         "regressed_from_baseline_ok": [],
     }
     for name, spec in sorted(expectations["probes"].items()):
         bm = spec.get("baseline_marker", "")
         kind = spec["kind"]
-        if bm == "OK" and kind == "run_ok":
+        if bm == "POST_BASELINE":
+            buckets["post_baseline_added"].append(name)
+        elif bm == "OK" and kind == "run_ok":
             buckets["baseline_ok_preserved"].append(name)
         elif bm == "OK" and kind != "run_ok":
             buckets["regressed_from_baseline_ok"].append(name)
@@ -181,6 +184,7 @@ def summarize_oracle_origins(expectations: dict[str, Any]) -> dict[str, dict[str
         "v046_spec_contract",
         "baseline_diagnostic_audited",
         "baseline_unimplemented_audited",
+        "post_baseline_audited",
         "expected_txt_file",
     )
     summary: dict[str, dict[str, Any]] = {

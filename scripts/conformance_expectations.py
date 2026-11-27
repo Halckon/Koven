@@ -17,6 +17,7 @@ from conformance_catalogs import (
     GUIDE_SYNTAX_INDEX_DOMAINS,
     MAIN_ENTRY_RE,
     PACKAGE_DIRECTIVE_RE,
+    POST_BASELINE_PROBES,
     PROBE_BATCH_CATALOG,
     PROBE_GUIDE_CHAPTERS,
     PROGRAM_ALLOWED_MARKERS,
@@ -713,11 +714,6 @@ def derive_static_expectations(
         name = path.stem
         # 命名违规与 baseline 缺项都要给出可读诊断，不能落到 baseline[name] 的 KeyError
         classify_probe_batch(name)
-        if name not in baseline:
-            raise ValueError(
-                f"probes.{name} is missing from baseline matrix {baseline_path.name}; "
-                f"add a baseline row for the probe or rename the source file"
-            )
         raw_bytes = path.read_bytes()
         if not raw_bytes or not raw_bytes.endswith(b"\n") or b"\r" in raw_bytes:
             raise ValueError(
@@ -726,6 +722,25 @@ def derive_static_expectations(
         src_text = raw_bytes.decode("utf-8")
         probe_src_metrics[name] = (len(src_text.splitlines()), len(raw_bytes))
         src_sha = sha256_bytes(raw_bytes)
+        if name in POST_BASELINE_PROBES:
+            pb_entry = dict(POST_BASELINE_PROBES[name])
+            pb_entry["source_sha256"] = src_sha
+            pb_entry["baseline_marker"] = "POST_BASELINE"
+            pb_entry["oracle_origin"] = "post_baseline_audited"
+            if (
+                pb_entry.get("kind") == "compile_fail"
+                and pb_entry.get("diagnostic") in DIAGNOSTIC_SYMBOL_CATALOG
+            ):
+                pb_entry["diagnostic_symbol"] = DIAGNOSTIC_SYMBOL_CATALOG[
+                    pb_entry["diagnostic"]
+                ]
+            probes_out[name] = pb_entry
+            continue
+        if name not in baseline:
+            raise ValueError(
+                f"probes.{name} is missing from baseline matrix {baseline_path.name}; "
+                f"add a baseline row for the probe or rename the source file"
+            )
         base_single, base_project = baseline[name]
         if base_single != base_project:
             raise ValueError(

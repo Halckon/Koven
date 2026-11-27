@@ -1,0 +1,5 @@
+enum class Result { A }
+
+fun main(): Unit {
+    println("bad")
+}
