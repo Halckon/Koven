@@ -45,6 +45,10 @@ mod stops_tests;
 #[cfg(test)]
 mod tests;
 mod type_ref;
+#[cfg(kani)]
+mod type_ref_kani;
+#[cfg(test)]
+mod type_ref_tests;
 mod when_boundary;
 #[cfg(kani)]
 mod when_boundary_kani;
