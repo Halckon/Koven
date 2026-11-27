@@ -220,9 +220,30 @@ fun runEchoServer(
 | 3 | 所有权图（IR0）语句集为可能失败调用预留失败出口边 | [之八](evolution-08-compiler-ir-escape-simd-selfhost.md) IR0 | **待 IR0 规格落盘** | 起草 IR0 规格与新 ADR 时须保留 `unwind/failure` 边位，即使阶段一不激活 |
 | 4 | 锁与 channel 的库设计为“持有者异常终止”预留可辨别返回位 | [之四](evolution-04-route-capability-unsafe-suspend.md) C4、[之七](evolution-07-concurrency-async-io-ffi.md) S1、[Z1](v1-freeze-decisions.md) | **已登记 Z1 与模型 F** | `Mutex.withLock` 返回 `Result<R, LockError>`；channel 全发送端异常终止后关闭对端唤醒接收者（[失败与清理模型](failure-cleanup-model.md) §6.2 模型 F 已验） |
 
-## 5. 仍待 FD1–FD3 阶段收口的遗留项
+## 5. 阶段落位、阻塞点准入与仍待 FD1–FD3 收口的遗留项（2026-11-27 OD6 共识）
 
-- **有界停机的运行时验证**：本试金石为阻塞读与阻塞写均加上了截止超时（`readLineWithTimeout` / `writeLineWithTimeout`），但“对端停读/半开连接/高负载下 `joinAll()` 严格有界结束”仍须在 IO3/FD3 落地真实套接字超时、连接关闭或显式取消原语后经运行时测试验收，不能仅凭静态源码视为已证明。
-- **展开途中等待健康长期线程的唤醒机制**：若监督单元内持有另一个长期阻塞的子线程句柄，展开等待可能退化为挂起，须配合协作取消或 channel 关闭协议在 FD1/FD3 明确约束。
-- **在途 IO 终止窗口的后端与运行时证明**：[失败与清理模型](failure-cleanup-model.md)模型 D 已验证“隔离边界 + 全线程冻结终止窗口”可防止缓冲区提前复用，但具体冻结协议与零终结证据资源保留策略须在 IO4 / FD2 联合落地。
-- **任务子树作为监督边界时的 `Rc` 隔离前提**：沿用“监督边界只接受 `Transferable` 捕获”可阻止边界内外共享 `Rc`，但异步执行器调度器与任务树的集成证明留待阶段五 S4 复核。
+按 `#koven-design` 三轮讨论（OD6 共识，非正式批准）：FD0 **不整体前移至阶段四，也不整体推迟至阶段五后**，而是按阶段拆开——**阶段四**保留 FD0 预留与线程级监督试金石（由 IO3 / FD1 / FD3 经运行时测试验收）；**阶段五及之后**由 IO4 / FD2 承接在途 IO 终止窗口与冻结协议，由 S4 承接异步任务树 `Rc` 隔离。
+
+### 5.1 阶段四阻塞点准入与排除规则
+
+- **直接沿用 3A 排除表**：OS 同步 `sleep` / OS 同步锁 / 不可中断同步 `read`/`accept`、未接入取消信号的孤立 `channel.recv`/`oneshot.await`、以及不可中断同步 FFI，不得默认作为阶段四可展开/可排空的等待依赖。
+- **准入点须逐项写明唤醒或有界机制**：
+  - `acceptWithTimeout` / `readLineWithTimeout` / `writeLineWithTimeout`：依赖套接字截止超时；
+  - **`statsLock.withLock`（暂属 3A 排除项）**：`LockError.Poisoned` 仅区分持有者异常终止，**不证明**活持有者场景下等待方能被停机唤醒或等待时间有界（[失败与清理模型](failure-cleanup-model.md) §6.2 模型 F 仅验持有者异常终止后同伴不卡死，不验活持有者停机唤醒）；在补齐可唤醒/可排空协议前，不得把 `withLock` 默认视为阶段四已接纳阻塞点；
+  - **`println` 诊断输出**：在停机路径上尚无时限保证，列为待明确项。
+
+### 5.2 有界停机的三条独立阻塞边与四个计时检查点
+
+源码齐备或“单次套接字读写带超时”均**不能**证明 `joinAll()` 或服务函数有界返回。IO3 / FD1 / FD3 运行时验收必须使用**包含失败连接**的用例（确保触发 `recordCompleted` 的 `Err` 分支，不能只测全成功路径），分别对以下三条阻塞边注入卡滞并独立计时：
+
+1. **工作线程内 `handleConnection` 的 `withLock`**：位于 `joinAll()` 返回之前，若无界等待将直接导致 `joinAll()` 无法有界返回；
+2. **主循环内的 `recordCompleted`（失败连接分支的 `withLock` 与 `println`）**：若在运行中回收失败连接时无界阻塞，会挡住下一次 `shutdownSignal.tryReceive()`，推迟置位 `shutdownFlag`，进而使 `joinAll()` 的起点本身无界；
+3. **停机后 `joinAll()` 之后的 `recordCompleted`（`withLock` 与 `println`）**：只挡住 `runEchoServer` 最终返回，不回溯改变 `joinAll()` 已返回的事实。
+
+上述测试须分别记录四个独立截止检查点：**① 收到停机信号 → 实际开始停机（置位 `shutdownFlag`）**、**② 工作线程排空**、**③ `joinAll()` 返回**、**④ 服务函数最终返回**。
+
+### 5.3 其余跨阶段遗留项
+
+- **展开途中等待健康长期线程的唤醒机制**（归 FD1 / FD3）：若监督单元内持有另一个长期阻塞的子线程句柄，展开等待可能退化为挂起，须配合协作取消或 channel 关闭协议明确约束。
+- **在途 IO 终止窗口的后端与运行时证明**（归 IO4 / FD2）：[失败与清理模型](failure-cleanup-model.md)模型 D 已验证“隔离边界 + 全线程冻结终止窗口”可防止缓冲区提前复用，具体冻结协议与零终结证据资源保留策略留待 IO4 / FD2 联合落地。
+- **任务子树作为监督边界时的 `Rc` 隔离前提**（归 S4）：沿用“监督边界只接受 `Transferable` 捕获”可阻止边界内外共享 `Rc`，异步执行器调度器与任务树的集成证明留待阶段五 S4 复核。

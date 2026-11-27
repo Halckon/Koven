@@ -79,7 +79,8 @@ fun badBindingSlot(borrow h: Item) {
 OD2 已固定运行时仲裁策略（B1），但用户看到的取消接口签名暂缓。本节用两个对称调用例，对照 [Guide 09](../guide/09-nullability-errors.md) 的现行约束（`Result<T, E>`、`?` 仅传播 `Result` 且要求 `E` 精确相同、无异常与隐式错误转换），比较两种候选表面：
 
 - **方案 C-I：`E` 显式承载取消**——`scoped` 返回 `Result<T, E>`，业务错误类型 `E` 自身显式包含取消变体（例如 `enum class AppError { Io(IoError), Parse(ParseError), Cancelled }`），作用域在需要把外部取消编码为 `E` 时通过显式构造器或约定接口（如 `onCancel = { AppError.Cancelled }` 或 `E : FromCancelled`）产出 `Err(AppError.Cancelled)`。
-- **方案 C-II：独立的类型化取消出口**——`scoped` 返回与业务错误 `E` 正交的三态结果 `enum class ScopedResult<T, E> { Ok(T), Err(E), Cancelled }`（或等价的嵌套 `Result<Result<T, E>, Cancelled>`），`E` 保持纯业务错误，不含取消变体。
+- **方案 C-II-a：独立三态取消出口**——`scoped` 返回与业务错误 `E` 正交的三态结果 `enum class ScopedResult<T, E> { Ok(T), Err(E), Cancelled }`（拼写占位，未冻结），`E` 保持纯业务错误，不含取消变体。
+- **方案 C-II-b：独立嵌套 `Result<Result<T, E>, Cancelled>`**——与三态枚举在 Guide 09 `?` 传播上**不等价**（2026-11-27 OD3 讨论更正）：在返回 `Result<_, Cancelled>` 的外层函数中可直接对 `scoped { ... }` 写 `?` 原生向上传播取消，代价是业务错误 `E` 需额外拆一层 `Result`。因此与 C-II-a 单列比较，不混为一谈。
 
 ### 3.1 调用例 1：多子任务汇总并接入调用方 `?` 传播链
 
@@ -209,7 +210,31 @@ fun handleRequest(path: String) {
 | 与 Guide 09 `?` 的即时配合 | 可直接 `?`（前提是外层 `E` 已包含取消变体） | 现行 `?` 不支持 `ScopedResult`，需显式 `when` 或后续单独提案扩展传播协议 |
 | 取消误被当作普通错误重试的风险 | 较高（需调用方在 `when (err)` 中显式排掉 `Cancelled`） | 低（类型层强制先分流 `Cancelled` 与 `Err(E)`） |
 
-**暂缓结论**：两种方案在 OD2 · B1 的提交全序语义上完全兼容，分歧集中在表面人机工程——是否允许 `Cancelled` 污染业务错误 `E`、以及是否值得为 `ScopedResult` 扩展 `?` 传播或组合子。等路线 S 的 `suspend` 表面与[之十一 §1.5](evolution-11-failure-interfaces-units.md) `E2`/`E3`（`?` 错误转换与通用 `Error` 接口）推进到同一截面时再拍板。
+### 3.3 调用例 3（裁决前补充证据）：嵌套 `scoped` + 已取消子任务 `join()` + 泛型重试中间件
+
+2026-11-27 `#koven-design` OD3 讨论确认，在正式拍板取消接口之前须以同一组「嵌套 `scoped` + 已取消子任务 `join()` + 泛型重试中间件」对比两类方案（本例仅作为裁决前证据，**不提前选定 `join()` 或 `ScopedResult` 的具体类型**）：
+
+```text
+场景：
+  1. 泛型重试中间件 retry<T, E>(maxAttempts: Int, op: () -> ScopeOutcome<T, E>)：
+     - 仅在收到可重试业务错误 E 时按业务策略决定是否重试；
+     - 收到 Cancelled 时必须立刻原样向上传播，绝不重试（落实 OD2 · B1 禁止仅凭取消安全重试）。
+  2. 嵌套 scoped：
+     - 外层 scoped 启动内层 scoped，内层子任务 a 响应外部取消，随后内层体调用 a.join()；
+     - 覆盖 B1 两种提交顺序：
+       (i)  外部取消先提交：内层与外层均须保持取消身份原样向上传播，不得经 ? 隐式变成业务错误 E；
+       (ii) 子任务业务错误 err_A 先提交：即使外层随后观察到取消，主结果仍保持 err_A。
+
+关键分化点：
+  - 方案 C-I（E 显式承载 Cancelled）：
+    * 泛型 retry<T, E> 只看见 E，若无额外“判别是否为取消”的谓词接口（仅 FromCancelled 构造器不够），
+      无法把 Cancelled 从 E 中分离，且子任务响应取消返回 Err(AppError.Cancelled) 经体内 ? 冒泡后会混作普通失败；
+  - 方案 C-II-a（三态枚举）与 C-II-b（嵌套 Result<Result<T, E>, Cancelled>）：
+    * 泛型 retry<T, E> 可在类型层直接分流 Cancelled 与 Err(E)，不要求 E 携带取消变体；
+    * 但须明确被取消子任务的 join() 是返回独立取消通道还是不返回到作用域体，并分别比较 C-II-a 与 C-II-b 在嵌套 ? 上的样板成本。
+```
+
+**暂缓结论（2026-11-27 OD3 讨论更新）**：继续暂缓取消接口定案，等路线 S `suspend` 与[之十一 §1.5](evolution-11-failure-interfaces-units.md) `E2`/`E3`（`?` 错误转换与通用 `Error` 接口）齐平再拍板；暂缓期间**以独立取消通道（C-II-a / C-II-b，单列比较）为优先比较方向**，不冻结 `ScopedResult` 或 `join()` 类型，且已在之十一 E2 侧预先写入硬约束：**`?` 错误转换不得把 `Cancelled` 隐式转为普通业务错误 `E`**。
 
 ## 4. 原型验收落地记录（2026-11-26 已完成，不修改编译器或现行 Guide）
 
@@ -224,3 +249,14 @@ fun handleRequest(path: String) {
      2. **三个以上子任务**：3 个并发子任务（A、B、C）交错失败、阻塞、清理与有界重阻塞，验证全部 3 个子任务实际终止后才释放父帧（并在反例中捕获第三子任务未终止提前释放的 `UAF`）；
      3. **带资源次错的恰好一次清理**：后到普通失败（及取消先提交后的失败/未返回成功值）携带资源句柄，验证未返回的值与资源**恰好清理一次**（反例覆盖泄漏 `UNDISCHARGED` 与重复清理 `DOUBLE_CLEANUP`）；
      4. **胜出返回值在父帧释放后安全返回**：验证胜出主错 `err_A` 与胜出成功值 `v` 在父帧释放后安全交付调用方（反例捕获携带父帧借用的 `DANGLING_RETURN` 与吞掉 `deinit` 失败的 `DEINIT_FAIL_SUPPRESSED`）。
+
+## 5. 2026-11-27 `#koven-design` 三轮讨论收口纪要（OD3–OD6）
+
+由 `halckon0-dot` 主持，Cooper、Grok、Claude、Gemini 四方在 `#koven-design` 经三轮讨论就 OD3–OD6 达成一致候选方向与验收条件（无保留意见；均为非规范候选共识，不构成 Guide、Spec、原型默认值或实现的启用签核）：
+
+| 编号 | 议题 | 三轮收口方向与验收条件 | 落点文档 |
+|---|---|---|---|
+| **OD3** | 3A 取消接口表面形态 | **继续暂缓**，等路线 S `suspend` 与之十一 E2/E3 齐平再定；优先比较独立取消通道，不冻结 `ScopedResult` 或 `join()` 类型；三态枚举（C-II-a）与嵌套 `Result`（C-II-b）单列比较 `?` 行为；之十一 E2 预先写死“`?` 不得把取消隐式转成 `E`”；补齐 §3.3 嵌套 `scoped` + 已取消子任务 `join()` + 泛型重试裁决前证据 | 本页 §3、[之十一](evolution-11-failure-interfaces-units.md) §1.5 |
+| **OD4** | L2 / L3 候选语法拼写 | F5 本轮**仅演练前三项**：`flows … into`、`view T`（解除默认可逃逸上界）、`p.origins`（合同选择器，非写入目标），补齐 `from s into v` 一词两义、同名 `origins` 字段冲突与误作 `into` 目标负例；**`borrow var` 不进本轮 F5、Guide v0.47 不变**，未来 R2.6 另案须分列两项独立验收（换绑后旧别名不可再用 + 绑定槽不可取址或外露）；`any I` 同名消歧仍开放 | [数据结构试金石集](data-structure-concurrency-litmus.md) §2、[覆盖与欠账](kernel-prototype-coverage.md) §6 |
+| **OD5** | U0 合同定稿与迁移时机 | **留在 `docs/proposals/` 评审，不靠搬目录降低门槛**；满足 U0 §9 两条硬门槛（AL1/AL2 可表述为参考检查器前提 + UB1–UB6、UB9–UB11 具备可执行反例/捕获器/结果记录）后再迁入 `docs/compiler-specs/`。UB6 分两行登记：迁入前须实际跑通 **TSan 数据竞争捕获**，Loom/GenMC 级弱内存检查单列为迁入后的 **U1 验收欠项**，不挡迁入亦不互代 | [U0 合同](unsafe-aliasing-contract-outline.md) §9 |
+| **OD6** | FD 显式监督边界（J48）阶段落位 | **按阶段拆开**：阶段四保留 FD0 预留与线程监督试金石（由 IO3/FD1/FD3 运行时验收），IO4/FD2 在途 IO 冻结与 S4 任务树隔离留后续。准入表沿用 3A 排除表且逐项写明唤醒/有界机制：`LockError.Poisoned` 不等价于活持有者下可唤醒，`withLock` 与 `println` 列为残留阻塞点；须用失败连接分别卡住工作线程锁、主循环 `recordCompleted` 与停机后 `recordCompleted`，独立计时验证“收停机信号→开始停机”、工作线程排空、`joinAll()` 返回与服务函数返回 | [FD0 试金石与预留核对](fd0-supervision-boundary-litmus.md) §5 |

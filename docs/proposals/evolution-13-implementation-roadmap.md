@@ -214,8 +214,8 @@ v1 之后每个阶段各用一份路线图文件（2026-11-11 用户决定），
 1. 起草 §3 所列 v1 条目的 Spec 时，审阅[约束清单](v1-freeze-decisions.md)中的对应条款。清单是候选建议，逐项是否采纳在各自的 Spec 评审中决定；Z1 已于 2026-11-14 裁决为不改 Guide。
 2. [U0 合同](unsafe-aliasing-contract-outline.md)已于 2026-11-26 补全为完整候选草案（含 AL1–AL8 别名/来历/后端属性映射、FS1–FS8 失败安全、MM1–MM7 内存模型、UB1–UB11 最小反例、TR1–TR4 审查范围、FF0 五条外部边界合同与检测矩阵），待评审定稿后迁入 Compiler Contracts。
 3. 为 L3 写试金石程序（分词器、借用迭代器、区域分配），只写源码不求可编译，评审“写出来是否像 Kotlin”——已于 2026-11-26 起草至 [L3 试金石与人机工程评审](l3-litmus-programs.md)，待评审。
-4. 路线 F 的前两步（返工归因与三项 Guide 冲突的裁决），它独立于其他一切；Spec 切分见 [Parser 评审](parser-grammar-verification-review.md) §8。
-5. IR0 的归因统计可以在细化层迁移期间顺带积累数据，规格与 ADR 等迁移完成后再写。架构研究后的验证与扩展顺序见[之九 §6.2](evolution-09-architecture.md#62-优先顺序与架构适应度)。
+4. 路线 F 的前两步（返工归因与三项 Guide 冲突的裁决），它独立于其他一切；Spec 切分见 [Parser 评审](parser-grammar-verification-review.md) §8。**2026-11-27 对账**：F0a/F0b 归因与观察基线、F1 D1–D3 裁决（其中带括号调用跨行尾 lambda 已随 Guide 07 与 SPEC-0479 启用）、F2 经 SPEC-0489 决定本轮不启动 F2b–f、F3a–F3e 切片、F4a/F4c 首片、F4b 锁定版 Tree-sitter CLI 本地差分与 PR #461 CI 验收（SPEC-0493）、F5 增量门禁（SPEC-0504）及 F6 已归档的 12 片机器证明均已完成或验收；剩余范围为 D1–D3 其余未启用 Guide 修订草案的最终同步、后续是否重开 F2b–f、F4 差分对未来新增语法切片的扩展，以及更多离线切片由 advisory 升为 required CI 的单独获批项。
+5. IR0 的归因统计可以在细化层迁移期间顺带积累数据，规格与 ADR 等迁移完成后再写——归因统计模板、所有权图最小规格前置草案与多阶段路线图脚本设计已于 2026-11-27 起草至 [IR0 前置草案](ir0-ownership-graph-draft.md)。架构研究后的验证与扩展顺序见[之九 §6.2](evolution-09-architecture.md#62-优先顺序与架构适应度)。
 
 ## 8. 开放问题
 
