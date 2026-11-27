@@ -26,6 +26,15 @@ impl Checker<'_, '_> {
     /// Returns true if the current function scope uses a construct that requires `ssa::refine`
     /// (`Inout`, ownership operations, or integer/range families retired from legacy lowering).
     pub(super) fn scope_requires_refine(&self) -> bool {
+        self.scope_has_refine_requirement(true)
+    }
+
+    /// Temporary iteration requires a When that was reached and admitted during traversal.
+    pub(super) fn scope_requires_refine_without_when(&self) -> bool {
+        self.scope_has_refine_requirement(false)
+    }
+
+    fn scope_has_refine_requirement(&self, include_when: bool) -> bool {
         if self.inputs.modes.contains(&ParameterMode::Inout)
             || self
                 .inputs
@@ -38,10 +47,10 @@ impl Checker<'_, '_> {
             return !self.inputs.owned.field_replacements().is_empty()
                 || !self.inputs.typed.ownership_primitives().is_empty();
         };
-        self.span_requires_refine(scope)
+        self.span_requires_refine(scope, include_when)
     }
 
-    fn span_requires_refine(&self, scope: Span) -> bool {
+    fn span_requires_refine(&self, scope: Span, include_when: bool) -> bool {
         self.inputs
             .parsed
             .ast()
@@ -52,7 +61,7 @@ impl Checker<'_, '_> {
                 scope.source_id() == span.source_id()
                     && scope.start() <= span.start()
                     && span.end() <= scope.end()
-                    && self.expr_requires_refine(expr_id, node.payload())
+                    && self.expr_requires_refine(expr_id, node.payload(), include_when)
             })
             || self
                 .inputs
@@ -118,7 +127,12 @@ impl Checker<'_, '_> {
         )
     }
 
-    fn expr_requires_refine(&self, expr_id: ExpressionId, payload: &Expression) -> bool {
+    fn expr_requires_refine(
+        &self,
+        expr_id: ExpressionId,
+        payload: &Expression,
+        include_when: bool,
+    ) -> bool {
         let id = self.id(expr_id);
         let typed = self.inputs.typed;
         if typed.ownership_primitive(id).is_some()
@@ -199,7 +213,7 @@ impl Checker<'_, '_> {
             Expression::If { condition, .. } => self.if_requires_refine(*condition),
             Expression::When {
                 subject, entries, ..
-            } => self.when_requires_refine(id, *subject, entries),
+            } if include_when => self.when_requires_refine(id, *subject, entries),
             _ => false,
         }
     }

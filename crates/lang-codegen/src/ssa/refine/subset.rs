@@ -240,7 +240,8 @@ fn accepts_with_loop_route(inputs: &RefineInputs<'_>, loop_route: LoopRoute) -> 
         RefineBody::Block(statement) => checker.statement(*statement),
         RefineBody::Lambda(thunk) => checker.thunk_body(thunk),
     };
-    // Check the temporary-source route after the body so statement order does not matter.
+    // Use only visited, admitted When nodes to qualify the temporary-source route.
+    // The scope scan would also see When nodes after a terminal statement or in a nested callable.
     let accepted = signature
         && body_ok
         && (loop_route == LoopRoute::Existing
@@ -251,7 +252,7 @@ fn accepts_with_loop_route(inputs: &RefineInputs<'_>, loop_route: LoopRoute) -> 
             || checker.has_refine_only_when
             || checker.has_function_value_call
             || matches!(inputs.body, RefineBody::Lambda(_))
-            || checker.scope_requires_refine())
+            || checker.scope_requires_refine_without_when())
         && checker.drops_supported()
         && (checker.nullable
             || checker.migrated

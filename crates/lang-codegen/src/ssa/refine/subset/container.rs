@@ -766,12 +766,6 @@ impl Checker<'_, '_> {
         if self.inputs.typed.map_iteration(statement_id).is_some() {
             return false;
         }
-        let needs_local_destructuring =
-            self.scope_has_while_loop() && !self.scope_requires_refine();
-        if needs_local_destructuring && self.loop_route == super::LoopRoute::Existing {
-            self.loop_route_retry = true;
-            return false;
-        }
         let Some(plan) = self.inputs.owned.iteration(statement_id) else {
             return false;
         };
@@ -782,6 +776,16 @@ impl Checker<'_, '_> {
             Some(UnitLoanTarget::Temporary(_)) => (None, true),
             _ => return false,
         };
+        let needs_local_destructuring = self.scope_has_while_loop()
+            && if is_temporary {
+                !self.scope_requires_refine_without_when()
+            } else {
+                !self.scope_requires_refine()
+            };
+        if needs_local_destructuring && self.loop_route == super::LoopRoute::Existing {
+            self.loop_route_retry = true;
+            return false;
+        }
         if self.inputs.typed.sequential_iteration(statement_id) != Some(descriptor)
             || !matches!(descriptor.provider(), IterationProvider::Sequential(_))
             || descriptor.statement() != statement_id
