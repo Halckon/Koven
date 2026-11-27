@@ -1,17 +1,17 @@
 # SPEC-0512：F6 第十二片 `WhenEntryBody` / `SelectorScanState` 换行新选择器与 `if`/`else` 平衡双轨证明
 
-> **性质**：交付合同 · **状态**：in-progress · **读取时机**：实施或验收 F6 第十二片局部机器证明与双轨 CI 时 · **唯一真源**：本页验收账本
+> **性质**：交付合同 · **状态**：done（历史归档） · **读取时机**：实施或验收 F6 第十二片局部机器证明与双轨 CI 时 · **唯一真源**：本页验收账本
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
-| 所属 Phase | Phase 1 局部形式化验证（F6） |
+| 状态 | done |
+| 所属 Phase | Phase 1 局部形式化验证（F6 延伸） |
 | 语言规范 | [Guide v0.47](../../guide/README.md) |
-| 基线 | `main@d44c8b9a`（合并同步自 `main@e339b881` 并重编号自原 0511） |
+| 基线 | `main@c4a25908`（合并同步自 `main@e339b881` 并重编号自原 0511） |
 | 分支 | `feature/spec-0511-f6-when-boundary` |
 
-本 Spec 承接 [F6 局部机器证明前置设计](../../proposals/parser-formal-verification/f6-machine-proof-design.md) 与 [SPEC-0510](../../archive/specs/0510-f6-lexical-owner-events-machine-proof.md)（编号 `0512` 避让主干已合入的 [SPEC-0511](0511-lsp-workspace-manifest-and-diagnostic-context.md)），
-对 [when_boundary.rs](../../../crates/lang-frontend/src/parser/engine/when_boundary.rs) 中 `selector_arrow_after_group` 的换行新选择器判定与 `if`/`else` 平衡状态机内核交付 **Lean 4（无界状态与任意长度事件流模型定理）+ Kani（零堆分配生产 Rust 符号检验）** 双轨证明，并接入 `.github/workflows/parser-formal-f6.yml`。
+本 Spec 承接 [F6 局部机器证明前置设计](../../proposals/parser-formal-verification/f6-machine-proof-design.md) 与 [SPEC-0510](0510-f6-lexical-owner-events-machine-proof.md)（编号 `0512` 避让主干已合入的 [SPEC-0511](../../specs/active/0511-lsp-workspace-manifest-and-diagnostic-context.md)），
+对 [when_boundary.rs](../../../crates/lang-frontend/src/parser/engine/when_boundary.rs) 中 `selector_arrow_after_group` 的换行新选择器判定与 `if`/`else` 平衡状态机内核交付 **Lean 4（无界状态与任意长度事件流模型定理）+ Kani（零堆分配生产 Rust 符号检验）** 双轨证明，并接入 [.github/workflows/parser-formal-f6.yml](../../../.github/workflows/parser-formal-f6.yml)。
 生产解析行为与公开 Rust API 零变化，不引入 Cargo 生产依赖，不宣称全输入生产 G4。
 
 ## 1. 交付合同
@@ -34,10 +34,10 @@
      - `verify_when_boundary_step_invariants`：直接调用生产 `SelectorScanState::step`，符号覆盖任意 `SelectorScanState`（含 `pending_else = 0` 下溢边界与 `usize::MAX` 上溢边界）与全部 10 种 `SelectorEvent`。
      - `verify_when_boundary_run_events_balance_len_6`：直接调用 `run_selector_events`（驱动生产 `SelectorScanState::step`），符号覆盖长度 `0..=6` 的任意 `SelectorEvent` 序列，逐拍核对 `pending_else + else_count == if_count` 与仅在平衡 `.arrow` 处接受。
 4. **路径触发轻量 CI 扩展**：
-   - [.github/workflows/parser-formal-f6.yml](../../../.github/workflows/parser-formal-f6.yml) 同步触发 `formal/parser/f6_when_boundary/**`、`crates/lang-frontend/src/parser/engine/when_boundary.rs`、`crates/lang-frontend/src/parser/engine/when_boundary_kani.rs` 与 `crates/lang-frontend/src/lexer/mod.rs`，并接入 `F6WhenBoundary` 构建、核心公理白名单检查与上述 3 个 Kani harness。
+   - [.github/workflows/parser-formal-f6.yml](../../../.github/workflows/parser-formal-f6.yml) 同步触发 `formal/parser/f6_when_boundary/**`、`crates/lang-frontend/src/parser/engine/when_boundary.rs`、`crates/lang-frontend/src/parser/engine/when_boundary_kani.rs` 与 `crates/lang-frontend/src/lexer/mod.rs`，与已合入的 `F6OwnerEvents` 一并校验全部 **12 份 F6 Lean 4 证明工程（82 条定理）与 29 个 Kani harness**。
 
 ## 2. 检查点
 
 - [x] `F6WhenBoundary.lean` 零告警构建与 7 条定理核心公理白名单本机通过（仅依赖 `propext`、`Quot.sound`）
-- [x] `verify_when_boundary_new_selector_and_control`、`verify_when_boundary_step_invariants` 与 `verify_when_boundary_run_events_balance_len_6` 本机 Kani 0.68.0 实跑通过，`when_boundary` 单测与 `cargo clippy --all-targets` 通过
-- [ ] PR CI 中 `Parser Formal F6 (Lean 4 + Kani)` 与主 CI 实跑验收
+- [x] `verify_when_boundary_new_selector_and_control`（含临时 `Symbol::Dot` 变异检出复核）、`verify_when_boundary_step_invariants` 与 `verify_when_boundary_run_events_balance_len_6` 本机 Kani 0.68.0 实跑通过，`when_boundary` 单测、`owner_events_tests` 与 `cargo clippy --all-targets` 通过
+- [x] 合并树 `ed9c45b8`（含 `F6OwnerEvents` + `F6WhenBoundary`，共 12 片 / 82 定理 / 29 harness）接入 `parser-formal-f6.yml` 并随 PR #486 归档；PR #486 远端主 CI 与 F6 双轨作业由合并门禁实跑复核

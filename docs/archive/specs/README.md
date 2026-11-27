@@ -1,5 +1,6 @@
 # 完成 Specs
 
+- [SPEC-0512](0512-f6-when-boundary-machine-proof.md)：F6 第十二片 `WhenEntryBody` / `SelectorScanState` 换行新选择器与 `if`/`else` 平衡双轨证明，随 PR #486 归档（合并树 12 片 / 82 条 Lean 定理 / 29 个 Kani harness）。
 - [SPEC-0510](0510-f6-lexical-owner-events-machine-proof.md)：F6 第十一片词法 owner 栈与 `verified_events` 构造，按 PR #483 的 [F6 双轨作业](https://github.com/Halckon/Koven/actions/runs/45922470309) 验收归档。
 - [SPEC-0369](0369-final-debug-artifacts.md)：CLI 最终调试产物与源码断点（macOS dSYM 与 Linux ELF 行表及双宿主 LLDB 断点），生产代码已合入 main，本机 macOS 实测通过并按部分发布例外保留归档；PR 双宿主 CI 待合并前核验。
 - [SPEC-509](0509-f6-lambda-trial-machine-proof.md)：LambdaHeaderIndex DFA，按 PR #477 的 [F6 双轨作业](https://github.com/Halckon/Koven/actions/runs/45797758634)验收归档。
@@ -50,7 +51,7 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 478 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 480 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 全量依赖拓扑（含 active/draft 与本目录全部 Spec）见生成物
 [dependency-graph-full.md](dependency-graph-full.md) / [dependency-graph-full.svg](dependency-graph-full.svg)，
