@@ -15,6 +15,7 @@ on:
       - 'formal/parser/f6_lexeme_stream/**'
       - 'formal/parser/f6_diagnostic_anchor/**'
       - 'formal/parser/f6_strict_call_trial/**'
+      - 'formal/parser/f6_owner_events/**'
       - 'crates/lang-frontend/src/parser/lambda_trial.rs'
       - 'crates/lang-frontend/src/parser/trial.rs'
       - 'crates/lang-frontend/src/parser/trial/kernel.rs'
@@ -35,6 +36,10 @@ on:
       - 'crates/lang-frontend/src/parser/engine/recovery/group_owner_kani.rs'
       - 'crates/lang-frontend/src/parser/engine/recovery/adjacent_poison.rs'
       - 'crates/lang-frontend/src/parser/engine/recovery/adjacent_poison_kani.rs'
+      - 'crates/lang-frontend/src/parser/engine/recovery/owner_events.rs'
+      - 'crates/lang-frontend/src/parser/engine/recovery/owner_events_kani.rs'
+      - 'crates/lang-frontend/src/lexer/mod.rs'
+      - 'crates/lang-frontend/src/source.rs'
       - '.github/workflows/parser-formal-f6.yml'
   push:
     branches:
@@ -50,6 +55,7 @@ on:
       - 'formal/parser/f6_lexeme_stream/**'
       - 'formal/parser/f6_diagnostic_anchor/**'
       - 'formal/parser/f6_strict_call_trial/**'
+      - 'formal/parser/f6_owner_events/**'
       - 'crates/lang-frontend/src/parser/lambda_trial.rs'
       - 'crates/lang-frontend/src/parser/trial.rs'
       - 'crates/lang-frontend/src/parser/trial/kernel.rs'
@@ -70,6 +76,10 @@ on:
       - 'crates/lang-frontend/src/parser/engine/recovery/group_owner_kani.rs'
       - 'crates/lang-frontend/src/parser/engine/recovery/adjacent_poison.rs'
       - 'crates/lang-frontend/src/parser/engine/recovery/adjacent_poison_kani.rs'
+      - 'crates/lang-frontend/src/parser/engine/recovery/owner_events.rs'
+      - 'crates/lang-frontend/src/parser/engine/recovery/owner_events_kani.rs'
+      - 'crates/lang-frontend/src/lexer/mod.rs'
+      - 'crates/lang-frontend/src/source.rs'
       - '.github/workflows/parser-formal-f6.yml'
   workflow_dispatch:
 
@@ -82,7 +92,7 @@ concurrency:
 
 jobs:
   lean4-model-proof:
-    name: F6 Lean 4 Model Proofs (all 10 F6 slices, 64 theorems)
+    name: F6 Lean 4 Model Proofs (all 11 F6 slices, 75 theorems)
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -102,7 +112,8 @@ jobs:
             formal/parser/f6_lexeme_stream/.lake
             formal/parser/f6_diagnostic_anchor/.lake
             formal/parser/f6_strict_call_trial/.lake
-          key: f6-lean4-${{ hashFiles('formal/parser/f6_angle_groups/lean-toolchain', 'formal/parser/f6_ordinary_groups/lean-toolchain', 'formal/parser/f6_group_owners/lean-toolchain', 'formal/parser/f6_adjacent_poison/lean-toolchain', 'formal/parser/f6_pratt_precedence/lean-toolchain', 'formal/parser/f6_stops_lattice/lean-toolchain', 'formal/parser/f6_lambda_trial/lean-toolchain', 'formal/parser/f6_lexeme_stream/lean-toolchain', 'formal/parser/f6_diagnostic_anchor/lean-toolchain', 'formal/parser/f6_strict_call_trial/lean-toolchain') }}
+            formal/parser/f6_owner_events/.lake
+          key: f6-lean4-${{ hashFiles('formal/parser/f6_angle_groups/lean-toolchain', 'formal/parser/f6_ordinary_groups/lean-toolchain', 'formal/parser/f6_group_owners/lean-toolchain', 'formal/parser/f6_adjacent_poison/lean-toolchain', 'formal/parser/f6_pratt_precedence/lean-toolchain', 'formal/parser/f6_stops_lattice/lean-toolchain', 'formal/parser/f6_lambda_trial/lean-toolchain', 'formal/parser/f6_lexeme_stream/lean-toolchain', 'formal/parser/f6_diagnostic_anchor/lean-toolchain', 'formal/parser/f6_strict_call_trial/lean-toolchain', 'formal/parser/f6_owner_events/lean-toolchain') }}
       - name: Install elan if missing
         run: |
           if ! command -v elan >/dev/null 2>&1; then
@@ -697,9 +708,77 @@ jobs:
               sys.exit(f"error: missing axiom reports for: {sorted(missing)}")
           print("all 6 F6StrictCallTrial theorems depend only on allowed core Lean axioms")
           PY
+      - name: Build F6OwnerEvents with warnings as errors
+        working-directory: formal/parser/f6_owner_events
+        run: |
+          lake build
+          lake env lean -DwarningAsError=true F6OwnerEvents.lean
+      - name: Verify F6OwnerEvents theorem axiom dependencies
+        working-directory: formal/parser/f6_owner_events
+        run: |
+          set -euo pipefail
+          axioms_out="$(lake env lean --stdin <<'EOF'
+          import F6OwnerEvents
+          #print axioms F6OwnerEvents.drainDueEvents_balance_and_bounds
+          #print axioms F6OwnerEvents.drainEofOwners_length
+          #print axioms F6OwnerEvents.verifyStep_balance_invariant
+          #print axioms F6OwnerEvents.verifyLoop_global_balance
+          #print axioms F6OwnerEvents.verifyTerminalOwnerEvents_eof_closed_balance
+          #print axioms F6OwnerEvents.verifyStep_rejects_unclosed_eof_without_flag
+          #print axioms F6OwnerEvents.verifyTerminalOwnerEvents_rejects_unconsumed
+          #print axioms F6OwnerEvents.verifyTerminalOwnerEvents_bounded
+          #print axioms F6OwnerEvents.drainDueEvents_exact_lifo_match
+          #print axioms F6OwnerEvents.drainEofOwners_exact_lifo_match
+          #print axioms F6OwnerEvents.drainDueEvents_rejects_mismatched_top
+          EOF
+          )"
+          printf '%s\n' "$axioms_out"
+          python3 - "$axioms_out" <<'PY'
+          import re, sys
+
+          expected = {
+              "F6OwnerEvents.drainDueEvents_balance_and_bounds",
+              "F6OwnerEvents.drainEofOwners_length",
+              "F6OwnerEvents.verifyStep_balance_invariant",
+              "F6OwnerEvents.verifyLoop_global_balance",
+              "F6OwnerEvents.verifyTerminalOwnerEvents_eof_closed_balance",
+              "F6OwnerEvents.verifyStep_rejects_unclosed_eof_without_flag",
+              "F6OwnerEvents.verifyTerminalOwnerEvents_rejects_unconsumed",
+              "F6OwnerEvents.verifyTerminalOwnerEvents_bounded",
+              "F6OwnerEvents.drainDueEvents_exact_lifo_match",
+              "F6OwnerEvents.drainEofOwners_exact_lifo_match",
+              "F6OwnerEvents.drainDueEvents_rejects_mismatched_top",
+          }
+          allowed = {"propext", "Quot.sound", "Classical.choice"}
+          seen = set()
+
+          for raw_line in sys.argv[1].splitlines():
+              line = raw_line.strip()
+              if not line:
+                  continue
+              m_none = re.fullmatch(r"'([^']+)' does not depend on any axioms", line)
+              if m_none:
+                  seen.add(m_none.group(1))
+                  continue
+              m_deps = re.fullmatch(r"'([^']+)' depends on axioms: \[([^\]]*)\]", line)
+              if m_deps:
+                  thm = m_deps.group(1)
+                  deps = {a.strip() for a in m_deps.group(2).split(",") if a.strip()}
+                  bad = deps - allowed
+                  if bad:
+                      sys.exit(f"error: theorem {thm} depends on disallowed axioms: {sorted(bad)}")
+                  seen.add(thm)
+                  continue
+              sys.exit(f"error: unexpected #print axioms output line: {line}")
+
+          missing = expected - seen
+          if missing:
+              sys.exit(f"error: missing axiom reports for: {sorted(missing)}")
+          print("all 11 F6OwnerEvents theorems depend only on allowed core Lean axioms")
+          PY
 
   kani-bounded-rust:
-    name: F6 Kani Bounded Rust Proofs (all 10 F6 slices, 24 harnesses)
+    name: F6 Kani Bounded Rust Proofs (all 11 F6 slices, 26 harnesses)
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -749,4 +828,6 @@ jobs:
             --harness verify_diagnostic_anchor_prefix_empty_and_oob \
             --harness verify_diagnostic_anchor_prefix_exact_range_len_8 \
             --harness verify_raw_to_significant_exact_and_monotone_len_8 \
-            --harness verify_trial_path_ends_and_budget_len_8
+            --harness verify_trial_path_ends_and_budget_len_8 \
+            --harness verify_owner_events_soundness_monotonicity_and_group_owners_bridge \
+            --harness verify_owner_events_rejects_unclosed_and_unconsumed

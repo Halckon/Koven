@@ -83,6 +83,18 @@ impl Lexeme {
             span: Span::synthetic_for_verification(),
         }
     }
+
+    #[cfg(any(test, kani))]
+    pub(crate) const fn synthetic_with_span_for_verification(
+        kind: LexemeKind,
+        start: usize,
+        end: usize,
+    ) -> Self {
+        Self {
+            kind,
+            span: Span::synthetic_range_for_verification(start, end),
+        }
+    }
 }
 
 /// 完整 lexeme 流中的顶层分类。
