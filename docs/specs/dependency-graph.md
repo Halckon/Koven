@@ -21,6 +21,7 @@ subgraph Gactive["现行 active"]
   S0392["S0392<br/>编译器分层复审与前端合同修复"]
   S0511["S0511<br/>lang-lsp 显式工作区 manifest 加载与诊断源码片段上下文"]
   S0515["S0515<br/>F6 第十五片 postfix 后缀起始、带类型调用延续、实参边界与 callee 尾逆向扫描双轨证明"]
+  S0516["S0516<br/>F6 第十六片 file 声明修饰符顺序状态机与文件头/顶层分隔符双轨证明"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -61,6 +62,7 @@ ARCH --> S0341
 | SPEC-0392 | active | [0392-compiler-layered-review.md](active/0392-compiler-layered-review.md) |
 | SPEC-0511 | active | [0511-lsp-workspace-manifest-and-diagnostic-context.md](active/0511-lsp-workspace-manifest-and-diagnostic-context.md) |
 | SPEC-0515 | active | [0515-f6-postfix-boundary-machine-proof.md](active/0515-f6-postfix-boundary-machine-proof.md) |
+| SPEC-0516 | active | [0516-f6-file-modifiers-machine-proof.md](active/0516-f6-file-modifiers-machine-proof.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](drafts/v0.44/0335-map-borrow-caller-proof.md) |

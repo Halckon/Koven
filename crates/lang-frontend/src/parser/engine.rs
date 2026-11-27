@@ -12,6 +12,10 @@ mod declaration_head;
 mod destructuring;
 mod expression;
 mod file;
+#[cfg(kani)]
+mod file_kani;
+#[cfg(test)]
+mod file_tests;
 mod lambda;
 #[cfg(kani)]
 mod lexeme_stream_kani;
