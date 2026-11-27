@@ -7,20 +7,26 @@ use lang_frontend::source::SourceId;
 use lsp_server::{Connection, ErrorCode, Message, Notification, Request, Response};
 use lsp_types::{
     DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
-    GotoDefinitionParams, GotoDefinitionResponse, InitializeParams, InitializeResult, Location,
-    LogMessageParams, MessageType, OneOf, PositionEncodingKind, PublishDiagnosticsParams,
-    ServerCapabilities, ServerInfo, TextDocumentSyncCapability, TextDocumentSyncKind,
-    TextDocumentSyncOptions, Uri,
+    GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverParams, HoverProviderCapability,
+    InitializeParams, InitializeResult, InlayHint, InlayHintParams, Location, LogMessageParams,
+    MessageType, OneOf, PositionEncodingKind, PrepareRenameResponse, PublishDiagnosticsParams,
+    ReferenceParams, RenameOptions, RenameParams, ServerCapabilities, ServerInfo,
+    TextDocumentPositionParams, TextDocumentSyncCapability, TextDocumentSyncKind,
+    TextDocumentSyncOptions, Uri, WorkspaceEdit,
     notification::{
         DidChangeTextDocument, DidCloseTextDocument, DidOpenTextDocument, LogMessage,
         Notification as LspNotification, PublishDiagnostics,
     },
-    request::{Formatting, GotoDefinition, Request as LspRequest},
+    request::{
+        Formatting, GotoDefinition, HoverRequest, InlayHintRequest, PrepareRenameRequest,
+        References, Rename, Request as LspRequest,
+    },
 };
 
 use crate::{
     analysis::{AnalysisError, analyze},
     diagnostic_adapter::{DiagnosticMappingError, convert_unit_diagnostics_with_context},
+    ide_features,
     position_adapter::{PositionMappingError, byte_offset, span_range},
     source_set::SourceSetConfig,
     unit_analysis_snapshot::UnitAnalysisSnapshot,
@@ -148,22 +154,42 @@ pub(crate) fn run_with_options(
                 if connection.handle_shutdown(&request)? {
                     return Ok(());
                 }
-                if request.method == GotoDefinition::METHOD {
-                    handle_definition_request(&connection, request, &state)?;
-                    continue;
+                let Request { id, method, params } = request;
+                macro_rules! dispatch_json {
+                    ($result:expr) => {{
+                        let response = match $result {
+                            Ok(value) => Response::new_ok(id, serde_json::to_value(value)?),
+                            Err(RequestError::InvalidParams(message)) => {
+                                Response::new_err(id, ErrorCode::InvalidParams as i32, message)
+                            }
+                            Err(RequestError::Internal(message)) => {
+                                Response::new_err(id, ErrorCode::InternalError as i32, message)
+                            }
+                        };
+                        send_response(&connection, response)?;
+                    }};
                 }
-                if request.method == Formatting::METHOD {
-                    handle_formatting_request(&connection, request, &state)?;
-                    continue;
+                match method.as_str() {
+                    GotoDefinition::METHOD => dispatch_json!(definition_response(params, &state)),
+                    References::METHOD => dispatch_json!(references_response(params, &state)),
+                    HoverRequest::METHOD => dispatch_json!(hover_response(params, &state)),
+                    InlayHintRequest::METHOD => dispatch_json!(inlay_hint_response(params, &state)),
+                    PrepareRenameRequest::METHOD => {
+                        dispatch_json!(prepare_rename_response(params, &state))
+                    }
+                    Rename::METHOD => dispatch_json!(rename_response(params, &state)),
+                    Formatting::METHOD => dispatch_json!(formatting_response(params, &state)),
+                    _ => {
+                        send_response(
+                            &connection,
+                            Response::new_err(
+                                id,
+                                ErrorCode::MethodNotFound as i32,
+                                format!("unsupported request method {method:?}"),
+                            ),
+                        )?;
+                    }
                 }
-                send_response(
-                    &connection,
-                    Response::new_err(
-                        request.id,
-                        ErrorCode::MethodNotFound as i32,
-                        format!("unsupported request method {:?}", request.method),
-                    ),
-                )?;
             }
             Message::Notification(notification) => {
                 if let Err(error) =
@@ -191,6 +217,13 @@ fn capabilities() -> ServerCapabilities {
             },
         )),
         definition_provider: Some(OneOf::Left(true)),
+        references_provider: Some(OneOf::Left(true)),
+        hover_provider: Some(HoverProviderCapability::Simple(true)),
+        inlay_hint_provider: Some(OneOf::Left(true)),
+        rename_provider: Some(OneOf::Right(RenameOptions {
+            prepare_provider: Some(true),
+            work_done_progress_options: Default::default(),
+        })),
         document_formatting_provider: Some(OneOf::Left(true)),
         ..ServerCapabilities::default()
     }
@@ -391,22 +424,22 @@ fn publish_document(
     publish(connection, uri.clone(), Some(document.version), diagnostics)
 }
 
-fn handle_formatting_request(
-    connection: &Connection,
-    request: Request,
-    state: &SessionState,
-) -> Result<(), ServerError> {
-    let result = formatting_response(request.params, state);
-    let response = match result {
-        Ok(edits) => Response::new_ok(request.id, serde_json::to_value(edits)?),
-        Err(RequestError::InvalidParams(message)) => {
-            Response::new_err(request.id, ErrorCode::InvalidParams as i32, message)
+fn map_unit_query_error(error: UnitDefinitionQueryError) -> RequestError {
+    match error {
+        UnitDefinitionQueryError::Position(PositionMappingError::InsideSurrogatePair) => {
+            RequestError::InvalidParams("position splits a UTF-16 surrogate pair".to_owned())
         }
-        Err(RequestError::Internal(message)) => {
-            Response::new_err(request.id, ErrorCode::InternalError as i32, message)
+        other => RequestError::Internal(other.to_string()),
+    }
+}
+
+fn map_position_error(error: PositionMappingError) -> RequestError {
+    match error {
+        PositionMappingError::InsideSurrogatePair => {
+            RequestError::InvalidParams("position splits a UTF-16 surrogate pair".to_owned())
         }
-    };
-    send_response(connection, response)
+        other => RequestError::Internal(other.to_string()),
+    }
 }
 
 fn formatting_response(
@@ -440,23 +473,6 @@ fn formatting_response(
         }
     }
     .map_err(RequestError::Internal)
-}
-
-fn handle_definition_request(
-    connection: &Connection,
-    request: Request,
-    state: &SessionState,
-) -> Result<(), ServerError> {
-    let response = match definition_response(request.params, state) {
-        Ok(result) => Response::new_ok(request.id, serde_json::to_value(result)?),
-        Err(RequestError::InvalidParams(message)) => {
-            Response::new_err(request.id, ErrorCode::InvalidParams as i32, message)
-        }
-        Err(RequestError::Internal(message)) => {
-            Response::new_err(request.id, ErrorCode::InternalError as i32, message)
-        }
-    };
-    send_response(connection, response)
 }
 
 fn definition_response(
@@ -569,6 +585,288 @@ fn single_document_definition_locations(
         })
         .collect::<Result<Vec<_>, _>>()?;
     Ok(Some(locations))
+}
+
+fn single_document_source_unit(
+    document: &OpenDocument,
+) -> Result<lang_frontend::name_resolution::SourceUnitId, RequestError> {
+    let source_id = document.source_id;
+    document
+        .analysis
+        .name_snapshot()
+        .names()
+        .index()
+        .source_units()
+        .iter()
+        .find(|source| source.source_id() == source_id)
+        .ok_or_else(|| RequestError::Internal("document source is absent from unit".to_owned()))
+        .map(|source| source.id())
+}
+
+fn single_document_offset(
+    document: &OpenDocument,
+    position: lsp_types::Position,
+) -> Result<Option<(lang_frontend::name_resolution::SourceUnitId, usize)>, RequestError> {
+    let source_unit = single_document_source_unit(document)?;
+    let sources = document.analysis.name_snapshot().sources();
+    let Some(offset) =
+        byte_offset(sources, document.source_id, position).map_err(map_position_error)?
+    else {
+        return Ok(None);
+    };
+    Ok(Some((source_unit, offset)))
+}
+
+fn single_document_reference_locations(
+    document: &OpenDocument,
+    uri: &Uri,
+    position: lsp_types::Position,
+    include_declaration: bool,
+) -> Result<Vec<Location>, RequestError> {
+    let Some((source_unit, offset)) = single_document_offset(document, position)? else {
+        return Ok(Vec::new());
+    };
+    let sources = document.analysis.name_snapshot().sources();
+    document
+        .analysis
+        .definitions()
+        .references_at(source_unit, offset, include_declaration)
+        .into_iter()
+        .map(|target| {
+            span_range(sources, target.span)
+                .map(|range| Location::new(uri.clone(), range))
+                .map_err(|error| RequestError::Internal(error.to_string()))
+        })
+        .collect()
+}
+
+fn references_response(
+    params: serde_json::Value,
+    state: &SessionState,
+) -> Result<Option<Vec<Location>>, RequestError> {
+    let params: ReferenceParams = serde_json::from_value(params)
+        .map_err(|error| RequestError::InvalidParams(error.to_string()))?;
+    let pos = params.text_document_position;
+    let include_decl = params.context.include_declaration;
+    let locations = match state {
+        SessionState::Unit { session, fallback } => {
+            if session.contains_uri(&pos.text_document.uri) {
+                session
+                    .reference_locations(&pos.text_document.uri, pos.position, include_decl)
+                    .map_err(map_unit_query_error)?
+            } else if let Some(document) = fallback.get(pos.text_document.uri.as_str()) {
+                single_document_reference_locations(
+                    document,
+                    &pos.text_document.uri,
+                    pos.position,
+                    include_decl,
+                )?
+            } else {
+                return Ok(None);
+            }
+        }
+        SessionState::SingleDocument(documents) => {
+            let Some(document) = documents.get(pos.text_document.uri.as_str()) else {
+                return Ok(None);
+            };
+            single_document_reference_locations(
+                document,
+                &pos.text_document.uri,
+                pos.position,
+                include_decl,
+            )?
+        }
+    };
+    Ok((!locations.is_empty()).then_some(locations))
+}
+
+fn hover_response(
+    params: serde_json::Value,
+    state: &SessionState,
+) -> Result<Option<Hover>, RequestError> {
+    let params: HoverParams = serde_json::from_value(params)
+        .map_err(|error| RequestError::InvalidParams(error.to_string()))?;
+    let pos = params.text_document_position_params;
+    match state {
+        SessionState::Unit { session, fallback } => {
+            if session.contains_uri(&pos.text_document.uri) {
+                session
+                    .hover(&pos.text_document.uri, pos.position)
+                    .map_err(map_unit_query_error)
+            } else if let Some(document) = fallback.get(pos.text_document.uri.as_str()) {
+                let Some((source_unit, offset)) = single_document_offset(document, pos.position)?
+                else {
+                    return Ok(None);
+                };
+                ide_features::hover_at(&document.analysis, source_unit, offset)
+                    .map_err(map_position_error)
+            } else {
+                Ok(None)
+            }
+        }
+        SessionState::SingleDocument(documents) => {
+            let Some(document) = documents.get(pos.text_document.uri.as_str()) else {
+                return Ok(None);
+            };
+            let Some((source_unit, offset)) = single_document_offset(document, pos.position)?
+            else {
+                return Ok(None);
+            };
+            ide_features::hover_at(&document.analysis, source_unit, offset)
+                .map_err(map_position_error)
+        }
+    }
+}
+
+fn inlay_hint_response(
+    params: serde_json::Value,
+    state: &SessionState,
+) -> Result<Option<Vec<InlayHint>>, RequestError> {
+    let params: InlayHintParams = serde_json::from_value(params)
+        .map_err(|error| RequestError::InvalidParams(error.to_string()))?;
+    let hints = match state {
+        SessionState::Unit { session, fallback } => {
+            if session.contains_uri(&params.text_document.uri) {
+                session
+                    .inlay_hints(&params.text_document.uri, params.range)
+                    .map_err(map_unit_query_error)?
+            } else if let Some(document) = fallback.get(params.text_document.uri.as_str()) {
+                let source_unit = single_document_source_unit(document)?;
+                ide_features::inlay_hints_for_source(
+                    &document.analysis,
+                    source_unit,
+                    document.source_id,
+                    params.range,
+                )
+                .map_err(map_position_error)?
+            } else {
+                return Ok(None);
+            }
+        }
+        SessionState::SingleDocument(documents) => {
+            let Some(document) = documents.get(params.text_document.uri.as_str()) else {
+                return Ok(None);
+            };
+            let source_unit = single_document_source_unit(document)?;
+            ide_features::inlay_hints_for_source(
+                &document.analysis,
+                source_unit,
+                document.source_id,
+                params.range,
+            )
+            .map_err(map_position_error)?
+        }
+    };
+    Ok(Some(hints))
+}
+
+fn prepare_rename_response(
+    params: serde_json::Value,
+    state: &SessionState,
+) -> Result<Option<PrepareRenameResponse>, RequestError> {
+    let pos: TextDocumentPositionParams = serde_json::from_value(params)
+        .map_err(|error| RequestError::InvalidParams(error.to_string()))?;
+    match state {
+        SessionState::Unit { session, fallback } => {
+            if session.contains_uri(&pos.text_document.uri) {
+                session
+                    .prepare_rename(&pos.text_document.uri, pos.position)
+                    .map_err(map_unit_query_error)
+            } else if let Some(document) = fallback.get(pos.text_document.uri.as_str()) {
+                let Some((source_unit, offset)) = single_document_offset(document, pos.position)?
+                else {
+                    return Ok(None);
+                };
+                ide_features::prepare_rename_at(&document.analysis, source_unit, offset)
+                    .map_err(map_position_error)
+            } else {
+                Ok(None)
+            }
+        }
+        SessionState::SingleDocument(documents) => {
+            let Some(document) = documents.get(pos.text_document.uri.as_str()) else {
+                return Ok(None);
+            };
+            let Some((source_unit, offset)) = single_document_offset(document, pos.position)?
+            else {
+                return Ok(None);
+            };
+            ide_features::prepare_rename_at(&document.analysis, source_unit, offset)
+                .map_err(map_position_error)
+        }
+    }
+}
+
+fn rename_response(
+    params: serde_json::Value,
+    state: &SessionState,
+) -> Result<Option<WorkspaceEdit>, RequestError> {
+    let params: RenameParams = serde_json::from_value(params)
+        .map_err(|error| RequestError::InvalidParams(error.to_string()))?;
+    if !ide_features::is_valid_rename_identifier(&params.new_name) {
+        return Err(RequestError::InvalidParams(format!(
+            "invalid Koven identifier for rename: {:?}",
+            params.new_name
+        )));
+    }
+    let pos = params.text_document_position;
+    match state {
+        SessionState::Unit { session, fallback } => {
+            if session.contains_uri(&pos.text_document.uri) {
+                session
+                    .rename(&pos.text_document.uri, pos.position, &params.new_name)
+                    .map_err(map_unit_query_error)
+            } else if let Some(document) = fallback.get(pos.text_document.uri.as_str()) {
+                let Some((source_unit, offset)) = single_document_offset(document, pos.position)?
+                else {
+                    return Ok(None);
+                };
+                if ide_features::prepare_rename_at(&document.analysis, source_unit, offset)
+                    .map_err(map_position_error)?
+                    .is_none()
+                {
+                    return Ok(None);
+                }
+                let locations = single_document_reference_locations(
+                    document,
+                    &pos.text_document.uri,
+                    pos.position,
+                    true,
+                )?;
+                Ok(ide_features::build_workspace_edit(
+                    locations,
+                    &params.new_name,
+                ))
+            } else {
+                Ok(None)
+            }
+        }
+        SessionState::SingleDocument(documents) => {
+            let Some(document) = documents.get(pos.text_document.uri.as_str()) else {
+                return Ok(None);
+            };
+            let Some((source_unit, offset)) = single_document_offset(document, pos.position)?
+            else {
+                return Ok(None);
+            };
+            if ide_features::prepare_rename_at(&document.analysis, source_unit, offset)
+                .map_err(map_position_error)?
+                .is_none()
+            {
+                return Ok(None);
+            }
+            let locations = single_document_reference_locations(
+                document,
+                &pos.text_document.uri,
+                pos.position,
+                true,
+            )?;
+            Ok(ide_features::build_workspace_edit(
+                locations,
+                &params.new_name,
+            ))
+        }
+    }
 }
 
 enum RequestError {

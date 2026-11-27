@@ -4,6 +4,7 @@ mod analysis;
 mod definition;
 mod diagnostic_adapter;
 mod formatting;
+mod ide_features;
 mod position_adapter;
 mod server;
 mod source_set;

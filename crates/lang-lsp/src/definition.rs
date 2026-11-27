@@ -135,6 +135,75 @@ impl UnitDefinitionIndex {
             .min_by_key(|entry| entry.reference.len())
             .map_or(&[], |entry| entry.targets.as_slice())
     }
+
+    pub(crate) fn entry_at(
+        &self,
+        source_unit: SourceUnitId,
+        offset: usize,
+    ) -> Option<(Span, &[UnitDefinitionTarget])> {
+        let strict = self
+            .entries
+            .iter()
+            .filter(|entry| {
+                entry.source_unit == source_unit
+                    && entry.reference.start() <= offset
+                    && offset < entry.reference.end()
+                    && !entry.reference.is_empty()
+            })
+            .min_by_key(|entry| entry.reference.len());
+        let entry = strict.or_else(|| {
+            self.entries
+                .iter()
+                .filter(|entry| {
+                    entry.source_unit == source_unit
+                        && entry.reference.start() < offset
+                        && offset == entry.reference.end()
+                        && !entry.reference.is_empty()
+                })
+                .min_by_key(|entry| entry.reference.len())
+        })?;
+        Some((entry.reference, entry.targets.as_slice()))
+    }
+
+    pub(crate) fn references_at(
+        &self,
+        source_unit: SourceUnitId,
+        offset: usize,
+        include_declaration: bool,
+    ) -> Vec<UnitDefinitionTarget> {
+        let Some((_, targets)) = self.entry_at(source_unit, offset) else {
+            return Vec::new();
+        };
+        let target_keys: Vec<(SourceUnitId, usize, usize)> = targets
+            .iter()
+            .map(|t| (t.source_unit, t.span.start(), t.span.end()))
+            .collect();
+        let mut refs = Vec::new();
+        for entry in &self.entries {
+            let matches_target = entry.targets.iter().any(|t| {
+                let key = (t.source_unit, t.span.start(), t.span.end());
+                target_keys.contains(&key)
+            });
+            if !matches_target {
+                continue;
+            }
+            let entry_key = (
+                entry.source_unit,
+                entry.reference.start(),
+                entry.reference.end(),
+            );
+            if !include_declaration && target_keys.contains(&entry_key) {
+                continue;
+            }
+            refs.push(UnitDefinitionTarget {
+                source_unit: entry.source_unit,
+                span: entry.reference,
+            });
+        }
+        refs.sort_by_key(|item| (item.source_unit, item.span.start(), item.span.end()));
+        refs.dedup_by_key(|item| (item.source_unit, item.span.start(), item.span.end()));
+        refs
+    }
 }
 
 fn unit_reference_targets(

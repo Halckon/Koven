@@ -9,7 +9,7 @@ use lang_frontend::{
     },
     lexer::LexerInternalError,
     name_resolution::{
-        CompilationUnitInputError, CompilationUnitNameError, UnitDiagnosticOrderError,
+        CompilationUnitInputError, CompilationUnitNameError, SourceUnitId, UnitDiagnosticOrderError,
     },
     ownership_checking::OwnershipCheckingError,
     parser::ParserInternalError,
@@ -18,11 +18,14 @@ use lang_frontend::{
         CompilationUnitTypeError, check_compilation_unit_types, standard_environments,
     },
 };
-use lsp_types::{Location, Position, Uri};
+use lsp_types::{
+    Hover, InlayHint, Location, Position, PrepareRenameResponse, Range, Uri, WorkspaceEdit,
+};
 
 use crate::{
-    definition::DefinitionIndexError,
+    definition::{DefinitionIndexError, UnitDefinitionTarget},
     diagnostic_adapter::{DiagnosticMappingError, convert_unit_diagnostics_with_context},
+    ide_features,
     position_adapter::{PositionMappingError, byte_offset, span_range},
     source_set::SourceSetConfig,
     unit_analysis_snapshot::{UnitAnalysisSnapshot, UnitAnalysisSnapshotError},
@@ -177,6 +180,54 @@ impl UnitSession {
     ) -> Result<Vec<Location>, UnitDefinitionQueryError> {
         self.snapshot
             .definition_locations(&self.config, uri, position)
+    }
+
+    /// 查询当前 last-good snapshot 中的跨文件 references locations。
+    pub(crate) fn reference_locations(
+        &self,
+        uri: &Uri,
+        position: Position,
+        include_declaration: bool,
+    ) -> Result<Vec<Location>, UnitDefinitionQueryError> {
+        self.snapshot
+            .reference_locations(&self.config, uri, position, include_declaration)
+    }
+
+    /// 查询当前 last-good snapshot 中的 hover 信息。
+    pub(crate) fn hover(
+        &self,
+        uri: &Uri,
+        position: Position,
+    ) -> Result<Option<Hover>, UnitDefinitionQueryError> {
+        self.snapshot.hover(&self.config, uri, position)
+    }
+
+    /// 查询当前 last-good snapshot 中指定文档范围的 inlay hints。
+    pub(crate) fn inlay_hints(
+        &self,
+        uri: &Uri,
+        range: Range,
+    ) -> Result<Vec<InlayHint>, UnitDefinitionQueryError> {
+        self.snapshot.inlay_hints(&self.config, uri, range)
+    }
+
+    /// 校验当前光标位置是否支持跨文件重命名。
+    pub(crate) fn prepare_rename(
+        &self,
+        uri: &Uri,
+        position: Position,
+    ) -> Result<Option<PrepareRenameResponse>, UnitDefinitionQueryError> {
+        self.snapshot.prepare_rename(&self.config, uri, position)
+    }
+
+    /// 计算当前 last-good snapshot 中的跨文件重命名 `WorkspaceEdit`。
+    pub(crate) fn rename(
+        &self,
+        uri: &Uri,
+        position: Position,
+        new_name: &str,
+    ) -> Result<Option<WorkspaceEdit>, UnitDefinitionQueryError> {
+        self.snapshot.rename(&self.config, uri, position, new_name)
     }
 
     /// 只为当前打开的 overlay 提供编辑，不能把关闭后的 base 当作编辑器文本。
@@ -339,18 +390,17 @@ impl UnitSnapshot {
             .collect())
     }
 
-    fn definition_locations(
+    fn resolve_source_unit(
         &self,
         config: &SourceSetConfig,
         uri: &Uri,
-        position: Position,
-    ) -> Result<Vec<Location>, UnitDefinitionQueryError> {
+    ) -> Result<Option<(SourceId, SourceUnitId)>, UnitDefinitionQueryError> {
         let Some(source_index) = config
             .sources()
             .iter()
             .position(|source| source.uri() == uri)
         else {
-            return Ok(Vec::new());
+            return Ok(None);
         };
         let source_id = self.source_ids[source_index];
         let source_unit = self
@@ -363,8 +413,70 @@ impl UnitSnapshot {
             .find(|source| source.source_id() == source_id)
             .ok_or(UnitDefinitionQueryError::UnknownSource(source_id))?
             .id();
+        Ok(Some((source_id, source_unit)))
+    }
+
+    fn resolve_source_and_offset(
+        &self,
+        config: &SourceSetConfig,
+        uri: &Uri,
+        position: Position,
+    ) -> Result<Option<(SourceId, SourceUnitId, usize)>, UnitDefinitionQueryError> {
+        let Some((source_id, source_unit)) = self.resolve_source_unit(config, uri)? else {
+            return Ok(None);
+        };
         let Some(offset) =
             byte_offset(self.analysis.name_snapshot().sources(), source_id, position)?
+        else {
+            return Ok(None);
+        };
+        Ok(Some((source_id, source_unit, offset)))
+    }
+
+    fn target_to_location(
+        &self,
+        config: &SourceSetConfig,
+        target: UnitDefinitionTarget,
+    ) -> Result<Location, UnitDefinitionQueryError> {
+        let target_source = self
+            .analysis
+            .name_snapshot()
+            .names()
+            .index()
+            .source_units()
+            .get(target.source_unit.index())
+            .filter(|source| source.id() == target.source_unit)
+            .ok_or(UnitDefinitionQueryError::UnknownSource(
+                target.span.source_id(),
+            ))?;
+        if target.span.source_id() != target_source.source_id() {
+            return Err(UnitDefinitionQueryError::MismatchedTargetSource {
+                expected: target_source.source_id(),
+                actual: target.span.source_id(),
+            });
+        }
+        let target_index = self
+            .source_ids
+            .iter()
+            .position(|source_id| *source_id == target_source.source_id())
+            .ok_or(UnitDefinitionQueryError::UnknownSource(
+                target_source.source_id(),
+            ))?;
+        let range = span_range(self.analysis.name_snapshot().sources(), target.span)?;
+        Ok(Location::new(
+            config.sources()[target_index].uri().clone(),
+            range,
+        ))
+    }
+
+    fn definition_locations(
+        &self,
+        config: &SourceSetConfig,
+        uri: &Uri,
+        position: Position,
+    ) -> Result<Vec<Location>, UnitDefinitionQueryError> {
+        let Some((_, source_unit, offset)) =
+            self.resolve_source_and_offset(config, uri, position)?
         else {
             return Ok(Vec::new());
         };
@@ -372,38 +484,91 @@ impl UnitSnapshot {
             .definitions()
             .targets_at(source_unit, offset)
             .iter()
-            .map(|target| {
-                let target_source = self
-                    .analysis
-                    .name_snapshot()
-                    .names()
-                    .index()
-                    .source_units()
-                    .get(target.source_unit.index())
-                    .filter(|source| source.id() == target.source_unit)
-                    .ok_or(UnitDefinitionQueryError::UnknownSource(
-                        target.span.source_id(),
-                    ))?;
-                if target.span.source_id() != target_source.source_id() {
-                    return Err(UnitDefinitionQueryError::MismatchedTargetSource {
-                        expected: target_source.source_id(),
-                        actual: target.span.source_id(),
-                    });
-                }
-                let target_index = self
-                    .source_ids
-                    .iter()
-                    .position(|source_id| *source_id == target_source.source_id())
-                    .ok_or(UnitDefinitionQueryError::UnknownSource(
-                        target_source.source_id(),
-                    ))?;
-                let range = span_range(self.analysis.name_snapshot().sources(), target.span)?;
-                Ok(Location::new(
-                    config.sources()[target_index].uri().clone(),
-                    range,
-                ))
-            })
+            .map(|target| self.target_to_location(config, *target))
             .collect()
+    }
+
+    fn reference_locations(
+        &self,
+        config: &SourceSetConfig,
+        uri: &Uri,
+        position: Position,
+        include_declaration: bool,
+    ) -> Result<Vec<Location>, UnitDefinitionQueryError> {
+        let Some((_, source_unit, offset)) =
+            self.resolve_source_and_offset(config, uri, position)?
+        else {
+            return Ok(Vec::new());
+        };
+        self.analysis
+            .definitions()
+            .references_at(source_unit, offset, include_declaration)
+            .into_iter()
+            .map(|target| self.target_to_location(config, target))
+            .collect()
+    }
+
+    fn hover(
+        &self,
+        config: &SourceSetConfig,
+        uri: &Uri,
+        position: Position,
+    ) -> Result<Option<Hover>, UnitDefinitionQueryError> {
+        let Some((_, source_unit, offset)) =
+            self.resolve_source_and_offset(config, uri, position)?
+        else {
+            return Ok(None);
+        };
+        Ok(ide_features::hover_at(&self.analysis, source_unit, offset)?)
+    }
+
+    fn inlay_hints(
+        &self,
+        config: &SourceSetConfig,
+        uri: &Uri,
+        range: Range,
+    ) -> Result<Vec<InlayHint>, UnitDefinitionQueryError> {
+        let Some((source_id, source_unit)) = self.resolve_source_unit(config, uri)? else {
+            return Ok(Vec::new());
+        };
+        Ok(ide_features::inlay_hints_for_source(
+            &self.analysis,
+            source_unit,
+            source_id,
+            range,
+        )?)
+    }
+
+    fn prepare_rename(
+        &self,
+        config: &SourceSetConfig,
+        uri: &Uri,
+        position: Position,
+    ) -> Result<Option<PrepareRenameResponse>, UnitDefinitionQueryError> {
+        let Some((_, source_unit, offset)) =
+            self.resolve_source_and_offset(config, uri, position)?
+        else {
+            return Ok(None);
+        };
+        Ok(ide_features::prepare_rename_at(
+            &self.analysis,
+            source_unit,
+            offset,
+        )?)
+    }
+
+    fn rename(
+        &self,
+        config: &SourceSetConfig,
+        uri: &Uri,
+        position: Position,
+        new_name: &str,
+    ) -> Result<Option<WorkspaceEdit>, UnitDefinitionQueryError> {
+        if self.prepare_rename(config, uri, position)?.is_none() {
+            return Ok(None);
+        }
+        let locations = self.reference_locations(config, uri, position, true)?;
+        Ok(ide_features::build_workspace_edit(locations, new_name))
     }
 }
 
