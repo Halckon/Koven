@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 
 ```mermaid
 flowchart TD
-ARCH(("已完成<br/>archive 478 份"))
+ARCH(("已完成<br/>archive 479 份"))
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
   S0333["S0333<br/>静态 Map 返回调用的双入口闭合"]
@@ -19,7 +19,6 @@ subgraph Gactive["现行 active"]
   S0390["S0390<br/>预置 Linux CI 工具链镜像"]
   S0391["S0391<br/>Codegen 测试诊断落盘与有界失败摘要"]
   S0392["S0392<br/>编译器分层复审与前端合同修复"]
-  S0510["S0510<br/>F6 第十一片 LexicalRecoveryIndex 词法 owner 栈健全性与 verified_events 构造双轨证明"]
   S0511["S0511<br/>lang-lsp 显式工作区 manifest 加载与诊断源码片段上下文"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
@@ -59,7 +58,6 @@ ARCH --> S0341
 | SPEC-0390 | active | [0390-prebuilt-ci-toolchain.md](active/0390-prebuilt-ci-toolchain.md) |
 | SPEC-0391 | active | [0391-codegen-test-diagnostics.md](active/0391-codegen-test-diagnostics.md) |
 | SPEC-0392 | active | [0392-compiler-layered-review.md](active/0392-compiler-layered-review.md) |
-| SPEC-0510 | active | [0510-f6-lexical-owner-events-machine-proof.md](active/0510-f6-lexical-owner-events-machine-proof.md) |
 | SPEC-0511 | active | [0511-lsp-workspace-manifest-and-diagnostic-context.md](active/0511-lsp-workspace-manifest-and-diagnostic-context.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](drafts/v0.44/0334-nullable-string-map-abi.md) |
@@ -69,4 +67,4 @@ ARCH --> S0341
 | SPEC-0338 | drafts/v0.44 | [0338-never-condition-evaluation.md](drafts/v0.44/0338-never-condition-evaluation.md) |
 | SPEC-0339 | drafts/v0.44 | [0339-unit-call-argument-values.md](drafts/v0.44/0339-unit-call-argument-values.md) |
 | SPEC-0340 | drafts/v0.44 | [0340-nullable-nominal-retest-view.md](drafts/v0.44/0340-nullable-nominal-retest-view.md) |
-| 已完成 Spec（478 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
+| 已完成 Spec（479 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

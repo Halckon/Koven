@@ -1,16 +1,16 @@
 # SPEC-0510：F6 第十一片 `LexicalRecoveryIndex` 词法 owner 栈健全性与 `verified_events` 构造双轨证明
 
-> **性质**：交付合同 · **状态**：in-progress · **读取时机**：实施或验收 F6 第十一片局部机器证明与双轨 CI 时 · **唯一真源**：本页验收账本
+> **性质**：交付合同 · **状态**：done（历史归档） · **读取时机**：实施或验收 F6 第十一片局部机器证明与双轨 CI 时 · **唯一真源**：本页验收账本
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | 所属 Phase | Phase 1 局部形式化验证（F6 延伸） |
 | 语言规范 | [Guide v0.47](../../guide/README.md) |
 | 基线 | `main@28076229` |
 | 分支 | `feature/spec-0510-f6-lexical-owner-events` |
 
-本 Spec 承接 [F6 局部机器证明前置设计](../../proposals/parser-formal-verification/f6-machine-proof-design.md) 与 [SPEC-0498](../../archive/specs/0498-f6-group-owners-machine-proof.md)（Slice 3 `GroupOwners`），
+本 Spec 承接 [F6 局部机器证明前置设计](../../proposals/parser-formal-verification/f6-machine-proof-design.md) 与 [SPEC-0498](0498-f6-group-owners-machine-proof.md)（Slice 3 `GroupOwners`），
 对 [recovery.rs](../../../crates/lang-frontend/src/parser/engine/recovery.rs) 中 `LexicalRecoveryIndex::new` 的词法 owner 栈验证与 `verified_events` 构造内核（抽取至 [owner_events.rs](../../../crates/lang-frontend/src/parser/engine/recovery/owner_events.rs)）交付 **Lean 4（无界流模型定理）+ Kani（有界生产 Rust 符号检验 + 下游 `GroupOwners` 桥接验证）** 双轨证明，并接入 [.github/workflows/parser-formal-f6.yml](../../../.github/workflows/parser-formal-f6.yml)。
 生产解析行为与公开 Rust API 零变化，不引入 Cargo 生产依赖，不宣称全输入生产 G4。
 
@@ -42,4 +42,6 @@
 
 - [x] `F6OwnerEvents.lean` 零告警构建与 11 条定理核心公理白名单本机通过
 - [x] `owner_events_tests`（含 10 万纯流零容量保留测试）、`cargo clippy --all-targets`、`cargo fmt --check`、`check_rust_sizes` 与本机 Kani 0.68.0 两条 harness 实跑通过
-- [ ] PR CI 中 `Parser Formal F6 (Lean 4 + Kani)` 实跑验收与归档
+- [x] PR CI 中 `Parser Formal F6 (Lean 4 + Kani)` 实跑验收与归档
+
+**PR #483 验收证据。** 实现 head `6a5e335a`，基于 `4c8fc369`，实际验证合并树 `72218f57`。[双宿主代码 CI](https://github.com/Halckon/Koven/actions/runs/45922470211/job/140265161602)及 [F6 Lean / Kani 双轨作业](https://github.com/Halckon/Koven/actions/runs/45922470309)均通过，覆盖 11 片、75 条 Lean 模型定理与 26 个 Kani harness。归档提交本身的门禁另验。
