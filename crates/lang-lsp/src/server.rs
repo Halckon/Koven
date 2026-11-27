@@ -66,6 +66,13 @@ pub(crate) fn run_with_options(
             return Ok(());
         }
     };
+    let supports_document_changes = initialize_params
+        .capabilities
+        .workspace
+        .as_ref()
+        .and_then(|w| w.workspace_edit.as_ref())
+        .and_then(|e| e.document_changes)
+        .unwrap_or(false);
     let source_set = match SourceSetConfig::from_initialization_options(
         initialize_params.initialization_options.as_ref(),
     ) {
@@ -186,7 +193,11 @@ pub(crate) fn run_with_options(
                     PrepareRenameRequest::METHOD => {
                         dispatch_json!(ide_requests::prepare_rename_response(params, &state))
                     }
-                    Rename::METHOD => dispatch_json!(ide_requests::rename_response(params, &state)),
+                    Rename::METHOD => dispatch_json!(ide_requests::rename_response(
+                        params,
+                        &state,
+                        supports_document_changes
+                    )),
                     Formatting::METHOD => dispatch_json!(formatting_response(params, &state)),
                     _ => {
                         send_response(

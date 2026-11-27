@@ -7,14 +7,22 @@ use lsp_types::{
 };
 
 fn doc_edits(edit: Option<WorkspaceEdit>) -> Vec<TextDocumentEdit> {
-    match edit
-        .expect("workspace edit")
-        .document_changes
-        .expect("document_changes")
-    {
-        DocumentChanges::Edits(edits) => edits,
-        DocumentChanges::Operations(_) => panic!("expected DocumentChanges::Edits"),
+    let edit = edit.expect("workspace edit");
+    if let Some(DocumentChanges::Edits(edits)) = edit.document_changes {
+        return edits;
     }
+    #[allow(clippy::mutable_key_type)]
+    let changes = edit.changes.expect("changes or document_changes");
+    changes
+        .into_iter()
+        .map(|(uri, edits)| TextDocumentEdit {
+            text_document: lsp_types::OptionalVersionedTextDocumentIdentifier {
+                uri,
+                version: None,
+            },
+            edits: edits.into_iter().map(lsp_types::OneOf::Left).collect(),
+        })
+        .collect()
 }
 
 fn edits_for_uri<'a>(edits: &'a [TextDocumentEdit], uri: &lsp_types::Uri) -> &'a TextDocumentEdit {
@@ -342,7 +350,6 @@ fun main() {
     let edits = doc_edits(edit);
     let uri_edits = edits_for_uri(&edits, &uri);
     assert_eq!(uri_edits.edits.len(), 2);
-    assert_eq!(uri_edits.text_document.version, Some(1));
 
     shutdown(&client);
     server_thread
@@ -449,10 +456,6 @@ fun demo() {
     );
     let loop_edits = doc_edits(loop_edit);
     assert_eq!(edits_for_uri(&loop_edits, &uri).edits.len(), 3);
-    assert_eq!(
-        edits_for_uri(&loop_edits, &uri).text_document.version,
-        Some(3)
-    );
 
     // P2-1: Parameter rename updates declaration, body uses, AND named argument `value = x`.
     let param_edit: Option<WorkspaceEdit> = request_typed!(

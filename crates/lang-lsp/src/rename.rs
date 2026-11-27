@@ -1,9 +1,13 @@
 //! LSP 安全重命名：Lexer 标识符校验、绑定不变性验证与带版本 WorkspaceEdit 构造。
 
-use std::{collections::BTreeMap, fmt};
+use std::{
+    collections::{BTreeMap, HashMap},
+    fmt,
+};
 
 use lang_frontend::{
     analysis::{UnitSourceDescriptor, analyze_unit_names},
+    diagnostic::{Diagnostic, Severity},
     lexer::{LexemeKind, TokenKind, lex},
     name_resolution::SourceUnitId,
     source::{SourceMap, Span},
@@ -23,6 +27,7 @@ use crate::{
 #[derive(Debug)]
 pub(crate) enum RenameError {
     InvalidIdentifier(String),
+    IncompleteAnalysis,
     SharedOverloadReference,
     AliasReference,
     BindingConflict,
@@ -37,6 +42,9 @@ impl fmt::Display for RenameError {
             Self::InvalidIdentifier(name) => {
                 write!(f, "invalid Koven identifier for rename: {name:?}")
             }
+            Self::IncompleteAnalysis => f.write_str(
+                "cannot safely rename while compilation unit has unresolved name or syntax errors",
+            ),
             Self::SharedOverloadReference => f.write_str(
                 "cannot safely rename a single overload referenced through a shared import or overload set",
             ),
@@ -97,11 +105,24 @@ pub(crate) struct RenameSourceInput<'a> {
     pub(crate) text: &'a str,
 }
 
+fn error_code_counts(diagnostics: &[Diagnostic]) -> BTreeMap<String, usize> {
+    let mut counts = BTreeMap::new();
+    for diag in diagnostics {
+        if diag.severity() == Severity::Error {
+            *counts.entry(diag.code().to_string()).or_insert(0) += 1;
+        }
+    }
+    counts
+}
+
 /// 在内存中模拟应用全部重命名编辑并重跑前端名称/类型解析，确认：
-/// 1. 每一处被改写的 span 在重命名后仍然绑定到完全相同的目标声明集合（防止遮蔽/捕获）；
-/// 2. 目标声明集合在重命名后不会意外捕获任何原本不相关的引用（防止反向捕获/同作用域冲突）。
+/// 1. 不会引入新的名称/类型错误诊断（如重复局部声明 `L0079` 或重复函数签名 `L0097`）；
+/// 2. 每一处被改写的 span 在重命名后仍然绑定到完全相同的目标声明集合（防止遮蔽/捕获）；
+/// 3. 目标声明集合在重命名后不会意外捕获任何原本不相关的引用（防止反向捕获/同作用域冲突）。
 pub(crate) fn verify_rename_preserves_bindings(
     inputs: &[RenameSourceInput<'_>],
+    pre_name_diagnostics: &[Diagnostic],
+    pre_type_diagnostics: &[Diagnostic],
     plan: &RenamePlan,
     new_name: &str,
 ) -> Result<(), RenameError> {
@@ -163,24 +184,33 @@ pub(crate) fn verify_rename_preserves_bindings(
     let (name_env, type_env) = standard_environments();
     let name_snapshot = analyze_unit_names(new_sources, descriptors, name_env)
         .map_err(|e| RenameError::Internal(e.to_string()))?;
-    let typed = if let Some(validated) = name_snapshot.validated_names() {
-        let unit_inputs = name_snapshot.inputs();
-        Some(
-            check_compilation_unit_types(
-                name_snapshot.sources(),
-                &unit_inputs,
-                validated,
-                &type_env,
-            )
-            .map_err(|e| RenameError::Internal(e.to_string()))?,
-        )
-    } else {
-        None
+    let pre_name_errors = error_code_counts(pre_name_diagnostics);
+    let post_name_errors = error_code_counts(name_snapshot.names().diagnostics());
+    for (code, post_count) in &post_name_errors {
+        let pre_count = pre_name_errors.get(code).copied().unwrap_or(0);
+        if *post_count > pre_count {
+            return Err(RenameError::BindingConflict);
+        }
+    }
+    let Some(validated) = name_snapshot.validated_names() else {
+        return Err(RenameError::BindingConflict);
     };
+    let unit_inputs = name_snapshot.inputs();
+    let typed =
+        check_compilation_unit_types(name_snapshot.sources(), &unit_inputs, validated, &type_env)
+            .map_err(|e| RenameError::Internal(e.to_string()))?;
+    let pre_type_errors = error_code_counts(pre_type_diagnostics);
+    let post_type_errors = error_code_counts(typed.diagnostics());
+    for (code, post_count) in &post_type_errors {
+        let pre_count = pre_type_errors.get(code).copied().unwrap_or(0);
+        if *post_count > pre_count {
+            return Err(RenameError::BindingConflict);
+        }
+    }
     let post_index = UnitDefinitionIndex::build(
         name_snapshot.parsed_files(),
         name_snapshot.names(),
-        typed.as_ref(),
+        Some(&typed),
     )
     .map_err(|e| RenameError::Internal(e.to_string()))?;
 
@@ -283,10 +313,11 @@ fn apply_edits_in_memory(
     Ok((out, mapping))
 }
 
-/// 将按文件分组的编辑构造成携带可选文档版本的 `WorkspaceEdit` (`documentChanges`)。
-pub(crate) fn build_versioned_workspace_edit(
+/// 按客户端能力构造 `WorkspaceEdit`：支持 `documentChanges` 时携带可选文档版本，否则返回 `changes`。
+pub(crate) fn build_workspace_edit(
     edits_by_doc: Vec<(Uri, Option<i32>, Range)>,
     new_name: &str,
+    supports_document_changes: bool,
 ) -> Option<WorkspaceEdit> {
     if edits_by_doc.is_empty() {
         return None;
@@ -301,34 +332,53 @@ pub(crate) fn build_versioned_workspace_edit(
             new_text: new_name.to_owned(),
         });
     }
-    let mut doc_edits = Vec::with_capacity(grouped.len());
-    for (_, (uri, version, mut edits)) in grouped {
-        edits.sort_by_key(|e| {
-            (
-                e.range.start.line,
-                e.range.start.character,
-                e.range.end.line,
-                e.range.end.character,
-            )
-        });
-        edits.dedup_by_key(|e| {
-            (
-                e.range.start.line,
-                e.range.start.character,
-                e.range.end.line,
-                e.range.end.character,
-            )
-        });
-        doc_edits.push(TextDocumentEdit {
-            text_document: OptionalVersionedTextDocumentIdentifier { uri, version },
-            edits: edits.into_iter().map(OneOf::Left).collect(),
-        });
+    if supports_document_changes {
+        let mut doc_edits = Vec::with_capacity(grouped.len());
+        for (_, (uri, version, mut edits)) in grouped {
+            sort_and_dedup_edits(&mut edits);
+            doc_edits.push(TextDocumentEdit {
+                text_document: OptionalVersionedTextDocumentIdentifier { uri, version },
+                edits: edits.into_iter().map(OneOf::Left).collect(),
+            });
+        }
+        Some(WorkspaceEdit {
+            changes: None,
+            document_changes: Some(DocumentChanges::Edits(doc_edits)),
+            change_annotations: None,
+        })
+    } else {
+        // lsp_types::WorkspaceEdit::changes 固定使用 HashMap<Uri, Vec<TextEdit>>。
+        #[allow(clippy::mutable_key_type)]
+        let mut changes: HashMap<Uri, Vec<TextEdit>> = HashMap::with_capacity(grouped.len());
+        for (_, (uri, _, mut edits)) in grouped {
+            sort_and_dedup_edits(&mut edits);
+            changes.insert(uri, edits);
+        }
+        Some(WorkspaceEdit {
+            changes: Some(changes),
+            document_changes: None,
+            change_annotations: None,
+        })
     }
-    Some(WorkspaceEdit {
-        changes: None,
-        document_changes: Some(DocumentChanges::Edits(doc_edits)),
-        change_annotations: None,
-    })
+}
+
+fn sort_and_dedup_edits(edits: &mut Vec<TextEdit>) {
+    edits.sort_by_key(|e| {
+        (
+            e.range.start.line,
+            e.range.start.character,
+            e.range.end.line,
+            e.range.end.character,
+        )
+    });
+    edits.dedup_by_key(|e| {
+        (
+            e.range.start.line,
+            e.range.start.character,
+            e.range.end.line,
+            e.range.end.character,
+        )
+    });
 }
 
 /// 辅助检查：`span` 在 `sources` 中的切片文本。

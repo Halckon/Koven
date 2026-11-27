@@ -1,8 +1,9 @@
 //! LSP IDE 语义查询：Hover、Inlay Hints 与 Rename 校验/准备。
 
 use lang_frontend::{
-    lexer::{Keyword, LexemeKind, Symbol, TokenKind, lex},
+    lexer::{Keyword, Lexeme, LexemeKind, Symbol, TokenKind, lex},
     name_resolution::{CompilationUnitNames, SourceUnitId, SymbolKind, UnitSymbolId},
+    parser::ParsedFile,
     source::{SourceId, SourceMap, Span},
     type_checking::{CompilationUnitTypes, ParameterMode, UnitTypeId, UnitTypeKind},
 };
@@ -46,8 +47,14 @@ pub(crate) fn hover_at(
         return Ok(None);
     };
 
-    let (signature, doc_comment) =
-        describe_target(names, typed, target.source_unit, target.span, target_text);
+    let (signature, doc_comment) = describe_target(
+        names,
+        typed,
+        snapshot.name_snapshot().parsed_files(),
+        target.source_unit,
+        target.span,
+        target_text,
+    );
     let Some(signature) = signature else {
         return Ok(None);
     };
@@ -106,6 +113,7 @@ pub(crate) fn inlay_hints_for_source(
         return Ok(Vec::new());
     };
 
+    let mut lexed_tokens: Option<Vec<Lexeme>> = None;
     let mut hints = Vec::new();
     for symbol in unit_names.resolution().symbols() {
         if !matches!(
@@ -118,7 +126,23 @@ pub(crate) fn inlay_hints_for_source(
         if span.source_id() != source_id || span.is_empty() || span.end() > source_text.len() {
             continue;
         }
-        if has_explicit_type_annotation(source_text, span.end()) {
+        let lsp_range = span_range(sources, span)?;
+        let pos = lsp_range.end;
+        if !position_in_range(pos, range) {
+            continue;
+        }
+        let tokens = lexed_tokens.get_or_insert_with(|| {
+            lex(sources, source_id)
+                .map(|file| {
+                    file.lexemes()
+                        .iter()
+                        .copied()
+                        .filter(|l| !matches!(l.kind(), LexemeKind::Trivia(_)))
+                        .collect()
+                })
+                .unwrap_or_default()
+        });
+        if has_explicit_type_annotation(tokens, span.end()) {
             continue;
         }
         let unit_symbol = UnitSymbolId::new(source_unit, symbol.id());
@@ -128,11 +152,6 @@ pub(crate) fn inlay_hints_for_source(
         let Some(ty_text) = format_unit_type(ty_id, typed, names) else {
             continue;
         };
-        let lsp_range = span_range(sources, span)?;
-        let pos = lsp_range.end;
-        if !position_in_range(pos, range) {
-            continue;
-        }
         hints.push(InlayHint {
             position: pos,
             label: InlayHintLabel::String(format!(": {ty_text}")),
@@ -154,6 +173,9 @@ pub(crate) fn prepare_rename_at(
     source_unit: SourceUnitId,
     offset: usize,
 ) -> Result<Option<PrepareRenameResponse>, PositionMappingError> {
+    if snapshot.typed().is_none() {
+        return Ok(None);
+    }
     let sources = snapshot.name_snapshot().sources();
     let Some((ref_span, _)) = snapshot.definitions().entry_at(source_unit, offset) else {
         return Ok(None);
@@ -180,6 +202,7 @@ pub(crate) fn prepare_rename_at(
 fn describe_target(
     names: &CompilationUnitNames,
     typed: Option<&CompilationUnitTypes>,
+    parsed_files: &[ParsedFile],
     target_unit: SourceUnitId,
     target_span: Span,
     target_text: &str,
@@ -191,8 +214,14 @@ fn describe_target(
         .iter()
         .find(|d| d.source_unit() == target_unit && d.name_span() == target_span)
     {
-        let header = extract_declaration_header(target_text, target_span.start());
-        let docs = extract_leading_doc_comment(target_text, target_span.start());
+        let ast_start = parsed_files
+            .iter()
+            .find(|p| p.source_id() == target_span.source_id())
+            .and_then(|p| p.ast().items().get(decl.root()).ok())
+            .map(|item| item.span().start());
+        let header = extract_declaration_header(target_text, ast_start, target_span.start());
+        let docs =
+            extract_leading_doc_comment(target_text, ast_start.unwrap_or(target_span.start()));
         let fallback = if header.is_empty() {
             decl.name().to_owned()
         } else {
@@ -250,23 +279,12 @@ fn describe_target(
     (None, None)
 }
 
-fn has_explicit_type_annotation(text: &str, after_name_offset: usize) -> bool {
-    let rest = &text[after_name_offset..];
-    let mut map = SourceMap::new();
-    let Ok(sid) = map.add_source("<inlay>", rest) else {
-        return false;
-    };
-    let Ok(lexed) = lex(&map, sid) else {
-        return false;
-    };
-    for lexeme in lexed.lexemes() {
-        match lexeme.kind() {
-            LexemeKind::Trivia(_) => continue,
-            LexemeKind::Token(TokenKind::Symbol(Symbol::Colon)) => return true,
-            _ => return false,
-        }
-    }
-    false
+fn has_explicit_type_annotation(non_trivia_tokens: &[Lexeme], after_name_offset: usize) -> bool {
+    let idx = non_trivia_tokens.partition_point(|l| l.span().start() < after_name_offset);
+    matches!(
+        non_trivia_tokens.get(idx).map(|l| l.kind()),
+        Some(LexemeKind::Token(TokenKind::Symbol(Symbol::Colon)))
+    )
 }
 
 fn position_in_range(pos: Position, range: Range) -> bool {
@@ -276,9 +294,9 @@ fn position_in_range(pos: Position, range: Range) -> bool {
             || (pos.line == range.end.line && pos.character <= range.end.character))
 }
 
-fn extract_declaration_header(text: &str, name_offset: usize) -> String {
-    let line_start = text[..name_offset].rfind('\n').map_or(0, |i| i + 1);
-    let rest = &text[line_start..];
+fn extract_declaration_header(text: &str, ast_start: Option<usize>, name_offset: usize) -> String {
+    let start = ast_start.unwrap_or_else(|| text[..name_offset].rfind('\n').map_or(0, |i| i + 1));
+    let rest = &text[start..];
     let mut map = SourceMap::new();
     let Ok(sid) = map.add_source("<hover>", rest) else {
         return String::new();

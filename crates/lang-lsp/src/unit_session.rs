@@ -28,8 +28,7 @@ use crate::{
     ide_features,
     position_adapter::{PositionMappingError, byte_offset, span_range},
     rename::{
-        RenameError, RenameSourceInput, build_versioned_workspace_edit,
-        verify_rename_preserves_bindings,
+        RenameError, RenameSourceInput, build_workspace_edit, verify_rename_preserves_bindings,
     },
     source_set::SourceSetConfig,
     unit_analysis_snapshot::{UnitAnalysisSnapshot, UnitAnalysisSnapshotError},
@@ -234,6 +233,7 @@ impl UnitSession {
         uri: &Uri,
         position: Position,
         new_name: &str,
+        supports_document_changes: bool,
     ) -> Result<Option<WorkspaceEdit>, RenameError> {
         self.snapshot.rename(
             &self.config,
@@ -242,6 +242,7 @@ impl UnitSession {
             uri,
             position,
             new_name,
+            supports_document_changes,
         )
     }
 
@@ -572,6 +573,7 @@ impl UnitSnapshot {
         )?)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn rename(
         &self,
         config: &SourceSetConfig,
@@ -580,7 +582,11 @@ impl UnitSnapshot {
         uri: &Uri,
         position: Position,
         new_name: &str,
+        supports_document_changes: bool,
     ) -> Result<Option<WorkspaceEdit>, RenameError> {
+        let Some(typed) = self.analysis.typed() else {
+            return Err(RenameError::IncompleteAnalysis);
+        };
         let Some((_, source_unit, offset)) = self
             .resolve_source_and_offset(config, uri, position)
             .map_err(|e| match e {
@@ -602,7 +608,7 @@ impl UnitSnapshot {
             return Ok(None);
         }
 
-        // Build current unit inputs and verify post-rename bindings do not conflict or get captured.
+        // Build current unit inputs and verify post-rename diagnostics and bindings remain sound.
         let index_units = self.analysis.name_snapshot().names().index().source_units();
         let mut verify_inputs = Vec::with_capacity(config.sources().len());
         for (source, &sid) in config.sources().iter().zip(self.source_ids.iter()) {
@@ -622,7 +628,13 @@ impl UnitSnapshot {
                 text,
             });
         }
-        verify_rename_preserves_bindings(&verify_inputs, &plan, new_name)?;
+        verify_rename_preserves_bindings(
+            &verify_inputs,
+            self.analysis.name_snapshot().names().diagnostics(),
+            typed.diagnostics(),
+            &plan,
+            new_name,
+        )?;
 
         // Map edits with document version (for open overlays) and verify closed disk files are not stale.
         let mut checked_closed = std::collections::BTreeSet::new();
@@ -637,18 +649,22 @@ impl UnitSnapshot {
             let version = if let Some(overlay) = overlays.get(location.uri.as_str()) {
                 Some(overlay.version)
             } else {
-                if workspace_manifest && checked_closed.insert(location.uri.as_str().to_owned()) {
+                if checked_closed.insert(location.uri.as_str().to_owned()) {
                     let expected = sources
                         .source_text(occurrence.span.source_id())
                         .map_err(|e| RenameError::Internal(e.to_string()))?;
-                    let path =
-                        workspace_manifest::file_uri_to_path(&location.uri).ok_or_else(|| {
-                            RenameError::StaleClosedFile(location.uri.as_str().to_owned())
-                        })?;
-                    let disk_text = std::fs::read_to_string(&path).map_err(|_| {
-                        RenameError::StaleClosedFile(location.uri.as_str().to_owned())
-                    })?;
-                    if disk_text != expected {
+                    if let Some(path) = workspace_manifest::file_uri_to_path(&location.uri) {
+                        if workspace_manifest || path.exists() {
+                            let disk_text = std::fs::read_to_string(&path).map_err(|_| {
+                                RenameError::StaleClosedFile(location.uri.as_str().to_owned())
+                            })?;
+                            if disk_text != expected {
+                                return Err(RenameError::StaleClosedFile(
+                                    location.uri.as_str().to_owned(),
+                                ));
+                            }
+                        }
+                    } else if workspace_manifest {
                         return Err(RenameError::StaleClosedFile(
                             location.uri.as_str().to_owned(),
                         ));
@@ -659,7 +675,11 @@ impl UnitSnapshot {
             edits_by_doc.push((location.uri, version, location.range));
         }
 
-        Ok(build_versioned_workspace_edit(edits_by_doc, new_name))
+        Ok(build_workspace_edit(
+            edits_by_doc,
+            new_name,
+            supports_document_changes,
+        ))
     }
 }
 

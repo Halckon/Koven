@@ -120,6 +120,28 @@ impl UnitDefinitionIndex {
                     }
                 }
             }
+            for construction in typed.constructions() {
+                let expression = construction.expression();
+                let source = parsed_for_source(parsed, names, expression.source_unit())?;
+                if let Ok(expr_node) = source.ast().expressions().get(expression.expression())
+                    && let Expression::Call { arguments, .. } = expr_node.payload()
+                {
+                    for arg in construction.arguments() {
+                        if let Some(named) = arguments
+                            .get(arg.evaluation_index())
+                            .and_then(|item| item.named_prefix)
+                            && let Some(param_sym) = arg.parameter_symbol()
+                        {
+                            replace_unit_targets(
+                                &mut entries,
+                                expression.source_unit(),
+                                named.name_span,
+                                [unit_symbol_target(names, param_sym)?],
+                            );
+                        }
+                    }
+                }
+            }
             for projection in typed.aggregate_projections() {
                 let expression = projection.expression();
                 let source = parsed_for_source(parsed, names, expression.source_unit())?;
@@ -252,6 +274,9 @@ impl UnitDefinitionIndex {
         };
         if targets.is_empty() {
             return Ok(None);
+        }
+        if targets.len() > 1 {
+            return Err(RenameError::SharedOverloadReference);
         }
         let Some(cursor_text) = span_slice(sources, cursor_span) else {
             return Ok(None);

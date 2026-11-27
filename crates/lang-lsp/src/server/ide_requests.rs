@@ -10,7 +10,7 @@ use crate::{
     ide_features,
     position_adapter::{byte_offset, span_range},
     rename::{
-        RenameError, RenameSourceInput, build_versioned_workspace_edit, is_valid_rename_identifier,
+        RenameError, RenameSourceInput, build_workspace_edit, is_valid_rename_identifier,
         verify_rename_preserves_bindings,
     },
 };
@@ -228,6 +228,7 @@ pub(super) fn prepare_rename_response(
 fn map_rename_error(error: RenameError) -> RequestError {
     match error {
         RenameError::InvalidIdentifier(_)
+        | RenameError::IncompleteAnalysis
         | RenameError::SharedOverloadReference
         | RenameError::AliasReference
         | RenameError::BindingConflict
@@ -242,7 +243,11 @@ fn single_document_rename(
     uri: &Uri,
     position: lsp_types::Position,
     new_name: &str,
+    supports_document_changes: bool,
 ) -> Result<Option<WorkspaceEdit>, RequestError> {
+    let Some(typed) = document.analysis.typed() else {
+        return Err(map_rename_error(RenameError::IncompleteAnalysis));
+    };
     let Some((source_unit, offset)) = single_document_offset(document, position)? else {
         return Ok(None);
     };
@@ -268,7 +273,14 @@ fn single_document_rename(
         logical_path: None,
         text,
     }];
-    verify_rename_preserves_bindings(&inputs, &plan, new_name).map_err(map_rename_error)?;
+    verify_rename_preserves_bindings(
+        &inputs,
+        document.analysis.name_snapshot().names().diagnostics(),
+        typed.diagnostics(),
+        &plan,
+        new_name,
+    )
+    .map_err(map_rename_error)?;
     let edits_by_doc = plan
         .occurrences
         .into_iter()
@@ -278,12 +290,17 @@ fn single_document_rename(
                 .map_err(|e| RequestError::Internal(e.to_string()))
         })
         .collect::<Result<Vec<_>, _>>()?;
-    Ok(build_versioned_workspace_edit(edits_by_doc, new_name))
+    Ok(build_workspace_edit(
+        edits_by_doc,
+        new_name,
+        supports_document_changes,
+    ))
 }
 
 pub(super) fn rename_response(
     params: serde_json::Value,
     state: &SessionState,
+    supports_document_changes: bool,
 ) -> Result<Option<WorkspaceEdit>, RequestError> {
     let params: RenameParams = serde_json::from_value(params)
         .map_err(|error| RequestError::InvalidParams(error.to_string()))?;
@@ -297,7 +314,12 @@ pub(super) fn rename_response(
         SessionState::Unit { session, fallback } => {
             if session.contains_uri(&pos.text_document.uri) {
                 session
-                    .rename(&pos.text_document.uri, pos.position, &params.new_name)
+                    .rename(
+                        &pos.text_document.uri,
+                        pos.position,
+                        &params.new_name,
+                        supports_document_changes,
+                    )
                     .map_err(map_rename_error)
             } else if let Some(document) = fallback.get(pos.text_document.uri.as_str()) {
                 single_document_rename(
@@ -305,6 +327,7 @@ pub(super) fn rename_response(
                     &pos.text_document.uri,
                     pos.position,
                     &params.new_name,
+                    supports_document_changes,
                 )
             } else {
                 Ok(None)
@@ -319,6 +342,7 @@ pub(super) fn rename_response(
                 &pos.text_document.uri,
                 pos.position,
                 &params.new_name,
+                supports_document_changes,
             )
         }
     }
