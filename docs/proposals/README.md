@@ -50,6 +50,7 @@ Proposal 本身不修改现行 v0.46、不批准 Spec，也不代表实现优先
 - [析构时机：两个方案的对比](drop-timing-comparison.md)：最早析构加屏障，对比词法析构加允许的提前释放；方向已裁决为后者
 - [IO 资源借用、责任交接与清理：设计安全原则](io-resource-handoff-cleanup.md)：在途 IO 的保活、责任交接与清理进度；失败政策与后端证明未决
 - [Parser 文法与验证实施建议：评审与路径分解](parser-grammar-verification-review.md)：恢复先行、机器文法为新语法把关的路线 F
+- [F5 增量门禁演练：OD4（L2/L3 候选语法前三项）](parser-formal-verification/f5-od4-l2-l3-syntax-gate-drill.md)：`flows … into`、`view T`、`p.origins` 的 F5 六项门禁字段、GNU Bison 2.3 冲突实测与 20 组正反例见证（排除 `borrow var`）
 - [顶层状态、静态存储与全局生命周期](global-and-static-state.md)：G1 接纳面收窄已决（v0.46 C），G2–G5 分层候选
 - [String Copyable 候选取舍](string-copyability.md)
 - [显式 clone() 候选设计](explicit-clone.md)
