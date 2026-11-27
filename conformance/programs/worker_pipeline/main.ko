@@ -4,6 +4,7 @@
 fun spawnAndDropThread(own tx: Sender<String>): Unit {
     val bg: Thread<Unit> = thread(move {
         tx.send("bg-done")
+        println("  bg-worker finished")
         return
     })
 }
@@ -11,6 +12,7 @@ fun spawnAndDropThread(own tx: Sender<String>): Unit {
 fun runImplicitJoin(): String {
     val (sender, receiver) = channel<String>()
     spawnAndDropThread(sender)
+    println("  after implicit join")
     val result = receiver.receive()
     return result ?: "missing"
 }

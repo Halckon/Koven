@@ -462,7 +462,7 @@ class ConformanceAuditSelfTests(unittest.TestCase):
         )
         self.assertEqual(prog_blockers["L3b"]["programs"], ["query_pipeline", "varint_codec"])
         self.assertEqual(prog_blockers["L3b"]["probes"], [])
-        self.assertEqual(len(prog_blockers["N02"]["programs"]), 4)
+        self.assertEqual(len(prog_blockers["N02"]["programs"]), 5)
         self.assertEqual(set(gate.GUIDE_CHAPTER_DOMAINS.keys()), set(gate.VALID_GUIDE_CHAPTERS))
         cohort = gate.summarize_foundational_cohort(loaded)
         self.assertEqual(cohort["total_foundational"], 85)
@@ -542,7 +542,7 @@ class ConformanceAuditSelfTests(unittest.TestCase):
         self.assertEqual(ver_bounds["v0.44"]["status"], "all_passed")
         self.assertEqual(ver_bounds["v0.45"]["status"], "all_passed")
         self.assertEqual(ver_bounds["v0.46"]["status"], "partial")
-        self.assertEqual(ver_bounds["v0.47"]["status"], "all_passed")
+        self.assertEqual(ver_bounds["v0.47"]["status"], "partial")
         prog_prereqs = gate.summarize_program_probe_prerequisites(loaded)
         self.assertEqual(set(prog_prereqs.keys()), set(loaded["programs"].keys()))
         self.assertEqual(
@@ -558,10 +558,10 @@ class ConformanceAuditSelfTests(unittest.TestCase):
         self.assertEqual(src_scale["total_probe_source_lines"], 454)
         self.assertEqual(src_scale["total_probe_source_bytes"], 24841)
         self.assertEqual(src_scale["total_program_count"], 10)
-        self.assertEqual(src_scale["total_program_source_lines"], 867)
-        self.assertEqual(src_scale["total_program_source_bytes"], 26505)
-        self.assertEqual(src_scale["total_corpus_source_lines"], 1321)
-        self.assertEqual(src_scale["total_corpus_source_bytes"], 51346)
+        self.assertEqual(src_scale["total_program_source_lines"], 870)
+        self.assertEqual(src_scale["total_program_source_bytes"], 26628)
+        self.assertEqual(src_scale["total_corpus_source_lines"], 1324)
+        self.assertEqual(src_scale["total_corpus_source_bytes"], 51469)
         v3_cov = gate.summarize_v3_sanitizer_coverage(loaded)
         self.assertEqual(
             list(v3_cov.keys()),

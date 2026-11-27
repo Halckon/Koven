@@ -360,7 +360,7 @@ PROGRAM_ROADMAP_BLOCKERS: dict[str, list[str]] = {
     "word_count": ["N02", "N03", "L1", "L2"],
     "text_log_summary": ["L1", "L2", "L5", "L21", "N08"],
     "query_pipeline": ["N04", "N05", "N06", "L1", "L2", "L3b", "L11", "S1"],
-    "dag_refcount": ["N07", "L1", "L2", "L7"],
+    "dag_refcount": ["N02", "N07", "L1", "L2", "L7"],
     "worker_pipeline": ["T1", "N04", "L1", "L2"],
 }
 
@@ -854,6 +854,7 @@ PROGRAM_PREREQUISITE_PROBES: dict[str, list[str]] = {
         "w08_map_string_values",
     ],
     "expr_eval": [
+        "p02_interp",
         "p05_double",
         "p06_char",
         "p09_enum_payload",
@@ -864,6 +865,7 @@ PROGRAM_PREREQUISITE_PROBES: dict[str, list[str]] = {
         "s01_result_builtin",
     ],
     "linked_stack": [
+        "p02_interp",
         "p14_nullable",
         "p21_box_enum",
         "p25_linked_iter",
@@ -873,6 +875,7 @@ PROGRAM_PREREQUISITE_PROBES: dict[str, list[str]] = {
         "v18_while_nullable_class",
     ],
     "raii_state_machine": [
+        "p02_interp",
         "p12_class_inout",
         "p32_deinit",
         "p40_nested_generic_class",
@@ -882,6 +885,7 @@ PROGRAM_PREREQUISITE_PROBES: dict[str, list[str]] = {
         "q20_replace_field",
     ],
     "varint_codec": [
+        "p02_interp",
         "p03_long_uint",
         "p16_result_q",
         "p19_mutablelist",

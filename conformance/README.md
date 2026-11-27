@@ -163,13 +163,13 @@ KOVENC=target/release/kovenc scripts/conformance_matrix.sh > matrix.tsv
 |---|---|---|---|---|---:|---|
 | `word_count` | 词频 | `MutableMap` 插入序遍历、`String.clone()`、`in` 包含检查 | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `known_unimplemented` | 5 / 8 | `N02`, `N03`, `L1`, `L2` |
 | `config_parse` | 配置解析 | 逐字符解析 `key = value`、注释与空行、`Display` 实现、`Result` 与 `?` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `known_unimplemented` | 4 / 7 | `N02`, `N08`, `L1`, `L2` |
-| `expr_eval` | 表达式求值 | 递归下降解析、`Box` 递归 enum、`Result` 传播与除零报错 | [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | `known_unimplemented` | 3 / 8 | `N02`, `N05`, `N07`, `N08`, `L1`, `L2`, `L7` |
-| `raii_state_machine` | RAII 状态机 | `deinit` 资源、`replace`、词法作用域逆序析构、enum 状态迁移 | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | `known_unimplemented` | 5 / 7 | `N01`, `N02`, `L1`, `L2` |
-| `varint_codec` | 二进制编解码 | ZigZag + LEB128、具名位运算、`UByte` 转换、截断与超长报错 | [03-types-generics.md](../docs/guide/03-types-generics.md) | `known_unimplemented` | 5 / 7 | `N01`, `N08`, `L1`, `L2`, `L3b` |
-| `linked_stack` | 链表/栈 | 拥有所有权的 class 节点、`replace` 接合、原地反转、`Box` cons 列表 | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | `known_unimplemented` | 4 / 7 | `N01`, `N03`, `N07`, `L1`, `L2`, `L7` |
+| `expr_eval` | 表达式求值 | 递归下降解析、`Box` 递归 enum、`Result` 传播与除零报错 | [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | `known_unimplemented` | 3 / 9 | `N02`, `N05`, `N07`, `N08`, `L1`, `L2`, `L7` |
+| `raii_state_machine` | RAII 状态机 | `deinit` 资源、`replace`、词法作用域逆序析构、enum 状态迁移 | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | `known_unimplemented` | 5 / 8 | `N01`, `N02`, `L1`, `L2` |
+| `varint_codec` | 二进制编解码 | ZigZag + LEB128、具名位运算、`UByte` 转换、截断与超长报错 | [03-types-generics.md](../docs/guide/03-types-generics.md) | `known_unimplemented` | 5 / 8 | `N01`, `N08`, `L1`, `L2`, `L3b` |
+| `linked_stack` | 链表/栈 | 拥有所有权的 class 节点、`replace` 接合、原地反转、`Box` cons 列表 | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | `known_unimplemented` | 4 / 8 | `N01`, `N03`, `N07`, `L1`, `L2`, `L7` |
 | `text_log_summary` | 文本日志汇总 | `koven.text` 严格 UTF-8 与 `parseLong`、`const val`、`deinit` × `?` 早返回清理、`main(): Result` | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | `known_unimplemented` | 3 / 7 | `L1`, `L2`, `L5`, `L21`, `N08` |
 | `query_pipeline` | 泛型查询管道 | 泛型 `interface` bound、`by` 接口委托、`value class` 自动哈希与按名解构、可变/`move` 闭包、`::f`、`borrow T from`、`Double`、`toIntOrNull` | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | `known_unimplemented` | 4 / 10 | `N04`, `N05`, `N06`, `L1`, `L2`, `L3b`, `L11`, `S1` |
-| `dag_refcount` | 共享 DAG 析构 | `Rc<T>` 共享所有权（`.share()`/`.value`）与 `Rc`/`Box<enum>`/`MutableList` 复合 `deinit` 析构 | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | `known_unimplemented` | 3 / 6 | `N07`, `L1`, `L2`, `L7` |
+| `dag_refcount` | 共享 DAG 析构 | `Rc<T>` 共享所有权（`.share()`/`.value`）与 `Rc`/`Box<enum>`/`MutableList` 复合 `deinit` 析构 | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | `known_unimplemented` | 3 / 6 | `N02`, `N07`, `L1`, `L2`, `L7` |
 | `worker_pipeline` | 受限并发管道 | `thread(move { })`、`channel<T>()` 按名解构、`Sender.clone()`、`Transferable` 转移、`join()` 与隐式 join | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | `known_unimplemented` | 3 / 5 | `T1`, `N04`, `L1`, `L2` |
 
 这些程序按 Guide v0.47 编写（v0.47 完整继承 v0.46），是 V1 的**目标**而不是当前实现能力：今天不能编译或运行并不算

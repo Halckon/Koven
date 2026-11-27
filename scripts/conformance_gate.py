@@ -128,6 +128,7 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
             f"| `upgraded_to_compile_fail` | `FE:L0165` | `compile_fail`（`FE:L0167` 规范拒绝） | {len(base_evo['upgraded_to_compile_fail'])} | " + ", ".join(f"`{p}`" for p in base_evo["upgraded_to_compile_fail"]) + " |",
             f"| `baseline_compile_fail_preserved` | `FE:L0080`..`FE:L0164` | `compile_fail`（精确诊断序列匹配） | {len(base_evo['baseline_compile_fail_preserved'])} | " + ", ".join(f"`{p}`" for p in base_evo["baseline_compile_fail_preserved"]) + " |",
             f"| `remaining_known_unimplemented` | `BE:UnsupportedNode` / `FE:L0165` / `FE:L0135` / `FE:L0080` / `ERR` | `known_unimplemented`（100% 绑定 `target_stdout` 与 `roadmap_blockers`） | {len(base_evo['remaining_known_unimplemented'])} | " + ", ".join(f"`{p}`" for p in base_evo["remaining_known_unimplemented"]) + " |",
+            f"| `post_baseline_added` | `POST_BASELINE`（冻结基线后新增） | `run_ok` / `compile_fail` / `known_unimplemented` | {len(base_evo['post_baseline_added'])} | " + ", ".join(f"`{p}`" for p in base_evo["post_baseline_added"]) + " |",
             f"| `regressed_from_baseline_ok` | `OK` | 非 `run_ok`（基线退化） | {len(base_evo['regressed_from_baseline_ok'])} | 无（零基线退化） |",
             "",
             f"### 1.3 `v046_spec_contract` 历史基线豁免项与 Spec 交付合同溯源矩阵（{exempt_count} Probes）",

@@ -29,25 +29,18 @@ class AuditGuard(val batch: String) {
     }
 }
 
-fun parseRecord(lineNo: Int, line: String): Result<Long, AppError> {
-    val split = line.split("|")
-    val parts = when (split) {
-        is Ok -> split.success
-        is Err -> return Err(AppError.BadLine(lineNo, "empty separator"))
-    }
+fun parseColumns(lineNo: Int, parts: Array<String>): Result<Long, AppError> {
     if (parts.size != 2) {
         return Err(AppError.BadLine(lineNo, "expected 2 columns"))
     }
-    val tag = parts[0].clone()
-    if (tag.byteLength() > MAX_TAG_BYTES) {
+    if (parts[0].byteLength() > MAX_TAG_BYTES) {
         return Err(AppError.BadLine(lineNo, "tag too long"))
     }
-    val slice = tag.sliceBytes(0, 3)
-    val prefix = when (slice) {
-        is Ok -> slice.success
+    val slice = parts[0].sliceBytes(0, 3)
+    val labeled = when (slice) {
+        is Ok -> slice.success.checkedPlus(":ok")
         is Err -> return Err(AppError.BadLine(lineNo, "bad tag slice"))
     }
-    val labeled = prefix.checkedPlus(":ok")
     if (labeled == null) {
         return Err(AppError.BadLine(lineNo, "concat overflow"))
     }
@@ -65,6 +58,14 @@ fun parseRecord(lineNo: Int, line: String): Result<Long, AppError> {
     }
     println("  " + labeled + " -> ${latency}ms")
     return Ok(latency)
+}
+
+fun parseRecord(lineNo: Int, line: String): Result<Long, AppError> {
+    val split = line.split("|")
+    return when (split) {
+        is Ok -> parseColumns(lineNo, split.success)
+        is Err -> Err(AppError.BadLine(lineNo, "empty separator"))
+    }
 }
 
 fun processBatch(name: String, raw: String): Result<Long, AppError> {
