@@ -781,6 +781,7 @@ mod tests {
                     .collect::<Vec<_>>(),
                 [
                     "koven-std/koven/algorithms/ranges.ko",
+                    "koven-std/koven/core/display.ko",
                     "koven-std/koven/core/result.ko",
                     "koven-std/koven/text/text.ko",
                     "User.ko",
