@@ -182,6 +182,11 @@ def verify_evidence_bundle(
                 for k, v in expectations["probes"].items()
                 if v.get("baseline_marker") != "POST_BASELINE"
             },
+            optional_names={
+                k
+                for k, v in expectations["probes"].items()
+                if v.get("baseline_marker") == "POST_BASELINE"
+            },
         )
         if baseline_path is not None
         else {}
@@ -468,6 +473,11 @@ def compare_tsv_matrix_against_expectations(
                 k
                 for k, v in expectations["probes"].items()
                 if v.get("baseline_marker") != "POST_BASELINE"
+            },
+            optional_names={
+                k
+                for k, v in expectations["probes"].items()
+                if v.get("baseline_marker") == "POST_BASELINE"
             },
         )
         if baseline_path is not None

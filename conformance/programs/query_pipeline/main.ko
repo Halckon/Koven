@@ -28,7 +28,7 @@ fun <T : Scoreable> totalScore(items: List<T>): Double {
     return acc
 }
 
-fun forEachInt(items: List<Int>, visit: (Int) -> Unit): Unit {
+fun forEachInt(items: MutableList<Int>, visit: (Int) -> Unit): Unit {
     for (x in items) {
         visit(x)
     }
@@ -36,7 +36,7 @@ fun forEachInt(items: List<Int>, visit: (Int) -> Unit): Unit {
 
 fun isHigh(x: Int): Boolean = x >= 20
 
-fun countBy(items: List<Int>, pred: (Int) -> Boolean): Int {
+fun countBy(items: MutableList<Int>, pred: (Int) -> Boolean): Int {
     var n = 0
     for (x in items) {
         if (pred(x)) { n = n + 1 }
@@ -44,7 +44,7 @@ fun countBy(items: List<Int>, pred: (Int) -> Boolean): Int {
     return n
 }
 
-fun makeThreshold(own min: Int): move (Int) -> Boolean = move { v -> v >= min }
+fun makeThreshold(own min: Int): (Int) -> Boolean = move { v -> v >= min }
 
 fun main(): Unit {
     val weighted = listOf(
@@ -78,7 +78,7 @@ fun main(): Unit {
     counters[k1] = 3
     counters[k2] = 7
     val (tier, region) = MetricKey("us", 1)
-    val hit = counters[MetricKey(region, tier)] ?: 0
+    val hit = counters[MetricKey(region.clone(), tier)] ?: 0
     println("map key (${region}, t${tier}): ${hit}")
 
     val okSmall = 42L.toIntOrNull()

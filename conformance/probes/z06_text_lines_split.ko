@@ -1,9 +1,11 @@
+import koven.text.lines
 import koven.text.parseLong
+import koven.text.split
 
 fun main(): Unit {
     val raw = "a,42\n"
-    val lines = raw.lines()
-    val parts = lines[0].split(",")
+    val ls = raw.lines()
+    val parts = ls[0].split(",")
     when (parts) {
         is Ok -> {
             val parsed = parseLong(parts.success[1])

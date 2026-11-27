@@ -495,6 +495,11 @@ def evaluate_suite(
                 for k, v in expectations["probes"].items()
                 if v.get("baseline_marker") != "POST_BASELINE"
             },
+            optional_names={
+                k
+                for k, v in expectations["probes"].items()
+                if v.get("baseline_marker") == "POST_BASELINE"
+            },
         )
         if baseline_path is not None
         else {}

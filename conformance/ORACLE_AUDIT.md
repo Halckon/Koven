@@ -2,7 +2,7 @@
 
 > 本文件由 `python3 scripts/conformance_gate.py --init-expectations` 从 `conformance/expectations.json` 确定性生成，并由 `scripts/check_docs.py`（`DocsChecker.check_conformance_corpus`）与 `scripts/tests/test_conformance_gate.py` 自动校验同步。
 
-## 1. Guide v0.47 章节覆盖与正/负向极性汇总（154 Probes）
+## 1. Guide v0.47 章节覆盖与正/负向极性汇总（164 Probes）
 
 | Guide v0.47 章节 | Probe 总数 | `run_ok` | `compile_fail` | `runtime_abort` | `known_unimplemented` | 能力通过 (`capability_passed`) | 正/负向极性状态 (`polarity_status`) |
 |---|---:|---:|---:|---:|---:|---:|---|
@@ -47,7 +47,7 @@
 | `abort:boom` | `SIGABRT (exit 134)` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | 1 | `p45_abort_message` |
 | `abort:value out of range for ULong` | `SIGABRT (exit 134)` | [03-types-generics.md](../docs/guide/03-types-generics.md) | 1 | `v12_convert_abort` |
 
-### 1.2 历史基线 `baseline-aef3f4f8.tsv` 演进与零退化对账汇总（154 Probes）
+### 1.2 历史基线 `baseline-aef3f4f8.tsv` 演进与零退化对账汇总（164 Probes）
 
 | 演进分类 (`baseline_evolution`) | 历史基线状态 (`baseline-aef3f4f8.tsv`) | 当前强 Oracle 状态 (`expectations.json`) | Probe 数量 | 代表性 / 完整 Probe 列表 |
 |---|---|---|---:|---|
@@ -81,7 +81,7 @@
 | `SPEC-0368` | [0368-text-byte-foundation.md](../docs/specs/active/0368-text-byte-foundation.md) | `active` | 1 | `run_ok`: 1 | `p16b_result_string` |
 | `SPEC-0392` | [0392-compiler-layered-review.md](../docs/specs/active/0392-compiler-layered-review.md) | `active` | 1 | `known_unimplemented`: 1 | `p42_lambda_mutate` |
 
-### 1.4 强 Oracle 溯源分类矩阵（`oracle_origin` Taxonomy，154 Probes + 6 Programs）
+### 1.4 强 Oracle 溯源分类矩阵（`oracle_origin` Taxonomy，164 Probes + 10 Programs）
 
 | 溯源分类 (`oracle_origin`) | 审计验证契约说明 | Probe 数 | Program 数 | 期望类型分布 (`kind`) |
 |---|---|---:|---:|---|
@@ -100,9 +100,9 @@
 | `single_line_stdout` | 1 行输出 Probe (`run_ok` + `known_unimplemented`) | 123 | 123 | 1054 B | 单行精确字节匹配（全部以 `\n` 结尾） |
 | `multi_line_stdout` | ≥2 行输出 Probe (`run_ok` + `known_unimplemented`) | 20 | 42 | 151 B | `p10_generic_fn` (2L/12B), `p14_nullable` (2L/15B), `p32_deinit` (3L/9B), `p38_list_of_strings` (2L/4B), `q05_nullable_param` (2L/14B), `q08_enum_string_payload` (2L/8B), `q19_deep_return_cleanup` (3L/6B), `q20_replace_field` (2L/8B), `u02_list_add_loop_string` (2L/4B), `v15_map_for` (2L/4B), `w08_map_string_values` (2L/8B), `w12` (2L/8B), `w13` (2L/9B), `w15` (2L/9B), `w17` (2L/6B), `w19` (2L/6B), `x03_if_call_borrow_arg` (2L/9B), `y04_take_for_println` (2L/4B), `y05_take_borrow_val_call` (2L/4B), `y06_take_borrow_val_for` (2L/4B) |
 | `zero_stdout_negative` | 零标准输出负向 Probe (`compile_fail` + `runtime_abort`) | 21 | 0 | 0 B | `p01_int_print`, `p03b_byte_literal_cmp`, `p04_overflow`, `p23_global_var`, `p25_linked_iter`, `p43_if_join_any`, `p45_abort_message`, `q17_generic_class`, `r01_bogus_member`, `r02_bogus_member_str`, `s04_question_on_nullable`, `v02_assign_chain`, `v04_stmt_if_mixed`, `v12_convert_abort`, `w06_map_mutate_in_loop`, `y02_take_no_import`, `z01_neg_invalid_int_suffix`, `z02_neg_move_closure_borrow_capture`, `z03_neg_box_ordinary_class`, `z04_neg_destructure_discard`, `z05_neg_redeclare_result` |
-| `acceptance_programs` | V1 验收程序 (`expected.txt`) | 10 | 119 | 2111 B | `config_parse` (10L/190B), `dag_refcount` (12L/199B), `expr_eval` (6L/174B), `linked_stack` (8L/242B), `query_pipeline` (8L/149B), `raii_state_machine` (28L/369B), `text_log_summary` (11L/179B), `varint_codec` (17L/375B), `word_count` (16L/187B), `worker_pipeline` (3L/47B) |
+| `acceptance_programs` | V1 验收程序 (`expected.txt`) | 10 | 119 | 2131 B | `config_parse` (10L/190B), `dag_refcount` (12L/199B), `expr_eval` (6L/174B), `linked_stack` (8L/242B), `query_pipeline` (8L/149B), `raii_state_machine` (28L/369B), `text_log_summary` (11L/179B), `varint_codec` (17L/375B), `word_count` (16L/187B), `worker_pipeline` (3L/67B) |
 
-### 1.6 Probe 批次前缀与演进关注面分布矩阵（11 Batches，154 Probes）
+### 1.6 Probe 批次前缀与演进关注面分布矩阵（12 Batches，164 Probes）
 
 | 批次前缀 (`probe_batch`) | 关注面与批次说明 | Probe 总数 | `run_ok` | `compile_fail` | `runtime_abort` | `known_unimplemented` | 能力通过 (`capability_passed`) | 批次状态 (`batch_status`) |
 |---|---|---:|---:|---:|---:|---:|---:|---|
@@ -118,16 +118,17 @@
 | `y` | `koven.algorithms` 的 `take` 与 N1a 范围借用 | 6 | 5 | 1 | 0 | 0 | 6 / 6 | `all_passed` |
 | `z` | Guide v0.46/v0.47 增量与 V2 负向覆盖补齐（后基线新增） | 10 | 2 | 5 | 0 | 3 | 7 / 10 | `partial` |
 | `e` | enum subject `when` 在 compilation-unit 管线中的回退（E2 门槛） | 4 | 4 | 0 | 0 | 0 | 4 / 4 | `all_passed` |
-| **合计** | **11 个演进批次** | **164** | **123** | **18** | **3** | **20** | **144 / 164** | **8 全通过 / 4 部分通过** |
+| **合计** | **12 个演进批次** | **164** | **123** | **18** | **3** | **20** | **144 / 164** | **8 全通过 / 4 部分通过** |
 
-### 1.7 未实现允许记号（`allowed_markers`）与编译阶段分布矩阵（7 Markers）
+### 1.7 未实现允许记号（`allowed_markers`）与编译阶段分布矩阵（9 Markers）
 
 | 允许记号 (`allowed_marker`) | 归属编译阶段 | 记号契约说明 | 基线命中数 (`baseline_marker`) | 授权 Probe 数 | 授权 Program 数 |
 |---|---|---|---:|---:|---:|
 | `FE:L0080` | Phase 2 名称解析 | 前端未解析符号或尚未注入的标准库声明（`UNRESOLVED_NAME`） | 2 | 3 | 2 |
-| `FE:L0084` | Phase 2 类型检查 | 前端类型不匹配或转换契约尚未接入（`TYPE_MISMATCH`） | 0 | 0 | 1 |
+| `FE:L0084` | Phase 2 类型检查 | 前端类型不匹配或转换契约尚未接入（`TYPE_MISMATCH`） | 0 | 0 | 0 |
 | `FE:L0085` | Phase 2 运算符类型 | 前端操作数或协议约束尚未接入（`INVALID_OPERAND_TYPES`） | 0 | 0 | 1 |
 | `FE:L0148` | Phase 2 导入解析 | 前端标准库包路径或导入目标尚未实现（`UNRESOLVED_IMPORT_TARGET`） | 0 | 2 | 1 |
+| `FE:L0161` | Phase 2 值语义约束 | 前端自动推导 `Hashable` 等值语义协议约束尚未接入（`HASHABLE_TYPE_ARGUMENT_BOUND`） | 0 | 0 | 1 |
 | `FE:L0165` | Phase 2 最终类型准入 | 前端最终类型消费准入显式拦截（`FINAL_TYPE_ANALYSIS_INCOMPLETE`） | 5 | 14 | 3 |
 | `BE:UnsupportedNode` | Phase 4 SSA Lowering | 后端 SSA 构建阶段尚未支持的语法或语义节点 | 8 | 20 | 2 |
 | `BE:UnsupportedSource` | Phase 4 Native Object | 后端原生目标文件生成阶段尚未支持的调用来源 | 0 | 1 | 0 |
@@ -195,14 +196,14 @@
 | [04-expressions-operators.md](../docs/guide/04-expressions-operators.md) | 表达式与运算符 | 5 | 5 行 / 399 B | - | 0 行 / 0 B | 5 行 / 399 B |
 | [05-declarations-callables.md](../docs/guide/05-declarations-callables.md) | 声明与 Callable | 4 | 8 行 / 410 B | - | 0 行 / 0 B | 8 行 / 410 B |
 | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | Block 与控制流 | 19 | 40 行 / 2892 B | - | 0 行 / 0 B | 40 行 / 2892 B |
-| [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | 调用、Lambda 与 Closure | 9 | 24 行 / 1206 B | `query_pipeline` | 87 行 / 2608 B | 111 行 / 3814 B |
+| [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | 调用、Lambda 与 Closure | 9 | 24 行 / 1206 B | `query_pipeline` | 87 行 / 2625 B | 111 行 / 3831 B |
 | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | Class Family、成员与 Receiver | 18 | 59 行 / 2861 B | `raii_state_machine` | 90 行 / 2750 B | 149 行 / 5611 B |
 | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | 空安全与错误值 | 16 | 47 行 / 2561 B | `config_parse` | 116 行 / 3797 B | 163 行 / 6358 B |
 | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | 所有权、借用与析构 | 9 | 28 行 / 1636 B | `dag_refcount`, `linked_stack` | 139 行 / 3923 B | 167 行 / 5559 B |
 | [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | Copyable、布局、构造与结构移动 | 5 | 21 行 / 849 B | `expr_eval` | 119 行 / 3942 B | 140 行 / 4791 B |
 | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | 集合、索引与解构 | 48 | 133 行 / 8138 B | `word_count` | 50 行 / 1421 B | 183 行 / 9559 B |
-| [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | 程序入口、Runtime 与标准库 | 8 | 40 行 / 1192 B | `text_log_summary`, `worker_pipeline` | 156 行 / 4606 B | 196 行 / 5798 B |
-| **合计** | **13 个核心章节** | **164** | **452 行 / 24799 B** | **10 Programs** | **847 行 / 25859 B** | **1299 行 / 50658 B** |
+| [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | 程序入口、Runtime 与标准库 | 8 | 42 行 / 1234 B | `text_log_summary`, `worker_pipeline` | 176 行 / 5235 B | 218 行 / 6469 B |
+| **合计** | **13 个核心章节** | **164** | **454 行 / 24841 B** | **10 Programs** | **867 行 / 26505 B** | **1321 行 / 51346 B** |
 
 ### 1.13 V3 原生内存安全（ASan / LSan）资源生命周期与堆所有者 Probe 覆盖矩阵
 
@@ -252,12 +253,12 @@
 | `dag_refcount` | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | `known_unimplemented` | `N07`, `L1`, `L2`, `L7` | [programs/dag_refcount/expected.txt](programs/dag_refcount/expected.txt) | 12 行 / 199 B | `FE:L0165` |
 | `expr_eval` | [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | `known_unimplemented` | `N02`, `N05`, `N07`, `N08`, `L1`, `L2`, `L7` | [programs/expr_eval/expected.txt](programs/expr_eval/expected.txt) | 6 行 / 174 B | `FE:L0165` |
 | `linked_stack` | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | `known_unimplemented` | `N01`, `N03`, `N07`, `L1`, `L2`, `L7` | [programs/linked_stack/expected.txt](programs/linked_stack/expected.txt) | 8 行 / 242 B | `FE:L0085` |
-| `query_pipeline` | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | `known_unimplemented` | `N04`, `N05`, `N06`, `L1`, `L2`, `L3b`, `L11`, `S1` | [programs/query_pipeline/expected.txt](programs/query_pipeline/expected.txt) | 8 行 / 149 B | `FE:L0084` |
+| `query_pipeline` | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | `known_unimplemented` | `N04`, `N05`, `N06`, `L1`, `L2`, `L3b`, `L11`, `S1` | [programs/query_pipeline/expected.txt](programs/query_pipeline/expected.txt) | 8 行 / 149 B | `FE:L0161` |
 | `raii_state_machine` | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | `known_unimplemented` | `N01`, `N02`, `L1`, `L2` | [programs/raii_state_machine/expected.txt](programs/raii_state_machine/expected.txt) | 28 行 / 369 B | `BE:UnsupportedNode` |
 | `text_log_summary` | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | `known_unimplemented` | `L1`, `L2`, `L5`, `L21`, `N08` | [programs/text_log_summary/expected.txt](programs/text_log_summary/expected.txt) | 11 行 / 179 B | `FE:L0148` |
 | `varint_codec` | [03-types-generics.md](../docs/guide/03-types-generics.md) | `known_unimplemented` | `N01`, `N08`, `L1`, `L2`, `L3b` | [programs/varint_codec/expected.txt](programs/varint_codec/expected.txt) | 17 行 / 375 B | `BE:UnsupportedNode` |
 | `word_count` | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `known_unimplemented` | `N02`, `N03`, `L1`, `L2` | [programs/word_count/expected.txt](programs/word_count/expected.txt) | 16 行 / 187 B | `FE:L0165` |
-| `worker_pipeline` | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | `known_unimplemented` | `T1`, `N04`, `L1`, `L2` | [programs/worker_pipeline/expected.txt](programs/worker_pipeline/expected.txt) | 3 行 / 47 B | `FE:L0080` |
+| `worker_pipeline` | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | `known_unimplemented` | `T1`, `N04`, `L1`, `L2` | [programs/worker_pipeline/expected.txt](programs/worker_pipeline/expected.txt) | 3 行 / 67 B | `FE:L0080` |
 
 ### 2.1 六个 V1 验收程序按路线图阻塞项（`v1.json`）归类对账（17 Roadmap Blockers）
 
@@ -393,8 +394,9 @@
 
 | 编译器阶段 | 阶段职责范围 | 已生效负向 Probe 数 | 覆盖负向契约 (`FE:Lxxxx` / `abort`) | 关联路线图阻塞项 | 阻塞 Probe 数 | 阻塞 Program 数 |
 |---|---|---:|---|---|---:|---:|
-| **Phase 2 前端类型与解析** | 名称解析、类型检查、运算符/协议约束与最终类型准入 (`crates/lang-frontend/src/type_checking`) | 15 | `FE:L0084`, `FE:L0085`, `FE:L0167`, `FE:L0112`, `FE:L0080`, `FE:L0089`, `FE:L0008`, `FE:L0138`, `FE:L0117`, `FE:L0042`, `FE:L0150` | `L1`, `L11`, `L2`, `L21`, `L3b`, `L5`, `L6`, `L7`, `N01`, `N02`, `N03`, `N04`, `N06`, `N07`, `N08`, `S1`, `S6`, `T1` | 18 | 10 |
-| **Phase 3 所有权与析构** | 借用冲突、部分移动、生命周期证明与逆序 `deinit` 调度 (`crates/lang-frontend/src/ownership`) | 3 | `FE:L0133`, `FE:L0132`, `FE:L0164`, `FE:L0135` | `L11`, `L7`, `N01`, `N02`, `N03`, `N04`, `N06`, `N07`, `N08`, `S1`, `S6`, `T1` | 13 | 10 |
+| **Phase 1 词法与语法解析** | Lexer 词法扫描、Parser AST 构建与恢复契约 (`crates/lang-frontend/src/{lexer,parser}`) | 2 | `FE:L0008`, `FE:L0042` | - | 0 | 0 |
+| **Phase 2 前端名称与类型** | 名称解析、类型检查、运算符/协议约束与最终类型准入 (`crates/lang-frontend/src/type_checking`) | 12 | `FE:L0084`, `FE:L0085`, `FE:L0167`, `FE:L0112`, `FE:L0080`, `FE:L0089`, `FE:L0117`, `FE:L0150` | `L1`, `L11`, `L2`, `L21`, `L3b`, `L5`, `L6`, `L7`, `N01`, `N02`, `N03`, `N04`, `N06`, `N07`, `N08`, `S1`, `S6`, `T1` | 18 | 10 |
+| **Phase 3 所有权与析构** | 借用冲突、部分移动、生命周期证明与逆序 `deinit` 调度 (`crates/lang-frontend/src/ownership`) | 4 | `FE:L0133`, `FE:L0132`, `FE:L0164`, `FE:L0135`, `FE:L0138` | `L11`, `L7`, `N01`, `N02`, `N03`, `N04`, `N06`, `N07`, `N08`, `S1`, `S6`, `T1` | 13 | 10 |
 | **Phase 4 SSA / LLVM / Runtime** | SSA 构建、所有权校验、LLVM IR 生成、原生链接与 `abort` 合同 (`crates/lang-codegen`) | 3 | `abort:integer overflow in +`, `abort:boom`, `abort:value out of range for ULong` | `L1`, `L2`, `L21`, `L3b`, `L5`, `L6`, `L7`, `N01`, `N02`, `N03`, `N04`, `N05`, `N06`, `N07`, `N08`, `S1`, `S6`, `T1` | 20 | 10 |
 | **Phase 5 标准库与并发** | 内建容器、文本/数值协议、`Box`/`Rc` 与原生线程运行时 (`crates/lang-std`) | 0 | - | `L1`, `L21`, `L5`, `L6`, `T1` | 6 | 10 |
 

@@ -2411,11 +2411,11 @@
         "L5"
       ],
       "oracle_derivation": "Guide 13 v0.47 koven.text lines()/split()/parseLong('42') yields 42L and prints 'text-ok' (blocked by L5)",
-      "source_sha256": "e11bb9a2616a852213249d8f2f62c6fc20f566ddb403f41f6f9e0fafc2e64867",
+      "source_sha256": "5000d67f5cf793dcb8a862c7c169e3ce8da38b93e3410cb054d1daba7bc83096",
       "baseline_marker": "POST_BASELINE",
       "oracle_origin": "post_baseline_audited",
-      "source_lines": 17,
-      "source_bytes": 447,
+      "source_lines": 19,
+      "source_bytes": 489,
       "expected_lines": 1,
       "expected_bytes": 8
     },
@@ -2584,16 +2584,16 @@
     },
     "query_pipeline": {
       "kind": "known_unimplemented",
-      "source_sha256": "ed296540e1a81cd097838579f1aef670d398a2ee6a62b3a290eef084ae23a78a",
+      "source_sha256": "fc533fb269521c8c20ee05f9112875d26e3e8af210f15df401f1c3a612f79847",
       "source_lines": 87,
-      "source_bytes": 2608,
+      "source_bytes": 2625,
       "guide_chapter": "07-calls-lambdas-closures.md",
       "expected_file": "programs/query_pipeline/expected.txt",
       "expected_sha256": "01b65b813379a259e5cdaa5b780c83622d78c9aea204d190603683567cd3fbc4",
       "expected_lines": 8,
       "expected_bytes": 149,
       "allowed_markers": [
-        "FE:L0084"
+        "FE:L0161"
       ],
       "oracle_origin": "expected_txt_file",
       "roadmap_blockers": [
@@ -2632,9 +2632,9 @@
     },
     "text_log_summary": {
       "kind": "known_unimplemented",
-      "source_sha256": "6c5ed1add611501d8a4c4f21dc1044c9793ce59e24b41b2cf2ba3a7d256d6725",
-      "source_lines": 105,
-      "source_bytes": 3370,
+      "source_sha256": "3fa21d19bf85a235324efb1ba73c895ca4815da2059169ef33d7bfe837bd3b1e",
+      "source_lines": 116,
+      "source_bytes": 3662,
       "guide_chapter": "13-program-runtime-standard-library.md",
       "expected_file": "programs/text_log_summary/expected.txt",
       "expected_sha256": "4f37dae2bb06c8bc691b7fbba0c4f60d21439a42e80e2c7388de4fe5947156f2",
@@ -2700,14 +2700,14 @@
     },
     "worker_pipeline": {
       "kind": "known_unimplemented",
-      "source_sha256": "c4e8f1dc50c8de8898a5f3b66f6e9c1848021f57cf11496fe1d45a630c21c412",
-      "source_lines": 51,
-      "source_bytes": 1236,
+      "source_sha256": "3d8818fe511e578db608554bb31655e6ee1bfd27cf95cd936af1642350fdb82b",
+      "source_lines": 60,
+      "source_bytes": 1573,
       "guide_chapter": "13-program-runtime-standard-library.md",
       "expected_file": "programs/worker_pipeline/expected.txt",
-      "expected_sha256": "350ea5c8d23e9e047572fe4ceded8fd618891069570017a3b9b92b1095bb0a3a",
+      "expected_sha256": "4f2b6d3ffb546d5fc7c26b849d3fdb6142322b96b10656c4a0e6f61eebe3d28a",
       "expected_lines": 3,
-      "expected_bytes": 47,
+      "expected_bytes": 67,
       "allowed_markers": [
         "FE:L0080"
       ],

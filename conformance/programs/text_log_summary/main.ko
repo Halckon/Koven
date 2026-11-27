@@ -3,8 +3,13 @@
 
 import koven.text.ParseError
 import koven.text.TextError
+import koven.text.byteLength
+import koven.text.checkedPlus
 import koven.text.decodeUtf8
+import koven.text.lines
 import koven.text.parseLong
+import koven.text.sliceBytes
+import koven.text.split
 
 const val MAX_TAG_BYTES: Int = 16
 
@@ -33,7 +38,7 @@ fun parseRecord(lineNo: Int, line: String): Result<Long, AppError> {
     if (parts.size != 2) {
         return Err(AppError.BadLine(lineNo, "expected 2 columns"))
     }
-    val tag = parts[0]
+    val tag = parts[0].clone()
     if (tag.byteLength() > MAX_TAG_BYTES) {
         return Err(AppError.BadLine(lineNo, "tag too long"))
     }
@@ -49,10 +54,13 @@ fun parseRecord(lineNo: Int, line: String): Result<Long, AppError> {
     val parsed = parseLong(parts[1])
     val latency = when (parsed) {
         is Ok -> parsed.success
-        is Err -> when (parsed.error) {
-            is ParseError.InvalidDigit -> return Err(AppError.BadLine(lineNo, "bad digit"))
-            is ParseError.MissingDigits -> return Err(AppError.BadLine(lineNo, "missing digits"))
-            is ParseError.OutOfRange -> return Err(AppError.BadLine(lineNo, "out of range"))
+        is Err -> {
+            val parseErr = parsed.error
+            when (parseErr) {
+                is ParseError.InvalidDigit -> return Err(AppError.BadLine(lineNo, "bad digit"))
+                is ParseError.MissingDigits -> return Err(AppError.BadLine(lineNo, "missing digits"))
+                is ParseError.OutOfRange -> return Err(AppError.BadLine(lineNo, "out of range"))
+            }
         }
     }
     println("  " + labeled + " -> ${latency}ms")
@@ -61,7 +69,7 @@ fun parseRecord(lineNo: Int, line: String): Result<Long, AppError> {
 
 fun processBatch(name: String, raw: String): Result<Long, AppError> {
     println("[" + name + "]")
-    val guard = AuditGuard(name)
+    val guard = AuditGuard(name.clone())
     var total: Long = 0L
     val lines = raw.lines()
     var i = 0
@@ -78,9 +86,12 @@ fun checkInvalidUtf8(): Unit {
     val decoded = decodeUtf8(bad)
     when (decoded) {
         is Ok -> println("unexpected utf8: " + decoded.success)
-        is Err -> when (decoded.error) {
-            is TextError.InvalidUtf8 -> println("utf8 rejected at ${decoded.error.offset}")
-            else -> println("utf8 other error")
+        is Err -> {
+            val textErr = decoded.error
+            when (textErr) {
+                is TextError.InvalidUtf8 -> println("utf8 rejected at ${textErr.offset}")
+                else -> println("utf8 other error")
+            }
         }
     }
 }

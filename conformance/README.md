@@ -1,6 +1,6 @@
 # Conformance 种子集
 
-本目录是 Koven v1 的固定 conformance 种子：154 个 review probe 与六个验收程序的源码。
+本目录是 Koven v1 的固定 conformance 语料：164 个 probe（含冻结于 PR #120 的 154 个历史基线种子与 10 个后基线 `z` 批次探针）与 10 个 V1 验收程序的源码。
 它承担两件事：
 
 - **回归基准**：每次 review 或管线改动都在同一套 probe 上运行，结果与已记录的基线逐行比较；
@@ -8,18 +8,18 @@
   基线中已经通过的 probe 退化（见 `docs/roadmap/v1.json` 的 E2、V0、V2）。
 
 语言语义以 [Guide v0.47](../docs/guide/README.md) 为准；本目录只保存输入与结果，不定义语义。
-本种子集冻结于 v0.46 启用的语法与语义；v0.47 完整继承 v0.46，仅新增 `koven.text` / `koven.io`
-表面与标准源可见性（见 Guide 13「文本字节与严格解析」与 Guide 02「标准环境」），这些新增表面
-不在本目录 154 个 probe 的覆盖范围内。
+历史基线 `baseline-aef3f4f8.tsv` 冻结了 PR #120 的 154 个种子探针；后基线 `z` 批次探针与新增
+V1 验收程序补充了 Guide v0.46/v0.47（`koven.text` / `koven.io`、`by` 委托、按名解构、`main(): Result`、
+泛型/闭包/借用、`Rc<T>` 与受限并发）及 V2 全章节负向覆盖，且不改写历史基线文件。
 
 ## 布局
 
 | 路径 | 内容 |
 |---|---|
-| `probes/*.ko` | 154 个独立小程序，每个都有 `fun main(): Unit`，成功时打印明确输出 |
-| `expectations.json` | 154 个 probe 与六个验收程序的机器可读期望（强 oracle、`oracle_origin` 溯源标注、`all_diagnostics` 多诊断码列表、源文件 SHA-256 与 `v046_baseline_exempt` 历史基线豁免标注） |
-| `baseline-aef3f4f8.tsv` | 154 个 probe 在 PR #120 head `aef3f4f8` 上的结果（来源见下文） |
-| `programs/<name>/main.ko` | 六个验收程序（V1 目标） |
+| `probes/*.ko` | 164 个独立小程序（含 154 个历史基线种子与 10 个后基线 `z` 批次探针），成功时打印明确输出 |
+| `expectations.json` | 164 个 probe 与 10 个验收程序的机器可读期望（强 oracle、`oracle_origin` 溯源标注、`all_diagnostics` 多诊断码列表、源文件 SHA-256 与 `v046_baseline_exempt` 历史基线豁免标注） |
+| `baseline-aef3f4f8.tsv` | 154 个历史种子 probe 在 PR #120 head `aef3f4f8` 上的冻结结果（来源见下文） |
+| `programs/<name>/main.ko` | 10 个验收程序（V1 目标） |
 | `programs/<name>/expected.txt` | 对应程序 stdout 的精确期望 |
 | `../scripts/conformance_matrix.sh` | 矩阵 runner（支持 TSV 模式与 `--gate` 门禁转发） |
 | `../scripts/conformance_gate.py` | 公开 CLI 入口、Markdown 审计账本渲染与门面导出（`1000` 行软上限） |

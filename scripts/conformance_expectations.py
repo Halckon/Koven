@@ -671,7 +671,9 @@ def verify_static_catalog_invariants(expectations: dict[str, Any]) -> None:
 
 
 def parse_tsv_matrix(
-    text: str, expected_names: set[str] | None = None
+    text: str,
+    expected_names: set[str] | None = None,
+    optional_names: set[str] | None = None,
 ) -> dict[str, tuple[str, str]]:
     """Parse a 3-column TSV matrix and reject duplicate, malformed, or missing probe rows."""
     rows: dict[str, tuple[str, str]] = {}
@@ -690,7 +692,8 @@ def parse_tsv_matrix(
 
     if expected_names is not None:
         missing = sorted(expected_names - set(rows.keys()))
-        extra = sorted(set(rows.keys()) - expected_names)
+        allowed = expected_names | (optional_names or set())
+        extra = sorted(set(rows.keys()) - allowed)
         if missing:
             raise ValueError(f"missing probe rows in matrix: {missing}")
         if extra:

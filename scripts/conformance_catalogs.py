@@ -56,6 +56,7 @@ DIAGNOSTIC_SYMBOL_CATALOG: dict[str, str] = {
     "L0138": "ILLEGAL_OWNED_CAPTURE",
     "L0148": "UNRESOLVED_IMPORT_TARGET",
     "L0150": "EXACT_IMPORT_BINDING_CONFLICT",
+    "L0161": "HASHABLE_TYPE_ARGUMENT_BOUND",
     "L0164": "UNSUPPORTED_BORROW_FLOW",
     "L0165": "FINAL_TYPE_ANALYSIS_INCOMPLETE",
     "L0167": "UNSUPPORTED_TOP_LEVEL_RUNTIME_VALUE",
@@ -80,6 +81,7 @@ VALID_UNIMPLEMENTED_MARKERS = frozenset(
         "FE:L0084",
         "FE:L0085",
         "FE:L0148",
+        "FE:L0161",
         "FE:L0165",
     }
 )
@@ -89,6 +91,7 @@ UNIMPLEMENTED_MARKER_CATALOG: dict[str, tuple[str, str]] = {
     "FE:L0084": ("Phase 2 类型检查", "前端类型不匹配或转换契约尚未接入（`TYPE_MISMATCH`）"),
     "FE:L0085": ("Phase 2 运算符类型", "前端操作数或协议约束尚未接入（`INVALID_OPERAND_TYPES`）"),
     "FE:L0148": ("Phase 2 导入解析", "前端标准库包路径或导入目标尚未实现（`UNRESOLVED_IMPORT_TARGET`）"),
+    "FE:L0161": ("Phase 2 值语义约束", "前端自动推导 `Hashable` 等值语义协议约束尚未接入（`HASHABLE_TYPE_ARGUMENT_BOUND`）"),
     "FE:L0165": ("Phase 2 最终类型准入", "前端最终类型消费准入显式拦截（`FINAL_TYPE_ANALYSIS_INCOMPLETE`）"),
     "BE:UnsupportedNode": ("Phase 4 SSA Lowering", "后端 SSA 构建阶段尚未支持的语法或语义节点"),
     "BE:UnsupportedSource": ("Phase 4 Native Object", "后端原生目标文件生成阶段尚未支持的调用来源"),
@@ -373,7 +376,7 @@ PROGRAM_ALLOWED_MARKERS: dict[str, list[str]] = {
     "varint_codec": ["BE:UnsupportedNode"],
     "word_count": ["FE:L0165"],
     "text_log_summary": ["FE:L0148"],
-    "query_pipeline": ["FE:L0084"],
+    "query_pipeline": ["FE:L0161"],
     "dag_refcount": ["FE:L0165"],
     "worker_pipeline": ["FE:L0080"],
 }
