@@ -54,6 +54,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
             | Operation::PrintString { .. }
             | Operation::StringLiteral { .. }
             | Operation::StringConcat { .. }
+            | Operation::StringFromScalar { .. }
             | Operation::StringClone { .. }
             | Operation::StringCopyBytes { .. }
             | Operation::StringCopySlice { .. }
@@ -62,6 +63,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
             | Operation::Utf8ErrorOffset { .. }
             | Operation::StringEqual { .. } => self.lower_instruction_text(instruction, results)?,
             Operation::Constant(..)
+            | Operation::FloatArithmetic { .. }
             | Operation::Binary { .. }
             | Operation::CheckedArithmetic { .. }
             | Operation::IntegerRangeConstruct { .. }

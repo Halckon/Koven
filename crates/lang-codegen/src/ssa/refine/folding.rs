@@ -1,6 +1,22 @@
 //! Straight-line CFG folding with receipt relocation.
 use super::*;
 
+pub(super) fn reachable(body: &RefinedBody, span: Span) -> Result<Vec<BlockRef>, LoweringError> {
+    let mut seen = BTreeSet::new();
+    let mut stack = vec![BlockRef(0)];
+    while let Some(block) = stack.pop() {
+        if !seen.insert(block) {
+            continue;
+        }
+        let (terminator, _) = body.blocks[block.0]
+            .terminator
+            .as_ref()
+            .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?;
+        stack.extend(terminator.successors().into_iter().rev());
+    }
+    Ok(seen.into_iter().collect())
+}
+
 /// Folds a block into its `Goto` predecessor when that predecessor is its only one, so
 /// no SSA block merely forwards its parameters.
 pub(super) fn merge_straight_lines(

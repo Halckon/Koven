@@ -2,6 +2,15 @@
 use super::*;
 
 impl CompilationUnitTypes {
+    /// 查询有插值的字符串已解析的执行步骤。纯文本与尚未恢复的插值均无计划。
+    #[must_use]
+    pub fn interpolation_plan(
+        &self,
+        expression: UnitExpressionId,
+    ) -> Option<&[UnitInterpolationPart]> {
+        self.interpolation_plans.get(&expression).map(Vec::as_slice)
+    }
+
     /// 返回 source/statement 顺序稳定的完整 borrowed provider 计划。
     #[must_use]
     pub fn sequential_iterations(&self) -> &[super::super::UnitSequentialIterationDescriptor] {
@@ -57,6 +66,7 @@ impl CompilationUnitTypes {
             ownership_primitives: parts.ownership_primitives,
             rc_operations: parts.rc_operations,
             string_operations: parts.string_operations,
+            interpolation_plans: parts.interpolation_plans,
             integer_operations: parts.integer_operations,
             integer_range_operations: parts.integer_range_operations,
             container_constructions: parts.container_constructions,

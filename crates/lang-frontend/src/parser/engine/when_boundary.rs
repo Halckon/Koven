@@ -1,7 +1,7 @@
 //! Read-only evidence for a line-leading group that starts a new when selector.
 use super::*;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(super) enum WhenEntryBody {
     WithSubject,
     WithoutSubject,
@@ -141,7 +141,88 @@ pub(super) fn run_selector_events(events: &[SelectorEvent]) -> bool {
     false
 }
 
+impl Stops {
+    pub(super) const WHEN_CALL_OPERAND_RECOVERY: u16 = 1 << 11;
+    pub(super) const BODY_SOFT_STOPS: u16 = Self::LAMBDA_COMMA
+        | Self::ARROW
+        | Self::FILE_DECLARATION
+        | Self::SEMICOLON
+        | Self::WHEN_CALL_OPERAND_RECOVERY;
+}
+
 impl Parser<'_> {
+    pub(super) fn at_when_operand_boundary(
+        &self,
+        stops: Stops,
+    ) -> Result<bool, ParserInternalError> {
+        if self.at_committed_when_arm_boundary(stops)? {
+            return Ok(true);
+        }
+        self.unclosed_when_operand_boundary(stops)
+    }
+
+    pub(super) fn commit_when_arm_boundary(
+        &self,
+        body: WhenEntryBody,
+    ) -> Result<(), ParserInternalError> {
+        self.lexical_recoveries
+            .committed_when_arm
+            .set(Some((self.current_raw()?, body)));
+        Ok(())
+    }
+
+    pub(super) fn at_committed_when_arm_boundary(
+        &self,
+        stops: Stops,
+    ) -> Result<bool, ParserInternalError> {
+        self.when_arm_is_committed(stops.when_entry_body)
+    }
+
+    pub(super) fn when_arm_is_committed(
+        &self,
+        when_body: Option<WhenEntryBody>,
+    ) -> Result<bool, ParserInternalError> {
+        if let Some((raw, body)) = self.lexical_recoveries.committed_when_arm.get()
+            && self.index <= raw
+            && when_body == Some(body)
+        {
+            return Ok(self.current_raw()? == raw);
+        }
+        Ok(false)
+    }
+
+    pub(super) fn unclosed_when_operand_boundary(
+        &self,
+        stops: Stops,
+    ) -> Result<bool, ParserInternalError> {
+        if stops.delimiters & Stops::WHEN_CALL_OPERAND_RECOVERY != 0
+            && let Some(body) = stops.when_entry_body
+        {
+            return self.when_arm_boundary_follows(self.previous_significant_end(), body);
+        }
+        Ok(false)
+    }
+
+    pub(super) fn strict_when_type_has_local_end(&self) -> Result<bool, ParserInternalError> {
+        let Some(end) = self.strict_trials.type_end(self.current_raw()?) else {
+            return Ok(false);
+        };
+        let closer = self.lexed.lexemes()[end - 1];
+        if closer.kind() == LexemeKind::Token(TokenKind::Symbol(Symbol::Greater))
+            && let Some((next_raw, next)) = self.selector_token(end)
+            && self.can_start_expression(next)
+            && !self.gap_has_line_break(closer.span().end(), next.span().start())?
+        {
+            // A soft infix name can continue the completed type only when it
+            // has a right operand. Otherwise the selector may use it as a name.
+            return Ok(self.infix_rule(next)?.is_some()
+                && self
+                    .selector_token(next_raw + 1)
+                    .is_some_and(|(_, right)| self.can_start_expression(right)));
+        }
+        Ok(true)
+    }
+
     pub(super) fn grouped_when_entry_follows(
         &self,
         receiver: ExpressionId,
@@ -188,20 +269,104 @@ impl Parser<'_> {
         closer: usize,
         body: WhenEntryBody,
     ) -> Result<bool, ParserInternalError> {
+        self.selector_arrow(
+            closer + 1,
+            self.lexed.lexemes()[closer].span().end(),
+            false,
+            body,
+            None,
+        )
+    }
+
+    /// Only called when the current call has no paired closer.
+    pub(super) fn when_arm_boundary_follows(
+        &self,
+        previous_end: usize,
+        body: WhenEntryBody,
+    ) -> Result<bool, ParserInternalError> {
+        if self.current_is_symbol(Symbol::Semicolon) {
+            return Ok(true);
+        }
+        let current = self.current()?;
+        let raw = self.current_raw()?;
+        let is_else = self.current_is_keyword(Keyword::Else);
+        let boundaries = &self.lexical_recoveries.when_arm_boundaries;
+        let cached = boundaries.borrow().get(&(raw, body)).copied();
+        if cached == Some(false) {
+            return Ok(false);
+        }
+        if !is_else && !self.gap_has_line_break(previous_end, current.span().start())? {
+            return Ok(false);
+        }
+        if let Some(result) = cached {
+            return Ok(result);
+        }
+        let mut starts = Vec::new();
+        let boundary = if is_else {
+            self.selector_token(raw + 1).is_some_and(|(_, next)| {
+                next.kind() == LexemeKind::Token(TokenKind::Symbol(Symbol::Arrow))
+            })
+        } else {
+            self.selector_arrow(raw, current.span().start(), true, body, Some(&mut starts))?
+        };
+        let mut boundaries = boundaries.borrow_mut();
+        boundaries.insert((raw, body), boundary);
+        boundaries.extend(
+            starts
+                .into_iter()
+                .map(|(start, pending)| ((start, body), boundary && pending == 0)),
+        );
+        Ok(boundary)
+    }
+
+    fn selector_arrow(
+        &self,
+        mut raw: usize,
+        mut end: usize,
+        needs_operand: bool,
+        body: WhenEntryBody,
+        mut recovery_starts: Option<&mut Vec<(usize, usize)>>,
+    ) -> Result<bool, ParserInternalError> {
         let lexemes = self.lexed.lexemes();
-        let mut end = lexemes[closer].span().end();
-        let mut raw = closer + 1;
-        let mut state = SelectorScanState::INITIAL;
+        let mut state = SelectorScanState {
+            needs_operand,
+            ..SelectorScanState::INITIAL
+        };
         while let Some((opener, lexeme)) = self.selector_token(raw) {
             raw = opener + 1;
             let LexemeKind::Token(kind) = lexeme.kind() else {
                 return Ok(false);
             };
+            if state.needs_operand
+                && !matches!(
+                    kind,
+                    TokenKind::Keyword(Keyword::Else) | TokenKind::Symbol(Symbol::Semicolon)
+                )
+                && let Some(starts) = recovery_starts.as_deref_mut()
+            {
+                // A fresh operand does not depend on the previous operand's span.
+                if state.pending_else == 0
+                    && let Some(&boundary) = self
+                        .lexical_recoveries
+                        .when_arm_boundaries
+                        .borrow()
+                        .get(&(opener, body))
+                {
+                    return Ok(boundary);
+                }
+                starts.push((opener, state.pending_else));
+            }
             if !state.needs_operand {
                 // A line-leading group or lambda may start its own entry.
                 // Only a when with a subject can have a bare is/in selector.
                 let has_line_break = is_new_selector_after_line_break(body, kind)
                     && self.gap_has_line_break(end, lexeme.span().start())?;
+                if kind == TokenKind::Symbol(Symbol::Arrow)
+                    && state.pending_else > 0
+                    && let Some(starts) = recovery_starts.as_deref_mut()
+                {
+                    starts.retain(|&(_, debt)| debt < state.pending_else);
+                }
                 if let Some(step) = state.step_non_operand_control(body, kind, has_line_break) {
                     match step {
                         SelectorStep::Continue(next) => {
@@ -257,6 +422,15 @@ impl Parser<'_> {
                         Symbol::Comma | Symbol::Dot | Symbol::QuestionDot | Symbol::ColonColon
                     )
                 ) {
+                    if kind == TokenKind::Symbol(Symbol::Comma)
+                        && state.pending_else > 0
+                        && let Some(starts) = recovery_starts.as_deref_mut()
+                    {
+                        // A selector cannot carry its unfinished if across the comma.
+                        // A probe starting with less debt might reach a complete selector.
+                        starts.retain(|&(_, debt)| debt < state.pending_else);
+                        return Ok(false);
+                    }
                     let SelectorStep::Continue(next) =
                         state.step(SelectorEvent::NonOperandExpectsOperand)
                     else {
@@ -452,6 +626,88 @@ mod tests {
         assert!(small_visits <= small_raw * 36);
         assert!(large_visits <= large_raw * 36);
         assert!(large_visits <= small_visits * 2 + 32);
+    }
+
+    #[test]
+    fn nested_unclosed_calls_reuse_the_same_when_arm_boundary() {
+        let metrics = |depth| {
+            block_dispatch_metrics(format!(
+                "{{ when {{ false -> {}1\nflag{} -> 2\nelse -> 3 }} }}",
+                "take(".repeat(depth),
+                " && true".repeat(128),
+            ))
+        };
+        let (_, _, shallow_visits, shallow_diagnostics) = metrics(4);
+        let (_, _, deep_visits, deep_diagnostics) = metrics(16);
+        assert_eq!((shallow_diagnostics, deep_diagnostics), (4, 16));
+        assert!(
+            deep_visits <= shallow_visits + (16 - 4) * 96,
+            "raw visits grew with selector rescanning: {shallow_visits} -> {deep_visits}"
+        );
+    }
+
+    #[test]
+    fn nested_unclosed_type_arguments_reuse_the_same_when_arm_boundary() {
+        let metrics = |depth| {
+            block_dispatch_metrics(format!(
+                "{{ when {{ false -> take(value as {}\nflag{} -> 2\nelse -> 3 }} }}",
+                "List<".repeat(depth),
+                " && true".repeat(128),
+            ))
+        };
+        let (_, _, shallow_visits, shallow_diagnostics) = metrics(4);
+        let (_, _, deep_visits, deep_diagnostics) = metrics(16);
+        assert_eq!((shallow_diagnostics, deep_diagnostics), (6, 18));
+        assert!(
+            deep_visits <= shallow_visits + (16 - 4) * 96,
+            "raw visits grew with selector rescanning: {shallow_visits} -> {deep_visits}"
+        );
+    }
+
+    #[test]
+    fn multiline_unclosed_call_arguments_share_selector_suffixes() {
+        for argument in ["value", "if (flag) value"] {
+            let metrics = |count| {
+                block_dispatch_metrics(format!(
+                    "{{ when {{ false -> take({}\n{argument}\n}} }}",
+                    format!("\n{argument},").repeat(count),
+                ))
+            };
+            let (_, _, small_visits, small_diagnostics) = metrics(64);
+            let (_, _, large_visits, large_diagnostics) = metrics(128);
+            assert_eq!((small_diagnostics, large_diagnostics), (1, 1), "{argument}");
+            assert!(
+                large_visits <= small_visits * 2 + 64,
+                "{argument}: raw visits grew with argument rescanning: {small_visits} -> {large_visits}"
+            );
+        }
+    }
+
+    #[test]
+    fn damaged_call_reuses_failed_operand_suffixes() {
+        for (operand, tail) in [
+            ("flag", "flag"),
+            ("if (flag) flag", "flag"),
+            ("if (flag) flag", "flag -> 2"),
+        ] {
+            let metrics = |count| {
+                block_dispatch_metrics(format!(
+                    "{{ when {{ false -> take(:{}\n{tail}\n}} }}",
+                    format!("\n{operand} &&").repeat(count),
+                ))
+            };
+            let (_, _, small_visits, small_diagnostics) = metrics(64);
+            let (_, _, large_visits, large_diagnostics) = metrics(128);
+            assert_eq!(
+                (small_diagnostics, large_diagnostics),
+                (2, 2),
+                "{operand} {tail}"
+            );
+            assert!(
+                large_visits <= small_visits * 2 + 64,
+                "{operand} {tail}: {small_visits} -> {large_visits}"
+            );
+        }
     }
 
     #[test]

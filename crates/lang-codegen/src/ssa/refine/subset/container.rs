@@ -7,7 +7,9 @@ use std::collections::BTreeSet;
 use lang_frontend::{
     ast::ExpressionId,
     name_resolution::UnitSymbolId,
-    ownership_checking::{LoanKind, UnitDropPoint, UnitDropTarget, UnitLoanTarget},
+    ownership_checking::{
+        LoanKind, UnitDropPoint, UnitDropTarget, UnitLoanTarget, UnitReceiverOwnershipTarget,
+    },
     parser::Expression,
     source::Span,
     type_checking::{
@@ -363,7 +365,10 @@ impl Checker<'_, '_> {
         let Ok(call_node) = self.inputs.parsed.ast().expressions().get(call) else {
             return false;
         };
-        if self.span_has_control_transfer(call_node.span()) {
+        let display_target = self
+            .inputs
+            .shared_display_receiver(self.id(call), self.id(value));
+        if display_target.is_none() && self.span_has_control_transfer(call_node.span()) {
             return false;
         }
         let root = self.ungrouped(value);
@@ -407,6 +412,12 @@ impl Checker<'_, '_> {
                     (None, UnitLoanTarget::Temporary(_)) => true,
                     _ => false,
                 }
+        }) || display_target.is_some_and(|target| match (symbol, target) {
+            (Some(sym), UnitReceiverOwnershipTarget::Place(place)) => {
+                place.root() == sym && place.fields().is_empty() && place.element().is_some()
+            }
+            (None, UnitReceiverOwnershipTarget::Temporary(_)) => true,
+            _ => false,
         });
         let index = descriptor.index().expression();
         let ok = loan_ok && self.is_int_index(index) && self.expression(index);
@@ -872,6 +883,15 @@ impl Checker<'_, '_> {
         span: Span,
         outer_call: Option<ExpressionId>,
     ) -> bool {
+        self.span_has_unhandled_control_transfer(span, outer_call, |_| false)
+    }
+
+    pub(super) fn span_has_unhandled_control_transfer(
+        &self,
+        span: Span,
+        outer_call: Option<ExpressionId>,
+        handles: impl Fn(ExpressionId) -> bool,
+    ) -> bool {
         self.inputs
             .parsed
             .ast()
@@ -892,7 +912,9 @@ impl Checker<'_, '_> {
                         .call(self.id(*id))
                         .is_some_and(|desc| desc.aborts() && Some(*id) != outer_call))
             })
-            .any(|(_, candidate)| !self.inside_enclosing_lambda(span, candidate.span()))
+            .any(|(id, candidate)| {
+                !handles(id) && !self.inside_enclosing_lambda(span, candidate.span())
+            })
     }
 
     pub(super) fn span_has_non_abort_jump(&self, span: Span) -> bool {

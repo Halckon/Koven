@@ -1,6 +1,6 @@
 //! Private budget and type-DAG contracts; no public mutable typed-product seam.
 
-use super::*;
+use super::{super::type_graph::substitute, *};
 use crate::{
     lexer::lex,
     name_resolution::{index_compilation_unit, resolve_compilation_unit_names},
@@ -80,7 +80,7 @@ fn unit_generic_body_skips_methods_without_substitutions() {
     }
     source.push_str("fun <T> generic(): Unit {}\n}\nfun entry(): Unit {}");
     with_checker(&source, |checker| {
-        let templates = checker.generic_body_templates().unwrap();
+        let templates = checker.generic_body_templates(&[]).unwrap();
         assert_eq!(templates.len(), 1);
         assert_eq!(templates.values().next().unwrap().parameters.len(), 1);
     });

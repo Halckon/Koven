@@ -5,7 +5,7 @@ use std::{error::Error, fmt};
 use lang_frontend::{
     analysis::{
         UnitNameAnalysisError, UnitRecoveryAnalysisError, UnitSourceDescriptor, analyze_unit_names,
-        analyze_unit_recovery,
+        analyze_unit_recovery, append_builtin_display,
     },
     name_resolution::UnitDiagnosticOrderError,
     source::{SourceError, SourceId, SourceMap},
@@ -26,13 +26,17 @@ pub(crate) fn analyze(
     let source = sources
         .add_source(source_name, text)
         .map_err(AnalysisError::Source)?;
-    let (name_environment, type_environment) = standard_environments();
-    let names = analyze_unit_names(
-        sources,
-        vec![UnitSourceDescriptor::memory_document(source)],
-        name_environment,
+    let (mut name_environment, type_environment) = standard_environments();
+    let mut descriptors = vec![UnitSourceDescriptor::memory_document(source)];
+    append_builtin_display(
+        &mut sources,
+        &mut descriptors,
+        &mut name_environment,
+        "koven-std",
     )
-    .map_err(AnalysisError::Names)?;
+    .map_err(AnalysisError::Source)?;
+    let names =
+        analyze_unit_names(sources, descriptors, name_environment).map_err(AnalysisError::Names)?;
     let (typed, owned) =
         analyze_unit_recovery(&names, &type_environment).map_err(AnalysisError::Recovery)?;
     // names 已聚合 lexer/parser/index/import/name；每个阶段仅加入一次。
@@ -78,6 +82,26 @@ impl Error for AnalysisError {}
 #[cfg(test)]
 mod tests {
     use super::analyze;
+
+    #[test]
+    fn display_identity_and_operand_diagnostics_reach_the_document_snapshot() {
+        let (_, analysis) = analyze(
+            "file:///display.ko",
+            r#"class Shown() : Display {
+    override fun toString(): String = "shown"
+}
+fun tick(): Unit {}
+fun entry(): Unit { println("${Shown()}"); println("${tick()}") }"#,
+        )
+        .unwrap();
+        let [diagnostic] = analysis.diagnostics() else {
+            panic!(
+                "expected one interpolation diagnostic: {:?}",
+                analysis.diagnostics()
+            );
+        };
+        assert_eq!(diagnostic.code().to_string(), "L0085");
+    }
 
     #[test]
     fn aggregates_diagnostics_from_every_frontend_stage_in_source_order() {

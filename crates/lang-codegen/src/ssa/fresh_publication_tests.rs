@@ -5,7 +5,7 @@ use lang_frontend::ownership_checking::{check_compilation_unit_ownership, with_l
 
 fn check_unit(fails: bool) {
     let tail = if fails {
-        r#"fun later(source:String,other:String,flag:Boolean):Unit {consume("${1}")}"#
+        r#"fun later(source:String,other:String,flag:Boolean):Unit {consume("${1.0}")}"#
     } else {
         "fun later(source:String,flag:Boolean):Unit {while(flag){borrow val x=view(source);consume(x);consume(x)}}"
     };
@@ -68,7 +68,7 @@ fn check_unit(fails: bool) {
                     crate::ssa::lowering_support::LoweringErrorKind::UnsupportedNode
                 );
                 let rejected = error.span.expect("actual later body error span");
-                assert_eq!(sources.slice(rejected).unwrap(), "\"${1}\"");
+                assert_eq!(sources.slice(rejected).unwrap(), "\"${1.0}\"");
                 assert!(rejected.start() > text.find("fun later").unwrap());
                 assert!(verified.is_empty());
                 assert!(receipts.is_empty());

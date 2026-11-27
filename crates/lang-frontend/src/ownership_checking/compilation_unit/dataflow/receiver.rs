@@ -406,6 +406,18 @@ impl Checker<'_> {
             };
         }
         let Some(place) = self.loan_place(expression)? else {
+            if contract.kind() == UnitCallArgumentOwnershipKind::SharedLoan
+                && self
+                    .typed
+                    .call(contract.call())
+                    .is_some_and(|call| call.is_display_requirement())
+                && let Some(owner) = self.temporary_projection_owner(expression)?
+            {
+                return Ok(Some((
+                    UnitReceiverOwnershipTarget::Temporary(owner),
+                    UnitReceiverOwnershipKind::SharedLoan,
+                )));
+            }
             return Err(OwnershipCheckingError::InvalidUnitArgumentPlace {
                 source_unit: self.source_unit.index(),
                 expression: expression.index(),

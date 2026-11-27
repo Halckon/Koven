@@ -328,6 +328,7 @@ pub(crate) mod ordered_map_test_support {
         }
     }
 }
+mod decimal;
 mod runtime;
 #[cfg(test)]
 mod runtime_tests;
@@ -347,6 +348,9 @@ mod scalar {
         signed: IntPredicate,
         unsigned: IntPredicate,
     ) -> Result<IntPredicate, LlvmAdapterError> {
+        if module.type_kind(value_type(function, operand)?) == Some(&SsaTypeKind::Char) {
+            return Ok(unsigned);
+        }
         Ok(if integer_signed(module, function, operand)? {
             signed
         } else {

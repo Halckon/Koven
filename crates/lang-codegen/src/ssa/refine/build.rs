@@ -18,6 +18,7 @@ mod element_swap;
 mod entry_lifecycle;
 mod expression;
 mod field_assignment;
+mod interpolation;
 mod receiver_field_replace;
 
 // Main's newer receipt protocols still import the pre-fold paths; the folded
@@ -121,6 +122,8 @@ pub(super) struct Builder<'i, 'a> {
     entry_this_dead: BTreeSet<BlockRef>,
     /// Loans created for call arguments/receiver that are currently active in the AST evaluation stack.
     pending_call_loans: Vec<Slot>,
+    /// Owned interpolation prefixes paired with the loop depth where evaluation began.
+    interpolation_owners: Vec<(Slot, usize)>,
     /// Receiver loans for the indices enclosing the AST expression being lowered.
     index_receiver_loans: Vec<Slot>,
     /// Borrowed result/range source loans kept alive until a local `borrow val` binding ends.
@@ -208,6 +211,7 @@ pub(super) fn build(
         entry_dead: BTreeMap::new(),
         entry_this_dead: BTreeSet::new(),
         pending_call_loans: Vec::new(),
+        interpolation_owners: Vec::new(),
         index_receiver_loans: Vec::new(),
         result_source_loans: BTreeMap::new(),
         range_views: BTreeMap::new(),
@@ -434,6 +438,12 @@ impl Builder<'_, '_> {
     }
 
     fn terminate(&mut self, terminator: RTerm, span: Span) -> Result<(), LoweringError> {
+        if matches!(
+            terminator,
+            RTerm::Return(_) | RTerm::BorrowReturn { .. } | RTerm::RangeReturn { .. }
+        ) {
+            self.drop_interpolation_prefixes(0, span)?;
+        }
         self.sync_dead();
         let block = self.current(span)?;
         self.body.loop_plans.terminate(&terminator, block, span)?;

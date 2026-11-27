@@ -35,6 +35,9 @@ pub(super) enum ROp {
         string: SsaTypeId,
         bytes: Vec<u8>,
     },
+    StringFromScalar {
+        scalar: Slot,
+    },
     PrintString {
         value: Slot,
     },
@@ -84,6 +87,11 @@ pub(super) enum ROp {
         operator: IntegerBitwiseOperator,
         left: Slot,
         right: Slot,
+    },
+    FloatArithmetic {
+        operator: crate::ssa::model::FloatOperator,
+        left: Slot,
+        right: Option<Slot>,
     },
     CheckedArithmetic {
         operator: CheckedArithmeticOperator,
@@ -503,6 +511,9 @@ pub(super) enum ROp {
 impl ROp {
     pub(super) fn operands(&self) -> Vec<Slot> {
         match self {
+            Self::FloatArithmetic { left, right, .. } => {
+                std::iter::once(*left).chain(*right).collect()
+            }
             Self::Constant(_)
             | Self::StringLiteral { .. }
             | Self::NullableNull { .. }
@@ -525,6 +536,7 @@ impl ROp {
                 .collect(),
             Self::Alias { source: slot }
             | Self::Copy { source: slot }
+            | Self::StringFromScalar { scalar: slot }
             | Self::PrintString { value: slot }
             | Self::ReadLoan { loan: slot }
             | Self::RootPlace { owner: slot }

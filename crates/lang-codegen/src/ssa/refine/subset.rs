@@ -55,6 +55,8 @@ struct Checker<'i, 'a> {
     branch_form: BTreeSet<UnitExpressionId>,
     /// Temporary field parents whose pending loan and cleanup lower together.
     temporary_field_parents: BTreeSet<UnitExpressionId>,
+    /// Source operands whose interpolation borrow ends before a later part can exit.
+    interpolation_operands: BTreeSet<UnitExpressionId>,
     whole_nominal_exit: Option<whole_nominal_exit::WholeNominalExit>,
     /// Owned field receivers whose evaluated call prefix cannot dispatch.
     non_dispatching_field_calls: BTreeSet<UnitExpressionId>,
@@ -68,6 +70,8 @@ struct Checker<'i, 'a> {
     has_local_destructuring: bool,
     /// A temporary sequential source can refine only in an already migrated scope.
     has_temporary_sequential_for: bool,
+    /// A reached When that cannot be lowered on the ordinary route.
+    has_refine_only_when: bool,
     /// A validated function-value call needs the refinement callable ABI.
     has_function_value_call: bool,
     loop_route: LoopRoute,
@@ -99,6 +103,7 @@ fn accepts_with_loop_route(inputs: &RefineInputs<'_>, loop_route: LoopRoute) -> 
         callable_ssa_types: BTreeMap::new(),
         branch_form: BTreeSet::new(),
         temporary_field_parents: BTreeSet::new(),
+        interpolation_operands: BTreeSet::new(),
         whole_nominal_exit: None,
         non_dispatching_field_calls: BTreeSet::new(),
         nullable: false,
@@ -106,6 +111,7 @@ fn accepts_with_loop_route(inputs: &RefineInputs<'_>, loop_route: LoopRoute) -> 
         migrated: false,
         has_local_destructuring: false,
         has_temporary_sequential_for: false,
+        has_refine_only_when: false,
         has_function_value_call: false,
         loop_route,
         loop_route_retry: false,
@@ -162,7 +168,8 @@ fn accepts_with_loop_route(inputs: &RefineInputs<'_>, loop_route: LoopRoute) -> 
             .all(|(symbol, mode)| {
                 checker.symbol_type(*symbol).is_some_and(|ty| {
                     // ADR-0034: a Borrow function parameter is a callable view.
-                    (*mode == ParameterMode::Borrow && checker.view_function(ty))
+                    (checker.unit(ty) && *mode != ParameterMode::Inout)
+                        || (*mode == ParameterMode::Borrow && checker.view_function(ty))
                         || checker.storage_type(ty)
                             && match mode {
                                 ParameterMode::Value => true,
@@ -237,9 +244,11 @@ fn accepts_with_loop_route(inputs: &RefineInputs<'_>, loop_route: LoopRoute) -> 
     let accepted = signature
         && body_ok
         && (loop_route == LoopRoute::Existing
-            || checker.loop_route == LoopRoute::Verified && checker.has_local_destructuring)
+            || checker.loop_route == LoopRoute::Verified
+                && (checker.has_local_destructuring || checker.has_refine_only_when))
         && (!checker.has_temporary_sequential_for
             || checker.has_local_destructuring
+            || checker.has_refine_only_when
             || checker.has_function_value_call
             || matches!(inputs.body, RefineBody::Lambda(_))
             || checker.scope_requires_refine())
@@ -291,6 +300,7 @@ fn query_checker<'i, 'a>(inputs: &'i RefineInputs<'a>) -> Checker<'i, 'a> {
         callable_ssa_types: BTreeMap::new(),
         branch_form: BTreeSet::new(),
         temporary_field_parents: BTreeSet::new(),
+        interpolation_operands: BTreeSet::new(),
         whole_nominal_exit: None,
         non_dispatching_field_calls: BTreeSet::new(),
         nullable: false,
@@ -298,6 +308,7 @@ fn query_checker<'i, 'a>(inputs: &'i RefineInputs<'a>) -> Checker<'i, 'a> {
         migrated: false,
         has_local_destructuring: false,
         has_temporary_sequential_for: false,
+        has_refine_only_when: false,
         has_function_value_call: false,
         loop_route: LoopRoute::Existing,
         loop_route_retry: false,
@@ -337,10 +348,7 @@ pub(super) fn type_demands(inputs: &RefineInputs<'_>) -> Vec<UnitTypeId> {
                     Some(UnitTypeKind::EnumCase { root, .. }) => *root,
                     _ => ty,
                 };
-                if !matches!(checker.kind(ty), Some(UnitTypeKind::Nullable(inner)) if checker.nothing(*inner))
-                {
-                    demands.extend(inputs.concrete(ty));
-                }
+                demands.extend(inputs.concrete(ty));
             }
             if let Some(site) = inputs.source_plan.call_site(inputs.source_token, id) {
                 for route in site.delegation() {
@@ -389,19 +397,7 @@ pub(super) fn type_demands(inputs: &RefineInputs<'_>) -> Vec<UnitTypeId> {
     ordered
 }
 
-pub(in crate::ssa) const fn integer(builtin: BuiltinType) -> bool {
-    matches!(
-        builtin,
-        BuiltinType::Byte
-            | BuiltinType::Short
-            | BuiltinType::Int
-            | BuiltinType::Long
-            | BuiltinType::UByte
-            | BuiltinType::UShort
-            | BuiltinType::UInt
-            | BuiltinType::ULong
-    )
-}
+pub(in crate::ssa) use crate::ssa::lowering_support::is_integer_builtin as integer;
 
 impl Checker<'_, '_> {
     fn kind(&self, ty: UnitTypeId) -> Option<&UnitTypeKind> {
@@ -424,6 +420,12 @@ impl Checker<'_, '_> {
 
     fn scalar(&self, ty: UnitTypeId) -> bool {
         matches!(self.kind(ty), Some(UnitTypeKind::Builtin(b)) if *b == BuiltinType::Boolean || integer(*b))
+    }
+
+    fn nullable_scalar_inner(&self, ty: UnitTypeId) -> bool {
+        self.scalar(ty)
+            || matches!(self.kind(ty), Some(UnitTypeKind::Builtin(b))
+                if *b == BuiltinType::Char || crate::ssa::lowering_support::is_float_builtin(*b))
     }
 
     fn string(&self, ty: UnitTypeId) -> bool {

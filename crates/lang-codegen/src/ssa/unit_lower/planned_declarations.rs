@@ -232,14 +232,6 @@ pub(super) fn declare(
                 instance.key().static_self(),
                 parameter.span(),
             )?;
-            if parameter.mode() == ParameterMode::Borrow
-                && builtin_type(typed, concrete) == Some(BuiltinType::Unit)
-            {
-                return Err(lowering_error(
-                    LoweringErrorKind::UnsupportedNode,
-                    parameter.span(),
-                ));
-            }
             let ty = if matches!(
                 typed.types().get(concrete),
                 Some(UnitTypeKind::Function { .. })

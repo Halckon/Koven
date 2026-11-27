@@ -22,12 +22,15 @@ mod container;
 mod control;
 mod loop_control;
 mod map;
+mod string;
 use construction::nullable_proof;
 #[cfg(any(
     feature = "two-source-unit",
     all(test, feature = "e2-two-source-test-support")
 ))]
 pub(in crate::ssa) mod e2_common;
+mod null_assertion;
+mod nullable_text;
 mod nullable_when;
 mod ownership;
 mod planned_body;
@@ -68,7 +71,8 @@ pub(in crate::ssa) use lang_frontend::{
 pub(in crate::ssa) use super::{
     LoweringError, LoweringErrorKind,
     lowering_support::{
-        error as lowering_error, parse_integer_literal_text, present_name, span_key, string_literal,
+        error as lowering_error, parse_char_literal, parse_float_literal,
+        parse_integer_literal_text, present_name, span_key, string_literal,
     },
     model::{
         BlockId, EntityId, EntityType, Function, FunctionId, LoanId, LoanKind, Operation, Origin,
@@ -358,7 +362,10 @@ impl UnitExpressionLowerer<'_> {
             Expression::Name => self.lower_name(expression, span),
             Expression::This => self.lower_this(expression, span),
             Expression::Group { expression } => self.lower(*expression),
-            Expression::NonNullAssert { .. } | Expression::TypeTest { .. } => {
+            Expression::NonNullAssert { operand, .. } => {
+                self.lower_null_only_assertion(expression, *operand, span)
+            }
+            Expression::TypeTest { .. } => {
                 Err(lowering_error(LoweringErrorKind::UnsupportedNode, span))
             }
             Expression::Call {
@@ -398,7 +405,7 @@ impl UnitExpressionLowerer<'_> {
             } => self.lower_if(expression, *condition, *then_branch, *else_branch, span),
             Expression::When {
                 subject, entries, ..
-            } => self.lower_boolean_when(expression, *subject, entries, span, None),
+            } => self.lower_boolean_when(expression, *subject, entries, span),
             Expression::Return { value, .. } => self.lower_return(expression, *value, span),
             Expression::Break { .. } => self.lower_break(expression, span),
             Expression::Continue { .. } => self.lower_continue(expression, span),
@@ -431,9 +438,8 @@ impl UnitExpressionLowerer<'_> {
             LiteralKind::Integer(kind) => {
                 ScalarConstant::Integer(parse_integer_literal(self.sources, kind, span)?)
             }
-            LiteralKind::Float(_) | LiteralKind::Char => {
-                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-            }
+            LiteralKind::Char => ScalarConstant::Char(parse_char_literal(self.sources, span)?),
+            LiteralKind::Float(kind) => parse_float_literal(self.sources, kind, span)?,
             LiteralKind::Null => unreachable!("handled above"),
         };
         let ty = self.expression_ssa_type(expression, span)?;
@@ -443,30 +449,6 @@ impl UnitExpressionLowerer<'_> {
                 self.block,
                 Operation::Constant(constant),
                 vec![EntityType::Value(ty)],
-                Origin::Source(span),
-            )
-            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-        Ok(LoweredValue::Value(require_value(results[0], span)?))
-    }
-
-    fn lower_string_literal(
-        &mut self,
-        expression: ExpressionId,
-        span: Span,
-    ) -> Result<LoweredValue, LoweringError> {
-        let source_text = self
-            .sources
-            .source_text(self.parsed.source_id())
-            .map_err(|_| lowering_error(LoweringErrorKind::MismatchedSource, span))?;
-        let bytes = string_literal::decode_plain(self.parsed, source_text, expression)?
-            .ok_or_else(|| lowering_error(LoweringErrorKind::UnsupportedNode, span))?;
-        let string = self.expression_ssa_type(expression, span)?;
-        let (_, results) = self
-            .function
-            .append_instruction(
-                self.block,
-                Operation::StringLiteral { string, bytes },
-                vec![EntityType::Value(string)],
                 Origin::Source(span),
             )
             .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
@@ -709,7 +691,7 @@ impl UnitExpressionLowerer<'_> {
                 }
                 LoweredValue::Value(value)
             }
-            LoweredValue::Unit => LoweredValue::Unit,
+            LoweredValue::Unit => self.unit_binding_value(initializer, declared, span)?,
             LoweredValue::Diverged => unreachable!("divergence returned above"),
         };
         self.bindings.insert(symbol, lowered);
@@ -742,21 +724,6 @@ impl UnitExpressionLowerer<'_> {
             })
             .copied()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))
-    }
-
-    fn return_values(
-        &self,
-        result: LoweredValue,
-        span: Span,
-    ) -> Result<Vec<ValueId>, LoweringError> {
-        match (builtin_type(self.typed, self.return_type), result) {
-            (Some(BuiltinType::Unit), LoweredValue::Unit) => Ok(Vec::new()),
-            (Some(BuiltinType::Unit), LoweredValue::Value(_))
-            | (_, LoweredValue::Unit | LoweredValue::Diverged) => {
-                Err(lowering_error(LoweringErrorKind::MissingFact, span))
-            }
-            (_, LoweredValue::Value(value)) => Ok(vec![value]),
-        }
     }
 
     pub(in crate::ssa) fn expression_ssa_type(
@@ -842,14 +809,24 @@ impl UnitExpressionLowerer<'_> {
         let Some(UnitTypeKind::Nullable(inner)) = self.typed.types().get(expected) else {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         };
-        if *inner != actual {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        }
         let nullable = self
             .type_ids
             .get(&expected)
             .copied()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        if crate::ssa::lowering_support::is_null_only(self.typed, actual) {
+            if self.typed.copyability(expected) != Copyability::Copyable {
+                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+            }
+            let null = self.append_scalar(Operation::NullableNull { nullable }, nullable, span)?;
+            return match null {
+                LoweredValue::Value(value) => Ok((value, false)),
+                _ => Err(lowering_error(LoweringErrorKind::InvalidModel, span)),
+            };
+        }
+        if *inner != actual {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
         if self.function.entity(EntityId::Value(value)).map(|e| e.ty)
             == Some(EntityType::Value(nullable))
         {

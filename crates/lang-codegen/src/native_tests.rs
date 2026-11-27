@@ -173,7 +173,7 @@ fn standard_println_links_and_writes_exact_utf8_stdout() {
 
     let unsupported = UnitSource::analyze(
         "interpolated-println.ko",
-        "fun output(): Unit { println(\"${1}\") }",
+        "fun output(): Unit { println(\"${1.0}\") }",
     )
     .expect("original source must pass strict Unit admission");
     let rejected = directory.join("interpolated-println.o");

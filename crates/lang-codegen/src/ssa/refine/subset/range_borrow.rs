@@ -9,17 +9,18 @@ use lang_frontend::{
         BorrowBindingStorage, BorrowSourceLoan, RangeUseSite, UnitDropPoint,
         UnitIterationCleanupAction as Action, UnitIterationSourceAccess, UnitLoanTarget,
     },
-    parser::Expression,
+    parser::{Expression, WhenEntry},
     source::Span,
     type_checking::{
         BorrowReturnOrigin, BuiltinType, CallableResultSource, Copyability,
         IntrinsicTypeConstructor, IterationProvider, ParameterMode, UnitCallTarget,
-        UnitConstructionTarget, UnitExpressionId, UnitSequentialIterationBinding, UnitStatementId,
-        UnitTypeId, UnitTypeKind,
+        UnitConstructionTarget, UnitExpressionId, UnitMapRequireValueDescriptor,
+        UnitSequentialIterationBinding, UnitStatementId, UnitTypeId, UnitTypeKind,
     },
 };
 
 use super::Checker;
+use crate::ssa::lowering_support::boolean_literal_when_arms;
 
 impl Checker<'_, '_> {
     /// Returns true if the current function scope uses a construct that requires `ssa::refine`
@@ -196,7 +197,37 @@ impl Checker<'_, '_> {
                     || self.is_map_put_target(*target)
             }
             Expression::If { condition, .. } => self.if_requires_refine(*condition),
+            Expression::When {
+                subject, entries, ..
+            } => self.when_requires_refine(id, *subject, entries),
             _ => false,
+        }
+    }
+
+    fn when_requires_refine(
+        &self,
+        control: UnitExpressionId,
+        subject: Option<ExpressionId>,
+        entries: &[WhenEntry],
+    ) -> bool {
+        let Some(subject) = subject else {
+            return true;
+        };
+        let typed = self.inputs.typed;
+        if typed.nullable_when(control).is_some()
+            || typed.expression_falls_through(self.id(subject)) == Some(false)
+        {
+            return false;
+        }
+        match self.expression_type(subject).and_then(|ty| self.kind(ty)) {
+            Some(UnitTypeKind::Builtin(BuiltinType::Boolean)) => {
+                matches!(
+                    boolean_literal_when_arms(self.inputs.parsed, entries),
+                    Ok(None)
+                )
+            }
+            Some(UnitTypeKind::Nullable(_)) | None => false,
+            Some(_) => true,
         }
     }
 
@@ -365,6 +396,31 @@ impl Checker<'_, '_> {
                 .is_some_and(|symbol| self.known.contains(&symbol))
     }
 
+    pub(super) fn returns_from_string_entry(&self, transfer: ExpressionId) -> bool {
+        let Some(source) = self.inputs.string_entry_source() else {
+            return false;
+        };
+        let Ok(node) = self.inputs.parsed.ast().expressions().get(transfer) else {
+            return false;
+        };
+        let Expression::Return {
+            value: Some(value), ..
+        } = node.payload()
+        else {
+            return false;
+        };
+        self.direct_place_symbol(*value) == Some(source)
+            || crate::ssa::provider::borrow_result::forwards_string_entry(
+                self.inputs.parsed,
+                self.inputs.names,
+                self.inputs.typed,
+                self.inputs.owned,
+                self.id(self.ungrouped(*value)),
+                source,
+            )
+            .is_some()
+    }
+
     pub(super) fn result_call(
         &mut self,
         expression: ExpressionId,
@@ -441,21 +497,45 @@ impl Checker<'_, '_> {
         {
             return false;
         }
+        let key = descriptor.key().expression();
+        self.map_require_receiver(descriptor)
+            && self.expression_type(expression) == Some(self.c(descriptor.value_type()))
+            && self.expression_type(key) == Some(self.c(descriptor.key_type()))
+            && (self.borrowed_string_name(key) || self.expression(key))
+    }
+
+    fn map_require_receiver(&self, descriptor: UnitMapRequireValueDescriptor) -> bool {
         let Some(map_ty) = self.expression_type_of(descriptor.receiver()) else {
             return false;
         };
-        let Some((key_ty, value_ty)) = self.map_kv(map_ty) else {
-            return false;
-        };
-        let key = descriptor.key().expression();
-        self.c(descriptor.key_type()) == key_ty
-            && self.c(descriptor.value_type()) == value_ty
-            && self.expression_type(expression) == Some(value_ty)
+        self.map_kv(map_ty)
+            == Some((
+                self.c(descriptor.key_type()),
+                self.c(descriptor.value_type()),
+            ))
             && self
                 .named_map_owner(descriptor.receiver().expression(), map_ty, true)
                 .is_some()
-            && self.expression_type(key) == Some(key_ty)
-            && (self.borrowed_string_name(key) || self.expression(key))
+    }
+
+    pub(super) fn abandoned_map_require_value(
+        &mut self,
+        descriptor: UnitMapRequireValueDescriptor,
+    ) -> bool {
+        let ok = if self
+            .inputs
+            .typed
+            .expression_falls_through(descriptor.receiver())
+            == Some(false)
+        {
+            self.expression(descriptor.receiver().expression())
+        } else {
+            self.map_require_receiver(descriptor)
+                && self.inputs.typed.expression_falls_through(descriptor.key()) == Some(false)
+                && self.expression(descriptor.key().expression())
+        };
+        self.migrated |= ok;
+        ok
     }
 
     pub(super) fn range_call(&mut self, expression: ExpressionId) -> bool {

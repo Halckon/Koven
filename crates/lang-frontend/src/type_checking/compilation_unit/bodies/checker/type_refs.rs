@@ -791,7 +791,14 @@ impl BodyChecker<'_> {
         if matches(self, actual, expected) {
             return Ok(true);
         }
+        let display = self.is_display_interface(expected);
         match self.signatures.types().get(actual).cloned() {
+            Some(UnitTypeKind::Builtin(ty)) if display => {
+                Ok(crate::type_checking::display::builtin_witness(ty))
+            }
+            Some(UnitTypeKind::EnumCase { root, .. }) if display => {
+                self.matches_interface(root, expected, matches)
+            }
             Some(UnitTypeKind::StaticSelf(inner)) => {
                 self.matches_interface(inner, expected, matches)
             }

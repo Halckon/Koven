@@ -145,6 +145,15 @@ pub(crate) fn decode_text(text: &str) -> Option<String> {
     Some(output)
 }
 
+/// Decode a lexer-approved quoted Char literal to its single Unicode scalar.
+pub fn decode_char_literal(text: &str) -> Option<char> {
+    let inner = text.strip_prefix('\'')?.strip_suffix('\'')?;
+    let decoded = decode_text(inner)?;
+    let mut chars = decoded.chars();
+    let first = chars.next()?;
+    chars.next().is_none().then_some(first)
+}
+
 /// Count bytes without allocating a second copy of a potentially oversized literal.
 pub(super) fn decoded_text_length(text: &str) -> Option<u64> {
     let mut length = 0;

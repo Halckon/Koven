@@ -20,6 +20,89 @@ const VALID: &str = "package q\r\nimport p.Resource\r\nimport p.take\r\nimport p
 const MOVED: &str = "package q\r\nimport p.Resource\r\nimport p.take\r\nfun use(own value: Resource): Unit { take(value)\r\n/* 界é😀 */ take(value) }";
 const DEFERRED: &str = "package q\r\nimport p.Holder\r\nfun use(holders: List<Holder>): Unit { val projected = holders[0].payload }";
 
+#[test]
+fn temporary_move_only_enum_has_one_drop_at_each_when_exit() {
+    use lang_frontend::{
+        ownership_checking::{UnitDropPoint, UnitDropTarget},
+        parser::Expression,
+    };
+
+    let source = r#"package q
+enum class Choice { Yes(text: String), No }
+fun render(stop: Boolean): String {
+    return when ((Choice.Yes("y" + "es"))) {
+        is Choice.Yes -> { if (stop) { return "stop" }; "yes" }
+        else -> "no"
+    }
+}"#;
+    let (snapshot, environment) = fixture(source, false);
+    let inputs = snapshot.inputs();
+    let (_, owned) = analyze_basic_unit_ownership(
+        snapshot.sources(),
+        &inputs,
+        snapshot.validated_names().unwrap(),
+        &environment,
+        typed(&snapshot, &environment),
+    )
+    .unwrap()
+    .into_result()
+    .unwrap();
+    assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+    assert!(owned.deferred().is_empty(), "{:?}", owned.deferred());
+
+    let drops = owned
+        .drops()
+        .iter()
+        .filter(|fact| {
+            snapshot.sources().slice(fact.value_origin()) == Ok("(Choice.Yes(\"y\" + \"es\"))")
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(drops.len(), 2, "{drops:?}");
+    let mut normal = 0;
+    let mut returned = 0;
+    for drop in drops {
+        let UnitDropTarget::Temporary(subject) = drop.target() else {
+            panic!("the when subject owns its temporary");
+        };
+        assert!(!drop.is_conditional_temporary());
+        let file = inputs
+            .iter()
+            .map(|input| input.parsed())
+            .find(|parsed| parsed.source_id() == drop.value_origin().source_id())
+            .unwrap();
+        assert_eq!(
+            file.ast()
+                .expressions()
+                .get(subject.expression())
+                .unwrap()
+                .span(),
+            drop.value_origin(),
+        );
+        match drop.point() {
+            UnitDropPoint::AfterExpression(id) => {
+                assert_eq!(id.source_unit(), subject.source_unit());
+                assert!(matches!(
+                    file.ast()
+                        .expressions()
+                        .get(id.expression())
+                        .unwrap()
+                        .payload(),
+                    Expression::When { .. }
+                ));
+                normal += 1;
+            }
+            UnitDropPoint::ControlTransfer(id) => {
+                assert_eq!(id.source_unit(), subject.source_unit());
+                let exit = file.ast().expressions().get(id.expression()).unwrap();
+                assert_eq!(snapshot.sources().slice(exit.span()), Ok("return \"stop\""));
+                returned += 1;
+            }
+            point => panic!("unexpected subject drop point: {point:?}"),
+        }
+    }
+    assert_eq!((normal, returned), (1, 1));
+}
+
 fn fixture(text: &str, reverse: bool) -> (UnitNameSnapshot, TypeEnvironment) {
     let mut sources = SourceMap::new();
     // Not a unit member: the adapter must not start scanning the full map.

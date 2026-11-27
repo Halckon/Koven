@@ -263,6 +263,11 @@ impl CompilationUnitOwnership {
             } else {
                 Vec::new()
             },
+            class_result_argument_unwinds: if successful && dataflow.deferred.is_empty() {
+                dataflow.class_result_argument_unwinds
+            } else {
+                Vec::new()
+            },
             loans: dataflow.loans,
             value_deliveries: dataflow.value_deliveries,
             rc_effects: dataflow.rc_effects,
@@ -279,10 +284,18 @@ impl CompilationUnitOwnership {
     /// 判断本产物是否来自指定 validated typed unit；克隆 typed/product 保留身份。
     #[must_use]
     pub fn is_compatible_with(&self, typed: &ValidatedCompilationUnitTypes) -> bool {
+        self.matches_raw_types(typed.types())
+    }
+
+    pub(crate) fn matches_raw_types(&self, typed: &CompilationUnitTypes) -> bool {
         Arc::ptr_eq(
             &self.provenance.typed_analysis_owner,
-            typed.types().analysis_owner(),
+            typed.analysis_owner(),
         )
+    }
+
+    pub(crate) fn has_constant_control_facts(&self) -> bool {
+        self.short_circuits.is_some()
     }
 
     /// 判断两个 ownership product 是否来自同一次分析。
@@ -412,6 +425,13 @@ impl CompilationUnitOwnership {
     #[must_use]
     pub fn direct_call_loan_ends(&self) -> &[UnitDirectCallLoanEndFact] {
         &self.direct_call_loan_ends
+    }
+
+    /// Actual control-transfer endings for shared temporary arguments that
+    /// hold the owned result of a class-producing call.
+    #[must_use]
+    pub fn class_result_argument_unwinds(&self) -> &[UnitDirectCallLoanEndFact] {
+        &self.class_result_argument_unwinds
     }
 
     /// 真实 source token 跨 inner return 的有界同步 consumer 运输；不是完整 loan-end 流。

@@ -166,6 +166,7 @@ struct CanonicalInput<'parsed> {
     source_id: SourceId,
     parsed: &'parsed ParsedFile,
     package: PackageIdentity,
+    embedded_support: bool,
 }
 
 /// 校验并规范化 compilation-unit 输入，建立 package/source/declaration identity。
@@ -177,10 +178,14 @@ pub fn index_compilation_unit(
 ) -> Result<CompilationUnitIndex, CompilationUnitInputError> {
     // fail-fast 错误不能继承调用方枚举顺序：先排序原始借用输入，再按既定优先级校验
     // path/source/owner，这样正序与反序调用会选择同一个输入错误。
-    if inputs.len() != 1
+    if inputs
+        .iter()
+        .any(|input| input.key() == SourceUnitInputKey::MemoryDocument)
         && inputs
             .iter()
-            .any(|input| input.key() == SourceUnitInputKey::MemoryDocument)
+            .filter(|input| !input.is_embedded_support())
+            .count()
+            != 1
     {
         return Err(CompilationUnitInputError::MemoryDocumentRequiresSingleSource);
     }
@@ -237,6 +242,7 @@ pub fn index_compilation_unit(
             source_id: input.source_id(),
             parsed: input.parsed(),
             package,
+            embedded_support: input.is_embedded_support(),
         });
     }
     canonical.sort_by(|left, right| left.key.cmp(&right.key));
@@ -303,6 +309,7 @@ pub fn index_compilation_unit(
         sources,
         &mismatches,
         &declarations,
+        &canonical,
     )?);
     let diagnostics = ordered_unit_diagnostics(sources, &source_units, &diagnostics)?
         .into_iter()
@@ -570,6 +577,7 @@ fn build_index_diagnostics(
     sources: &SourceMap,
     mismatches: &[PackagePathMismatch],
     declarations: &[UnitDeclaration],
+    inputs: &[CanonicalInput<'_>],
 ) -> Result<Vec<Diagnostic>, CompilationUnitInputError> {
     let catalog = codes::catalog()?;
     let declaration_conflict_code = catalog.resolve(codes::PACKAGE_DECLARATION_CONFLICT)?;
@@ -606,18 +614,29 @@ fn build_index_diagnostics(
             continue;
         };
         let first = &declarations[first_index];
+        // Embedded declarations have no user document to receive a primary diagnostic.
+        let (primary, related, label) =
+            if inputs[declaration.source_unit().index()].embedded_support {
+                (
+                    first,
+                    declaration,
+                    "embedded declaration with this package name",
+                )
+            } else {
+                (
+                    declaration,
+                    first,
+                    "first declaration with this package name",
+                )
+            };
         let mut diagnostic = Diagnostic::new(
             sources,
             Severity::Error,
             declaration_conflict_code,
             "conflicting declarations in package",
-            declaration.name_span(),
+            primary.name_span(),
         )?;
-        diagnostic.add_label(
-            sources,
-            first.name_span(),
-            "first declaration with this package name",
-        )?;
+        diagnostic.add_label(sources, related.name_span(), label)?;
         diagnostics.push(diagnostic);
     }
     Ok(diagnostics)

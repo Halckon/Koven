@@ -1,6 +1,13 @@
 use super::{class::ClassifierHeaderOwner, *};
 
 impl Parser<'_> {
+    pub(super) fn complete_function_type_starts_here(&self) -> Result<bool, ParserInternalError> {
+        // A strict function type can own the same arrow the selector probe saw.
+        let function_type_start = self.current_is_symbol(Symbol::LeftParen)
+            || (self.current_identifier_is("move")? && self.peek_is_symbol(1, Symbol::LeftParen));
+        Ok(function_type_start && self.strict_trials.type_end(self.current_raw()?).is_some())
+    }
+
     pub(super) fn parse_type_ref(
         &mut self,
         stops: TypeStops,
@@ -150,6 +157,11 @@ impl Parser<'_> {
         &mut self,
         stops: TypeStops,
     ) -> Result<(TypeRefId, bool), ParserInternalError> {
+        let mut argument_stops = stops;
+        if stops.when_call_body.is_some() && self.strict_when_type_has_local_end()? {
+            // A complete generic type owns its entire argument list.
+            argument_stops.when_call_body = None;
+        }
         let first = self.bump()?.span();
         let mut segments = vec![TypePathSegment {
             name_span: first,
@@ -200,12 +212,29 @@ impl Parser<'_> {
             let opener = self.bump()?.span();
             let mut arguments = Vec::new();
             let mut argument_errors = Vec::new();
-            let argument_stops = stops
+            let argument_stops = argument_stops
                 .without_block_elements()
                 .without_extension_name()
                 .with(TypeStops::COMMA)
                 .with(TypeStops::GREATER);
             loop {
+                if let Some(body) = argument_stops.when_call_body
+                    && (self.when_arm_is_committed(Some(body))?
+                        || (self
+                            .when_arm_boundary_follows(self.previous_significant_end(), body)?
+                            && !self.complete_function_type_starts_here()?))
+                {
+                    self.commit_when_arm_boundary(body)?;
+                    let at = self.empty_at(self.current()?.span().start())?;
+                    self.emit(
+                        codes::EXPECTED_TYPE_REFERENCE,
+                        "expected type reference",
+                        at,
+                    )?;
+                    let end = self.empty_at(self.previous_significant_end())?;
+                    arguments.push(self.add_type_ref(end, TypeRef::Error)?);
+                    break;
+                }
                 let (argument, complete) = self.parse_type_ref_with_completion(argument_stops)?;
                 arguments.push(argument);
                 if let Some(owner) = argument_stops.supertype_owner()
@@ -226,7 +255,15 @@ impl Parser<'_> {
                 complete = false;
                 let current = self.current()?;
                 if !self.is_poison() {
-                    self.emit_closing(self.type_boundary_span(current, stops)?, opener)?;
+                    let at = if let Some(body) = argument_stops.when_call_body
+                        && self.when_type_argument_boundary(body)?
+                    {
+                        self.commit_when_arm_boundary(body)?;
+                        self.empty_at(current.span().start())?
+                    } else {
+                        self.type_boundary_span(current, stops)?
+                    };
+                    self.emit_closing(at, opener)?;
                 }
                 if stops.has_class_body_boundary() {
                     end = self.previous_significant_end();
@@ -255,6 +292,14 @@ impl Parser<'_> {
             },
         )
         .map(|id| (id, complete))
+    }
+
+    fn when_type_argument_boundary(
+        &self,
+        body: WhenEntryBody,
+    ) -> Result<bool, ParserInternalError> {
+        Ok(self.when_arm_is_committed(Some(body))?
+            || self.when_arm_boundary_follows(self.previous_significant_end(), body)?)
     }
 
     fn recover_supertype_type_element_tail(

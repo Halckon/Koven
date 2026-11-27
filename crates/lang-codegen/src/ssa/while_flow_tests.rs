@@ -782,3 +782,76 @@ pub(in crate::ssa) mod borrow_value_field_tests {
         }
     }
 }
+
+#[test]
+fn refined_direct_unit_arguments_preserve_distinct_local_roots() {
+    use super::model::{Definition, EntityId, Operation};
+
+    let text = r#"fun make(): Unit { println("make") }
+fun choose(borrow left: Unit, borrow right: Unit): Boolean = true
+fun entry(): Unit {
+    val a = make()
+    var b = (a)
+    choose(a, b)
+    b = a
+    when {
+        choose(a, b) -> { println("selected") }
+        else -> { println("else") }
+    }
+}
+"#;
+    let lowered = super::integer_range_value_tests::lower_unit_source(text, false)
+        .expect("ordinary Unit arguments lower");
+    verify_program(&lowered.program).expect("SSA verifies");
+    let main = lowered.program.modules[0].function(lowered.entry).unwrap();
+    let definition = |entity| {
+        let Definition::InstructionResult { instruction, .. } =
+            main.entity(entity).unwrap().definition
+        else {
+            panic!("expected an instruction result")
+        };
+        &main.instruction(instruction).unwrap().operation
+    };
+    let calls = main
+        .instructions
+        .iter()
+        .filter_map(|instruction| match &instruction.operation {
+            Operation::DirectCall { arguments, .. } if arguments.len() == 2 => Some(arguments),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(calls.len(), 2);
+    let owners = calls
+        .into_iter()
+        .map(|arguments| {
+            arguments
+                .iter()
+                .map(|&loan| {
+                    let Operation::BorrowBegin { place, .. } = definition(loan) else {
+                        panic!("Unit argument borrows its local")
+                    };
+                    let Operation::RootPlace { owner } = definition(EntityId::Place(*place)) else {
+                        panic!("Unit local has a root place")
+                    };
+                    *owner
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+    assert_ne!(
+        owners[0][0], owners[0][1],
+        "initialization keeps the locals distinct"
+    );
+    assert_ne!(
+        owners[1][0], owners[1][1],
+        "assignment keeps the locals distinct"
+    );
+    assert_eq!(
+        owners[0][0], owners[1][0],
+        "the unchanged local keeps its root"
+    );
+    assert_ne!(
+        owners[0][1], owners[1][1],
+        "assignment creates a new definition"
+    );
+}

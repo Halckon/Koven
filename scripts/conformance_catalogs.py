@@ -330,10 +330,6 @@ PROGRAM_GUIDE_CHAPTERS: dict[str, str] = {
 
 # Explicit mapping from all known_unimplemented probes to blocking item IDs in docs/roadmap/v1.json.
 UNIMPLEMENTED_ROADMAP_BLOCKERS: dict[str, list[str]] = {
-    "p02_interp": ["L1", "L2"],
-    "p05_double": ["N05"],
-    "p06_char": ["N05"],
-    "p11_interface_bound": ["N06"],
     "p15_elvis": ["N03"],
     "p16_result_q": ["N08"],
     "p21_box_enum": ["N07", "L7"],
@@ -355,8 +351,8 @@ PROGRAM_ROADMAP_BLOCKERS: dict[str, list[str]] = {
     "config_parse": ["N02", "N08", "L1", "L2"],
     "expr_eval": ["N02", "N05", "N07", "N08", "L1", "L2", "L7"],
     "linked_stack": ["N01", "N03", "N07", "L1", "L2", "L7"],
-    "raii_state_machine": ["N01", "N02", "L1", "L2"],
-    "varint_codec": ["N01", "N08", "L1", "L2", "L3b"],
+    "raii_state_machine": [],
+    "varint_codec": [],
     "word_count": ["N02", "N03", "L1", "L2"],
     "text_log_summary": ["L1", "L2", "L5", "L21", "N08"],
     "query_pipeline": ["N04", "N05", "N06", "L1", "L2", "L3b", "L11", "S1"],
@@ -367,13 +363,14 @@ PROGRAM_ROADMAP_BLOCKERS: dict[str, list[str]] = {
 # Strict per-program marker allowlist: a different marker means the failure stage moved
 # (frontend vs lowering) and must be re-audited instead of staying silently
 # known_unimplemented. Markers reflect the current v0.47 implementation gap, not a
-# promise that the program is expected to fail this way forever.
+# promise that the program is expected to fail this way forever. An empty list
+# publishes the program as runnable with its existing exact stdout oracle.
 PROGRAM_ALLOWED_MARKERS: dict[str, list[str]] = {
-    "config_parse": ["FE:L0080"],
+    "config_parse": ["FE:L0165"],
     "expr_eval": ["FE:L0165"],
     "linked_stack": ["FE:L0085"],
-    "raii_state_machine": ["BE:UnsupportedNode"],
-    "varint_codec": ["BE:UnsupportedNode"],
+    "raii_state_machine": [],
+    "varint_codec": [],
     "word_count": ["FE:L0165"],
     "text_log_summary": ["FE:L0148"],
     "query_pipeline": ["FE:L0161"],
@@ -400,10 +397,10 @@ SEMANTIC_ORACLE_DERIVATIONS: dict[str, str] = {
     "e02_enum_when_stmt_println": "c = Color.Red matches statement when branch Color.Red -> println('e2')",
     "e03_enum_when_bool_val": "c = Color.Green yields b = false in when expression; if (!b) prints 'e5'",
     "p01_int_print": "println expects String parameter; passing Int (40 + 2) emits TYPE_MISMATCH L0084",
-    "p02_interp": "string interpolation 'hello ${n}' with n = 'k' evaluates to 'hello k' (blocked by L1/L2)",
-    "p05_double": "Double multiplication 1.5 * 2.0 == 3.0 holds and prints 'double' (blocked by N05)",
-    "p06_char": "Char comparison 'a' < 'b' holds and prints 'char' (blocked by N05)",
-    "p11_interface_bound": "generic greet<T : Named>(Dog()) dispatches Dog.name() and prints 'dog' (blocked by N06)",
+    "p02_interp": "interpolation borrows the String n = 'k' and creates a new String; println emits 'hello k' followed by a newline",
+    "p05_double": "Double multiplication 1.5 * 2.0 == 3.0 holds and prints 'double'",
+    "p06_char": "Char comparison 'a' < 'b' holds in Unicode scalar order and prints 'char'",
+    "p11_interface_bound": "generic greet<T : Named>(Dog()) dispatches Dog.name() and prints 'dog'",
     "p15_elvis": "f(null) evaluates null ?: 7 -> 7; 7 == 7 holds and prints 'elvis' (blocked by N03)",
     "p16_result_q": "Result.Ok(21)? unwraps 21 in ? propagation; 21 * 2 == 42 prints 'question' (blocked by N08)",
     "p16b_result_string": "parse(1) selects Result.Ok('good'); exhaustive when selects Ok and prints success once, followed by newline",
@@ -597,6 +594,30 @@ CONFIRMED_STDOUT_ORACLES: dict[str, str] = {
 
 # Documented Guide v0.46 probe changes and post-aef3f4f8 merged Spec advancements
 V046_PROBE_OVERRIDES: dict[str, dict[str, Any]] = {
+    "p11_interface_bound": {
+        "kind": "run_ok",
+        "stdout": "dog\n",
+        "v046_baseline_exempt": True,
+        "note": "SPEC-0392: interface-bound member calls select the concrete implementation in both native entry modes",
+    },
+    "p05_double": {
+        "kind": "run_ok",
+        "stdout": "double\n",
+        "v046_baseline_exempt": True,
+        "note": "SPEC-0392: width-preserving Double arithmetic and IEEE comparison lower in both native entry modes",
+    },
+    "p06_char": {
+        "kind": "run_ok",
+        "stdout": "char\n",
+        "v046_baseline_exempt": True,
+        "note": "SPEC-0392: typed Char ordering lowers to unsigned Unicode scalar comparison",
+    },
+    "p02_interp": {
+        "kind": "run_ok",
+        "stdout": CONFIRMED_STDOUT_ORACLES["p02_interp"],
+        "v046_baseline_exempt": True,
+        "note": "SPEC-0392: the typed String Display conversion lowers through both public native entry modes",
+    },
     "p42_lambda_mutate": {
         "kind": "known_unimplemented",
         "allowed_markers": ["BE:UnsupportedNode"],

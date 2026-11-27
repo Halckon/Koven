@@ -123,13 +123,17 @@ impl SignatureCollector<'_> {
         delegations: &mut BTreeMap<DeclarationId, DelegationFacts>,
     ) -> Result<(), CompilationUnitTypeError> {
         let mut forwarders_by_owner =
-            BTreeMap::<DeclarationId, Vec<(UnitCallableTarget, UnitTypeId)>>::new();
+            BTreeMap::<DeclarationId, Vec<(UnitCallableTarget, UnitTypeId, bool)>>::new();
         for facts in delegations.values() {
             for plan in &facts.valid {
                 forwarders_by_owner.entry(plan.owner()).or_default().extend(
-                    plan.forwarders()
-                        .iter()
-                        .map(|forwarder| (forwarder.requirement(), forwarder.receiver_type())),
+                    plan.forwarders().iter().map(|forwarder| {
+                        (
+                            forwarder.requirement(),
+                            forwarder.receiver_type(),
+                            forwarder.is_ancestor_alias(),
+                        )
+                    }),
                 );
             }
         }
@@ -173,20 +177,24 @@ impl SignatureCollector<'_> {
                 };
                 for forwarder in plan.forwarders_mut() {
                     let direct = forwarder.implementation();
-                    let mut matching = candidates
-                        .iter()
-                        .copied()
-                        .filter(|(requirement, _)| *requirement == forwarder.requirement())
-                        .collect::<Vec<_>>();
-                    if matching.is_empty() {
-                        matching.extend(candidates.iter().copied().filter(|(requirement, _)| {
-                            direct.is_some_and(|implementation| {
-                                *requirement == implementation.target()
-                            })
-                        }));
+                    // Exact inherited aliases remain available after existing effective hops.
+                    let mut matching = Vec::new();
+                    for (target, alias) in [
+                        (Some(forwarder.requirement()), false),
+                        (direct.map(|implementation| implementation.target()), false),
+                        (Some(forwarder.requirement()), true),
+                    ] {
+                        matching.extend(candidates.iter().copied().filter(
+                            |(requirement, _, is_alias)| {
+                                Some(*requirement) == target && *is_alias == alias
+                            },
+                        ));
+                        if !matching.is_empty() {
+                            break;
+                        }
                     }
                     match matching.as_slice() {
-                        [(requirement, receiver_type)] => {
+                        [(requirement, receiver_type, _)] => {
                             let receiver_type =
                                 self.substitute_type(*receiver_type, &substitutions)?;
                             forwarder.set_next_hop(UnitDelegationNextHopDescriptor::new(
@@ -423,7 +431,7 @@ impl SignatureCollector<'_> {
                         .get(&member.shape)
                         .into_iter()
                         .flatten()
-                        .filter(|target| !target.has_body && target.contract == member.contract)
+                        .filter(|target| target.contract == member.contract)
                         .map(|target| {
                             UnitStaticDispatchOverride::new(
                                 target.target,
@@ -532,7 +540,21 @@ impl SignatureCollector<'_> {
                     .map(|field| field.ty())
                     .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
                 let mut forwarders = Vec::with_capacity(active.len());
-                for requirement in &active {
+                // A call through an ancestor bound can still name a replaced requirement.
+                for requirement in &all_by_shape[&shape] {
+                    let alias = !active
+                        .iter()
+                        .any(|source| source.target == requirement.target);
+                    if alias {
+                        let mut covered = false;
+                        for source in &active {
+                            covered |= source.contract == requirement.contract
+                                && self.satisfies_interface(source.owner, requirement.owner)?;
+                        }
+                        if !covered {
+                            continue;
+                        }
+                    }
                     let implementation = self
                         .effective_delegation_member(delegate_type, requirement)?
                         .map(|implementation| {
@@ -541,7 +563,7 @@ impl SignatureCollector<'_> {
                                 implementation.owner,
                             )
                         });
-                    forwarders.push(UnitDelegationForwarderDescriptor::new(
+                    let mut forwarder = UnitDelegationForwarderDescriptor::new(
                         requirement.target,
                         requirement.owner,
                         implementation,
@@ -549,7 +571,9 @@ impl SignatureCollector<'_> {
                         requirement.parameters.clone(),
                         requirement.return_type,
                         requirement.name_span,
-                    ));
+                    );
+                    forwarder.set_ancestor_alias(alias);
+                    forwarders.push(forwarder);
                 }
                 for forwarder in forwarders {
                     delegations.valid[plan_index].push_forwarder(forwarder);
@@ -597,7 +621,8 @@ impl SignatureCollector<'_> {
                         .into_iter()
                         .flatten()
                         .filter(|source| {
-                            !source.has_body && source.contract == implementation.contract
+                            source.target != implementation.target
+                                && source.contract == implementation.contract
                         })
                         .map(|requirement| {
                             UnitStaticDispatchOverride::new(

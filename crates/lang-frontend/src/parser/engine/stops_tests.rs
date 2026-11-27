@@ -3,7 +3,7 @@ use super::class::ClassifierHeaderOwner;
 use crate::lexer::{Keyword, Lexeme, LexemeKind, Symbol, TokenKind};
 
 #[test]
-fn stops_lattice_hard_delimiter_non_shielding_holds_exhaustively_over_all_4096_states() {
+fn stops_lattice_hard_delimiter_non_shielding_holds_exhaustively() {
     let tokens = [
         (LexemeKind::Eof, None),
         (
@@ -34,7 +34,7 @@ fn stops_lattice_hard_delimiter_non_shielding_holds_exhaustively_over_all_4096_s
         (LexemeKind::Token(TokenKind::Keyword(Keyword::Else)), None),
     ];
 
-    for delimiters in 0u16..(1u16 << 11) {
+    for delimiters in 0u16..(Stops::WHEN_CALL_OPERAND_RECOVERY << 1) {
         for block_elements in [false, true] {
             let stops = Stops {
                 delimiters,

@@ -497,6 +497,7 @@ pub struct CompilationUnitOwnership {
     exclusive_call_prefix_ends: Vec<UnitExclusiveCallPrefixEndFact>,
     loan_action_observations: Vec<UnitLoanActionObservation>,
     direct_call_loan_ends: Vec<UnitDirectCallLoanEndFact>,
+    class_result_argument_unwinds: Vec<UnitDirectCallLoanEndFact>,
     borrow_call_handoffs: Vec<UnitBorrowCallHandoffFact>,
     borrow_call_transports: Vec<UnitBorrowCallTransportFact>,
     borrow_binding_transports: Vec<UnitBorrowBindingTransportFact>,

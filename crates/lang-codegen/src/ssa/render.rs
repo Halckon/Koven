@@ -1,14 +1,16 @@
 mod heap_fields;
+mod scalar;
 
 use std::fmt::{self, Write};
 
 use super::model::{
     BinaryOperator, CallableSignature, CheckedArithmeticOperator, ClosureCaptureOperand,
     ComparisonOperator, Edge, EntityId, EntityType, Function, IntegerBitwiseOperator, LoanKind,
-    Module, Operation, Origin, PlaceAccess, Program, ScalarConstant, SsaTypeId, TerminatorKind,
+    Module, Operation, Origin, PlaceAccess, Program, SsaTypeId, TerminatorKind,
 };
 
 use super::verify_types::render_types::{map, write_type_kind};
+use scalar::{write_constant, write_float_arithmetic};
 
 const fn binary_name(operator: BinaryOperator) -> &'static str {
     match operator {
@@ -304,6 +306,10 @@ fn write_operation(output: &mut String, operation: &Operation) -> fmt::Result {
             output.write_str(", ")?;
             write_entity_id(output, *right)
         }
+        Operation::StringFromScalar { scalar } => {
+            output.write_str("string.from_scalar ")?;
+            write_entity_id(output, EntityId::Value(*scalar))
+        }
         Operation::StringClone { source } => {
             output.write_str("string.clone ")?;
             write_entity_id(output, EntityId::Loan(*source))
@@ -354,6 +360,11 @@ fn write_operation(output: &mut String, operation: &Operation) -> fmt::Result {
             output.write_str(", ")?;
             write_entity_id(output, EntityId::Value(*right))
         }
+        Operation::FloatArithmetic {
+            operator,
+            left,
+            right,
+        } => write_float_arithmetic(output, *operator, *left, *right),
         Operation::CheckedArithmetic {
             operator,
             left,
@@ -871,17 +882,6 @@ fn write_operation(output: &mut String, operation: &Operation) -> fmt::Result {
             output.write_str("drop ")?;
             write_entity_id(output, EntityId::Value(*owner))
         }
-    }
-}
-
-fn write_constant(output: &mut String, constant: &ScalarConstant) -> fmt::Result {
-    match constant {
-        #[cfg(test)]
-        ScalarConstant::SyntheticZero => output.write_str("synthetic-zero"),
-        ScalarConstant::Unit => output.write_str("unit"),
-        ScalarConstant::Boolean(value) => write!(output, "{value}"),
-        ScalarConstant::Char(value) => write!(output, "U+{value:04X}"),
-        ScalarConstant::Integer(value) => write!(output, "{value}"),
     }
 }
 

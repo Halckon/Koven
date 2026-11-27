@@ -81,6 +81,74 @@ pub(super) fn literal<'ctx>(
     )
 }
 
+pub(super) fn from_char<'ctx>(
+    builder: &Builder<'ctx>,
+    function: FunctionValue<'ctx>,
+    runtime: &RuntimeAbi<'ctx>,
+    string_type: inkwell::types::StructType<'ctx>,
+    scalar: IntValue<'ctx>,
+    name: &str,
+) -> Result<StructValue<'ctx>, LlvmAdapterError> {
+    let int = scalar.get_type();
+    let constant = |value| int.const_int(value, false);
+    let mut width = constant(1);
+    let mut prefix = constant(0);
+    for (threshold, next_width, next_prefix) in
+        [(0x7f, 2, 0xc0), (0x7ff, 3, 0xe0), (0xffff, 4, 0xf0)]
+    {
+        let wider = builder.build_int_compare(
+            IntPredicate::UGT,
+            scalar,
+            constant(threshold),
+            "char.utf8.wider",
+        )?;
+        width = builder
+            .build_select(wider, constant(next_width), width, "char.utf8.width")?
+            .into_int_value();
+        prefix = builder
+            .build_select(wider, constant(next_prefix), prefix, "char.utf8.prefix")?
+            .into_int_value();
+    }
+
+    // Char is a verified Unicode scalar. Emit its significant six-bit groups
+    // in order. Bytes past the chosen width stay outside the String view.
+    let byte = int.get_context().i8_type();
+    let mut bytes = byte.array_type(4).const_zero();
+    let mut groups = width;
+    for index in 0..4 {
+        let has_group = builder.build_int_compare(
+            IntPredicate::NE,
+            groups,
+            constant(0),
+            "char.utf8.has_group",
+        )?;
+        let preceding = builder.build_int_sub(groups, constant(1), "char.utf8.preceding")?;
+        groups = builder
+            .build_select(has_group, preceding, constant(0), "char.utf8.groups")?
+            .into_int_value();
+        let shift = builder.build_int_mul(groups, constant(6), "char.utf8.shift")?;
+        let payload = builder.build_right_shift(scalar, shift, false, "char.utf8.payload")?;
+        let (payload, tag) = if index == 0 {
+            (payload, prefix)
+        } else {
+            (
+                builder.build_and(payload, constant(0x3f), "char.utf8.continuation")?,
+                constant(0x80),
+            )
+        };
+        let encoded = builder.build_or(payload, tag, "char.utf8.encoded")?;
+        let encoded = builder.build_int_truncate(encoded, byte, "char.utf8.byte")?;
+        bytes = builder
+            .build_insert_value(bytes, encoded, index, "char.utf8.bytes")?
+            .into_array_value();
+    }
+    let capacity = runtime.size_type().const_int(4, false);
+    let length = builder.build_int_cast(width, runtime.size_type(), "char.utf8.length")?;
+    let allocation = runtime.allocate_string_bytes(builder, function, capacity, name)?;
+    builder.build_store(allocation, bytes)?;
+    build_owner(builder, string_type, allocation, length, capacity, name)
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn concat<'ctx>(
     context: &'ctx Context,

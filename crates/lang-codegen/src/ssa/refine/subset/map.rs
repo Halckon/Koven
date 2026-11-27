@@ -5,11 +5,14 @@ use std::collections::BTreeSet;
 
 use lang_frontend::{
     ast::ExpressionId,
-    ownership_checking::{UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget},
+    ownership_checking::{
+        LoanKind, UnitLoanFact, UnitLoanTarget, UnitReceiverOwnershipKind,
+        UnitReceiverOwnershipTarget,
+    },
     parser::{BinaryOperator, Expression},
     type_checking::{
-        BuiltinType, Copyability, IntrinsicTypeConstructor, UnitCallReceiverOrigin, UnitTypeId,
-        UnitTypeKind,
+        BuiltinType, Copyability, IntrinsicTypeConstructor, UnitCallReceiverOrigin,
+        UnitExpressionId, UnitTypeId, UnitTypeKind,
     },
 };
 
@@ -76,6 +79,11 @@ impl Checker<'_, '_> {
 
     pub(super) fn map_operation(&mut self, expression: ExpressionId) -> bool {
         let id = self.id(expression);
+        if let Some(receiver) = self.inputs.non_completing_map_receiver(id) {
+            let ok = self.expression(receiver);
+            self.migrated |= ok;
+            return ok;
+        }
         let typed = self.inputs.typed;
         if typed.map_construction(id).is_some() {
             return self.map_construction(expression);
@@ -334,17 +342,27 @@ impl Checker<'_, '_> {
         let Some(descriptor) = self.inputs.typed.map_get(id) else {
             return false;
         };
-        let Some(map_ty) = self.expression_type_of(descriptor.receiver()) else {
+        let receiver = descriptor.receiver();
+        if descriptor.expression() != id
+            || receiver.source_unit() != self.inputs.source_unit
+            || descriptor.key().source_unit() != self.inputs.source_unit
+        {
+            return false;
+        }
+        // An early exit needs neither a Map layout nor a materialized key.
+        if self.inputs.typed.expression_falls_through(receiver) == Some(false) {
+            let ok = self.expression(receiver.expression());
+            self.migrated |= ok;
+            return ok;
+        }
+        let Some(map_ty) = self.expression_type_of(receiver) else {
             return false;
         };
         let Some((key_ty, value_ty)) = self.map_kv(map_ty) else {
             return false;
         };
         let res_ty = self.c(descriptor.result_type());
-        if descriptor.expression() != id
-            || descriptor.receiver().source_unit() != self.inputs.source_unit
-            || descriptor.key().source_unit() != self.inputs.source_unit
-            || self.c(descriptor.key_type()) != key_ty
+        if self.c(descriptor.key_type()) != key_ty
             || self.c(descriptor.value_type()) != value_ty
             || self.expression_type(expression) != Some(res_ty)
             || self.copyability_of(value_ty) != Copyability::Copyable
@@ -354,10 +372,9 @@ impl Checker<'_, '_> {
                 Some(UnitTypeKind::Nullable(inner)) if *inner == value_ty
             )
             || !(self
-                .named_map_owner(descriptor.receiver().expression(), map_ty, true)
+                .named_map_owner(receiver.expression(), map_ty, true)
                 .is_some()
-                || (self.expression_type_of(descriptor.receiver()) == Some(map_ty)
-                    && self.expression(descriptor.receiver().expression())))
+                || self.expression(receiver.expression()))
         {
             return false;
         }
@@ -425,6 +442,12 @@ impl Checker<'_, '_> {
         let Ok(node) = self.inputs.parsed.ast().expressions().get(expression) else {
             return false;
         };
+        // Borrow and carrier returns may preserve an outgoing loan instead of draining pending loans.
+        if (self.inputs.borrow_return.is_some() || self.inputs.carrier_return.is_some())
+            && self.span_has_control_transfer(node.span())
+        {
+            return false;
+        }
         let Some(map_ty) = self.expression_type_of(descriptor.receiver()) else {
             return false;
         };
@@ -435,7 +458,6 @@ impl Checker<'_, '_> {
             || descriptor.receiver().source_unit() != self.inputs.source_unit
             || descriptor.key().source_unit() != self.inputs.source_unit
             || descriptor.action().source_unit() != self.inputs.source_unit
-            || self.span_has_control_transfer(node.span())
             || self.c(descriptor.key_type()) != key_ty
             || !self.expression_type(expression).is_some_and(|ty| {
                 matches!(
@@ -450,12 +472,105 @@ impl Checker<'_, '_> {
             return false;
         }
         let key = descriptor.key().expression();
+        if !self.key_or_nothing(key, key_ty)
+            || !(self.borrowed_string_name(key) || self.expression(key))
+        {
+            return false;
+        }
         let action = descriptor.action().expression();
-        let ok = self.expression_type(key) == Some(key_ty)
-            && (self.borrowed_string_name(key) || self.expression(key))
-            && self.runtime_initializer(action);
+        let ok = if self.inputs.typed.expression_falls_through(descriptor.key()) == Some(false) {
+            true
+        } else if self
+            .inputs
+            .typed
+            .expression_falls_through(descriptor.action())
+            == Some(false)
+        {
+            self.expression(action)
+        } else {
+            self.runtime_initializer(action)
+        };
         self.migrated |= ok;
         ok
+    }
+
+    /// The shared key loan ends before its temporary is dropped on an action exit.
+    pub(super) fn pending_with_value_key(
+        &self,
+        expression: UnitExpressionId,
+        transfer: UnitExpressionId,
+        loan: &UnitLoanFact,
+    ) -> bool {
+        let call = loan.call();
+        let Some(descriptor) = self.inputs.typed.map_with_value(call) else {
+            return false;
+        };
+        let UnitLoanTarget::Temporary(temporary) = loan.target() else {
+            return false;
+        };
+        if descriptor.expression() != call
+            || loan.kind() != LoanKind::Shared
+            || loan.argument() != descriptor.key()
+            || temporary.source_unit() != self.inputs.source_unit
+            || transfer.source_unit() != self.inputs.source_unit
+            || descriptor.action().source_unit() != self.inputs.source_unit
+            || self.ungrouped(temporary.expression()) != self.ungrouped(expression.expression())
+            || self
+                .inputs
+                .typed
+                .expression_falls_through(descriptor.action())
+                != Some(false)
+        {
+            return false;
+        }
+        let expressions = self.inputs.parsed.ast().expressions();
+        let (Ok(action), Ok(jump)) = (
+            expressions.get(descriptor.action().expression()),
+            expressions.get(transfer.expression()),
+        ) else {
+            return false;
+        };
+        let uses_return_cleanup =
+            self.inputs.borrow_return.is_none() && self.inputs.carrier_return.is_none();
+        (!matches!(jump.payload(), Expression::Return { .. }) || uses_return_cleanup)
+            && crate::ssa::unit_lower::span_contains(action.span(), jump.span())
+            && !self.inside_lambda(jump.span())
+    }
+
+    pub(super) fn string_equality_operand(
+        &mut self,
+        binary: ExpressionId,
+        expression: ExpressionId,
+    ) -> bool {
+        let Some(ty) = self.expression_type(expression) else {
+            return false;
+        };
+        if !self.inputs.is_nullable_string(ty) {
+            return self.operand(binary, expression, true);
+        }
+        self.note_nullable(ty);
+        if let Some(target) = self.inputs.shared_field_operand_target(binary, expression) {
+            let temporary = match target {
+                lang_frontend::ownership_checking::UnitLoanTarget::Place(_) => None,
+                lang_frontend::ownership_checking::UnitLoanTarget::Temporary(parent) => {
+                    Some(*parent)
+                }
+                lang_frontend::ownership_checking::UnitLoanTarget::This(_) => return false,
+            };
+            let admitted = self.shared_field_read_type(expression, temporary) == Some(ty);
+            if admitted && let Some(parent) = temporary {
+                self.temporary_field_parents.insert(parent);
+            }
+            return admitted;
+        }
+        let root = self.ungrouped(expression);
+        if let Some(symbol) = self.direct_place_symbol(root)
+            && self.symbol_type(symbol) == Some(ty)
+            && self.borrowed_nullable_presence(symbol, ty) == Some(true)
+        {
+            return self.known.contains(&symbol);
+        }
+        self.expression(expression)
     }
 
     /// Temporary null comparison (`m.get(k) == null`, `m.remove(k) != null`) or scalar
@@ -506,7 +621,8 @@ impl Checker<'_, '_> {
                     return true;
                 }
             }
-            if !(self.scalar(inner)
+            if !(self.nothing(inner)
+                || self.nullable_scalar_inner(inner)
                 || self.range_type(inner)
                 || self.value_class(inner)
                 || self.view_inner(inner))
@@ -540,6 +656,16 @@ impl Checker<'_, '_> {
         else {
             return false;
         };
+        if let Some(nullable) = crate::ssa::lowering_support::nullable_equality_storage(
+            self.inputs.typed,
+            left_ty,
+            right_ty,
+        ) {
+            self.note_nullable(nullable);
+            let ok = self.expression(left) && self.expression(right);
+            self.migrated |= ok;
+            return ok;
+        }
         let nullable_pair = match (self.kind(left_ty), self.kind(right_ty)) {
             (Some(UnitTypeKind::Nullable(li)), Some(UnitTypeKind::Nullable(ri))) if li == ri => {
                 Some((left_ty, *li))

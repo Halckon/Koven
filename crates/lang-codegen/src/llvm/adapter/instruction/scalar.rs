@@ -13,6 +13,13 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
             Operation::Constant(constant) => {
                 self.lower_constant(constant, &results)?;
             }
+            Operation::FloatArithmetic {
+                operator,
+                left,
+                right,
+            } => {
+                self.lower_float_arithmetic(*operator, *left, *right, &results)?;
+            }
             Operation::Binary {
                 operator,
                 left,
@@ -64,6 +71,41 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                 ));
             }
         }
+        Ok(())
+    }
+    fn lower_float_arithmetic(
+        &mut self,
+        operator: crate::ssa::model::FloatOperator,
+        left: ValueId,
+        right: Option<ValueId>,
+        results: &[ValueId],
+    ) -> Result<(), LlvmAdapterError> {
+        use crate::ssa::model::FloatOperator;
+        let [result] = results else {
+            return Err(invalid_result_count(
+                "floating arithmetic",
+                1,
+                results.len(),
+            ));
+        };
+        let left = self.value(left)?.into_float_value();
+        let name = value_name(*result);
+        let value = if let Some(right) = right {
+            let right = self.value(right)?.into_float_value();
+            match operator {
+                FloatOperator::Add => self.builder.build_float_add(left, right, &name)?,
+                FloatOperator::Subtract => self.builder.build_float_sub(left, right, &name)?,
+                FloatOperator::Multiply => self.builder.build_float_mul(left, right, &name)?,
+                FloatOperator::Divide => self.builder.build_float_div(left, right, &name)?,
+                FloatOperator::Remainder => self.builder.build_float_rem(left, right, &name)?,
+                FloatOperator::Negate => {
+                    return Err(unsupported("floating negation has extra operand"));
+                }
+            }
+        } else {
+            self.builder.build_float_neg(left, &name)?
+        };
+        self.values.insert(*result, value.into());
         Ok(())
     }
 }

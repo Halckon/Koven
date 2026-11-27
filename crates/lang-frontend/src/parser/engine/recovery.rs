@@ -1,7 +1,8 @@
 #![allow(unexpected_cfgs)]
 
 use super::{class::ClassifierHeaderOwner, *};
-use std::cell::{Cell, OnceCell};
+use std::cell::{Cell, OnceCell, RefCell};
+use std::collections::HashMap;
 use std::num::NonZeroUsize;
 
 mod adjacent_poison;
@@ -33,6 +34,8 @@ pub(super) struct LexicalRecoveryIndex<'source> {
     angle_terminal_hint: usize,
     // The same declaration starter can stop several nested TypeRefs during unwinding.
     pub(super) supertype_boundary: Cell<Option<(usize, ClassifierHeaderOwner, bool, bool)>>,
+    pub(super) when_arm_boundaries: RefCell<HashMap<(usize, WhenEntryBody), bool>>,
+    pub(super) committed_when_arm: Cell<Option<(usize, WhenEntryBody)>>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -298,6 +301,8 @@ impl<'source> LexicalRecoveryIndex<'source> {
             angle_group_closers: OnceCell::new(),
             poisoned_string_starts: OnceCell::new(),
             supertype_boundary: Cell::new(None),
+            when_arm_boundaries: RefCell::default(),
+            committed_when_arm: Cell::new(None),
             angle_terminal_hint: 0,
         })
     }
@@ -571,7 +576,7 @@ impl Parser<'_> {
         stops: DeclarationStops,
         proven_type_closer: Option<usize>,
     ) -> Result<usize, ParserInternalError> {
-        self.recover_declaration_tokens(stops, false, proven_type_closer)
+        self.recover_declaration_tokens(stops, false, proven_type_closer, None)
             .map(|(end, _)| end)
     }
 
@@ -579,14 +584,15 @@ impl Parser<'_> {
     pub(super) fn recover_declaration_string(
         &mut self,
     ) -> Result<(usize, bool), ParserInternalError> {
-        self.recover_declaration_tokens(DeclarationStops::EMPTY, true, None)
+        self.recover_declaration_tokens(DeclarationStops::EMPTY, true, None, None)
     }
 
-    fn recover_declaration_tokens(
+    pub(super) fn recover_declaration_tokens(
         &mut self,
         stops: DeclarationStops,
         stop_at_string_end: bool,
         proven_type_closer: Option<usize>,
+        when_arm: Option<WhenEntryBody>,
     ) -> Result<(usize, bool), ParserInternalError> {
         let mut delimiters = Vec::new();
         let mut paired_groups = Vec::new();
@@ -728,6 +734,13 @@ impl Parser<'_> {
                         && self.has_paired_lambda_header(raw_index)?))
                     || (stops.0 & DeclarationStops::LEFT_BRACE != 0
                         && self.explicit_block_start(current)?));
+            if outside_owner
+                && delimiters.is_empty()
+                && let Some(body) = when_arm
+                && self.when_arm_boundary_follows(end, body)?
+            {
+                break;
+            }
             if hard_stop
                 || (outside_owner
                     && !protected_suffix

@@ -66,6 +66,22 @@ impl Builder<'_, '_> {
         match operator {
             PrefixOperator::Plus => Ok(Lowered::Value(operand)),
             PrefixOperator::Minus => {
+                if matches!(
+                    self.types.ssa_types.get(ty.index()),
+                    Some(
+                        crate::ssa::model::SsaTypeKind::Float32
+                            | crate::ssa::model::SsaTypeKind::Float64
+                    )
+                ) {
+                    return Ok(Lowered::Value(self.typed_value(
+                        ROp::FloatArithmetic {
+                            operator: crate::ssa::model::FloatOperator::Negate,
+                            left: operand,
+                            right: None,
+                        },
+                        expression,
+                    )?));
+                }
                 let zero = self.value(
                     ROp::Constant(ScalarConstant::Integer(0)),
                     EntityType::Value(ty),
@@ -234,6 +250,17 @@ impl Builder<'_, '_> {
         }
         let receiver = descriptor.receiver().expression();
         let receiver_ty = self.c(descriptor.receiver_type());
+        self.clone_borrowed_string(expression, receiver, receiver_ty, span)
+    }
+
+    pub(super) fn clone_borrowed_string(
+        &mut self,
+        expression: ExpressionId,
+        receiver: ExpressionId,
+        receiver_ty: lang_frontend::type_checking::UnitTypeId,
+        span: Span,
+    ) -> Result<Lowered, LoweringError> {
+        let id = self.unit(expression);
         let ty = self.ssa_type(self.expression_type(expression)?, span)?;
         let mut ungrouped = receiver;
         while let (Expression::Group { expression: inner }, _) = self.node(ungrouped)? {
@@ -252,6 +279,8 @@ impl Builder<'_, '_> {
                 self.borrowed_container_element_loan(receiver, receiver_ty, span)?
             {
                 (loan, created, read.into_iter().collect())
+            } else if self.block.is_none() {
+                return Ok(Lowered::Diverged);
             } else if self
                 .inputs
                 .typed
@@ -428,6 +457,7 @@ impl Builder<'_, '_> {
             seq_for: None,
             map_for: None,
         });
+        let exit_temporaries = self.temporaries.clone();
         let reached = self.statement(loop_body)? != Lowered::Diverged;
         self.loops.pop();
         self.leave(mark, span)?;
@@ -472,6 +502,7 @@ impl Builder<'_, '_> {
         self.push(ROp::Alias { source: next }, vec![current], span)?;
         self.goto(header, span)?;
 
+        self.temporaries = exit_temporaries;
         let facts = self.collect_drops(UnitDropPoint::LoopExit(statement_id));
         let mark = self.enter(exhausted);
         self.leave_unclaimed(mark, span)?;

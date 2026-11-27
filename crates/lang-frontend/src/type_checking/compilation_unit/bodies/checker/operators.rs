@@ -12,12 +12,14 @@ use crate::{
 
 use crate::type_checking::flow_effects::{
     logical_rhs_is_required,
-    result_edges::{bypassed_result_writes, splits_boolean_writes},
+    result_edges::{BooleanResultWrites, splits_boolean_writes},
 };
 
 use super::{
     BodyChecker, ExpressionCheck, UnitExpressionId,
-    flow::{FlowKey, FlowVersions, extend_facts, intersect_facts, merge_flow_versions},
+    flow::{
+        ConditionFacts, FlowKey, FlowVersions, extend_facts, intersect_facts, merge_flow_versions,
+    },
     while_flow::{PendingBooleanEdges, PendingControlSite},
 };
 
@@ -36,6 +38,11 @@ struct LogicalLhsSnapshot {
 
 struct BypassedWrites<'a> {
     before: &'a LogicalLhsSnapshot,
+    keys: BTreeSet<FlowKey>,
+}
+
+pub(super) struct LogicalNormalWrites {
+    body_path_reachable: bool,
     keys: BTreeSet<FlowKey>,
 }
 
@@ -114,6 +121,7 @@ impl BodyChecker<'_> {
         Ok(operand_result)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn check_binary(
         &mut self,
         source: SourceUnitId,
@@ -121,6 +129,7 @@ impl BodyChecker<'_> {
         expected: Option<UnitTypeId>,
         expected_span: Option<Span>,
         return_type: UnitTypeId,
+        normal_writes: Option<&mut Option<LogicalNormalWrites>>,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
         let BinaryExpression {
             expression,
@@ -154,6 +163,7 @@ impl BodyChecker<'_> {
                     right,
                 },
                 return_type,
+                normal_writes,
             );
         }
         self.check_value_binary(
@@ -174,6 +184,7 @@ impl BodyChecker<'_> {
         source: SourceUnitId,
         expression: BinaryExpression,
         return_type: UnitTypeId,
+        mut normal_writes: Option<&mut Option<LogicalNormalWrites>>,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
         let ast = self.file(source).ast();
         let root_has_split =
@@ -225,63 +236,84 @@ impl BodyChecker<'_> {
             }
         });
         let mut left_result = self.check_expression(source, left, None, None, return_type)?;
-        for (nested, has_split) in pending.into_iter().rev() {
-            let id = nested.expression;
-            left_result = self.complete_logical_binary(
-                source,
-                nested,
-                left_result,
-                return_type,
-                before.as_ref().filter(|_| has_split),
-            )?;
-            self.record_expression_check(UnitExpressionId::new(source, id), left_result);
-        }
-        self.complete_logical_binary(
-            source,
-            expression,
-            left_result,
-            return_type,
-            before.as_ref().filter(|_| root_has_split),
-        )
-    }
-
-    fn complete_logical_binary(
-        &mut self,
-        source: SourceUnitId,
-        expression: BinaryExpression,
-        left_result: ExpressionCheck,
-        return_type: UnitTypeId,
-        before: Option<&LogicalLhsSnapshot>,
-    ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
-        let bypassed = if let Some(before) = before
-            && self.is_builtin(left_result.ty, BuiltinType::Boolean)
-            && self.flow_versions.versions_changed(&before.versions)
+        // Keep the write summary only for this spine. Each completed node
+        // becomes the left child of the next node in the fold.
+        let mut prefix = None;
+        let mut left_facts = self.condition_facts(source, left)?;
+        let root = expression.expression;
+        for (node, has_split) in pending
+            .into_iter()
+            .rev()
+            .chain([(expression, root_has_split)])
         {
-            let [yes, no] = bypassed_result_writes(
-                &self.syntactic_boolean_outcomes[source.index()],
-                expression.left,
-                |target| self.stable_flow_key(source, target),
-            )
-            .map_err(TypeCheckingError::from)?;
-            let keys = if expression.operator == BinaryOperator::LogicalAnd {
-                yes
+            let is_root = node.expression == root;
+            let outcomes = &self.syntactic_boolean_outcomes[source.index()];
+            let (yes, no) = outcomes.possible_results(node.left);
+            let has_both_results = yes && no;
+            let bypassed = if (has_both_results || prefix.is_some())
+                && let Some(before) = before.as_ref().filter(|_| has_split)
+                && self.is_builtin(left_result.ty, BuiltinType::Boolean)
+                && self.flow_versions.versions_changed(&before.versions)
+            {
+                let flow_key = |target| self.stable_flow_key(source, target);
+                let writes = match prefix.take() {
+                    Some(writes) => writes,
+                    None => BooleanResultWrites::collect(outcomes, node.left, flow_key)
+                        .map_err(TypeCheckingError::from)?,
+                };
+                let keys = if has_both_results {
+                    writes.bypassed(node.operator == BinaryOperator::LogicalAnd)
+                } else {
+                    BTreeSet::new()
+                };
+                if !is_root {
+                    prefix = Some(
+                        writes
+                            .extend_prefix(outcomes, node.left, node.operator, node.right, flow_key)
+                            .map_err(TypeCheckingError::from)?,
+                    );
+                }
+                Some(BypassedWrites { before, keys })
             } else {
-                no
+                prefix = None;
+                None
             };
-            Some(BypassedWrites { before, keys })
-        } else {
-            None
-        };
-        self.check_logical_binary_after_left(source, expression, left_result, return_type, bypassed)
+            let (id, operator, right) = (node.expression, node.operator, node.right);
+            left_result = self.check_logical_binary_after_left(
+                source,
+                node,
+                left_result,
+                &left_facts,
+                return_type,
+                bypassed,
+                if is_root { normal_writes.take() } else { None },
+            )?;
+            if !is_root {
+                self.record_expression_check(UnitExpressionId::new(source, id), left_result);
+                // The next node consumes this completed prefix as its left operand.
+                let right_facts = self.condition_facts(source, right)?;
+                left_facts = self.join_logical_condition_facts(
+                    source,
+                    operator,
+                    left_facts,
+                    right,
+                    right_facts,
+                )?;
+            }
+        }
+        Ok(left_result)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn check_logical_binary_after_left(
         &mut self,
         source: SourceUnitId,
         expression: BinaryExpression,
         left_result: ExpressionCheck,
+        (left_true, left_false): &ConditionFacts,
         return_type: UnitTypeId,
         bypassed: Option<BypassedWrites<'_>>,
+        normal_writes: Option<&mut Option<LogicalNormalWrites>>,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
         let BinaryExpression {
             expression,
@@ -290,7 +322,6 @@ impl BodyChecker<'_> {
             operator_span,
             right,
         } = expression;
-        let (left_true, left_false) = self.condition_facts(source, left)?;
         let baseline = self.flow_facts.clone();
         let baseline_versions = self.flow_versions.clone();
         let ast = self.file(source).ast();
@@ -304,9 +335,9 @@ impl BodyChecker<'_> {
             PendingBooleanEdges::default()
         };
         let (right_entry, rhs_pending, bypass) = if operator == BinaryOperator::LogicalAnd {
-            (&left_true, left_edges.yes, left_edges.no)
+            (left_true, left_edges.yes, left_edges.no)
         } else {
-            (&left_false, left_edges.no, left_edges.yes)
+            (left_false, left_edges.no, left_edges.yes)
         };
         self.flow_facts = extend_facts(&baseline, right_entry);
         if let Some(BypassedWrites { before, keys }) = bypassed {
@@ -320,17 +351,49 @@ impl BodyChecker<'_> {
         if let Some(pending) = &rhs_pending {
             self.flow_versions.set_pending_keys(pending.iter().copied());
         }
+        let mut right_writes = None;
         let right_result = self.check_loop_paths(
             left_result.falls_through,
             rhs_pending.is_some(),
-            |checker| checker.check_expression(source, right, None, None, return_type),
+            |checker| {
+                checker.check_expression_with_normal_writes(
+                    source,
+                    right,
+                    None,
+                    None,
+                    return_type,
+                    Some(&mut right_writes),
+                )
+            },
         );
         let right_versions = std::mem::replace(&mut self.flow_versions, baseline_versions);
         self.flow_facts = baseline;
-        if !rhs_bypassed {
-            for key in self.expression_flow_writes(source, right)? {
-                self.invalidate_flow_key(key);
+        let writes = if rhs_bypassed {
+            BTreeSet::new()
+        } else if let Some(writes) =
+            right_writes.take_if(|writes| writes.body_path_reachable == self.body_path_reachable)
+        {
+            // The suffix contains only effects from a normally completing RHS.
+            // Its enclosing expression must also complete after typing it.
+            let completes = self
+                .normal_flow_expression_completes(source, right)
+                .map_err(TypeCheckingError::from)?;
+            #[cfg(test)]
+            crate::type_checking::short_circuit_cost_tests::record_rhs_summary(true, completes);
+            if completes {
+                writes.keys
+            } else {
+                BTreeSet::new()
             }
+        } else {
+            #[cfg(test)]
+            if right_writes.is_some() {
+                crate::type_checking::short_circuit_cost_tests::record_rhs_summary(false, false);
+            }
+            self.expression_flow_writes(source, right)?
+        };
+        for &key in &writes {
+            self.invalidate_flow_key(key);
         }
         let right_result = right_result?;
         let mut edges = if rhs_pending.is_some()
@@ -382,6 +445,16 @@ impl BodyChecker<'_> {
         );
         if ty == boolean {
             self.pending_boolean_edges.insert(expression, edges);
+            if let Some(output) = normal_writes
+                && !self.syntactic_boolean_outcomes[source.index()].may_write(left)
+            {
+                // A standalone scan starts outside any loop frame. With a
+                // write-free left operand its only writes are from the RHS.
+                *output = Some(LogicalNormalWrites {
+                    body_path_reachable: self.body_path_reachable,
+                    keys: writes,
+                });
+            }
         }
         Ok(ExpressionCheck {
             ty,

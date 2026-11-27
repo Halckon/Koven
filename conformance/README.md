@@ -152,40 +152,38 @@ KOVENC=target/release/kovenc scripts/conformance_matrix.sh > matrix.tsv
 | `p37_is_generic_case` | 同上 | 同上；无实参 `is Result.Ok` 从 subject 推断 root 实参（SPEC-0349） | 前端不再报 L0111，运行输出 `case-noargs\n` |
 | `p42_lambda_mutate` | 源码不变 | Guide 07 允许同步非逃逸闭包写入捕获的局部 `var`（SPEC-0392） | 目标输出 `mut-capture\n`；当前仅接受 `BE:UnsupportedNode`，待 S1 |
 
-以下 probe 未改动，但含义受 v0.46 影响，判读时留意：
-
-- `p02_interp` 使用字符串插值；v0.46 已启用插值的类型规则（Guide 04），但 Guide 13 仍保留
-  “native lowering 拒绝插值”的旧句，二者待 Guide 澄清。
+`p02_interp` 验证 String 插值在两种原生入口输出 `hello k\n`。其他 Display
+格式化规则及实现进度见 [SPEC-0392](../docs/specs/active/0392-compiler-layered-review.md)。
 
 ## 验收程序（V1 目标）
 
 | 目录 | 题目 | 覆盖面 | 归属章节 | 当前状态 | 前置 Probe 就绪 | 路线图阻塞项 |
 |---|---|---|---|---|---:|---|
-| `word_count` | 词频 | `MutableMap` 插入序遍历、`String.clone()`、`in` 包含检查 | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `known_unimplemented` | 5 / 8 | `N02`, `N03`, `L1`, `L2` |
-| `config_parse` | 配置解析 | 逐字符解析 `key = value`、注释与空行、`Display` 实现、`Result` 与 `?` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `known_unimplemented` | 4 / 7 | `N02`, `N08`, `L1`, `L2` |
-| `expr_eval` | 表达式求值 | 递归下降解析、`Box` 递归 enum、`Result` 传播与除零报错 | [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | `known_unimplemented` | 3 / 9 | `N02`, `N05`, `N07`, `N08`, `L1`, `L2`, `L7` |
-| `raii_state_machine` | RAII 状态机 | `deinit` 资源、`replace`、词法作用域逆序析构、enum 状态迁移 | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | `known_unimplemented` | 5 / 8 | `N01`, `N02`, `L1`, `L2` |
-| `varint_codec` | 二进制编解码 | ZigZag + LEB128、具名位运算、`UByte` 转换、截断与超长报错 | [03-types-generics.md](../docs/guide/03-types-generics.md) | `known_unimplemented` | 5 / 8 | `N01`, `N08`, `L1`, `L2`, `L3b` |
-| `linked_stack` | 链表/栈 | 拥有所有权的 class 节点、`replace` 接合、原地反转、`Box` cons 列表 | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | `known_unimplemented` | 4 / 8 | `N01`, `N03`, `N07`, `L1`, `L2`, `L7` |
-| `text_log_summary` | 文本日志汇总 | `koven.text` 严格 UTF-8 与 `parseLong`、`const val`、`deinit` × `?` 早返回清理、`main(): Result` | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | `known_unimplemented` | 3 / 7 | `L1`, `L2`, `L5`, `L21`, `N08` |
-| `query_pipeline` | 泛型查询管道 | 泛型 `interface` bound、`by` 接口委托、`value class` 自动哈希与按名解构、可变/`move` 闭包、`::f`、`borrow T from`、`Double`、`toIntOrNull` | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | `known_unimplemented` | 4 / 10 | `N04`, `N05`, `N06`, `L1`, `L2`, `L3b`, `L11`, `S1` |
-| `dag_refcount` | 共享 DAG 析构 | `Rc<T>` 共享所有权（`.share()`/`.value`）与 `Rc`/`Box<enum>`/`MutableList` 复合 `deinit` 析构 | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | `known_unimplemented` | 3 / 6 | `N02`, `N07`, `L1`, `L2`, `L7` |
-| `worker_pipeline` | 受限并发管道 | `thread(move { })`、`channel<T>()` 按名解构、`Sender.clone()`、`Transferable` 转移、`join()` 与隐式 join | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | `known_unimplemented` | 3 / 5 | `T1`, `N04`, `L1`, `L2` |
+| `word_count` | 词频 | `MutableMap` 插入序遍历、`String.clone()`、`in` 包含检查 | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `known_unimplemented` | 6 / 8 | `N02`, `N03`, `L1`, `L2` |
+| `config_parse` | 配置解析 | 逐字符解析 `key = value`、注释与空行、`Display` 实现、`Result` 与 `?` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `known_unimplemented` | 5 / 7 | `N02`, `N08`, `L1`, `L2` |
+| `expr_eval` | 表达式求值 | 递归下降解析、`Box` 递归 enum、`Result` 传播与除零报错 | [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | `known_unimplemented` | 6 / 9 | `N02`, `N05`, `N07`, `N08`, `L1`, `L2`, `L7` |
+| `raii_state_machine` | RAII 状态机 | `deinit` 资源、`replace`、词法作用域逆序析构、enum 状态迁移 | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | `run_ok` | 6 / 8 | - |
+| `varint_codec` | 二进制编解码 | ZigZag + LEB128、具名位运算、`UByte` 转换、截断与超长报错 | [03-types-generics.md](../docs/guide/03-types-generics.md) | `run_ok` | 6 / 8 | - |
+| `linked_stack` | 链表/栈 | 拥有所有权的 class 节点、`replace` 接合、原地反转、`Box` cons 列表 | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | `known_unimplemented` | 5 / 8 | `N01`, `N03`, `N07`, `L1`, `L2`, `L7` |
+| `text_log_summary` | 文本日志汇总 | `koven.text` 严格 UTF-8 与 `parseLong`、`const val`、`deinit` × `?` 早返回清理、`main(): Result` | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | `known_unimplemented` | 4 / 7 | `L1`, `L2`, `L5`, `L21`, `N08` |
+| `query_pipeline` | 泛型查询管道 | 泛型 `interface` bound、`by` 接口委托、`value class` 自动哈希与按名解构、可变/`move` 闭包、`::f`、`borrow T from`、`Double`、`toIntOrNull` | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | `known_unimplemented` | 7 / 10 | `N04`, `N05`, `N06`, `L1`, `L2`, `L3b`, `L11`, `S1` |
+| `dag_refcount` | 共享 DAG 析构 | `Rc<T>` 共享所有权（`.share()`/`.value`）与 `Rc`/`Box<enum>`/`MutableList` 复合 `deinit` 析构 | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | `known_unimplemented` | 4 / 6 | `N02`, `N07`, `L1`, `L2`, `L7` |
+| `worker_pipeline` | 受限并发管道 | `thread(move { })`、`channel<T>()` 按名解构、`Sender.clone()`、`Transferable` 转移、`join()` 与隐式 join | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | `known_unimplemented` | 4 / 5 | `T1`, `N04`, `L1`, `L2` |
 
-这些程序按 Guide v0.47 编写（v0.47 完整继承 v0.46），是 V1 的**目标**而不是当前实现能力：今天不能编译或运行并不算
-失败，只说明对应能力尚未实现。每个程序不读输入、输出确定；验收以 stdout 与 `expected.txt`
-逐字节相同、退出码 0 为准，V1/V3 另要求双宿主运行与 ASan/LSan 干净。现行 `String` 没有字符
-访问 API，因此需要逐字符处理的程序把输入以 `Char` 字面量序列内嵌。
+这些程序按 Guide v0.47 编写，每个程序不读输入且输出确定。`run_ok`
+要求两种入口均退出 0，stdout 与 `expected.txt` 逐字节匹配。
+`known_unimplemented` 只接受该程序登记的失败标记。V1/V3 还要求双宿主运行
+和 ASan/LSan 验收通过。需要逐字符处理的现行程序以 `Char` 字面量序列内嵌输入。
 
 ## Guide v0.47 章节覆盖矩阵与语义推导对账（V2）
 
-`expectations.json` 中每个 probe 与验收程序均通过 `guide_chapter` 绑定到对应的 Guide v0.47 规范章节，并由 `oracle_derivation` 记录逐条语义推导、前端诊断码 `crates/lang-frontend/src/diagnostic.rs` 常量或 Guide 09 abort 合同出处。完整 154 个 probe 与 6 个验收程序的逐项推导表见自动生成并受 `scripts/check_docs.py` 门禁保护的 [ORACLE_AUDIT.md](ORACLE_AUDIT.md)：
+`expectations.json` 中每个 probe 与验收程序均通过 `guide_chapter` 绑定到对应的 Guide v0.47 规范章节，并由 `oracle_derivation` 记录逐条语义推导、前端诊断码 `crates/lang-frontend/src/diagnostic.rs` 常量或 Guide 09 abort 合同出处。完整 164 个 probe 与 10 个验收程序的逐项推导表见自动生成并受 `scripts/check_docs.py` 门禁保护的 [ORACLE_AUDIT.md](ORACLE_AUDIT.md)：
 
 | Guide v0.47 章节 | Probe 总数 | `run_ok` | `compile_fail` | `runtime_abort` | `known_unimplemented` | 能力通过 (`capability_passed`) |
 |---|---:|---:|---:|---:|---:|---:|
-| [01-lexical.md](../docs/guide/01-lexical.md) | 5 | 1 | 1 | 0 | 3 | 2 / 5 |
+| [01-lexical.md](../docs/guide/01-lexical.md) | 5 | 4 | 1 | 0 | 0 | 5 / 5 |
 | [02-names-files-packages.md](../docs/guide/02-names-files-packages.md) | 7 | 2 | 3 | 0 | 2 | 5 / 7 |
-| [03-types-generics.md](../docs/guide/03-types-generics.md) | 11 | 6 | 1 | 1 | 3 | 8 / 11 |
+| [03-types-generics.md](../docs/guide/03-types-generics.md) | 11 | 7 | 1 | 1 | 2 | 9 / 11 |
 | [04-expressions-operators.md](../docs/guide/04-expressions-operators.md) | 5 | 3 | 1 | 1 | 0 | 5 / 5 |
 | [05-declarations-callables.md](../docs/guide/05-declarations-callables.md) | 4 | 2 | 2 | 0 | 0 | 4 / 4 |
 | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | 19 | 16 | 2 | 0 | 1 | 18 / 19 |
@@ -196,6 +194,6 @@ KOVENC=target/release/kovenc scripts/conformance_matrix.sh > matrix.tsv
 | [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | 5 | 3 | 1 | 0 | 1 | 4 / 5 |
 | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | 48 | 47 | 1 | 0 | 0 | 48 / 48 |
 | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | 8 | 3 | 1 | 0 | 4 | 4 / 8 |
-| **合计** | **164** | **123** | **18** | **3** | **20** | **144 / 164** |
+| **合计** | **164** | **127** | **18** | **3** | **16** | **148 / 164** |
 
 

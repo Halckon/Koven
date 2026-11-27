@@ -21,6 +21,8 @@ pub(super) fn apply_operation(
         Operation::Constant(_)
         | Operation::PrintLiteral { .. }
         | Operation::StringLiteral { .. }
+        | Operation::StringFromScalar { .. }
+        | Operation::FloatArithmetic { .. }
         | Operation::Binary { .. }
         | Operation::CheckedArithmetic { .. }
         | Operation::IntegerRangeConstruct { .. }

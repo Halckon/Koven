@@ -46,7 +46,7 @@ pub use borrow_result::{
 pub use callable_provenance::{
     CallableOrigin, CallableOriginFact, PointerCallableReturnOrigin, PointerCallableReturnSummary,
     UnitCallableOrigin, UnitCallableOriginFact, UnitClosureCallableReturnSummary,
-    UnitPointerCallableReturnOrigin, UnitPointerCallableReturnSummary,
+    UnitInterpolationEvaluation, UnitPointerCallableReturnOrigin, UnitPointerCallableReturnSummary,
 };
 pub use cleanup_condition::{
     CleanupCaptureEdge, CleanupCaptureInput, CleanupCaptureSlot, CleanupCaptureSlotId,

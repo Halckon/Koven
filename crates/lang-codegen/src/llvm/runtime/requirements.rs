@@ -115,6 +115,7 @@ impl RuntimeRequirements {
                         requirements.needs_empty_string = true;
                     }
                     Operation::StringConcat { .. }
+                    | Operation::StringFromScalar { .. }
                     | Operation::StringClone { .. }
                     | Operation::StringCopyBytes { .. }
                     | Operation::StringCopySlice { .. } => {
@@ -347,8 +348,11 @@ impl RuntimeRequirements {
             }
             Some(
                 SsaTypeKind::Unit
+                | SsaTypeKind::Uninhabited
                 | SsaTypeKind::Boolean
                 | SsaTypeKind::Char
+                | SsaTypeKind::Float32
+                | SsaTypeKind::Float64
                 | SsaTypeKind::Integer { .. },
             )
             | None => {

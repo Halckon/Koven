@@ -246,24 +246,107 @@ impl BodyChecker<'_> {
         source: SourceUnitId,
         id: ExpressionId,
     ) -> Result<ConditionFacts, CompilationUnitTypeError> {
-        let payload = self
-            .file(source)
-            .ast()
-            .expressions()
-            .get(id)
-            .map_err(TypeCheckingError::from)?
-            .payload()
-            .clone();
-        match payload {
-            Expression::Group { expression } => self.condition_facts(source, expression),
-            Expression::Prefix {
-                operator: PrefixOperator::Not,
-                operand,
-                ..
-            } => {
-                let (when_true, when_false) = self.condition_facts(source, operand)?;
-                Ok((when_false, when_true))
+        enum Pending {
+            Negate,
+            Right(BinaryOperator, ExpressionId),
+            Join(BinaryOperator, ExpressionId, ConditionFacts),
+        }
+        let ast = self.file(source).ast();
+        let mut next = id;
+        // Leave each frame on the heap until its children have supplied their facts.
+        let mut pending = Vec::new();
+        loop {
+            #[cfg(test)]
+            crate::type_checking::short_circuit_cost_tests::record_condition_visit();
+            let payload = ast
+                .expressions()
+                .get(next)
+                .map_err(TypeCheckingError::from)?
+                .payload();
+            let mut facts = match *payload {
+                Expression::Group { expression } => {
+                    next = expression;
+                    continue;
+                }
+                Expression::Prefix {
+                    operator: PrefixOperator::Not,
+                    operand,
+                    ..
+                } => {
+                    pending.push(Pending::Negate);
+                    next = operand;
+                    continue;
+                }
+                Expression::Binary {
+                    left,
+                    operator: operator @ (BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr),
+                    right,
+                    ..
+                } => {
+                    pending.push(Pending::Right(operator, right));
+                    next = left;
+                    continue;
+                }
+                _ => self.atomic_condition_facts(source, payload)?,
+            };
+            loop {
+                match pending.pop() {
+                    None => return Ok(facts),
+                    Some(Pending::Negate) => std::mem::swap(&mut facts.0, &mut facts.1),
+                    Some(Pending::Right(operator, right)) => {
+                        pending.push(Pending::Join(operator, right, facts));
+                        next = right;
+                        break;
+                    }
+                    Some(Pending::Join(operator, right, left_facts)) => {
+                        facts = self.join_logical_condition_facts(
+                            source, operator, left_facts, right, facts,
+                        )?;
+                    }
+                }
             }
+        }
+    }
+
+    pub(super) fn join_logical_condition_facts(
+        &self,
+        source: SourceUnitId,
+        operator: BinaryOperator,
+        (mut left_true, mut left_false): ConditionFacts,
+        right: ExpressionId,
+        (right_true, right_false): ConditionFacts,
+    ) -> Result<ConditionFacts, CompilationUnitTypeError> {
+        // Only the facts on the edge reaching the right operand can be invalidated.
+        let carried = if operator == BinaryOperator::LogicalAnd {
+            &mut left_true
+        } else {
+            &mut left_false
+        };
+        if !carried.is_empty() {
+            #[cfg(test)]
+            crate::type_checking::short_circuit_cost_tests::record_condition_write_scan();
+            let writes = self.expression_flow_writes(source, right)?;
+            carried.retain(|key, _| !writes.contains(key));
+        }
+        if operator == BinaryOperator::LogicalAnd {
+            let when_true = extend_facts(&left_true, &right_true);
+            let right_false_path = extend_facts(&left_true, &right_false);
+            let when_false = intersect_facts(&left_false, &right_false_path);
+            Ok((when_true, when_false))
+        } else {
+            let right_true_path = extend_facts(&left_false, &right_true);
+            let when_true = intersect_facts(&left_true, &right_true_path);
+            let when_false = extend_facts(&left_false, &right_false);
+            Ok((when_true, when_false))
+        }
+    }
+
+    fn atomic_condition_facts(
+        &self,
+        source: SourceUnitId,
+        payload: &Expression,
+    ) -> Result<ConditionFacts, CompilationUnitTypeError> {
+        match *payload {
             Expression::TypeTest {
                 expression,
                 negated,
@@ -298,36 +381,6 @@ impl BodyChecker<'_> {
                 } else {
                     Ok((positive, BTreeMap::new()))
                 }
-            }
-            Expression::Binary {
-                left,
-                operator: BinaryOperator::LogicalAnd,
-                right,
-                ..
-            } => {
-                let (mut left_true, left_false) = self.condition_facts(source, left)?;
-                let (right_true, right_false) = self.condition_facts(source, right)?;
-                let writes = self.expression_flow_writes(source, right)?;
-                left_true.retain(|key, _| !writes.contains(key));
-                let when_true = extend_facts(&left_true, &right_true);
-                let right_false_path = extend_facts(&left_true, &right_false);
-                let when_false = intersect_facts(&left_false, &right_false_path);
-                Ok((when_true, when_false))
-            }
-            Expression::Binary {
-                left,
-                operator: BinaryOperator::LogicalOr,
-                right,
-                ..
-            } => {
-                let (left_true, mut left_false) = self.condition_facts(source, left)?;
-                let (right_true, right_false) = self.condition_facts(source, right)?;
-                let writes = self.expression_flow_writes(source, right)?;
-                left_false.retain(|key, _| !writes.contains(key));
-                let right_true_path = extend_facts(&left_false, &right_true);
-                let when_true = intersect_facts(&left_true, &right_true_path);
-                let when_false = extend_facts(&left_false, &right_false);
-                Ok((when_true, when_false))
             }
             Expression::Binary {
                 left,

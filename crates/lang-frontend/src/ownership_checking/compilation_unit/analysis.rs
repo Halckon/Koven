@@ -175,6 +175,7 @@ pub(super) fn analyze_inner(
         dataflow.loans.clear();
         dataflow.loan_action_observations.clear();
         dataflow.direct_call_loan_ends.clear();
+        dataflow.class_result_argument_unwinds.clear();
         dataflow.string_clone_loan_ends.clear();
         dataflow.borrow_call_handoffs.clear();
         dataflow.borrow_call_transports.clear();

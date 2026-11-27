@@ -8,31 +8,40 @@ use crate::{
     },
     parser::{Expression, LiteralKind},
     type_checking::{
-        BuiltinType, CallableResultSource, Copyability, ExpressionCategory, UnitCallTarget,
-        UnitTypeKind,
+        BuiltinType, CallableResultSource, Copyability, ExpressionCategory, NominalKind,
+        UnitCallTarget, UnitTypeKind,
     },
 };
 use std::collections::BTreeMap;
 
 impl DropPlanner<'_, '_> {
-    fn observes_direct_call_loan(&self, loan: &UnitLoanFact) -> bool {
-        self.observes_call_loan(loan, LoanKind::Shared)
+    fn eligible_call_loan(&self, loan: &UnitLoanFact, kind: LoanKind) -> bool {
+        let Some(call) = self.checker.typed.call(loan.call()) else {
+            return false;
+        };
+        loan.kind() == kind
+            && call.receiver().is_none()
+            && (matches!(
+                call.target(),
+                UnitCallTarget::Declaration(_) | UnitCallTarget::Symbol(_)
+            ) || kind == LoanKind::Exclusive
+                && matches!(call.target(), UnitCallTarget::External(_)))
+            && call.result_source() == CallableResultSource::Owned
+            && self
+                .checker
+                .borrow_result_call(loan.argument().expression())
+                .is_none()
     }
 
     // Shared also admits proven temporary owners and field parents. Exclusive
     // remains root-only; both reuse registered tokens and the existing unwind traversal.
-    fn observes_call_loan(&self, loan: &UnitLoanFact, kind: LoanKind) -> bool {
-        let Some(call) = self.checker.typed.call(loan.call()) else {
-            return false;
-        };
-        if loan.kind() != kind
-            || call.receiver().is_some()
-            || !(matches!(call.target(), UnitCallTarget::Declaration(_) | UnitCallTarget::Symbol(_))
-                || kind == LoanKind::Exclusive && matches!(call.target(), UnitCallTarget::External(_)))
-            || call.result_source() != CallableResultSource::Owned
-            // 既有 borrow/range operand 已有来源交接；本片不能替它结束祖先。
-            || self.checker.borrow_result_call(loan.argument().expression()).is_some()
-        {
+    fn observes_call_loan(
+        &self,
+        loan: &UnitLoanFact,
+        kind: LoanKind,
+        control_transfer: bool,
+    ) -> bool {
+        if !self.eligible_call_loan(loan, kind) {
             return false;
         }
         // 在 canonical_borrow_place/temporary_projection_owner 之前核对真实 operand。
@@ -78,13 +87,24 @@ impl DropPlanner<'_, '_> {
                             });
                 }
                 Expression::Call { .. } => {
-                    // A checked construction forms its own owner. Other call
-                    // results still need a dedicated ownership-source proof.
+                    // The actual unwind can also expose a loan of an owned String
+                    // result from a source call.
+                    let expression = self.checker.unit_expression(operand);
+                    let owned_string_result = control_transfer
+                        && self.checker.typed.call(expression).is_some_and(|call| {
+                            matches!(
+                                call.target(),
+                                UnitCallTarget::Declaration(_) | UnitCallTarget::Symbol(_)
+                            ) && call.result_source() == CallableResultSource::Owned
+                                && self.checker.typed.types().get(call.return_type())
+                                    == Some(&UnitTypeKind::Builtin(BuiltinType::String))
+                        });
                     return kind == LoanKind::Shared
-                        && self
+                        && (self
                             .checker
                             .construction_descriptors
-                            .contains_key(&self.checker.unit_expression(operand))
+                            .contains_key(&expression)
+                            || owned_string_result)
                         && self.is_move_only_temporary(loan.argument().expression())
                         && matches!(loan.target(), UnitLoanTarget::Temporary(owner) if *owner == loan.argument());
                 }
@@ -140,7 +160,7 @@ impl DropPlanner<'_, '_> {
                 continue;
             };
             if loan.call() != self.checker.unit_expression(call)
-                || !self.observes_direct_call_loan(loan)
+                || !self.observes_call_loan(loan, LoanKind::Shared, false)
             {
                 continue;
             }
@@ -177,12 +197,71 @@ impl DropPlanner<'_, '_> {
         }
     }
 
-    /// 不从最终 descriptor 列表推测执行；只投影 traversal 实际发布的动作。
+    fn class_result_argument(&self, loan: &UnitLoanFact) -> bool {
+        let argument = loan.argument();
+        if !self.eligible_call_loan(loan, LoanKind::Shared)
+            || !self.is_move_only_temporary(argument.expression())
+            || loan.target() != &UnitLoanTarget::Temporary(argument)
+        {
+            return false;
+        }
+        let mut operand = argument.expression();
+        loop {
+            let Ok(node) = self.checker.parsed.ast().expressions().get(operand) else {
+                return false;
+            };
+            match node.payload() {
+                Expression::Group { expression } => operand = *expression,
+                Expression::Call { .. } => break,
+                _ => return false,
+            }
+        }
+        let typed = self.checker.typed;
+        let Some(call) = typed.call(self.checker.unit_expression(operand)) else {
+            return false;
+        };
+        let Some(UnitTypeKind::Nominal { declaration, .. }) = typed.types().get(call.return_type())
+        else {
+            return false;
+        };
+        matches!(
+            call.target(),
+            UnitCallTarget::Declaration(_) | UnitCallTarget::Symbol(_)
+        ) && call.result_source() == CallableResultSource::Owned
+            && typed
+                .signatures()
+                .declaration(*declaration)
+                .and_then(|sig| sig.nominal())
+                .is_some_and(|nominal| nominal.kind() == NominalKind::Class)
+    }
+
+    /// Project both contracts from the same ordered cleanup actions.
+    pub(super) fn direct_call_unwinds(
+        &self,
+    ) -> (
+        Vec<UnitDirectCallLoanEndFact>,
+        Vec<UnitDirectCallLoanEndFact>,
+    ) {
+        self.collect_direct_call_ends(true)
+    }
+
+    #[cfg(any(test, feature = "d10-catalog-experiment"))]
     pub(super) fn direct_call_loan_ends(&self) -> Vec<UnitDirectCallLoanEndFact> {
+        self.collect_direct_call_ends(false).0
+    }
+
+    fn collect_direct_call_ends(
+        &self,
+        include_class_results: bool,
+    ) -> (
+        Vec<UnitDirectCallLoanEndFact>,
+        Vec<UnitDirectCallLoanEndFact>,
+    ) {
         // 本 planner 只处理一个 source 的 AST；稳定下标与 point 种类组成唯一计数 key。
         let mut preceding_drops: BTreeMap<(bool, usize), usize> = BTreeMap::new();
         let mut preceding_call_loan_ends = BTreeMap::<_, usize>::new();
         let mut ends = Vec::new();
+        let mut class_result_unwinds = Vec::new();
         for (point, action) in self.iteration_actions.iter() {
             let key = match point {
                 PlannerDropPoint::CallReturn(call) => (false, call.index()),
@@ -194,8 +273,15 @@ impl DropPlanner<'_, '_> {
                 Action::Drop(_) => *count += 1,
                 Action::EndCallLoan(loan) => {
                     let loan_count = preceding_call_loan_ends.entry(key).or_default();
-                    if self.observes_direct_call_loan(loan) {
-                        ends.push(UnitDirectCallLoanEndFact {
+                    let destination = if self.observes_call_loan(loan, LoanKind::Shared, key.0) {
+                        Some(&mut ends)
+                    } else if include_class_results && key.0 && self.class_result_argument(loan) {
+                        Some(&mut class_result_unwinds)
+                    } else {
+                        None
+                    };
+                    if let Some(destination) = destination {
+                        destination.push(UnitDirectCallLoanEndFact {
                             loan: loan.clone(),
                             point: point.into_unit(self.checker.source_unit),
                             preceding_drops: *count,
@@ -207,7 +293,7 @@ impl DropPlanner<'_, '_> {
                 _ => {}
             }
         }
-        ends
+        (ends, class_result_unwinds)
     }
 
     /// Only actual unwind actions qualify; never infer execution from descriptors.
@@ -246,7 +332,7 @@ impl DropPlanner<'_, '_> {
                     let loan_count = preceding_call_loan_ends
                         .entry(transfer.index())
                         .or_default();
-                    if self.observes_call_loan(loan, LoanKind::Exclusive) {
+                    if self.observes_call_loan(loan, LoanKind::Exclusive, false) {
                         ends.push(crate::ownership_checking::UnitExclusiveCallPrefixEndFact {
                             loan: loan.clone(),
                             point: point.into_unit(self.checker.source_unit),
