@@ -6,12 +6,12 @@
 
 ## 1. 硬门槛一：AL1 / AL2 在路线 L 参考检查器中的附加前提原型
 
-U0 §9 第一条硬门槛要求“路线 L 的参考检查器能把 AL1、AL2 表述为对其模型的附加前提”。现已在 `scripts/loan_kernel/u0_raw_model.py` 补齐最小可执行参考解释器原型，并由 `scripts/tests/test_u0_raw_model.py`（7 条单测，随全套 146 条内核原型单测通过）验证下列附加前提：
+U0 §9 第一条硬门槛要求“路线 L 的参考检查器能把 AL1、AL2 表述为对其模型的附加前提”。现已在 `scripts/loan_kernel/u0_raw_model.py` 补齐最小可执行参考解释器原型，并由 `scripts/tests/test_u0_raw_model.py`（9 条单测，随全套 148 条内核原型单测通过）验证下列附加前提：
 
 | U0 条款 | 形式化附加前提（表述为参考检查器约束） | 对应原型模块与单测 | 当前状态 |
 |---|---|---|---|
-| **AL1（不与存活 loan 冲突 + AL7 `RawCell` 例外）** | 对裸指针解引用事件 `raw_read(p)` / `raw_write(p)`（逻辑来历绑定至 place `π` 与派生模式 `m ∈ {Shared, Exclusive, Cell}`）：① `raw_read(p)` 要求 `π` 及所有前缀/后缀上不存在**其他**重叠存活的 `Exclusive` loan（对应 `K1`）；② `raw_write(p)` 在 `m = Exclusive` 时要求派生源祖先独占 loan 仍存活且不存在其他重叠存活的 `Shared`/`Exclusive` 子 loan（对应 `K1`/`K4`）；在 `m ∈ {Shared, Cell}` 且 `π` 不含 `RawCell` 时直接报 `UB1`；仅当 `RawCell`（`is_cell=True`，对应 `K19`）允许经 `Shared`/`Cell` 路径写入，且两条路径共用重叠 `Exclusive` loan 冲突检查 | `u0_raw_model.py`（`U0RawInterpreter`）+ `test_u0_raw_model.py`（`test_al1_*` 共 4 条） | **原型已落地并通过** |
-| **AL2（不晚于 owner 析构/释放 + `addressOf` 屏障 + `ptr_read`/`ptr_write` 未初始化槽）** | `address_of(π)` 在根 owner 上设置 place 级析构屏障 `drop_barrier`（阻止提前析构并报 `AL2_BARRIER`，将其析构点提升至至少词法作用域结束）；owner 析构或整体移出后经悬垂 `RawPtr` 读写报 `UB2`；`ptr_read(p)` 将槽位及其后代置为 `Uninit` 并移交旧析构义务，`ptr_write(p)` 恢复槽位（含后代）为 `Init` 并为资源槽位分配新析构义务，在任一祖先或后代处于 `Uninit` 时读取或析构报 `UB5` | `u0_raw_model.py` + `test_u0_raw_model.py`（`test_al2_*` 共 2 条） | **原型已落地并通过** |
+| **AL1（不与存活 loan 冲突 + AL7 `RawCell` 例外）** | 对裸指针解引用事件 `raw_read(p)` / `raw_write(p)`（逻辑来历绑定至 place `π`、分配实例 `alloc_id` 与借用链核对后的真实派生权限 `provenance_kind`）：① `raw_read(p)` 要求 `π` 及所有前缀/后缀上不存在**其他**重叠存活的 `Exclusive` loan（对应 `K1`）；② `raw_write(p)` 按真实派生链核对权限，源自 `Shared` loan（含嵌套派生链）的裸指针即使被标为 `Exclusive` 仍不得在非 `RawCell` 上写入（报 `UB1`）；`Exclusive` 写入要求祖先独占 loan 仍存活且无其他重叠子 loan（对应 `K1`/`K4`）；仅当 `RawCell`（`is_cell=True`，对应 `K19`）允许经 `Shared`/`Cell` 路径写入，且两条路径共用重叠 `Exclusive` loan 冲突检查 | `u0_raw_model.py`（`U0RawInterpreter`）+ `test_u0_raw_model.py`（`test_al1_*` 共 5 条） | **原型已落地并通过** |
+| **AL2（不晚于 owner 析构/释放 + `addressOf` 屏障 + `ptr_read`/`ptr_write` 未初始化槽）** | `address_of(π)` 记录当前分配实例 `alloc_id` 并在根 owner 上设置 place 级析构屏障 `drop_barrier`（阻止提前析构并报 `AL2_BARRIER`，将其析构点提升至至少词法作用域结束）；owner 析构、整体移出或**析构后重新分配同名存储**后经旧 `RawPtr` 读写均报 `UB2`；`ptr_read(p)` 将槽位及其后代置为 `Uninit` 并移交旧析构义务，`ptr_write(p)` 恢复槽位（含后代）为 `Init` 并为资源槽位分配新析构义务，在任一祖先或后代处于 `Uninit` 时读取或析构报 `UB5` | `u0_raw_model.py` + `test_u0_raw_model.py`（`test_al2_*` 共 3 条） | **原型已落地并通过** |
 | **AL3 / FS3 / FS8（析构义务恰好一次与失败注入）** | 在每个 FS1 操作处注入可展开失败并按词法逆序运行待执行析构，复现 U0 §4 列表中部插入的错误次序（先搬移制造重复句柄再 `clone()` 失败 → `UB4`）与正确次序（先 `clone()` 再仅用 FS4 搬移 → 零违规） | `u0_raw_model.py`（`simulate_fs8_insert_order`）+ `test_u0_raw_model.py`（`test_fs8_ub4_double_drop_and_safe_insert_order`） | **原型已落地并通过** |
 
 ## 2. 硬门槛二：UB1–UB6、UB9–UB11 预 U1 可执行反例与捕获实测
@@ -49,8 +49,8 @@ U0 §9 第一条硬门槛要求“路线 L 的参考检查器能把 AL1、AL2 �
 ## 4. 验证与未运行项
 
 - **已运行**：
-  - `/opt/homebrew/bin/python3 -m unittest scripts.tests.test_u0_raw_model scripts.tests.test_loan_kernel scripts.tests.test_failure_model scripts.tests.test_capability scripts.tests.test_drop_plan scripts.tests.test_origin_accounting`：`Ran 146 tests ... OK`（含新增 7 条 U0 AL1/AL2/UB1/UB2/UB4/UB5/FS8 单测与既有 139 条内核原型单测）。
-  - `/usr/bin/python3 -m unittest scripts.tests.test_u0_raw_model`：`Ran 7 tests ... OK`（Python 3.9 兼容）。
+  - `/opt/homebrew/bin/python3 -m unittest scripts.tests.test_u0_raw_model scripts.tests.test_loan_kernel scripts.tests.test_failure_model scripts.tests.test_capability scripts.tests.test_drop_plan scripts.tests.test_origin_accounting`：`Ran 148 tests ... OK`（含新增 9 条 U0 AL1/AL2/UB1/UB2/UB4/UB5/FS8 单测与既有 139 条内核原型单测）。
+  - `/usr/bin/python3 -m unittest scripts.tests.test_u0_raw_model`：`Ran 9 tests ... OK`（Python 3.9 兼容）。
   - macOS AArch64 下 `clang`（ASan / UBSan / TSan / `SIGABRT`）实跑 10 组预 U1 代理反例与基线对照（临时目录已清理）。
   - `/opt/homebrew/bin/python3 scripts/check_docs.py && /opt/homebrew/bin/python3 -m unittest scripts.tests.test_check_docs`。
 - **未运行**：未运行 Linux x86_64 MSan、FFI5 跨 C 帧阻断展开测试或弱内存模型检查（Loom/GenMC）；未修改 `crates/` 或 `docs/guide/`；未运行 `cargo test`。

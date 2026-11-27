@@ -147,6 +147,38 @@ class U0RawModelTests(unittest.TestCase):
         interp_agg2.raw_read(p_a2)
         self.assertEqual(["UB5"], [v.code for v in interp_agg2.violations])
 
+    def test_al1_ub1_shared_loan_cannot_escalate_to_exclusive_raw_ptr(self):
+        """AL1 / UB1：实际来源为 Shared loan 时，即使调用方将裸指针标为 Exclusive，写入仍须按真实派生权限报 UB1。"""
+        interp = U0.U0RawInterpreter()
+        interp.alloc_owner("x", initialized=True, is_cell=False)
+        shared_loan = interp.borrow("x", "Shared")
+        forged_ptr = interp.address_of("x", derived_mode="Exclusive", derived_loan_id=shared_loan)
+        interp.raw_write(forged_ptr)
+        self.assertEqual(["UB1"], [v.code for v in interp.violations])
+
+        # 嵌套派生链：Exclusive 父 loan 派生 Shared 子 loan，再由子 loan 派生裸指针并标为 Exclusive，仍须报 UB1
+        interp2 = U0.U0RawInterpreter()
+        interp2.alloc_owner("y", initialized=True, is_cell=False)
+        excl_parent = interp2.borrow("y", "Exclusive")
+        shared_child = interp2.borrow("y", "Shared", parent_id=excl_parent)
+        forged_nested = interp2.address_of("y", derived_mode="Exclusive", derived_loan_id=shared_child)
+        interp2.raw_write(forged_nested)
+        self.assertEqual(["UB1"], [v.code for v in interp2.violations])
+
+    def test_al2_ub2_old_ptr_rejected_after_same_name_reallocation(self):
+        """AL2 / UB2：旧 owner 析构后重新分配同名存储，旧指针仍须因分配实例不匹配报 UB2。"""
+        interp = U0.U0RawInterpreter()
+        interp.alloc_owner("x", initialized=True)
+        old_ptr = interp.address_of("x", derived_mode="Exclusive")
+        interp.exit_scope()
+        self.assertEqual([], interp.violations)
+
+        # 同名重新分配新实例
+        interp.alloc_owner("x", initialized=True)
+        interp.raw_read(old_ptr)
+        interp.raw_write(old_ptr)
+        self.assertEqual(["UB2", "UB2"], [v.code for v in interp.violations])
+
     def test_fs8_ub4_double_drop_and_safe_insert_order(self):
         """AL3 / FS3 / FS8 / UB4：复现 U0 §4 列表插入的错误次序（失败展开触发 UB4）vs 正确次序（零违规）。"""
         bad_fail = U0.simulate_fs8_insert_order(shift_before_clone=True, clone_fails=True)

@@ -47,13 +47,16 @@ class RawPtr:
     ptr_id: int
     place: str
     root: str
+    alloc_id: int
     derived_mode: str  # "Shared" | "Exclusive" | "Cell"
+    provenance_kind: str  # 实际派生权限："Shared" | "Exclusive" | "Cell"
     derived_loan_id: Optional[int] = None
 
 
 @dataclass
 class OwnerState:
     root: str
+    alloc_id: int
     slots: Dict[str, str] = field(default_factory=dict)  # place -> "Init" | "Uninit"
     is_cell: bool = False
     is_resource: bool = False
@@ -80,6 +83,7 @@ class U0RawInterpreter:
         self.loans: Dict[int, Loan] = {}
         self.ptrs: Dict[int, RawPtr] = {}
         self.handles_dropped: Dict[int, int] = {}
+        self.next_alloc_id = 1
         self.next_loan_id = 1
         self.next_ptr_id = 1
         self.next_handle_id = 1
@@ -89,6 +93,11 @@ class U0RawInterpreter:
 
     def _record(self, code: str, detail: str) -> None:
         self.violations.append(Violation(code=code, step=self.step, detail=detail))
+
+    def _new_alloc_id(self) -> int:
+        alloc_id = self.next_alloc_id
+        self.next_alloc_id += 1
+        return alloc_id
 
     def _new_handle(self) -> int:
         handle_id = self.next_handle_id
@@ -113,6 +122,7 @@ class U0RawInterpreter:
         handle_id = self._new_handle() if (resource_handle and initialized) else None
         self.owners[root] = OwnerState(
             root=root,
+            alloc_id=self._new_alloc_id(),
             slots=slots,
             is_cell=is_cell,
             is_resource=resource_handle,
@@ -132,6 +142,21 @@ class U0RawInterpreter:
         self.step += 1
         self.loans.pop(loan_id, None)
 
+    def _effective_provenance(self, derived_mode: str, derived_loan_id: Optional[int]) -> str:
+        """按借用派生链核对真实权限：任一祖先为 Shared 时，不得提权为 Exclusive。"""
+        if derived_loan_id is None:
+            return derived_mode
+        cur: Optional[int] = derived_loan_id
+        saw_shared = False
+        while cur is not None and cur in self.loans:
+            loan = self.loans[cur]
+            if loan.kind == "Shared":
+                saw_shared = True
+            cur = loan.parent_id
+        if saw_shared:
+            return "Cell" if derived_mode == "Cell" else "Shared"
+        return derived_mode
+
     def address_of(
         self,
         place: str,
@@ -139,7 +164,7 @@ class U0RawInterpreter:
         derived_mode: str,
         derived_loan_id: Optional[int] = None,
     ) -> int:
-        """U1 R1.2 + AL2：建立裸指针并在 root owner 上设置 place 级析构屏障。"""
+        """U1 R1.2 + AL2：建立带分配实例 ID 与真实派生权限的裸指针，并在 root owner 上设置 place 级析构屏障。"""
         self.step += 1
         assert derived_mode in ("Shared", "Exclusive", "Cell")
         root = root_of(place)
@@ -151,7 +176,9 @@ class U0RawInterpreter:
             ptr_id=ptr_id,
             place=place,
             root=root,
+            alloc_id=owner.alloc_id,
             derived_mode=derived_mode,
+            provenance_kind=self._effective_provenance(derived_mode, derived_loan_id),
             derived_loan_id=derived_loan_id,
         )
         return ptr_id
@@ -166,8 +193,11 @@ class U0RawInterpreter:
 
     def _check_live(self, ptr: RawPtr, op: str) -> Optional[OwnerState]:
         owner = self.owners.get(ptr.root)
-        if owner is None or not owner.alive or owner.dropped or owner.moved:
-            self._record("UB2", f"{op} on dangling RawPtr({ptr.place}): owner {ptr.root} is dead/moved")
+        if owner is None or owner.alloc_id != ptr.alloc_id or not owner.alive or owner.dropped or owner.moved:
+            self._record(
+                "UB2",
+                f"{op} on dangling RawPtr({ptr.place}, alloc#{ptr.alloc_id}): owner {ptr.root} is dead/moved/reallocated",
+            )
             return None
         return owner
 
@@ -199,11 +229,12 @@ class U0RawInterpreter:
         return True
 
     def _check_al1_write(self, ptr: RawPtr, owner: OwnerState, op: str) -> bool:
-        if ptr.derived_mode in ("Shared", "Cell"):
+        if ptr.provenance_kind in ("Shared", "Cell"):
             if not owner.is_cell:
                 self._record(
                     "UB1",
-                    f"{op}({ptr.place}) writes through {ptr.derived_mode}-derived RawPtr on non-RawCell owner {owner.root}",
+                    f"{op}({ptr.place}) writes through {ptr.provenance_kind}-provenance RawPtr "
+                    f"(claimed {ptr.derived_mode}) on non-RawCell owner {owner.root}",
                 )
                 return False
             return self._check_rawcell_write_no_exclusive(ptr, op)
@@ -286,6 +317,7 @@ class U0RawInterpreter:
         if into_owner is not None:
             self.owners[into_owner] = OwnerState(
                 root=into_owner,
+                alloc_id=self._new_alloc_id(),
                 slots={into_owner: "Init"},
                 is_resource=moved_handle is not None,
                 handle_id=moved_handle,
@@ -304,6 +336,7 @@ class U0RawInterpreter:
             return
         self.owners[into_owner] = OwnerState(
             root=into_owner,
+            alloc_id=self._new_alloc_id(),
             slots={into_owner: "Init"},
             is_resource=owner.handle_id is not None,
             handle_id=owner.handle_id,
