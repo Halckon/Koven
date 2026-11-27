@@ -48,7 +48,7 @@ pub(crate) fn convert_unit_diagnostics(
     uris: &[(SourceId, Uri)],
     diagnostics: &[Diagnostic],
 ) -> Result<Vec<Vec<lsp_types::Diagnostic>>, DiagnosticMappingError> {
-    convert_unit_diagnostics_with_context(sources, uris, diagnostics, false)
+    convert_unit_diagnostics_with_context(sources, uris, diagnostics, false, None)
 }
 
 /// 同 `convert_unit_diagnostics`，`enrich_context = true` 时在消息首行附加出错源码片段（显式 opt-in）。
@@ -57,6 +57,7 @@ pub(crate) fn convert_unit_diagnostics_with_context(
     uris: &[(SourceId, Uri)],
     diagnostics: &[Diagnostic],
     enrich_context: bool,
+    embedded_source: Option<SourceId>,
 ) -> Result<Vec<Vec<lsp_types::Diagnostic>>, DiagnosticMappingError> {
     let mut grouped = vec![Vec::new(); uris.len()];
     for diagnostic in diagnostics {
@@ -74,6 +75,7 @@ pub(crate) fn convert_unit_diagnostics_with_context(
                     .map(|(_, uri)| uri)
             },
             enrich_context,
+            embedded_source,
         )?;
         grouped[index].push(converted);
     }
@@ -85,6 +87,7 @@ fn convert_diagnostic<'uri>(
     diagnostic: &Diagnostic,
     uri_for_source: impl Fn(SourceId) -> Option<&'uri Uri>,
     enrich_context: bool,
+    embedded_source: Option<SourceId>,
 ) -> Result<lsp_types::Diagnostic, DiagnosticMappingError> {
     let _primary_uri = uri_for_source(diagnostic.primary_span().source_id()).ok_or(
         DiagnosticMappingError::UnknownSource(diagnostic.primary_span().source_id()),
@@ -102,9 +105,16 @@ fn convert_diagnostic<'uri>(
     for detail in diagnostic.details() {
         match detail {
             DiagnosticDetail::Label(label) => {
-                let uri = uri_for_source(label.span().source_id()).ok_or(
-                    DiagnosticMappingError::UnknownSource(label.span().source_id()),
-                )?;
+                let source = label.span().source_id();
+                let uri = match uri_for_source(source) {
+                    Some(uri) => uri,
+                    None if Some(source) == embedded_source => {
+                        message.push_str("\nnote: ");
+                        message.push_str(label.message());
+                        continue;
+                    }
+                    None => return Err(DiagnosticMappingError::UnknownSource(source)),
+                };
                 related.push(DiagnosticRelatedInformation {
                     location: Location::new(uri.clone(), span_range(sources, label.span())?),
                     message: label.message().to_owned(),
@@ -290,13 +300,19 @@ mod tests {
             &[(src, uri.clone())],
             std::slice::from_ref(&diag),
             false,
+            None,
         )
         .expect("plain");
         assert_eq!(plain[0][0].message, "unresolved name");
 
-        let enriched =
-            super::convert_unit_diagnostics_with_context(&sources, &[(src, uri)], &[diag], true)
-                .expect("enriched");
+        let enriched = super::convert_unit_diagnostics_with_context(
+            &sources,
+            &[(src, uri)],
+            &[diag],
+            true,
+            None,
+        )
+        .expect("enriched");
         assert_eq!(enriched[0][0].message, "unresolved name `scaledDistance`");
     }
 }

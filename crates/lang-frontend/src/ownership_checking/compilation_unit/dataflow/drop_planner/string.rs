@@ -88,15 +88,31 @@ impl DropPlanner<'_, '_> {
         expression: ExpressionId,
         state: &mut ValueState,
     ) -> Result<(bool, Option<StringOperandDrop>), OwnershipCheckingError> {
-        if let Some(place) = self.checker.string_binary_field_place(expression)? {
+        if self.checker.is_null_only_expression(expression) {
+            // The null-only operand still runs, but has no owner to hold through the comparison.
+            return self
+                .expression(expression, DropExpressionUse::Read, state)
+                .map(|continues| (continues, None));
+        }
+        if let Some(target) = self.checker.string_binary_field_target(expression)? {
             // The field remains borrowed through the operation, so its parent
             // follows the binary's last-use and control-transfer cleanup.
             let continues = self.expression(expression, DropExpressionUse::Place, state)?;
-            let root = place.root();
-            let drop = state
-                .position(root)
-                .is_some()
-                .then_some(StringOperandDrop::Named(root));
+            let drop = match target {
+                crate::ownership_checking::UnitLoanTarget::Place(place) => {
+                    let root = place.root();
+                    state
+                        .position(root)
+                        .is_some()
+                        .then_some(StringOperandDrop::Named(root))
+                }
+                crate::ownership_checking::UnitLoanTarget::Temporary(parent) => {
+                    let parent = parent.expression();
+                    let origin = self.checker.parsed.ast().expressions().get(parent)?.span();
+                    Some(StringOperandDrop::Temporary(parent, origin))
+                }
+                crate::ownership_checking::UnitLoanTarget::This(_) => None,
+            };
             return Ok((continues, drop));
         }
         self.string_view_operand(expression, state)

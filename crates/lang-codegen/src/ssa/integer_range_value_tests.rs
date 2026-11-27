@@ -545,37 +545,43 @@ fn range_values_cross_fields_containers_and_consumed_map_results() {
             sources.push(format!("fun entry(a: {integer}, b: {integer}): Boolean {{ var values = mutableMapOf<Int, {range}>(); values.put(1, a..b); val found = values.{operation}(1); return if (found != null) (a in found) else false }}"));
         }
     }
-    let mut llvm_results = Vec::new();
-    for (index, result) in collect_sources(&sources).into_iter().enumerate() {
-        let source = &sources[index / 2];
-        if source.contains("borrow val item") {
-            let error = result
-                .err()
-                .expect("existing whole-function borrow CFG frontier remains rejected");
-            let start = source.find("a..b").unwrap() + if index % 2 == 1 { 10 } else { 0 };
+    let results = collect_sources(&sources);
+    assert_eq!(results.len(), 32);
+    for (index, result) in results.into_iter().enumerate() {
+        let program = verified(result);
+        if sources[index / 2].contains("borrow val item") {
+            let instructions = program
+                .modules
+                .iter()
+                .flat_map(|module| &module.functions)
+                .flat_map(|function| &function.instructions)
+                .collect::<Vec<_>>();
+            let requires = instructions
+                .iter()
+                .filter(|instruction| {
+                    matches!(instruction.operation, Operation::MapRequireValue { .. })
+                })
+                .collect::<Vec<_>>();
+            let [lookup] = requires.as_slice() else {
+                panic!("the explicit element borrow lowers to one Map lookup");
+            };
+            assert!(matches!(lookup.results.as_slice(), [EntityId::Loan(_)]));
             assert_eq!(
-                error,
-                format!(
-                    "lower: LoweringError {{ kind: UnsupportedNode, span: Some(Span {{ source_id: SourceId(0), start: {start}, end: {} }}) }}",
-                    start + 4
-                )
+                instructions
+                    .iter()
+                    .filter(|instruction| {
+                        matches!(instruction.operation, Operation::MapContains { .. })
+                    })
+                    .count(),
+                1,
+                "the subsequent Map query remains in SSA"
             );
-        } else {
-            let program = verified(result);
-            let llvm = crate::llvm::render_verified_program(&program);
-            diagnostic!(
-                "STORAGE LLVM index={index} outcome={:?}",
-                llvm.as_ref().map(|_| "verified")
-            );
-            if let Ok(ir) = &llvm {
-                diagnostic!("{ir}");
-            }
-            llvm_results.push(llvm);
         }
-    }
-    assert_eq!(llvm_results.len(), 28);
-    for result in llvm_results {
-        expect(result, "ordinary Range storage reaches verified LLVM");
+        let llvm = expect(
+            crate::llvm::render_verified_program(&program),
+            "ordinary Range storage reaches verified LLVM",
+        );
+        diagnostic!("STORAGE LLVM index={index} {llvm}");
     }
 }
 

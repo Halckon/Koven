@@ -575,6 +575,11 @@ def verify_static_catalog_invariants(expectations: dict[str, Any]) -> None:
     ):
         if set(catalog.keys()) != prog_keys:
             raise ValueError(f"{label} keys do not match programs inventory")
+    for name, markers in PROGRAM_ALLOWED_MARKERS.items():
+        spec = programs[name]
+        kind = "known_unimplemented" if markers else "run_ok"
+        if spec["kind"] != kind or spec.get("allowed_markers", []) != markers:
+            raise ValueError(f"programs.{name} expectation drifted from PROGRAM_ALLOWED_MARKERS")
     if list(GUIDE_LITMUS_CATALOG.keys()) != list(range(1, 13)):
         raise ValueError("GUIDE_LITMUS_CATALOG must define Litmus 1..12 in order")
     for lit_id, lit_spec in GUIDE_LITMUS_CATALOG.items():
@@ -926,12 +931,12 @@ def derive_static_expectations(
         exp_bytes = expected_txt.read_bytes()
         exp_text = exp_bytes.decode("utf-8")
         program_markers = PROGRAM_ALLOWED_MARKERS.get(prog_dir.name)
-        if not program_markers:
+        if program_markers is None:
             raise ValueError(
                 f"programs.{prog_dir.name} is missing a PROGRAM_ALLOWED_MARKERS entry"
             )
         prog_entry: dict[str, Any] = {
-            "kind": "known_unimplemented",
+            "kind": "known_unimplemented" if program_markers else "run_ok",
             "source_sha256": sha256_bytes(main_bytes),
             "source_lines": len(main_text.splitlines()),
             "source_bytes": len(main_bytes),
@@ -942,10 +947,11 @@ def derive_static_expectations(
             "expected_sha256": sha256_bytes(exp_bytes),
             "expected_lines": len(exp_text.splitlines()),
             "expected_bytes": len(exp_bytes),
-            "allowed_markers": list(program_markers),
             "oracle_origin": "expected_txt_file",
-            "roadmap_blockers": list(PROGRAM_ROADMAP_BLOCKERS.get(prog_dir.name, ["N02"])),
         }
+        if program_markers:
+            prog_entry["allowed_markers"] = list(program_markers)
+            prog_entry["roadmap_blockers"] = list(PROGRAM_ROADMAP_BLOCKERS[prog_dir.name])
         if prog_dir.name in PROGRAM_ORACLE_DERIVATIONS:
             prog_entry["oracle_derivation"] = PROGRAM_ORACLE_DERIVATIONS[prog_dir.name]
         programs_out[prog_dir.name] = prog_entry

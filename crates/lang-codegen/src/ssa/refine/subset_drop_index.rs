@@ -1,15 +1,27 @@
-//! Ordinary subset preselection, only for a Unit with one exact physical source.
+//! Shared cleanup lookups for ordinary subset admission.
 use lang_frontend::{
     name_resolution::{SourceUnitId, ValidatedCompilationUnitNames},
-    ownership_checking::UnitDropFact,
+    ownership_checking::{
+        UnitDirectCallLoanEndFact, UnitDropFact, UnitDropPoint, UnitDropTarget, UnitLoanFact,
+    },
     source::{SourceId, Span},
+    type_checking::UnitExpressionId,
 };
-use std::cell::OnceCell;
+use std::{cell::OnceCell, collections::BTreeMap};
+
+type UnwindKey = (UnitExpressionId, UnitExpressionId, UnitExpressionId);
+type UnwindIndex = BTreeMap<UnwindKey, Vec<(usize, usize)>>;
+type TemporaryUnwindIndex = BTreeMap<(UnitExpressionId, UnitExpressionId), Vec<Span>>;
 
 #[derive(Default)]
-pub(in crate::ssa) struct SubsetDropIndex(OnceCell<Option<Vec<(usize, usize)>>>);
+pub(in crate::ssa) struct SubsetDropIndex {
+    drop_origins: OnceCell<Option<Vec<(usize, usize)>>>,
+    direct_unwinds: OnceCell<UnwindIndex>,
+    temporary_unwinds: OnceCell<TemporaryUnwindIndex>,
+}
 
 impl SubsetDropIndex {
+    /// Preselect ordinary drops only for a Unit with one exact physical source.
     pub(super) fn candidates(
         &self,
         names: &ValidatedCompilationUnitNames,
@@ -24,7 +36,7 @@ impl SubsetDropIndex {
             return None;
         }
         let sorted = self
-            .0
+            .drop_origins
             .get_or_init(|| {
                 build(
                     source.source_id(),
@@ -33,6 +45,79 @@ impl SubsetDropIndex {
             })
             .as_ref()?;
         Some(select(sorted, scope))
+    }
+
+    /// Use the source-qualified edge and operand identity before comparing the full loan.
+    pub(super) fn ends_before_drops(
+        index: Option<&Self>,
+        facts: [&[UnitDirectCallLoanEndFact]; 2],
+        transfer: UnitExpressionId,
+        loan: &UnitLoanFact,
+    ) -> bool {
+        let matches = |fact: &UnitDirectCallLoanEndFact| {
+            fact.point() == UnitDropPoint::ControlTransfer(transfer)
+                && fact.loan() == loan
+                && fact.preceding_drops() == 0
+        };
+        let Some(index) = index else {
+            return facts.into_iter().flatten().any(matches);
+        };
+        let rows = index.direct_unwinds.get_or_init(|| {
+            let mut rows = UnwindIndex::new();
+            for (table, facts) in facts.iter().enumerate() {
+                for (index, end) in facts.iter().enumerate() {
+                    if let UnitDropPoint::ControlTransfer(transfer) = end.point()
+                        && end.preceding_drops() == 0
+                    {
+                        rows.entry((transfer, end.loan().call(), end.loan().argument()))
+                            .or_default()
+                            .push((table, index));
+                    }
+                }
+            }
+            rows
+        });
+        rows.get(&(transfer, loan.call(), loan.argument()))
+            .is_some_and(|indices| {
+                indices
+                    .iter()
+                    .any(|&(table, index)| matches(&facts[table][index]))
+            })
+    }
+
+    /// Find the exact unconditional drop for a completed temporary on this edge.
+    pub(super) fn unconditional_temporary_drop(
+        index: Option<&Self>,
+        facts: &[UnitDropFact],
+        transfer: UnitExpressionId,
+        owner: UnitExpressionId,
+        origin: Span,
+    ) -> bool {
+        let key = (transfer, owner);
+        let eligible = |fact: &UnitDropFact| {
+            let (UnitDropPoint::ControlTransfer(transfer), UnitDropTarget::Temporary(owner)) =
+                (fact.point(), fact.target())
+            else {
+                return None;
+            };
+            (!fact.is_conditional_temporary()).then_some((transfer, owner))
+        };
+        let Some(index) = index else {
+            return facts
+                .iter()
+                .any(|fact| eligible(fact) == Some(key) && fact.value_origin() == origin);
+        };
+        let rows = index.temporary_unwinds.get_or_init(|| {
+            let mut rows = TemporaryUnwindIndex::new();
+            for fact in facts {
+                if let Some(key) = eligible(fact) {
+                    rows.entry(key).or_default().push(fact.value_origin());
+                }
+            }
+            rows
+        });
+        rows.get(&key)
+            .is_some_and(|origins| origins.contains(&origin))
     }
 }
 

@@ -296,3 +296,14 @@ impl Checker<'_> {
         Ok(true)
     }
 }
+
+pub(super) fn add_parameter_label(
+    sources: &SourceMap,
+    diagnostic: &mut Diagnostic,
+    parameter_span: Option<Span>,
+) -> Result<(), OwnershipCheckingError> {
+    if let Some(parameter_span) = parameter_span {
+        diagnostic.add_label(sources, parameter_span, "selected parameter declared here")?;
+    }
+    Ok(())
+}

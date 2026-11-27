@@ -13,7 +13,7 @@ use crate::{
     },
 };
 
-use super::UnitNameSnapshot;
+use super::{UnitNameSnapshot, unit_display_completion::complete_display_types};
 
 /// 用已拥有的真实名称前缀继续共同 type/ownership producer，不重新解析或登记来源。
 /// 普通源码错误留在 raw 产物，内部身份失败仍返回 Err；公开 validate 保留独立严格资格。
@@ -37,6 +37,27 @@ pub fn analyze_unit_recovery(
         &typed,
     )
     .map_err(UnitRecoveryAnalysisError::Ownership)?;
+    if typed.has_valid_basic_types()
+        && let Some(completed) = complete_display_types(
+            names.sources(),
+            &inputs,
+            names.names(),
+            environment,
+            &typed,
+            &owned,
+        )
+        .map_err(UnitRecoveryAnalysisError::Type)?
+    {
+        let owned = check_compilation_unit_ownership_recovering(
+            names.sources(),
+            &inputs,
+            names.names(),
+            environment,
+            &completed,
+        )
+        .map_err(UnitRecoveryAnalysisError::Ownership)?;
+        return Ok((completed, owned));
+    }
     Ok((typed, owned))
 }
 

@@ -146,7 +146,7 @@ fn lowers_cross_file_shared_borrows_and_loan_forwarding_deterministically() {
 
 #[test]
 fn inout_and_non_root_borrows_remain_atomic_boundaries() {
-    for (path, source) in [
+    for (path, source, direct_unit) in [
         (
             "test/inout.ko",
             "package test\n\
@@ -156,6 +156,7 @@ fn inout_and_non_root_borrows_remain_atomic_boundaries() {
                  var owner = Resource()\n\
                  val result = mutate(&owner)\n\
              }",
+            false,
         ),
         (
             "test/projection.ko",
@@ -166,11 +167,13 @@ fn inout_and_non_root_borrows_remain_atomic_boundaries() {
              fun entry(own holder: Holder): Unit {\n\
                  val result = inspect(holder.resource)\n\
              }",
+            false,
         ),
         (
             "test/unit-entry.ko",
             "package test\n\
              fun entry(item: Unit): Int = 0",
+            true,
         ),
         (
             "test/unit-call.ko",
@@ -178,6 +181,7 @@ fn inout_and_non_root_borrows_remain_atomic_boundaries() {
              fun produce(): Unit {}\n\
              fun ignore(item: Unit): Int = 0\n\
              fun entry(): Int = ignore(produce())",
+            true,
         ),
     ] {
         let mut sources = SourceMap::new();
@@ -186,7 +190,7 @@ fn inout_and_non_root_borrows_remain_atomic_boundaries() {
         let (name_environment, type_environment) = standard_environments();
         let (names, typed, owned) =
             analyze(&sources, &inputs, &name_environment, &type_environment);
-        let error = match crate::ssa::with_per_family_lowering(|| {
+        let result = crate::ssa::with_per_family_lowering(|| {
             lower_scalar_unit_with_entry(
                 &sources,
                 &inputs,
@@ -196,11 +200,17 @@ fn inout_and_non_root_borrows_remain_atomic_boundaries() {
                 &owned,
                 declaration(&names, "test", "entry"),
             )
-        }) {
-            Ok(_) => panic!("{path} remains outside the shared-root Borrow core"),
-            Err(error) => error,
-        };
-        assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode, "{path}");
+        });
+        if direct_unit {
+            let (program, _) = result.unwrap_or_else(|error| panic!("{path}: {error:?}"));
+            super::verify::verify_program(&program).expect("direct Unit SSA verifies");
+            crate::llvm::render_verified_program(&program).expect("direct Unit ABI lowers to LLVM");
+        } else {
+            let error = result
+                .err()
+                .expect("inout and projections remain outside the shared core");
+            assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode, "{path}");
+        }
     }
 }
 

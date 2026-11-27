@@ -179,11 +179,51 @@ pub(super) struct FileCallableFacts {
     pub(super) returns: Vec<PointerCallableReturnSummary>,
 }
 
+/// A source-qualified interpolation operand reached by ownership analysis.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UnitInterpolationEvaluation {
+    pub(super) operand: UnitExpressionId,
+    pub(super) requirement: Option<UnitCallableTarget>,
+    pub(super) completes: bool,
+}
+
+impl UnitInterpolationEvaluation {
+    /// The source operand that was evaluated.
+    pub const fn operand(self) -> UnitExpressionId {
+        self.operand
+    }
+    /// Whether the evaluated operand has a normal continuation.
+    pub const fn completes(self) -> bool {
+        self.completes
+    }
+    /// The implicit protocol call on a normal continuation.
+    pub const fn requirement(self) -> Option<UnitCallableTarget> {
+        self.requirement
+    }
+}
+
+pub(super) type InterpolationEvaluations = BTreeMap<UnitExpressionId, UnitInterpolationEvaluation>;
+
+pub(super) fn merge_interpolation_evaluations(
+    accumulated: &mut InterpolationEvaluations,
+    incoming: impl IntoIterator<Item = UnitInterpolationEvaluation>,
+) {
+    for entry in incoming {
+        accumulated
+            .entry(entry.operand)
+            .and_modify(|previous| {
+                previous.completes |= entry.completes;
+            })
+            .or_insert(entry);
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(super) struct UnitCallableFacts {
     pub(super) call_dispatch: BTreeMap<UnitExpressionId, bool>,
     pub(super) completed_arguments: BTreeSet<UnitExpressionId>,
     pub(super) entered_calls: BTreeSet<UnitExpressionId>,
+    pub(super) interpolation_evaluations: Vec<UnitInterpolationEvaluation>,
     pub(super) entered_lambdas: BTreeSet<UnitExpressionId>,
     pub(super) origins: Vec<UnitCallableOriginFact>,
     pub(super) returns: Vec<UnitPointerCallableReturnSummary>,
@@ -242,6 +282,12 @@ impl CompilationUnitOwnership {
     #[must_use]
     pub fn call_site_was_entered(&self, expression: UnitExpressionId) -> bool {
         self.callable_provenance.entered_calls.contains(&expression)
+    }
+
+    /// The interpolation evaluation frontier, sorted by source-qualified operand.
+    #[must_use]
+    pub fn interpolation_evaluations(&self) -> &[UnitInterpolationEvaluation] {
+        &self.callable_provenance.interpolation_evaluations
     }
 
     /// Reports whether ownership reached the lambda formation and checked its body.

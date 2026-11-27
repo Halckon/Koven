@@ -1,0 +1,6 @@
+package koven.core
+
+// Guide 03 的预声明接口。宿主绑定此源的身份。
+interface Display {
+    fun toString(): String
+}

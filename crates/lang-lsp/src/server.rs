@@ -384,6 +384,11 @@ fn publish_document(
         &[(document.source_id, uri.clone())],
         document.analysis.diagnostics(),
         enrich_diagnostics,
+        document
+            .analysis
+            .name_snapshot()
+            .names()
+            .builtin_display_source(),
     )?
     .into_iter()
     .next()

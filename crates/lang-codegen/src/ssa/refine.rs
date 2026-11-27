@@ -22,8 +22,10 @@ pub(crate) use crate::ssa::lower_frontend_tests::boxed_signature_storage_tests::
 pub(crate) mod bounded_receipt;
 pub(crate) mod branch_receipt;
 pub(crate) mod child_receipt;
+mod display;
 mod element_swap;
 mod emit;
+mod field_operand;
 pub(crate) mod forward_receipt;
 pub(crate) mod fresh_loop_receipt;
 #[cfg(feature = "d10-catalog-experiment")]
@@ -31,6 +33,7 @@ pub(crate) mod identity_return;
 mod inout_field;
 pub(crate) mod loan_receipt;
 pub(crate) mod loop_receipt;
+mod map_exit;
 #[deny(dead_code)]
 pub(crate) mod multi_receipt;
 #[deny(dead_code)]
@@ -181,35 +184,36 @@ pub(in crate::ssa) struct RefineInputs<'a> {
 }
 
 impl RefineInputs<'_> {
-    fn is_field_projection(&self, expression: ExpressionId) -> bool {
-        let Ok(root) = super::borrow_result_support::ungroup(self.parsed, expression, self.span)
-        else {
-            return false;
-        };
-        self.typed
-            .aggregate_projection(UnitExpressionId::new(self.source_unit, root))
-            .is_some_and(|projection| projection.kind() == UnitAggregateProjectionKind::Field)
-    }
-
-    fn has_shared_field_operand_loan(&self, consumer: ExpressionId, operand: ExpressionId) -> bool {
-        let id = |expression| UnitExpressionId::new(self.source_unit, expression);
-        self.is_field_projection(operand)
-            && self.owned.loans().iter().any(|loan| {
-                loan.call() == id(consumer)
-                    && loan.argument() == id(operand)
-                    && loan.kind() == LoanKind::Shared
-                    && matches!(loan.target(), UnitLoanTarget::Place(_))
-            })
+    fn direct_unit_argument(
+        &self,
+        call: &lang_frontend::type_checking::UnitCallDescriptor,
+        argument: UnitExpressionId,
+        parameter: UnitTypeId,
+    ) -> bool {
+        self.typed.types().get(parameter) == Some(&UnitTypeKind::Builtin(BuiltinType::Unit))
+            && self
+                .typed
+                .expression_type(argument)
+                .and_then(|ty| self.concrete(ty))
+                == Some(parameter)
+            && matches!(
+                call.target(),
+                UnitCallTarget::Declaration(_) | UnitCallTarget::Symbol(_)
+            )
+            && self.owned.call_argument_completed(argument)
     }
 
     fn is_nullable_string(&self, ty: UnitTypeId) -> bool {
-        let types = self.typed.types();
-        matches!(types.get(ty), Some(UnitTypeKind::Nullable(inner))
-            if matches!(types.get(*inner), Some(UnitTypeKind::Builtin(BuiltinType::String))))
+        crate::ssa::lowering_support::is_nullable_string(self.typed, ty)
     }
 
     /// A bottom right operand can exit after the nullable left operand has completed.
     fn is_nullable_string_equality(&self, left: UnitTypeId, right: UnitTypeId) -> bool {
+        if crate::ssa::lowering_support::nullable_string_presence_on_left(self.typed, left, right)
+            .is_some()
+        {
+            return true;
+        }
         let types = self.typed.types();
         let left_nullable = self.is_nullable_string(left);
         let right_nullable = self.is_nullable_string(right);

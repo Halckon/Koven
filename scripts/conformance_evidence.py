@@ -17,6 +17,7 @@ from conformance_catalogs import (
     PROGRAM_PREREQUISITE_PROBES,
     PROGRAM_README_CATALOG,
     PROGRAM_ROADMAP_BLOCKERS,
+    PROGRAM_ALLOWED_MARKERS,
     PROJECT_PACKAGE_HEADER,
     PROJECT_TOML_BYTES,
     SCHEMA_RESULTS,
@@ -108,8 +109,9 @@ def render_evidence_summary_markdown(ledger: dict[str, Any]) -> str:
             ]
         )
         for up_name in summary["unexpected_passes"]:
+            catalog = "PROGRAM_ALLOWED_MARKERS" if up_name in PROGRAM_ALLOWED_MARKERS else "V046_PROBE_OVERRIDES"
             lines.append(
-                f"- `{up_name}`：已在单文件与工程双模式下退出码 0 且精确匹配 `target_stdout`，请更新 `V046_PROBE_OVERRIDES` 并运行 `--init-expectations`。"
+                f"- `{up_name}`：已在单文件与工程双模式下退出码 0 且精确匹配 `target_stdout`，请更新 `{catalog}` 并运行 `--init-expectations`。"
             )
 
     if summary.get("failures"):

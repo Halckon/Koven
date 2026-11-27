@@ -728,11 +728,14 @@ mod when {
             let ok = descriptor.kind() == RcOperationKind::Value
                 && self.c(descriptor.payload_type()) == parameter
                 && self.expression_type(root) == Some(parameter)
-                && self.inputs.owned.loans().iter().any(|loan| {
+                && (self.inputs.owned.loans().iter().any(|loan| {
                     loan.call() == self.id(call)
                         && (loan.argument() == self.id(value) || loan.argument() == self.id(root))
                         && loan.kind() == LoanKind::Shared
-                });
+                }) || self
+                    .inputs
+                    .shared_display_receiver(self.id(call), self.id(value))
+                    .is_some());
             self.migrated |= ok;
             ok
         }
@@ -862,7 +865,7 @@ mod when {
                 match node.payload() {
                     Expression::Group { expression } => current = *expression,
                     Expression::Name => break,
-                    _ => return false,
+                    _ => return self.temporary_enum_when_subject(subject),
                 }
             }
             let Some(symbol) = self.reference(current) else {

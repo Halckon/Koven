@@ -14,7 +14,7 @@ use crate::{
         BuiltinType, DeferredReason, ExternalTypeBinding, ParameterMode, TypeCheckingError,
         UnitCallArgumentDescriptor, UnitCallDescriptor, UnitCallReceiverDescriptor,
         UnitCallReceiverOrigin, UnitCallTarget, UnitCallableInstanceKey, UnitCallableSignature,
-        UnitExpressionId, UnitFunctionParameterType, UnitTypeId, UnitTypeKind,
+        UnitCallableTarget, UnitExpressionId, UnitFunctionParameterType, UnitTypeId, UnitTypeKind,
         argument_mapping::{MappedParameter, MappingError, map_arguments, parameter_mode_span},
     },
 };
@@ -849,6 +849,7 @@ impl BodyChecker<'_> {
                 mode,
                 category,
                 ty,
+                qualified_super: matches!(payload, Expression::SuperMember { .. }),
             })
         });
         let descriptors = mapping
@@ -882,6 +883,10 @@ impl BodyChecker<'_> {
             .insert(callee, crate::type_checking::ExpressionCategory::Temporary);
         self.parts.calls.push(UnitCallDescriptor {
             text_primitive: None,
+            display_requirement: self.display_requirement().is_some_and(|requirement| {
+                matches!(requirement.target(), UnitCallableTarget::Symbol(symbol)
+                    if candidate.target == UnitCallTarget::Symbol(symbol))
+            }),
             expression: UnitExpressionId::new(source, expression),
             instance: UnitCallableInstanceKey {
                 target: candidate.target,

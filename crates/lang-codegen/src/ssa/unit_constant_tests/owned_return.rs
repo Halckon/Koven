@@ -150,8 +150,23 @@ fn original_early_owned_argument_constant_and_literal_cleanup_follow_real_edges(
                 );
             }
             let normal_steps = instructions(normal);
-            let [zero, place, begin, call, end] = normal_steps.as_slice() else {
-                panic!("only normal path evaluates and delivers both operands")
+            // The Refine route may materialize the private Unit result after the call.
+            let normal_steps = match normal_steps.as_slice() {
+                [steps @ .., last]
+                    if last.operation == Operation::Constant(ScalarConstant::Unit) =>
+                {
+                    steps
+                }
+                steps => steps,
+            };
+            let [zero, place, begin, call, end] = normal_steps else {
+                panic!(
+                    "only normal path evaluates and delivers both operands: {:?}",
+                    normal_steps
+                        .iter()
+                        .map(|step| &step.operation)
+                        .collect::<Vec<_>>()
+                )
             };
             assert_eq!(
                 zero.operation,

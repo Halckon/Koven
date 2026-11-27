@@ -16,6 +16,7 @@ use super::{CompilationUnitTypeParts, CompilationUnitTypes, UnitExpressionId, Un
 pub(super) struct OrdinaryBooleanFlow {
     outcomes: BTreeMap<UnitExpressionId, (bool, bool)>,
     structural_outcomes: BTreeMap<UnitExpressionId, (bool, bool)>,
+    syntactic_if_outcomes: BTreeMap<UnitExpressionId, (bool, bool)>,
     required_rhs: BTreeSet<UnitExpressionId>,
     bypassed_rhs: BTreeSet<UnitExpressionId>,
 }
@@ -59,6 +60,17 @@ impl CompilationUnitTypes {
     #[must_use]
     pub fn ordinary_boolean_outcomes(&self, expression: UnitExpressionId) -> (bool, bool) {
         self.boolean_outcomes(expression, &self.ordinary_boolean_flow.outcomes)
+    }
+
+    /// Possible true and false outcomes of an If's condition from literal Boolean syntax.
+    /// This describes the result of evaluation, including when evaluation has effects.
+    #[must_use]
+    pub fn syntactic_if_outcomes(&self, expression: UnitExpressionId) -> (bool, bool) {
+        self.ordinary_boolean_flow
+            .syntactic_if_outcomes
+            .get(&expression)
+            .copied()
+            .unwrap_or((true, true))
     }
 
     /// Reports normal outcomes without the Basic literal RHS rule. The Const route
@@ -107,6 +119,13 @@ impl CompilationUnitTypeParts {
     ) {
         let flow = &mut self.ordinary_boolean_flow;
         for (id, node) in file.ast().expressions().iter() {
+            if let Expression::If { condition, .. } = node.payload() {
+                let possible = syntactic_outcomes.possible_results(*condition);
+                if possible != (true, true) {
+                    flow.syntactic_if_outcomes
+                        .insert(UnitExpressionId::new(unit, id), possible);
+                }
+            }
             if let Expression::Binary {
                 left,
                 operator: operator @ (BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr),

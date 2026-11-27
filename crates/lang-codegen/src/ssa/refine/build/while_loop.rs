@@ -86,6 +86,8 @@ impl Builder<'_, '_> {
         self.invariant_while_boundary(invariant.as_ref(), span)?;
         self.loop_receipt_boundary(invariant.as_ref(), 2, span)?;
         self.fresh_loop_boundary(2, span)?;
+        // The condition's pending outer operands also reach the loop exit.
+        let exit_temporaries = self.temporaries.clone();
         if self.body.blocks[body_block.0].has_predecessor {
             let mark = self.enter(body_block);
             self.loops.push(LoopFrame {
@@ -156,6 +158,7 @@ impl Builder<'_, '_> {
                 *origin = span;
             }
         }
+        self.temporaries = exit_temporaries;
         let exit_point = UnitDropPoint::LoopExit(statement);
         let facts = self.collect_drops(exit_point);
         if self.body.blocks[finished.0].has_predecessor {

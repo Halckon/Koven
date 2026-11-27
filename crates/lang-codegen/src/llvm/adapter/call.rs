@@ -13,7 +13,8 @@ impl<'ctx, 'llvm, 'ssa, 'sources> ModuleLowerer<'ctx, 'llvm, 'ssa, 'sources> {
                 .map(|entity| match entity {
                     EntityId::Value(value) => {
                         let ty = value_type(function, *value)?;
-                        Ok(BasicMetadataTypeEnum::from(self.type_map.basic_type(ty)?))
+                        local_value_type(self.context, self.ssa, &self.type_map, ty)
+                            .map(BasicMetadataTypeEnum::from)
                     }
                     EntityId::Loan(_) => Ok(BasicMetadataTypeEnum::from(
                         self.context.ptr_type(inkwell::AddressSpace::default()),

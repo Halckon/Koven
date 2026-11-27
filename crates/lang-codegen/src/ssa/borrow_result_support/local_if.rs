@@ -349,6 +349,7 @@ pub(in crate::ssa) mod ordinary_local {
                     unit,
                     &[entry.body().statement()],
                     ends_binding,
+                    false,
                     &mut allowed,
                 );
             }
@@ -404,7 +405,7 @@ pub(in crate::ssa) mod ordinary_local {
                 allowed,
             );
             if string_scope {
-                string_statement_controls(file, typed, unit, statements, |_| true, allowed);
+                string_statement_controls(file, typed, unit, statements, |_| true, true, allowed);
             }
         };
         let mut parents = vec![None; file.ast().statements().len()];
@@ -461,6 +462,7 @@ pub(in crate::ssa) mod ordinary_local {
                 unit,
                 &elements[binding_index + 1..],
                 |id| ends.contains(&id.index()),
+                true,
                 &mut active_controls,
             );
             has_proved_return = ends.iter().any(|end| active_controls.contains(end));
@@ -618,7 +620,10 @@ pub(in crate::ssa) mod ordinary_local {
         .then_some(expression)
     }
 
-    fn tail_return(file: &ParsedFile, statement: StatementId) -> Option<ExpressionId> {
+    pub(in crate::ssa) fn control_tail(
+        file: &ParsedFile,
+        statement: StatementId,
+    ) -> Option<ExpressionId> {
         let statements = file.ast().statements();
         let node = statements.get(statement).ok()?;
         let tail = match node.payload() {
@@ -630,7 +635,11 @@ pub(in crate::ssa) mod ordinary_local {
         let Statement::Expression { expression } = tail.payload() else {
             return None;
         };
-        let expression = ungroup(file, *expression, tail.span()).ok()?;
+        ungroup(file, *expression, tail.span()).ok()
+    }
+
+    fn tail_return(file: &ParsedFile, statement: StatementId) -> Option<ExpressionId> {
+        let expression = control_tail(file, statement)?;
         matches!(
             file.ast().expressions().get(expression).ok()?.payload(),
             Expression::Return { .. }

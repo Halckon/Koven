@@ -4,7 +4,7 @@ use super::{
 };
 use crate::{
     ast::ExpressionId,
-    ownership_checking::{LoanKind, UnitLoanFact, UnitLoanTarget, UnitOwnershipPlace},
+    ownership_checking::{LoanKind, UnitLoanFact, UnitLoanTarget},
     parser::{BinaryOperator, Expression, LiteralKind},
     type_checking::{
         BuiltinType, UnitAggregateProjectionKind, UnitStringOperationDescriptor, UnitTypeKind,
@@ -49,9 +49,34 @@ impl Checker<'_> {
             }
             _ => false,
         };
-        let right = operand(right);
-        string(operand(left))
+        let (left, right) = (operand(left), operand(right));
+        // A generic nullable can acquire MoveOnly string storage at instantiation.
+        // Plan cleanup in the template before the backend chooses that representation.
+        let nullable_text_or_generic = |kind: Option<&UnitTypeKind>| {
+            matches!(kind, Some(UnitTypeKind::Nullable(inner))
+                if matches!(self.typed.types().get(*inner),
+                    Some(UnitTypeKind::Builtin(BuiltinType::String) | UnitTypeKind::TypeParameter(_) | UnitTypeKind::StaticSelf(_))))
+        };
+        string(left)
             && (string(right) || eq && right == Some(&UnitTypeKind::Builtin(BuiltinType::Nothing)))
+            || eq
+                && ((nullable_text_or_generic(left)
+                    && self.is_nullable_builtin(right, BuiltinType::Nothing))
+                    || (self.is_nullable_builtin(left, BuiltinType::Nothing)
+                        && nullable_text_or_generic(right)))
+    }
+
+    pub(super) fn is_null_only_expression(&self, expression: ExpressionId) -> bool {
+        let kind = self
+            .typed
+            .expression_type(self.unit_expression(expression))
+            .and_then(|ty| self.typed.types().get(ty));
+        self.is_nullable_builtin(kind, BuiltinType::Nothing)
+    }
+
+    fn is_nullable_builtin(&self, kind: Option<&UnitTypeKind>, builtin: BuiltinType) -> bool {
+        matches!(kind, Some(UnitTypeKind::Nullable(inner))
+            if self.typed.types().get(*inner) == Some(&UnitTypeKind::Builtin(builtin)))
     }
 
     pub(super) fn check_binary_read(
@@ -66,19 +91,25 @@ impl Checker<'_> {
         let owner = ActiveLoanOwner::StringBinary(self.unit_expression(binary));
         if let Some(next) = flows.next.as_mut()
             && self.diagnostics.len() == before
+            && !self.is_null_only_expression(left)
         {
-            let field = self.string_binary_field_place(left)?;
-            let is_field = field.is_some();
-            let place = if is_field {
-                field
-            } else {
-                self.place(left)?.filter(|place| place.is_root())
+            let (field, target) = match self.string_binary_field_target(left)? {
+                Some(UnitLoanTarget::Place(place)) => (true, Some(place)),
+                Some(field) => {
+                    self.publish_string_binary_field_loan(binary, left, field)?;
+                    (false, None)
+                }
+                None => (false, self.place(left)?.filter(|place| place.is_root())),
             };
-            if let Some(place) = place {
+            if let Some(place) = target {
                 // The operator reads the completed left operand after evaluating the right.
                 let target = self.canonical_borrow_place(&place, next);
-                if is_field {
-                    self.publish_string_binary_field_loan(binary, left, target.clone())?;
+                if field {
+                    self.publish_string_binary_field_loan(
+                        binary,
+                        left,
+                        UnitLoanTarget::Place(target.clone()),
+                    )?;
                 }
                 next.loans.push(ActiveLoan {
                     owner,
@@ -92,9 +123,14 @@ impl Checker<'_> {
         let mut flows = self.chain_expression(flows, right, ExpressionUse::Read)?;
         if let Some(next) = flows.next.as_ref()
             && self.diagnostics.len() == before
-            && let Some(place) = self.string_binary_field_place(right)?
+            && let Some(target) = self.string_binary_field_target(right)?
         {
-            let target = self.canonical_borrow_place(&place, next);
+            let target = match target {
+                UnitLoanTarget::Place(place) => {
+                    UnitLoanTarget::Place(self.canonical_borrow_place(&place, next))
+                }
+                other => other,
+            };
             self.publish_string_binary_field_loan(binary, right, target)?;
         }
         for edge in [&mut flows.next, &mut flows.breaks, &mut flows.continues]
@@ -106,28 +142,42 @@ impl Checker<'_> {
         Ok(flows)
     }
 
-    pub(super) fn string_binary_field_place(
+    pub(super) fn string_binary_field_target(
         &self,
         mut operand: ExpressionId,
-    ) -> Result<Option<UnitOwnershipPlace>, OwnershipCheckingError> {
+    ) -> Result<Option<UnitLoanTarget>, OwnershipCheckingError> {
         while let Expression::Group { expression } =
             self.parsed.ast().expressions().get(operand)?.payload()
         {
             operand = *expression;
         }
         let id = self.unit_expression(operand);
-        let field = self
-            .typed
-            .aggregate_projection(id)
-            .is_some_and(|projection| {
-                projection.kind() == UnitAggregateProjectionKind::Field
-                    && self.typed.types().get(projection.ty())
-                        == Some(&UnitTypeKind::Builtin(BuiltinType::String))
-            });
-        if field {
-            return Ok(self
-                .place(operand)?
-                .filter(|place| place.element().is_none()));
+        let Some(projection) = self.typed.aggregate_projection(id) else {
+            return Ok(None);
+        };
+        let kind = self.typed.types().get(projection.ty());
+        let nullable = self.is_nullable_builtin(kind, BuiltinType::String);
+        if projection.kind() != UnitAggregateProjectionKind::Field
+            || !(nullable || kind == Some(&UnitTypeKind::Builtin(BuiltinType::String)))
+        {
+            return Ok(None);
+        }
+        if let Some(place) = self
+            .place(operand)?
+            .filter(|place| place.element().is_none())
+        {
+            return Ok(Some(UnitLoanTarget::Place(place)));
+        }
+        if nullable && let Some(parent) = self.temporary_field_owner(operand)? {
+            let mut parent = parent.expression();
+            while let Expression::Group { expression } =
+                self.parsed.ast().expressions().get(parent)?.payload()
+            {
+                parent = *expression;
+            }
+            return Ok(Some(UnitLoanTarget::Temporary(
+                self.unit_expression(parent),
+            )));
         }
         Ok(None)
     }
@@ -136,12 +186,12 @@ impl Checker<'_> {
         &mut self,
         binary: ExpressionId,
         operand: ExpressionId,
-        place: UnitOwnershipPlace,
+        target: UnitLoanTarget,
     ) -> Result<(), OwnershipCheckingError> {
         self.push_loan(UnitLoanFact::new(
             self.unit_expression(binary),
             self.unit_expression(operand),
-            UnitLoanTarget::Place(place),
+            target,
             LoanKind::Shared,
             self.parsed.ast().expressions().get(operand)?.span(),
             self.parsed.ast().expressions().get(binary)?.span(),

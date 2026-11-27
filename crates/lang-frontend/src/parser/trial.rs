@@ -51,6 +51,7 @@ impl CallTrial {
 /// 一次根解析内共享的 strict trial 只读索引。
 pub(super) struct StrictCallTrialIndex {
     raw_to_significant: Vec<Option<usize>>,
+    significant_to_raw: Vec<usize>,
     trials: Vec<Option<CallTrial>>,
     type_ends: Vec<Option<NonZeroUsize>>,
     recovered_type_closers: OnceCell<Result<Vec<Option<usize>>, ParserInternalError>>,
@@ -135,6 +136,7 @@ impl StrictCallTrialIndex {
             .collect();
         Ok(Self {
             raw_to_significant,
+            significant_to_raw,
             trials,
             type_ends,
             recovered_type_closers: OnceCell::new(),
@@ -143,6 +145,14 @@ impl StrictCallTrialIndex {
             #[cfg(test)]
             evaluated_states: built.evaluated_states,
         })
+    }
+
+    /// A non-trivia lexeme relative to the first non-trivia lexeme at the raw cursor.
+    pub(super) fn significant_raw(&self, raw: usize, ordinal: usize) -> Option<usize> {
+        let first = self.raw_to_significant.get(raw).copied().flatten()?;
+        self.significant_to_raw
+            .get(first.checked_add(ordinal)?)
+            .copied()
     }
 
     /// The raw cursor after an already indexed strict type, including any function arrow.

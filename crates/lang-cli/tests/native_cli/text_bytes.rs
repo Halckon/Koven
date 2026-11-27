@@ -88,6 +88,485 @@ fn public_text_byte_apis_check_build_and_run_in_single_and_project_modes() {
     check_build_run_both_modes(PROGRAM, EXPECTED);
 }
 
+#[test]
+fn concatenation_outside_a_lexical_string_loan_preserves_the_owner() {
+    assert_both_native_entries(
+        r#"fun view(borrow source: String): borrow String from source = source
+fun left(): String { println("left"); return "λ" }
+fun right(): String { println("right"); return "\0x" }
+fun main(): Unit {
+    val owner = (left() + right()) + "!"
+    block {
+        borrow val alias = view(owner)
+        if (alias == "λ\0x!") { println(alias.clone()) }
+        println(alias)
+    }
+    println(owner)
+    val after = owner + "."
+    println(after)
+}
+"#,
+        b"left\nright\n\xce\xbb\0x!\n\xce\xbb\0x!\n\xce\xbb\0x!\n\xce\xbb\0x!.\n",
+    );
+}
+
+#[test]
+fn concatenation_reads_both_sides_of_an_active_string_loan_without_consuming_it() {
+    assert_both_native_entries(
+        r#"fun view(borrow source: String): borrow String from source = source
+fun prefix(): String { println("left"); return "[" }
+fun suffix(): String { println("right"); return "]" }
+fun main(): Unit {
+    val owner = "λ\0x"
+    borrow val alias = view(owner)
+    val ending = alias + suffix()
+    val unrelated = "un" + "related"
+    val beginning = prefix() + alias
+    println(alias + "!")
+    println(alias)
+    println(beginning)
+    println(ending)
+    println(unrelated)
+    println(owner)
+}
+"#,
+        b"right\nleft\n\xce\xbb\0x!\n\xce\xbb\0x\n[\xce\xbb\0x\n\xce\xbb\0x]\nunrelated\n\xce\xbb\0x\n",
+    );
+}
+
+#[test]
+fn concatenation_ends_an_active_string_loan_on_an_early_operand_return() {
+    assert_both_native_entries(
+        r#"class Marker(val label: String) { deinit() { println(label) } }
+fun view(borrow source: String): borrow String from source = source
+fun prefix(): String { println("left"); return "[" }
+fun joined(stop: Boolean): String {
+    val marker = Marker("drop")
+    val owner = "lo" + "an"
+    borrow val alias = view(owner)
+    val result = (prefix() + alias) + (if (stop) { return "st" + "op" } else { "]" })
+    println(alias)
+    return result
+}
+fun main(): Unit {
+    println(joined(true))
+    println(joined(false))
+}
+"#,
+        b"left\ndrop\nstop\nleft\nloan\ndrop\n[loan]\n",
+    );
+}
+
+#[test]
+fn concatenation_inside_a_shared_argument_cleans_up_on_return() {
+    assert_both_native_entries(
+        r#"class Marker(val label: String) { deinit() { println(label) } }
+fun view(borrow source: String): borrow String from source = source
+fun prefix(): String { println("left"); return "[" }
+fun observed(stop: Boolean): String {
+    val marker = Marker("drop")
+    val owner = "lo" + "an"
+    borrow val alias = view(owner)
+    println((prefix() + alias) + (if (stop) { return "st" + "op" } else { "]" }))
+    println(alias)
+    return "done"
+}
+fun main(): Unit {
+    println(observed(true))
+    println(observed(false))
+}
+"#,
+        b"left\ndrop\nstop\nleft\n[loan]\nloan\ndrop\ndone\n",
+    );
+}
+
+#[test]
+fn concatenation_in_a_later_argument_releases_the_earlier_temporary_resource() {
+    assert_both_native_entries(
+        r#"class Marker(val label: String) { deinit() { println(label) } }
+fun view(borrow source: String): borrow String from source = source
+fun first(): Marker { println("first"); return Marker("first-drop") }
+fun prefix(): String { println("left"); return "[" }
+fun consume(borrow first: Marker, borrow second: String): Unit {
+    println("read:" + first.label)
+    println(second)
+}
+fun observed(stop: Boolean): String {
+    val marker = Marker("drop")
+    val owner = "lo" + "an"
+    borrow val alias = view(owner)
+    consume(first(), (prefix() + alias) + (if (stop) { println("return-value"); return "st" + "op" } else { "]" }))
+    println(alias)
+    return "done"
+}
+fun main(): Unit {
+    println(observed(true))
+    println(observed(false))
+}
+"#,
+        b"first\nleft\nreturn-value\nfirst-drop\ndrop\nstop\nfirst\nleft\nread:first-drop\n[loan]\nfirst-drop\nloan\ndrop\ndone\n",
+    );
+}
+
+#[test]
+fn concatenation_in_a_method_argument_releases_the_temporary_receiver_on_return() {
+    assert_both_native_entries(
+        r#"class Marker(val label: String) { deinit() { println(label) } }
+fun view(borrow source: String): borrow String from source = source
+fun prefix(): String { println("left"); return "[" }
+class Sink(val label: String) {
+    deinit() { println(label) }
+    borrow fun accept(borrow message: String): Unit {
+        println("call")
+        println(message)
+    }
+}
+fun sink(): Sink { println("receiver"); return Sink("receiver-drop") }
+fun observed(stop: Boolean): String {
+    val marker = Marker("drop")
+    val owner = "lo" + "an"
+    borrow val alias = view(owner)
+    ((sink())).accept((prefix() + alias) + (if (stop) { println("return-value"); return "st" + "op" } else { "]" }))
+    println(alias)
+    return "done"
+}
+fun main(): Unit {
+    println(observed(true))
+    println(observed(false))
+}
+"#,
+        b"receiver\nleft\nreturn-value\nreceiver-drop\ndrop\nstop\nreceiver\nleft\ncall\n[loan]\nreceiver-drop\nloan\ndrop\ndone\n",
+    );
+}
+
+#[test]
+fn concatenation_closes_the_active_string_loan_on_each_operand_return() {
+    assert_both_native_entries(
+        r#"class Marker(val label: String) { deinit() { println(label) } }
+fun view(borrow source: String): borrow String from source = source
+fun prefix(): String { println("left"); return "[" }
+fun render(first: Boolean, second: Boolean): String {
+    val marker = Marker("drop")
+    val owner = "lo" + "an"
+    borrow val alias = view(owner)
+    val result = (prefix() + alias) + (if (first) {
+        println("first-return")
+        return "st" + "op"
+    } else {
+        if (second) {
+            println("second-return")
+            return "sk" + "ip"
+        }
+        "]"
+    })
+    println(alias)
+    return result
+}
+fun main(): Unit {
+    println(render(true, false))
+    println(render(false, true))
+    println(render(false, false))
+}
+"#,
+        b"left\nfirst-return\ndrop\nstop\nleft\nsecond-return\ndrop\nskip\nleft\nloan\ndrop\n[loan]\n",
+    );
+}
+
+#[test]
+fn concatenation_checks_return_prefixes_of_both_string_value_arms() {
+    assert_both_native_entries(
+        r#"class Marker(val label: String) { deinit() { println(label) } }
+fun view(borrow source: String): borrow String from source = source
+fun prefix(): String { println("left"); return "[" }
+fun render(first: Boolean, stop: Boolean): String {
+    val marker = Marker("drop")
+    val owner = "lo" + "an"
+    borrow val alias = view(owner)
+    val result = (prefix() + alias) + (if (first) {
+        if (stop) {
+            println("first-return")
+            return "st" + "op"
+        }
+        "}"
+    } else {
+        if (stop) {
+            println("second-return")
+            return "sk" + "ip"
+        }
+        "]"
+    })
+    println(alias)
+    return result
+}
+fun main(): Unit {
+    println(render(true, true))
+    println(render(false, true))
+    println(render(true, false))
+    println(render(false, false))
+}
+"#,
+        b"left\nfirst-return\ndrop\nstop\nleft\nsecond-return\ndrop\nskip\nleft\nloan\ndrop\n[loan}\nleft\nloan\ndrop\n[loan]\n",
+    );
+}
+
+#[test]
+fn concatenation_uses_the_reachable_string_when_arms_and_their_exit_facts() {
+    assert_both_native_entries(
+        r#"class Marker(val label: String) { deinit() { println(label) } }
+fun view(borrow source: String): borrow String from source = source
+fun prefix(): String { println("left"); return "[" }
+fun selector(first: Boolean): Boolean { println("selector"); return first }
+fun render(first: Boolean, stop: Boolean): String {
+    val marker = Marker("drop")
+    val owner = "lo" + "an"
+    borrow val alias = view(owner)
+    val result = (prefix() + alias) + (when (selector(first)) {
+        true -> {
+            if (stop) { println("first-return"); return "st" + "op" }
+            "}"
+        }
+        false -> {
+            if (stop) { println("second-return"); return "sk" + "ip" }
+            "]"
+        }
+        else -> { println("unreachable"); return "dead" }
+    })
+    println(alias)
+    return result
+}
+fun main(): Unit {
+    println(render(true, true))
+    println(render(false, true))
+    println(render(true, false))
+    println(render(false, false))
+}
+"#,
+        b"left\nselector\nfirst-return\ndrop\nstop\nleft\nselector\nsecond-return\ndrop\nskip\nleft\nselector\nloan\ndrop\n[loan}\nleft\nselector\nloan\ndrop\n[loan]\n",
+    );
+}
+
+#[test]
+fn concatenation_preserves_compound_integer_when_subject_and_selector_order() {
+    assert_both_native_entries(
+        r#"class Marker(val label: String) { deinit() { println(label) } }
+fun view(borrow source: String): borrow String from source = source
+fun prefix(): String { println("left"); return "[" }
+fun selector(): Int { println("selector"); return 1 }
+fun render(first: Boolean, mode: Int): String {
+    val marker = Marker("drop")
+    val owner = "lo" + "an"
+    borrow val alias = view(owner)
+    val result = (prefix() + alias) + (when (2 + (if (first) {
+        println("subject-first")
+        if (mode == 0) { println("subject-return"); return "subject" }
+        0 + 1
+    } else {
+        println("subject-second")
+        0
+    }) - 2) {
+        selector() -> {
+            if (mode == 1) { println("first-return"); return "st" + "op" }
+            "}"
+        }
+        else -> {
+            if (mode == 1) { println("second-return"); return "sk" + "ip" }
+            "]"
+        }
+    })
+    println(alias)
+    return result
+}
+fun main(): Unit {
+    println(render(true, 0))
+    println(render(true, 1))
+    println(render(false, 1))
+    println(render(true, 2))
+    println(render(false, 2))
+}
+"#,
+        b"left\nsubject-first\nsubject-return\ndrop\nsubject\n\
+left\nsubject-first\nselector\nfirst-return\ndrop\nstop\n\
+left\nsubject-second\nselector\nsecond-return\ndrop\nskip\n\
+left\nsubject-first\nselector\nloan\ndrop\n[loan}\n\
+left\nsubject-second\nselector\nloan\ndrop\n[loan]\n",
+    );
+}
+
+#[test]
+fn concatenation_preserves_cleanup_for_compound_boolean_text_and_enum_when_subjects() {
+    for (declaration, yes, no, selector) in [
+        ("", "true", "false", "true"),
+        ("", r#""y" + "es""#, r#""n" + "o""#, r#""missing", "yes""#),
+        (
+            "enum class Choice { Yes, No }",
+            "Choice.Yes",
+            "Choice.No",
+            "Choice.Yes",
+        ),
+    ] {
+        let source = r#"$declaration
+class Marker(val label: String) { deinit() { println(label) } }
+fun view(borrow source: String): borrow String from source = source
+fun prefix(): String { println("left"); return "[" }
+fun render(first: Boolean, mode: Int): String {
+    val marker = Marker("drop")
+    val owner = "lo" + "an"
+    borrow val alias = view(owner)
+    val result = (prefix() + alias) + (when (if (first) {
+        println("subject-first")
+        if (mode == 0) { println("subject-return"); return "subject" }
+        $yes
+    } else {
+        println("subject-second")
+        $no
+    }) {
+        $selector -> {
+            if (mode == 1) { println("first-return"); return "st" + "op" }
+            "}"
+        }
+        else -> {
+            if (mode == 1) { println("second-return"); return "sk" + "ip" }
+            "]"
+        }
+    })
+    println(alias)
+    return result
+}
+fun main(): Unit {
+    println(render(true, 0))
+    println(render(true, 1))
+    println(render(false, 1))
+    println(render(true, 2))
+    println(render(false, 2))
+}
+"#
+        .replace("$declaration", declaration)
+        .replace("$yes", yes)
+        .replace("$no", no)
+        .replace("$selector", selector);
+        assert_both_native_entries(
+            &source,
+            b"left\nsubject-first\nsubject-return\ndrop\nsubject\n\
+left\nsubject-first\nfirst-return\ndrop\nstop\n\
+left\nsubject-second\nsecond-return\ndrop\nskip\n\
+left\nsubject-first\nloan\ndrop\n[loan}\n\
+left\nsubject-second\nloan\ndrop\n[loan]\n",
+        );
+    }
+}
+
+#[test]
+fn concatenation_cleans_up_a_temporary_move_only_enum_when_subject_on_each_exit() {
+    assert_both_native_entries(
+        r#"class Marker(val label: String) { deinit() { println(label) } }
+enum class Choice { Yes(payload: Marker), Other(payload: Marker) }
+fun direct(): String {
+    return when (((Choice.Yes(Marker("direct-drop"))))) {
+        is Choice.Other -> "unexpected"
+        is Choice.Yes -> { println("matched"); "direct" }
+    }
+}
+fun make(first: Boolean): Choice =
+    if (first) { Choice.Yes(Marker("first-pending")) } else { Choice.Other(Marker("second-pending")) }
+fun nested(first: Boolean, side: Boolean): String {
+    return when (make(first)) {
+        is Choice.Yes -> if (side) { return "a" } else { return "b" }
+        else -> "c"
+    }
+}
+fun nested_boolean(side: Boolean, inner: Boolean): String {
+    return when (make(true)) {
+        is Choice.Yes -> when (side) {
+            true -> if (inner) { return "a" } else { return "b" }
+            else -> "c"
+        }
+        else -> "unexpected"
+    }
+}
+fun loop_arm(run: Boolean, side: Boolean): String {
+    return when (Choice.Yes(Marker("loop-drop"))) {
+        is Choice.Yes -> {
+            var pending = run
+            while (pending) {
+                pending = false
+                if (side) { println("break"); break } else { println("continue"); continue }
+            }
+            println("loop-arm")
+            "done"
+        }
+        else -> "unexpected"
+    }
+}
+fun for_arm(rounds: Int, side: Boolean): String {
+    return when (Choice.Yes(Marker("for-drop"))) {
+        is Choice.Yes -> {
+            for (index in 0..<rounds) {
+                if (side) { println("break"); break } else { println("continue"); continue }
+            }
+            println("for-arm")
+            "done"
+        }
+        else -> "unexpected"
+    }
+}
+fun view(borrow source: String): borrow String from source = source
+fun render(first: Boolean, stop: Boolean): String {
+    val outer = Marker("outer-drop")
+    val owner = "lo" + "an"
+    borrow val alias = view(owner)
+    val result = ("[" + alias) + (when (if (first) {
+        println("construct-first")
+        Choice.Yes(Marker("first-drop"))
+    } else {
+        println("construct-second")
+        Choice.Other(Marker("second-drop"))
+    }) {
+        is Choice.Yes -> {
+            println("first-arm")
+            if (stop) { println("return-value"); return "st" + "op" }
+            "}"
+        }
+        is Choice.Other -> {
+            println("second-arm")
+            if (stop) { println("return-value"); return "sk" + "ip" }
+            "]"
+        }
+    })
+    println(alias)
+    return result
+}
+fun main(): Unit {
+    println(direct())
+    println(nested(true, true))
+    println(nested(true, false))
+    println(nested(false, false))
+    println(nested_boolean(true, true))
+    println(nested_boolean(true, false))
+    println(nested_boolean(false, false))
+    println(loop_arm(true, true))
+    println(loop_arm(true, false))
+    println(loop_arm(false, false))
+    println(for_arm(2, true))
+    println(for_arm(2, false))
+    println(for_arm(0, false))
+    println(render(true, true))
+    println(render(false, true))
+    println(render(true, false))
+    println(render(false, false))
+}
+"#,
+        b"matched\ndirect-drop\ndirect\n\
+first-pending\na\nfirst-pending\nb\nsecond-pending\nc\n\
+first-pending\na\nfirst-pending\nb\nfirst-pending\nc\n\
+break\nloop-arm\nloop-drop\ndone\ncontinue\nloop-arm\nloop-drop\ndone\nloop-arm\nloop-drop\ndone\n\
+break\nfor-arm\nfor-drop\ndone\ncontinue\ncontinue\nfor-arm\nfor-drop\ndone\nfor-arm\nfor-drop\ndone\n\
+construct-first\nfirst-arm\nreturn-value\nfirst-drop\nouter-drop\nstop\n\
+construct-second\nsecond-arm\nreturn-value\nsecond-drop\nouter-drop\nskip\n\
+construct-first\nfirst-arm\nfirst-drop\nloan\nouter-drop\n[loan}\n\
+construct-second\nsecond-arm\nsecond-drop\nloan\nouter-drop\n[loan]\n",
+    );
+}
+
 fn check_build_run_both_modes(body: &str, expected: &[u8]) {
     let program = format!("{PREFIX}{body}");
     let directory = TestDirectory::create();

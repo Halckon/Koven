@@ -100,9 +100,11 @@ impl UnitDefinitionIndex {
             }
         }
 
+        let embedded = names.builtin_display_source();
         let entries = entries
             .into_iter()
             .filter_map(|((source_unit, _, _), (reference, mut targets))| {
+                targets.retain(|target| Some(target.span.source_id()) != embedded);
                 targets.sort_by_key(|target| {
                     (target.source_unit, target.span.start(), target.span.end())
                 });

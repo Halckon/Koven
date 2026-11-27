@@ -15,7 +15,9 @@ use crate::{
 
 pub(super) mod result_edges;
 mod syntactic_jumps;
+mod when_prefix;
 use syntactic_jumps::SyntacticJumps;
+use when_prefix::{visit_when_prefix, when_operand};
 
 enum Pending {
     Expression(ExpressionId),
@@ -110,6 +112,7 @@ pub(super) fn logical_rhs_is_required(
 pub(super) struct SyntacticBooleanOutcomes<'a> {
     ast: &'a SyntaxAst,
     outcomes: OnceCell<Vec<(bool, bool)>>,
+    possible_writes: OnceCell<Vec<bool>>,
     loop_jump_offsets: OnceCell<Vec<usize>>,
 }
 
@@ -118,8 +121,43 @@ impl<'a> SyntacticBooleanOutcomes<'a> {
         Self {
             ast,
             outcomes: OnceCell::new(),
+            possible_writes: OnceCell::new(),
             loop_jump_offsets: OnceCell::new(),
         }
+    }
+
+    pub(super) fn may_write(&self, expression: ExpressionId) -> bool {
+        let values = self.possible_writes.get_or_init(|| {
+            let mut values = Vec::with_capacity(self.ast.expressions().len());
+            for (_, node) in self.ast.expressions().iter() {
+                #[cfg(test)]
+                super::short_circuit_cost_tests::record_write_index_visit();
+                // Parser expression IDs are in child-before-parent order.
+                let child_may_write =
+                    |child: ExpressionId| values.get(child.index()).copied().unwrap_or(true);
+                let writes = match node.payload() {
+                    Expression::Name | Expression::This | Expression::Literal(_) => false,
+                    Expression::Group { expression } => child_may_write(*expression),
+                    Expression::Binary { left, right, .. } => {
+                        child_may_write(*left) || child_may_write(*right)
+                    }
+                    Expression::Call {
+                        callee, arguments, ..
+                    } => {
+                        child_may_write(*callee)
+                            || arguments.iter().any(|argument| {
+                                matches!(argument.mode_marker, Some(ParameterModeMarker::Inout(_)))
+                                    || child_may_write(argument.value)
+                            })
+                    }
+                    // Leave assignments and unclassified expressions to the flow scan.
+                    _ => true,
+                };
+                values.push(writes);
+            }
+            values
+        });
+        values.get(expression.index()).copied().unwrap_or(true)
     }
 
     pub(super) fn possible_results(&self, expression: ExpressionId) -> (bool, bool) {
@@ -217,7 +255,7 @@ pub(super) fn collect_normal_expression_mutation_targets(
     branch_completes: impl Fn(StatementId) -> Result<bool, AstError>,
     includes_loop_jump: impl Fn(ExpressionId) -> bool,
 ) -> Result<Vec<ExpressionId>, AstError> {
-    if !expression_completes(expression)? {
+    if !expression_completes(expression)? || !outcomes.may_write(expression) {
         return Ok(Vec::new());
     }
     collect_mutation_targets(
@@ -267,8 +305,8 @@ fn collect_mutation_targets(
     let mut branch_writes = Vec::new();
     let mut when_normal_prefixes = Vec::new();
     let mut checked_boolean_results = BTreeMap::new();
-    let mut syntactic_jumps = (!track_loop_writes).then(|| SyntacticJumps::new(ast));
-    let operand_stops = |operand, jumps: &mut Option<SyntacticJumps<'_>>| {
+    let mut syntactic_jumps = (!track_loop_writes).then(|| SyntacticJumps::new(outcomes));
+    let operand_stops = |operand, jumps: &mut Option<SyntacticJumps<'_, '_>>| {
         if let Some(jumps) = jumps {
             jumps.expression_stops(operand)
         } else {
@@ -276,6 +314,8 @@ fn collect_mutation_targets(
         }
     };
     while let Some(node) = pending.pop() {
+        #[cfg(test)]
+        super::short_circuit_cost_tests::record_write_visit();
         match node {
             Pending::Write(target) => targets.push(target),
             Pending::Repeating { condition, body } => {
@@ -578,30 +618,23 @@ fn collect_mutation_targets(
                 Expression::When {
                     subject, entries, ..
                 } => {
-                    pending.push(Pending::JoinBranchWrites(branch_writes.len()));
-                    // A subjectless selector stops evaluation at the first match.
-                    // Keep each evaluated operand even when only its miss can occur.
-                    let mut reachable = Vec::new();
-                    'entries: for entry in entries {
-                        if subject.is_some() || entry.else_span.is_some() {
-                            reachable.push((entry, entry.conditions.len(), true));
-                            continue;
-                        }
-                        let mut can_match = false;
-                        for (index, condition) in entry.conditions.iter().enumerate() {
-                            let (yes, no) = if let WhenCondition::Expression(operand) = condition {
-                                outcomes.possible_results(*operand)
-                            } else {
-                                (true, true)
-                            };
-                            can_match |= yes;
-                            if !no {
-                                reachable.push((entry, index + 1, can_match));
-                                break 'entries;
-                            }
-                        }
-                        reachable.push((entry, entry.conditions.len(), can_match));
+                    if let Some(subject) = subject
+                        && operand_stops(*subject, &mut syntactic_jumps)?
+                    {
+                        pending.push(Pending::Expression(*subject));
+                        continue;
                     }
+                    pending.push(Pending::JoinBranchWrites(branch_writes.len()));
+                    let mut reachable = Vec::new();
+                    visit_when_prefix(
+                        entries,
+                        subject.is_some(),
+                        |operand| operand_stops(operand, &mut syntactic_jumps),
+                        |operand| outcomes.possible_results(operand),
+                        |entry, conditions, may_match| {
+                            reachable.push((entry, conditions, may_match))
+                        },
+                    )?;
                     let mut track_prefix = !loops.is_empty()
                         && entries
                             .last()
@@ -609,9 +642,7 @@ fn collect_mutation_targets(
                     if track_prefix {
                         // An unmatched path may reach any later selector. Only trim
                         // selector effects when each selector can complete.
-                        for condition in reachable
-                            .iter()
-                            .flat_map(|(entry, count, _)| &entry.conditions[..*count])
+                        for condition in reachable.iter().flat_map(|(_, conditions, _)| *conditions)
                         {
                             if let Some(operand) = when_operand(condition)
                                 && !expression_completes(operand)?
@@ -624,8 +655,7 @@ fn collect_mutation_targets(
                     if track_prefix {
                         pending.push(Pending::FinishWhen);
                     }
-                    for (entry, count, can_match) in reachable.into_iter().rev() {
-                        let conditions = &entry.conditions[..count];
+                    for (entry, conditions, can_match) in reachable.into_iter().rev() {
                         if can_match {
                             if track_prefix
                                 && subject.is_none()
@@ -868,6 +898,8 @@ fn writes_on_boolean_edge(
     let mut excluded = Vec::new();
     let mut pending = vec![(operand, matched, !matched)];
     while let Some((operand, want_true, want_false)) = pending.pop() {
+        #[cfg(test)]
+        super::short_circuit_cost_tests::record_write_visit();
         let node = outcomes.ast.expressions().get(operand)?;
         if !want_true && !want_false {
             excluded.push(node.span());
@@ -933,15 +965,6 @@ fn writes_on_boolean_edge(
         }
     }
     Ok(retained)
-}
-
-fn when_operand(condition: &WhenCondition) -> Option<ExpressionId> {
-    match condition {
-        WhenCondition::Expression(expression) | WhenCondition::Contains { expression, .. } => {
-            Some(*expression)
-        }
-        WhenCondition::TypeTest { .. } => None,
-    }
 }
 
 /// Preserve invalidation on any incoming normal control edge.

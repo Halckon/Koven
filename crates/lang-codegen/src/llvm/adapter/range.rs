@@ -662,23 +662,5 @@ pub(crate) mod callable {
             }
             Ok(trampoline)
         }
-
-        /// A stack slot in the entry block, reused by every execution of the requesting operation.
-        fn entry_alloca(
-            &self,
-            ty: inkwell::types::BasicTypeEnum<'ctx>,
-            name: &str,
-        ) -> Result<inkwell::values::PointerValue<'ctx>, LlvmAdapterError> {
-            let entry = self.llvm_function.get_first_basic_block().ok_or_else(|| {
-                LlvmAdapterError::InvalidSsa("callable view requires function entry".to_owned())
-            })?;
-            let allocator = self.context.create_builder();
-            if let Some(first) = entry.get_first_instruction() {
-                allocator.position_before(&first);
-            } else {
-                allocator.position_at_end(entry);
-            }
-            Ok(allocator.build_alloca(ty, name)?)
-        }
     }
 }

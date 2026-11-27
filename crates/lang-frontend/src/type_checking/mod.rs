@@ -21,6 +21,8 @@ mod error;
 mod expression_use;
 mod final_admission;
 mod flow_effects;
+#[cfg(test)]
+mod short_circuit_cost_tests;
 pub use final_admission::{
     FinalCompilationUnitTypes, FinalTypeAdmissionError, FinalTypeAdmissionInternalError,
     FinalTypedFile, complete_compilation_unit_types, complete_file_types,
@@ -65,16 +67,16 @@ mod source_authority;
 pub use call::*;
 pub use compilation_unit::*;
 pub use constant::*;
-pub use constant_value::ConstValue;
 #[cfg(any(feature = "e2-two-source-test-support", feature = "two-source-unit"))]
 pub(crate) use constant_value::decode_text as decode_string_literal_text;
+pub use constant_value::{ConstValue, decode_char_literal};
 pub use construction::*;
 pub use container::*;
 pub use error::TypeCheckingError;
 pub use integer::*;
 pub use integer_range::*;
 pub use iteration::*;
-pub use literal_value::integer_literal_magnitude;
+pub use literal_value::{float_literal_core, integer_literal_magnitude};
 pub use map_descriptor::*;
 pub use map_iteration::*;
 pub use map_with_descriptor::MapWithValueDescriptor;
@@ -89,6 +91,7 @@ pub use resource::*;
 pub use result_source::{CallableResultSource, CarrierReturnContract, CarrierSourceMarker};
 mod range_construction;
 pub use range_construction::{RangeConstructionDescriptor, RangeSizeDescriptor, RangeSourceKind};
+mod display;
 mod range_extension;
 pub use range_extension::RangeExtensionBinding;
 pub use string::*;

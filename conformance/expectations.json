@@ -84,22 +84,18 @@
       "source_bytes": 48
     },
     "p02_interp": {
-      "kind": "known_unimplemented",
+      "kind": "run_ok",
+      "stdout": "hello k\n",
+      "v046_baseline_exempt": true,
+      "note": "SPEC-0392: the typed String Display conversion lowers through both public native entry modes",
       "source_sha256": "0bc0fcb02d54d4fc800c22656bde9770bdce5ce8429f0c997528863809f6500e",
       "guide_chapter": "01-lexical.md",
       "baseline_marker": "BE:UnsupportedNode",
-      "allowed_markers": [
-        "BE:UnsupportedNode",
-        "BE:MissingFact",
-        "FE:L0165"
+      "oracle_origin": "v046_spec_contract",
+      "spec_refs": [
+        "SPEC-0392"
       ],
-      "oracle_origin": "baseline_unimplemented_audited",
-      "roadmap_blockers": [
-        "L1",
-        "L2"
-      ],
-      "target_stdout": "hello k\n",
-      "oracle_derivation": "string interpolation 'hello ${n}' with n = 'k' evaluates to 'hello k' (blocked by L1/L2)",
+      "oracle_derivation": "interpolation borrows the String n = 'k' and creates a new String; println emits 'hello k' followed by a newline",
       "source_lines": 1,
       "source_bytes": 56,
       "expected_lines": 1,
@@ -147,42 +143,36 @@
       "source_bytes": 72
     },
     "p05_double": {
-      "kind": "known_unimplemented",
+      "kind": "run_ok",
+      "stdout": "double\n",
+      "v046_baseline_exempt": true,
+      "note": "SPEC-0392: width-preserving Double arithmetic and IEEE comparison lower in both native entry modes",
       "source_sha256": "bb24d0cd45462074f6724ef8edc529182faffdd18f61953d71fcfe01db18626c",
       "guide_chapter": "01-lexical.md",
       "baseline_marker": "BE:UnsupportedNode",
-      "allowed_markers": [
-        "BE:UnsupportedNode",
-        "BE:MissingFact",
-        "FE:L0165"
+      "oracle_origin": "v046_spec_contract",
+      "spec_refs": [
+        "SPEC-0392"
       ],
-      "oracle_origin": "baseline_unimplemented_audited",
-      "roadmap_blockers": [
-        "N05"
-      ],
-      "target_stdout": "double\n",
-      "oracle_derivation": "Double multiplication 1.5 * 2.0 == 3.0 holds and prints 'double' (blocked by N05)",
+      "oracle_derivation": "Double multiplication 1.5 * 2.0 == 3.0 holds and prints 'double'",
       "source_lines": 1,
       "source_bytes": 76,
       "expected_lines": 1,
       "expected_bytes": 7
     },
     "p06_char": {
-      "kind": "known_unimplemented",
+      "kind": "run_ok",
+      "stdout": "char\n",
+      "v046_baseline_exempt": true,
+      "note": "SPEC-0392: typed Char ordering lowers to unsigned Unicode scalar comparison",
       "source_sha256": "8752de821b6d2fef5730c23f3e06cf8544a38115777ed648adcc7ff06b49d142",
       "guide_chapter": "01-lexical.md",
       "baseline_marker": "BE:UnsupportedNode",
-      "allowed_markers": [
-        "BE:UnsupportedNode",
-        "BE:MissingFact",
-        "FE:L0165"
+      "oracle_origin": "v046_spec_contract",
+      "spec_refs": [
+        "SPEC-0392"
       ],
-      "oracle_origin": "baseline_unimplemented_audited",
-      "roadmap_blockers": [
-        "N05"
-      ],
-      "target_stdout": "char\n",
-      "oracle_derivation": "Char comparison 'a' < 'b' holds and prints 'char' (blocked by N05)",
+      "oracle_derivation": "Char comparison 'a' < 'b' holds in Unicode scalar order and prints 'char'",
       "source_lines": 1,
       "source_bytes": 67,
       "expected_lines": 1,
@@ -246,21 +236,18 @@
       "expected_bytes": 12
     },
     "p11_interface_bound": {
-      "kind": "known_unimplemented",
+      "kind": "run_ok",
+      "stdout": "dog\n",
+      "v046_baseline_exempt": true,
+      "note": "SPEC-0392: interface-bound member calls select the concrete implementation in both native entry modes",
       "source_sha256": "83ef8519c40728ec5d4fba0f41e0bf18f4ae24370226f2ef49d7feb37b1925d4",
       "guide_chapter": "03-types-generics.md",
       "baseline_marker": "FE:L0165",
-      "allowed_markers": [
-        "FE:L0165",
-        "BE:UnsupportedNode",
-        "BE:MissingFact"
+      "oracle_origin": "v046_spec_contract",
+      "spec_refs": [
+        "SPEC-0392"
       ],
-      "oracle_origin": "baseline_unimplemented_audited",
-      "roadmap_blockers": [
-        "N06"
-      ],
-      "target_stdout": "dog\n",
-      "oracle_derivation": "generic greet<T : Named>(Dog()) dispatches Dog.name() and prints 'dog' (blocked by N06)",
+      "oracle_derivation": "generic greet<T : Named>(Dog()) dispatches Dog.name() and prints 'dog'",
       "source_lines": 4,
       "source_bytes": 189,
       "expected_lines": 1,
@@ -2499,10 +2486,10 @@
       "expected_sha256": "4fff2827a336c190aa7d862a09ec9ecdbe58349b61463ef16bdd5c36aaa14e17",
       "expected_lines": 10,
       "expected_bytes": 190,
-      "allowed_markers": [
-        "FE:L0080"
-      ],
       "oracle_origin": "expected_txt_file",
+      "allowed_markers": [
+        "FE:L0165"
+      ],
       "roadmap_blockers": [
         "N02",
         "N08",
@@ -2521,10 +2508,10 @@
       "expected_sha256": "599c8f2d5fce3bd533a106d830105aafa957c577e446af5bab89cdeb135591a1",
       "expected_lines": 12,
       "expected_bytes": 199,
+      "oracle_origin": "expected_txt_file",
       "allowed_markers": [
         "FE:L0165"
       ],
-      "oracle_origin": "expected_txt_file",
       "roadmap_blockers": [
         "N02",
         "N07",
@@ -2544,10 +2531,10 @@
       "expected_sha256": "c9530ec173624a9c9d229b8e219e089412bef9da707ac12b4929bbf310a28b79",
       "expected_lines": 6,
       "expected_bytes": 174,
+      "oracle_origin": "expected_txt_file",
       "allowed_markers": [
         "FE:L0165"
       ],
-      "oracle_origin": "expected_txt_file",
       "roadmap_blockers": [
         "N02",
         "N05",
@@ -2569,10 +2556,10 @@
       "expected_sha256": "bebcbde32ea8dd5a716c5e26cacefdc85a2642c8b822c9076e88ca8fb4057c17",
       "expected_lines": 8,
       "expected_bytes": 242,
+      "oracle_origin": "expected_txt_file",
       "allowed_markers": [
         "FE:L0085"
       ],
-      "oracle_origin": "expected_txt_file",
       "roadmap_blockers": [
         "N01",
         "N03",
@@ -2593,10 +2580,10 @@
       "expected_sha256": "01b65b813379a259e5cdaa5b780c83622d78c9aea204d190603683567cd3fbc4",
       "expected_lines": 8,
       "expected_bytes": 149,
+      "oracle_origin": "expected_txt_file",
       "allowed_markers": [
         "FE:L0161"
       ],
-      "oracle_origin": "expected_txt_file",
       "roadmap_blockers": [
         "N04",
         "N05",
@@ -2610,7 +2597,7 @@
       "oracle_derivation": "combines generic interface-bound sumScores, by delegation, value class Equatable/Hashable Map keys with named destructuring, mutating/move closures, ::fn ref, borrow return, Double, and toIntOrNull"
     },
     "raii_state_machine": {
-      "kind": "known_unimplemented",
+      "kind": "run_ok",
       "source_sha256": "034389765de013a6cc45c18cca45eebfd002bf50765a4989d462c4415e4de718",
       "source_lines": 90,
       "source_bytes": 2750,
@@ -2619,16 +2606,7 @@
       "expected_sha256": "0de6a3667bc60c77d3aa2afac93e4daa1562589c8194037a9c294708b57979c7",
       "expected_lines": 28,
       "expected_bytes": 369,
-      "allowed_markers": [
-        "BE:UnsupportedNode"
-      ],
       "oracle_origin": "expected_txt_file",
-      "roadmap_blockers": [
-        "N01",
-        "N02",
-        "L1",
-        "L2"
-      ],
       "oracle_derivation": "runs deterministic deinit state transitions across normal, early-return, and nested scopes, printing ordered lifecycle trace"
     },
     "text_log_summary": {
@@ -2641,10 +2619,10 @@
       "expected_sha256": "4f37dae2bb06c8bc691b7fbba0c4f60d21439a42e80e2c7388de4fe5947156f2",
       "expected_lines": 11,
       "expected_bytes": 179,
+      "oracle_origin": "expected_txt_file",
       "allowed_markers": [
         "FE:L0148"
       ],
-      "oracle_origin": "expected_txt_file",
       "roadmap_blockers": [
         "L1",
         "L2",
@@ -2655,7 +2633,7 @@
       "oracle_derivation": "parses UTF-8 log lines via koven.text lines/split/sliceBytes/parseLong/decodeUtf8 with const val, deinit guard on ? early return, and main(): Result"
     },
     "varint_codec": {
-      "kind": "known_unimplemented",
+      "kind": "run_ok",
       "source_sha256": "d12cc3b0618a9bf784ec6cf8d56f78c660c32e1d96f6e791603981a3cabab1f7",
       "source_lines": 90,
       "source_bytes": 2812,
@@ -2664,17 +2642,7 @@
       "expected_sha256": "7566e6b5cdb3d9c3d8bf557eebf03baa72211ef889beba1b8c4d6d070eece571",
       "expected_lines": 17,
       "expected_bytes": 375,
-      "allowed_markers": [
-        "BE:UnsupportedNode"
-      ],
       "oracle_origin": "expected_txt_file",
-      "roadmap_blockers": [
-        "N01",
-        "N08",
-        "L1",
-        "L2",
-        "L3b"
-      ],
       "oracle_derivation": "encodes and decodes ZigZag/LEB128 varints over MutableList<UByte> with bitwise shifts and Result checks, printing roundtrip values"
     },
     "word_count": {
@@ -2687,10 +2655,10 @@
       "expected_sha256": "3b1a26f04983fb6bb189548492f1e9e766ed3de2b03f2a658e4f7a3f1c780adc",
       "expected_lines": 16,
       "expected_bytes": 187,
+      "oracle_origin": "expected_txt_file",
       "allowed_markers": [
         "FE:L0165"
       ],
-      "oracle_origin": "expected_txt_file",
       "roadmap_blockers": [
         "N02",
         "N03",
@@ -2709,10 +2677,10 @@
       "expected_sha256": "18fa33adfbb2c36d27943d255e200127ab578e71730e4692d5dd59b30014d2a7",
       "expected_lines": 5,
       "expected_bytes": 110,
+      "oracle_origin": "expected_txt_file",
       "allowed_markers": [
         "FE:L0080"
       ],
-      "oracle_origin": "expected_txt_file",
       "roadmap_blockers": [
         "T1",
         "N04",

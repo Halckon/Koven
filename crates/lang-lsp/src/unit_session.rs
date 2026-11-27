@@ -5,7 +5,7 @@ use std::{collections::BTreeMap, error::Error, fmt};
 use lang_frontend::{
     analysis::{
         UnitNameAnalysisError, UnitSourceDescriptor, analyze_basic_unit_ownership,
-        analyze_unit_names,
+        analyze_unit_names, append_builtin_display, complete_unit_display_types,
     },
     lexer::LexerInternalError,
     name_resolution::{
@@ -261,7 +261,13 @@ impl UnitSnapshot {
             ));
             source_ids.push(source_id);
         }
-        let (name_environment, type_environment) = standard_environments();
+        let (mut name_environment, type_environment) = standard_environments();
+        append_builtin_display(
+            &mut sources,
+            &mut descriptors,
+            &mut name_environment,
+            "koven-std",
+        )?;
         let name_snapshot = analyze_unit_names(sources, descriptors, name_environment)?;
         let mut diagnostics = name_snapshot.names().diagnostics().to_vec();
         let (typed, owned) = if let Some(validated_names) = name_snapshot.validated_names() {
@@ -272,20 +278,48 @@ impl UnitSnapshot {
                 validated_names,
                 &type_environment,
             )?;
-            diagnostics.extend_from_slice(typed.diagnostics());
             let outcome = analyze_basic_unit_ownership(
                 name_snapshot.sources(),
                 &inputs,
                 validated_names,
                 &type_environment,
                 typed,
-            )?;
-            match outcome.into_result() {
+            )?
+            .into_result();
+            let outcome = match outcome {
                 Ok((typed, owned)) => {
+                    if let Some(completed) = complete_unit_display_types(
+                        name_snapshot.sources(),
+                        &inputs,
+                        validated_names,
+                        &type_environment,
+                        typed.types(),
+                        &owned,
+                    )? {
+                        analyze_basic_unit_ownership(
+                            name_snapshot.sources(),
+                            &inputs,
+                            validated_names,
+                            &type_environment,
+                            completed,
+                        )?
+                        .into_result()
+                    } else {
+                        Ok((typed, owned))
+                    }
+                }
+                Err(typed) => Err(typed),
+            };
+            match outcome {
+                Ok((typed, owned)) => {
+                    diagnostics.extend_from_slice(typed.types().diagnostics());
                     diagnostics.extend_from_slice(owned.diagnostics());
                     (Some(typed.into_types()), Some(owned))
                 }
-                Err(typed) => (Some(*typed), None),
+                Err(typed) => {
+                    diagnostics.extend_from_slice(typed.diagnostics());
+                    (Some(*typed), None)
+                }
             }
         } else {
             (None, None)
@@ -323,6 +357,10 @@ impl UnitSnapshot {
             &uris,
             self.analysis.diagnostics(),
             enrich_diagnostics,
+            self.analysis
+                .name_snapshot()
+                .names()
+                .builtin_display_source(),
         )?;
         Ok(config
             .sources()

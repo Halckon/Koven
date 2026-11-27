@@ -180,7 +180,10 @@ impl Checker<'_, '_> {
             self.view_symbols.remove(&symbol);
             return ok;
         }
-        if !self.storage_type(target_ty) || !self.adaptable(value, target_ty) {
+        let mode = self.parameter_mode(symbol);
+        if !(self.storage_type(target_ty) || (mode.is_none() && self.unit(target_ty)))
+            || !self.adaptable(value, target_ty)
+        {
             return false;
         }
         let mode_ok = match self.parameter_mode(symbol) {
@@ -346,11 +349,10 @@ impl Checker<'_, '_> {
                     self.element_replacements.contains(&assignment)
                         && fact.target() == UnitDropTarget::ReplacedElement(assignment)
                 }
-                // A jump out of a call argument drops the earlier MoveOnly arguments it
-                // abandons; temporaries holding loans stay outside.
+                // A jump drops the arguments it abandons once their pending loans end.
                 UnitDropPoint::ControlTransfer(transfer) => match fact.target() {
                     UnitDropTarget::Temporary(expression) => {
-                        self.pending_owner(expression, transfer)
+                        self.pending_owner(expression, transfer, fact)
                     }
                     _ => true,
                 },
@@ -427,7 +429,12 @@ impl Checker<'_, '_> {
     /// A pending argument a jump may abandon: a MoveOnly named owner or non-borrowed
     /// temporary moved into a Value argument. Borrowed temporaries require a supported
     /// unwind, where the ordinary exit ends the argument loans before dropping the owner.
-    fn pending_owner(&self, expression: UnitExpressionId, transfer: UnitExpressionId) -> bool {
+    fn pending_owner(
+        &self,
+        expression: UnitExpressionId,
+        transfer: UnitExpressionId,
+        drop: &lang_frontend::ownership_checking::UnitDropFact,
+    ) -> bool {
         if self.temporary_field_parents.contains(&expression) {
             return true;
         }
@@ -475,8 +482,14 @@ impl Checker<'_, '_> {
                 && !self.whole_nominal_exit.is_some_and(|proof| {
                     proof.lender == call && proof.owner == expression && proof.transfer == transfer
                 })
+                && !self.pending_direct_borrow_temporary(expression, transfer, drop, loan)
+                && !self.pending_string_concat_operand(expression, transfer, drop, loan)
+                // The display borrow has ended. A containing call borrows
+                // only the completed string.
+                && !self.interpolation_operands.contains(&expression)
                 && !self.pending_string_wrapper(expression, transfer, loan)
                 && !self.pending_forwarded_string_argument(expression, transfer, loan)
+                && !self.pending_with_value_key(expression, transfer, loan)
                 && !self.pending_nullable_when_rc_argument(expression, transfer, loan)
                 && !self.nullable_when_abandons_lender(call, transfer)
                 && !self.inputs.typed.call(call).is_some_and(|call| {
@@ -599,31 +612,6 @@ impl Checker<'_, '_> {
             .iter()
             .skip(mapping.argument_index() + 1)
             .any(|arg| crate::ssa::unit_lower::span_contains(arg.span, transfer.span()))
-    }
-
-    fn returns_from_string_entry(&self, transfer: ExpressionId) -> bool {
-        let Some(source) = self.inputs.string_entry_source() else {
-            return false;
-        };
-        let Ok(node) = self.inputs.parsed.ast().expressions().get(transfer) else {
-            return false;
-        };
-        let Expression::Return {
-            value: Some(value), ..
-        } = node.payload()
-        else {
-            return false;
-        };
-        self.direct_place_symbol(*value) == Some(source)
-            || crate::ssa::provider::borrow_result::forwards_string_entry(
-                self.inputs.parsed,
-                self.inputs.names,
-                self.inputs.typed,
-                self.inputs.owned,
-                self.id(self.ungrouped(*value)),
-                source,
-            )
-            .is_some()
     }
 
     fn fact_in_function(&self, origin: lang_frontend::source::Span) -> bool {

@@ -407,6 +407,10 @@ pub(in crate::ssa) mod char_constant_tests {
         for (operator, llvm_operator) in [
             (ComparisonOperator::Equal, "eq"),
             (ComparisonOperator::NotEqual, "ne"),
+            (ComparisonOperator::LessThan, "ult"),
+            (ComparisonOperator::LessThanOrEqual, "ule"),
+            (ComparisonOperator::GreaterThan, "ugt"),
+            (ComparisonOperator::GreaterThanOrEqual, "uge"),
         ] {
             let program = parameter_program(
                 |left, right| Operation::Compare {
@@ -426,8 +430,8 @@ pub(in crate::ssa) mod char_constant_tests {
     }
 
     #[test]
-    fn char_parameters_reject_integer_arithmetic_and_ordering() {
-        use super::super::model::{BinaryOperator, ComparisonOperator};
+    fn char_parameters_reject_integer_arithmetic() {
+        use super::super::model::BinaryOperator;
         for operator in [
             BinaryOperator::Add,
             BinaryOperator::Subtract,
@@ -440,28 +444,6 @@ pub(in crate::ssa) mod char_constant_tests {
                     right,
                 },
                 false,
-            );
-            assert!(
-                verify_program(&program)
-                    .unwrap_err()
-                    .errors
-                    .iter()
-                    .any(|error| matches!(error.kind, VerifyErrorKind::OperationContract { .. }))
-            );
-        }
-        for operator in [
-            ComparisonOperator::LessThan,
-            ComparisonOperator::LessThanOrEqual,
-            ComparisonOperator::GreaterThan,
-            ComparisonOperator::GreaterThanOrEqual,
-        ] {
-            let program = parameter_program(
-                |left, right| Operation::Compare {
-                    operator,
-                    left,
-                    right,
-                },
-                true,
             );
             assert!(
                 verify_program(&program)

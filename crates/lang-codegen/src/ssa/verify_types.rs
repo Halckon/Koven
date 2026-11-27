@@ -403,8 +403,11 @@ fn verify_type_definition(
             }
         }
         SsaTypeKind::Unit
+        | SsaTypeKind::Uninhabited
         | SsaTypeKind::Boolean
         | SsaTypeKind::Char
+        | SsaTypeKind::Float32
+        | SsaTypeKind::Float64
         | SsaTypeKind::Integer { .. }
         | SsaTypeKind::Opaque { .. }
         | SsaTypeKind::ZeroSized { .. }
@@ -865,8 +868,11 @@ pub(in crate::ssa) mod render_types {
     pub(in crate::ssa) fn write_type_kind(output: &mut String, kind: &SsaTypeKind) -> fmt::Result {
         match kind {
             SsaTypeKind::Unit => output.write_str("unit"),
+            SsaTypeKind::Uninhabited => output.write_str("uninhabited"),
             SsaTypeKind::Boolean => output.write_str("bool"),
             SsaTypeKind::Char => output.write_str("char"),
+            SsaTypeKind::Float32 => output.write_str("f32"),
+            SsaTypeKind::Float64 => output.write_str("f64"),
             SsaTypeKind::Integer { bits, signed } => {
                 write!(output, "{}{bits}", if *signed { 'i' } else { 'u' })
             }

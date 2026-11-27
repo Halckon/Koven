@@ -1,5 +1,6 @@
 //! Typed SSA operation 的局部类型契约。
 
+mod scalar;
 mod storage;
 mod text;
 pub(in crate::ssa) use storage::aggregate_explode_contract;
@@ -11,7 +12,8 @@ use storage::{
     tagged_construct_contract, tagged_payload_place_contract,
 };
 
-use text::string_binary_contract;
+use scalar::{comparison_contract, float_contract};
+use text::{string_binary_contract, string_from_scalar_contract, string_literal_contract};
 
 use super::borrow_result_support::verify_range as range;
 use super::verify_ownership::root_exchange::integer;
@@ -50,10 +52,15 @@ pub(super) fn verify_operation(
         Operation::Constant(constant) => constant_contract(module, constant, &results),
         Operation::PrintLiteral { bytes } => results.is_empty() && bytes.last() == Some(&b'\n'),
         Operation::StringLiteral { string, bytes } => {
-            is_string_owner(module, *string)
-                && bytes.len() as u64 <= lang_frontend::type_checking::MAX_STRING_BYTE_LENGTH
-                && std::str::from_utf8(bytes).is_ok()
-                && single_value_result(&results) == Some(*string)
+            string_literal_contract(module, *string, bytes, &results)
+        }
+        Operation::StringFromScalar { scalar } => {
+            string_from_scalar_contract(module, function, *scalar, &results)
+        }
+        Operation::StringAppend { owner, fragment } => {
+            let owner = EntityId::Value(*owner);
+            owner != *fragment
+                && string_binary_contract(module, function, owner, *fragment, &results, false)
         }
         Operation::StringConcat { left, right } => {
             string_binary_contract(module, function, *left, *right, &results, false)
@@ -103,6 +110,11 @@ pub(super) fn verify_operation(
             left,
             right,
         } => binary_contract(module, function, *operator, *left, *right, &results),
+        Operation::FloatArithmetic {
+            operator,
+            left,
+            right,
+        } => float_contract(module, function, *operator, *left, *right, &results),
         Operation::CheckedArithmetic { left, right, .. } => {
             checked_arithmetic_contract(module, function, *left, *right, &results)
         }
@@ -308,11 +320,12 @@ pub(super) fn verify_operation(
                 && single_value_result(&results) == Some(*nullable)
         }
         Operation::NullableNull { nullable } => {
-            module.nullable_inner(*nullable).is_some()
+            (module.nullable_inner(*nullable).is_some() || module.is_null_only(*nullable))
                 && single_value_result(&results) == Some(*nullable)
         }
         Operation::NullableIsNull { owner } => {
-            value_type(function, *owner).is_some_and(|ty| module.nullable_inner(ty).is_some())
+            value_type(function, *owner)
+                .is_some_and(|ty| module.nullable_inner(ty).is_some() || module.is_null_only(ty))
                 && single_value_result(&results).is_some_and(|ty| is_boolean(module, ty))
         }
         Operation::NullableLoanIsNull { source } => {
@@ -841,31 +854,6 @@ fn checked_arithmetic_contract(
         && is_boolean(module, *failed)
 }
 
-fn comparison_contract(
-    module: &Module,
-    function: &Function,
-    operator: ComparisonOperator,
-    left: ValueId,
-    right: ValueId,
-    results: &[EntityType],
-) -> bool {
-    let left = value_type(function, left);
-    let right = value_type(function, right);
-    let Some(result) = single_value_result(results) else {
-        return false;
-    };
-    if left != right || !is_boolean(module, result) {
-        return false;
-    }
-    match operator {
-        ComparisonOperator::Equal | ComparisonOperator::NotEqual => is_equality_type(module, left),
-        ComparisonOperator::LessThan
-        | ComparisonOperator::LessThanOrEqual
-        | ComparisonOperator::GreaterThan
-        | ComparisonOperator::GreaterThanOrEqual => is_integer(module, left),
-    }
-}
-
 pub(in crate::ssa) fn integer_fits(value: i128, bits: u16, signed: bool) -> bool {
     if !(1..=128).contains(&bits) {
         return false;
@@ -892,6 +880,8 @@ pub(super) fn is_first_class(module: &Module, ty: SsaTypeId) -> bool {
         Some(
             SsaTypeKind::Boolean
                 | SsaTypeKind::Char
+                | SsaTypeKind::Float32
+                | SsaTypeKind::Float64
                 | SsaTypeKind::Integer { .. }
                 | SsaTypeKind::Aggregate { .. }
                 | SsaTypeKind::TaggedUnion { .. }

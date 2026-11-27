@@ -42,12 +42,13 @@ frontend 仍不得自行推根或读取文件系统。
 | `koven.text` | 标准文本源；具体资产路径由实施 Spec 冻结 | 显式 import 文本函数、错误类型与 String 扩展，不自动进入内建环境 |
 | `koven.io` | 标准同步 IO 源；具体资产路径由实施 Spec 冻结 | 显式 import File、Directory、Path、标准流及其错误／条目类型 |
 | `koven.core` | `crates/lang-std/koven/core/result.ko` | 声明内建环境的 `Result<T, E>`、`Ok`、`Err`；按下文内建环境规则无需 import |
+| `koven.core` | `crates/lang-std/koven/core/display.ko` | 声明 [Guide03](03-types-generics.md) 的预声明接口 `Display`；按下文内建环境规则无需 import |
 
 文本／IO 表面以 [Guide13](13-program-runtime-standard-library.md#文本字节与严格解析) 为准。
 资产路径和可信加载身份由实施 Spec 冻结；缺失实现不得注入占位声明或按用户源码拼写授予特权。
 标准源码是用户单文件之外的受信任标准输入，不改变“只加载一个用户文件”的约束。
 加载 package 不等于自动导入名称；内建环境也不等于隐式 wildcard import。内建环境包含
-`Result<T, E>`、`Ok` 与 `Err`，两模式相同、不需要 import；它们遵守普通词法遮蔽规则，同一
+`Result<T, E>`、`Ok`、`Err` 与 `Display`，两模式相同、不需要 import；它们遵守普通词法遮蔽规则，同一
 package 中的同名顶层声明与之冲突时使用既有的绑定冲突诊断。除此之外不自动加载或导入其他
 prelude 名称（`Pair` 与 `to` 留待后续版本），未绑定的普通名称仍为 L0080。
 单文件 import 只能解析实际加载的上述标准 package 与该文件自己所在的 package。

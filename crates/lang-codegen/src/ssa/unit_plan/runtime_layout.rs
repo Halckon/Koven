@@ -74,9 +74,13 @@ pub(super) fn classify_runtime_type_demands(
             if !span_contains(instance.span(), span) {
                 continue;
             }
+            let layout = match typed.types().get(template) {
+                Some(UnitTypeKind::EnumCase { root, .. }) => *root,
+                _ => template,
+            };
             let concrete = resolve_concrete_type(
                 typed,
-                template,
+                layout,
                 instance.substitutions(),
                 instance.key().static_self(),
                 span,
@@ -517,6 +521,7 @@ pub(in crate::ssa::unit_plan) mod recipe_preflight {
                 target,
                 type_arguments.clone(),
                 receiver,
+                super::super::call_routes::ReceiverDispatch::at_call(typed, call),
                 span,
                 facts,
                 failures,
@@ -563,14 +568,18 @@ pub(in crate::ssa::unit_plan) mod recipe_preflight {
         let preflight_receiver = specialized_receiver
             .flatten()
             .or_else(|| call.receiver().map(|receiver| receiver.ty()));
-        let delegation_preflight = preflight_delegation_endpoint_owner_recipes(
-            typed,
-            target,
-            preflight_receiver,
-            facts,
-            failures,
-            span,
-        );
+        let delegation_preflight = if call.receiver().is_some_and(|r| r.is_qualified_super()) {
+            Ok(false)
+        } else {
+            preflight_delegation_endpoint_owner_recipes(
+                typed,
+                target,
+                preflight_receiver,
+                facts,
+                failures,
+                span,
+            )
+        };
         let Ok(has_delegation_route) = delegation_preflight else {
             return Ok(None);
         };

@@ -1,4 +1,5 @@
 mod operation;
+mod string;
 use operation::apply_operation;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -403,49 +404,6 @@ fn register_results(
             }
             EntityId::Value(_) => {}
         }
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
-fn require_string_view(
-    module: &Module,
-    function: &Function,
-    operand: EntityId,
-    aliases: &AliasRoots,
-    state: &BlockState,
-    location: VerifyLocation,
-    origin: &super::model::Origin,
-    errors: &mut Vec<VerifyError>,
-) {
-    match operand {
-        EntityId::Value(value) => {
-            if require_value(
-                module,
-                function,
-                value,
-                state,
-                location.clone(),
-                origin,
-                errors,
-            ) && has_exclusive_value_loan(function, value, aliases, state)
-            {
-                errors.push(error(
-                    VerifyErrorKind::OwnerLoanConflict { value },
-                    location,
-                    origin,
-                ));
-            }
-        }
-        EntityId::Loan(loan) => {
-            if !state.loans.contains(&loan) {
-                errors.push(error(
-                    VerifyErrorKind::LoanInactive { loan },
-                    location,
-                    origin,
-                ));
-            }
-        }
-        EntityId::Place(_) => unreachable!("operation contract rejects String place views"),
     }
 }
 

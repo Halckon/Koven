@@ -214,6 +214,8 @@ impl UnitTypeLowering {
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
         let id = match kind {
             UnitTypeKind::Builtin(BuiltinType::Char) => module.intern_type(SsaTypeKind::Char),
+            UnitTypeKind::Builtin(BuiltinType::Float) => module.intern_type(SsaTypeKind::Float32),
+            UnitTypeKind::Builtin(BuiltinType::Double) => module.intern_type(SsaTypeKind::Float64),
             UnitTypeKind::Builtin(BuiltinType::Boolean) => module.intern_type(SsaTypeKind::Boolean),
             UnitTypeKind::Builtin(BuiltinType::Byte) => module.intern_type(integer_type(8, true)),
             UnitTypeKind::Builtin(BuiltinType::UByte) => module.intern_type(integer_type(8, false)),
@@ -242,6 +244,12 @@ impl UnitTypeLowering {
             }
             UnitTypeKind::Builtin(BuiltinType::String) => module.add_string_owner_type(),
             UnitTypeKind::Builtin(BuiltinType::Unit) => module.intern_type(SsaTypeKind::Unit),
+            UnitTypeKind::Nullable(_) if crate::ssa::lowering_support::is_null_only(typed, ty) => {
+                let inner = module.intern_type(SsaTypeKind::Uninhabited);
+                module
+                    .add_inline_nullable_type(inner)
+                    .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?
+            }
             UnitTypeKind::Nullable(inner) => {
                 if !is_inline_nullable_inner(typed, inner)
                     && !is_supported_nullable_inner(typed, inner)
@@ -497,6 +505,9 @@ impl UnitTypeLowering {
         let [element] = arguments else {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         };
+        if is_float_container_argument(typed, *element) {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
         let kind = match constructor {
             IntrinsicTypeConstructor::Array => SsaContainerKind::Array,
             IntrinsicTypeConstructor::List => SsaContainerKind::List,
@@ -529,6 +540,9 @@ impl UnitTypeLowering {
         let [key, val] = arguments else {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         };
+        if is_float_container_argument(typed, *key) || is_float_container_argument(typed, *val) {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
         let kind = match constructor {
             IntrinsicTypeConstructor::Map => crate::ssa::model::MapContainerKind::Map,
             IntrinsicTypeConstructor::MutableMap => crate::ssa::model::MapContainerKind::MutableMap,
@@ -728,12 +742,27 @@ impl UnitTypeLowering {
     }
 }
 
+fn is_float_container_argument(typed: &CompilationUnitTypes, ty: UnitTypeId) -> bool {
+    let inner = match typed.types().get(ty) {
+        Some(UnitTypeKind::Nullable(inner)) => *inner,
+        _ => ty,
+    };
+    matches!(
+        typed.types().get(inner),
+        Some(UnitTypeKind::Builtin(
+            BuiltinType::Float | BuiltinType::Double
+        ))
+    )
+}
+
 pub(super) fn is_supported_storage_type(typed: &CompilationUnitTypes, ty: UnitTypeId) -> bool {
     match typed.types().get(ty) {
         Some(UnitTypeKind::Builtin(builtin)) => matches!(
             builtin,
             BuiltinType::Boolean
                 | BuiltinType::Char
+                | BuiltinType::Float
+                | BuiltinType::Double
                 | BuiltinType::Byte
                 | BuiltinType::UByte
                 | BuiltinType::Short
@@ -760,15 +789,18 @@ pub(super) fn is_supported_storage_type(typed: &CompilationUnitTypes, ty: UnitTy
                 | IntrinsicTypeConstructor::MutableList,
             arguments,
         }) => {
-            matches!(arguments.as_slice(), [element] if is_supported_storage_type(typed, *element))
+            matches!(arguments.as_slice(), [element] if !is_float_container_argument(typed, *element) && is_supported_storage_type(typed, *element))
         }
         Some(UnitTypeKind::Intrinsic {
             constructor: IntrinsicTypeConstructor::Map | IntrinsicTypeConstructor::MutableMap,
             arguments,
         }) => {
-            matches!(arguments.as_slice(), [key, val] if is_supported_storage_type(typed, *key) && is_supported_storage_type(typed, *val))
+            matches!(arguments.as_slice(), [key, val] if !is_float_container_argument(typed, *key) && !is_float_container_argument(typed, *val) && is_supported_storage_type(typed, *key) && is_supported_storage_type(typed, *val))
         }
-        Some(UnitTypeKind::Nullable(inner)) => is_supported_nullable_inner(typed, *inner),
+        Some(UnitTypeKind::Nullable(inner)) => {
+            crate::ssa::lowering_support::is_null_only(typed, ty)
+                || is_supported_nullable_inner(typed, *inner)
+        }
         Some(UnitTypeKind::EnumCase { root, .. }) => is_supported_storage_type(typed, *root),
         Some(UnitTypeKind::Nominal {
             declaration,
@@ -807,12 +839,15 @@ pub(super) fn is_supported_storage_type(typed: &CompilationUnitTypes, ty: UnitTy
     }
 }
 
-/// ADR-0033 inline inners admitted so far (SPEC-0350): Boolean, integers, String, and value classes.
+/// Inline inners currently admitted under ADR-0033.
 pub(super) fn is_inline_nullable_inner(typed: &CompilationUnitTypes, ty: UnitTypeId) -> bool {
     match typed.types().get(ty) {
         Some(UnitTypeKind::Builtin(
             BuiltinType::Boolean
+            | BuiltinType::Char
             | BuiltinType::String
+            | BuiltinType::Float
+            | BuiltinType::Double
             | BuiltinType::Byte
             | BuiltinType::Short
             | BuiltinType::Int

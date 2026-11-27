@@ -475,6 +475,8 @@ pub(in crate::ssa) mod integer {
             (ScalarConstant::SyntheticZero, Some(SsaTypeKind::ZeroSized { .. })) => true,
             (ScalarConstant::Unit, Some(SsaTypeKind::Unit))
             | (ScalarConstant::Boolean(_), Some(SsaTypeKind::Boolean)) => true,
+            (ScalarConstant::Float32(_), Some(SsaTypeKind::Float32))
+            | (ScalarConstant::Float64(_), Some(SsaTypeKind::Float64)) => true,
             (ScalarConstant::Char(value), Some(SsaTypeKind::Char)) => {
                 char::from_u32(*value).is_some()
             }

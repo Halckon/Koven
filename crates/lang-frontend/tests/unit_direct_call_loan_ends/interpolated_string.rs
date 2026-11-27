@@ -415,3 +415,41 @@ fn other_owned_string_expressions_keep_their_original_observation_boundary() {
         }
     }
 }
+
+#[test]
+fn owned_string_call_result_publishes_the_actual_prefix_unwind() {
+    let call = "read(text(), if (flag) { return } else { 0 })";
+    let text = format!(
+        "fun text(): String = \"result\"\nfun read(item: String, own number: Int): Unit {{}}\nfun run(flag: Boolean): Unit {{ {call} }}"
+    );
+    let observed = observe(&text);
+    assert_units_admitted(&observed);
+    assert_fixed_ends(
+        &observed,
+        &[end(
+            &text,
+            call,
+            "text()",
+            "item: String",
+            ExpectedPoint::Return(span(&text, "return")),
+        )],
+    );
+    assert_outer_drops(&observed);
+    for unit in &observed.units {
+        let unwind = &unit.direct_call_loan_ends()[0];
+        assert_eq!(unwind.preceding_drops(), 0);
+        let normal: Vec<_> = unit
+            .drops()
+            .iter()
+            .filter(|drop| {
+                drop.point() == UnitDropPoint::CallReturn(unwind.loan().call())
+                    && drop.target() == UnitDropTarget::Temporary(unwind.loan().argument())
+            })
+            .collect();
+        let [drop] = normal.as_slice() else {
+            panic!("the normal call has exactly one drop for this same temporary");
+        };
+        assert_eq!(drop.value_origin(), unwind.loan().begin_span());
+        assert!(!drop.is_conditional_temporary());
+    }
+}

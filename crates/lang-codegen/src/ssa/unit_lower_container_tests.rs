@@ -628,28 +628,31 @@ fn runtime_length_container_calls_a_view_parameter_initializer() {
 
 #[test]
 fn unsupported_float_element_remains_an_explicit_boundary() {
-    let (name, text) = (
-        "test/float.ko",
+    for text in [
         "package test\nfun entry(): List<Double> = listOf(1.0)",
-    );
-    let mut sources = SourceMap::new();
-    let (source, parsed) = parsed(&mut sources, name, text);
-    let inputs = [SourceUnitInput::new("root", name, source, &parsed)];
-    let (name_environment, type_environment) = standard_environments();
-    let (names, typed, owned) = analyze(&sources, &inputs, &name_environment, &type_environment);
-    let error = match lower_scalar_unit_with_entry(
-        &sources,
-        &inputs,
-        &names,
-        &type_environment,
-        &typed,
-        &owned,
-        declaration(&names, "test", "entry"),
-    ) {
-        Ok(_) => panic!("{name} remains outside the concrete container core"),
-        Err(error) => error,
-    };
-    assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode, "{name}");
+        "package test\nfun entry(): List<Double?> = listOf<Double?>(null, 1.0)",
+    ] {
+        let name = "test/float.ko";
+        let mut sources = SourceMap::new();
+        let (source, parsed) = parsed(&mut sources, name, text);
+        let inputs = [SourceUnitInput::new("root", name, source, &parsed)];
+        let (name_environment, type_environment) = standard_environments();
+        let (names, typed, owned) =
+            analyze(&sources, &inputs, &name_environment, &type_environment);
+        let error = match lower_scalar_unit_with_entry(
+            &sources,
+            &inputs,
+            &names,
+            &type_environment,
+            &typed,
+            &owned,
+            declaration(&names, "test", "entry"),
+        ) {
+            Ok(_) => panic!("{text} remains outside the concrete container core"),
+            Err(error) => error,
+        };
+        assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode, "{text}");
+    }
 }
 
 #[test]
