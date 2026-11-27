@@ -1,0 +1,8 @@
+delegated sum: 4.0
+boosted first: 2.0
+bucket: latency
+mut-closure >10: 3
+fn-ref >=20: 2
+move-closure >=25: 2
+map key (us, t1): 3
+toIntOrNull: 42, -1

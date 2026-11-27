@@ -2337,6 +2337,155 @@
       "source_bytes": 138,
       "expected_lines": 2,
       "expected_bytes": 4
+    },
+    "z01_neg_invalid_int_suffix": {
+      "kind": "compile_fail",
+      "diagnostic": "L0008",
+      "guide_chapter": "01-lexical.md",
+      "oracle_derivation": "Guide 01/03 forbids undefined numeric suffix `d` (`10d`), emitting INVALID_NUMERIC_LITERAL L0008",
+      "oracle_origin": "post_baseline_audited",
+      "source_sha256": "d123aff0bb9076635a92782de7c2761decf222f9980b3e3bc5ed8893c3dc2616",
+      "baseline_marker": "POST_BASELINE",
+      "diagnostic_symbol": "INVALID_NUMERIC_LITERAL",
+      "source_lines": 4,
+      "source_bytes": 56
+    },
+    "z02_neg_move_closure_borrow_capture": {
+      "kind": "compile_fail",
+      "diagnostic": "L0138",
+      "guide_chapter": "07-calls-lambdas-closures.md",
+      "oracle_derivation": "Guide 07/10 forbids a `move` closure from capturing a Borrow parameter, emitting ILLEGAL_OWNED_CAPTURE L0138",
+      "oracle_origin": "post_baseline_audited",
+      "source_sha256": "febe6da493654ca858e14de10fa4d0cb6127ac6d824774461de79b494b8ce167",
+      "baseline_marker": "POST_BASELINE",
+      "diagnostic_symbol": "ILLEGAL_OWNED_CAPTURE",
+      "source_lines": 9,
+      "source_bytes": 169
+    },
+    "z03_neg_box_ordinary_class": {
+      "kind": "compile_fail",
+      "diagnostic": "L0117",
+      "guide_chapter": "08-class-family-members.md",
+      "oracle_derivation": "Guide 08 restricts Box<T> to value class or enum class; Box(Ordinary(1)) emits INVALID_BOX_ARGUMENT L0117",
+      "oracle_origin": "post_baseline_audited",
+      "source_sha256": "6c62fc6f385751733fdb0d5f8a0ae683f09c4b227003394cbaac95bce52a75ca",
+      "baseline_marker": "POST_BASELINE",
+      "diagnostic_symbol": "INVALID_BOX_ARGUMENT",
+      "source_lines": 6,
+      "source_bytes": 97
+    },
+    "z04_neg_destructure_discard": {
+      "kind": "compile_fail",
+      "diagnostic": "L0042",
+      "guide_chapter": "11-copyability-layout-construction.md",
+      "oracle_derivation": "Guide 11 forbids `_` discard in local val destructuring (`val (_, b)`), emitting UNSUPPORTED_DESTRUCTURING_FORM L0042",
+      "oracle_origin": "post_baseline_audited",
+      "source_sha256": "8008b8bbd80833b56d10181aac8905d5b535333afcd18448cb4636ab69382932",
+      "baseline_marker": "POST_BASELINE",
+      "diagnostic_symbol": "UNSUPPORTED_DESTRUCTURING_FORM",
+      "source_lines": 6,
+      "source_bytes": 128
+    },
+    "z05_neg_redeclare_result": {
+      "kind": "compile_fail",
+      "diagnostic": "L0150",
+      "guide_chapter": "13-program-runtime-standard-library.md",
+      "oracle_derivation": "Guide 13 / SPEC-0349 forbids user top-level redeclaration of builtin Result, emitting EXACT_IMPORT_BINDING_CONFLICT L0150",
+      "oracle_origin": "post_baseline_audited",
+      "source_sha256": "c20bc9d39b81e76fef58191e6caf92e1e00499f7216af81632e3a7e5483c1d76",
+      "baseline_marker": "POST_BASELINE",
+      "diagnostic_symbol": "EXACT_IMPORT_BINDING_CONFLICT",
+      "source_lines": 5,
+      "source_bytes": 65
+    },
+    "z06_text_lines_split": {
+      "kind": "known_unimplemented",
+      "allowed_markers": [
+        "FE:L0148",
+        "BE:UnsupportedNode",
+        "BE:MissingFact"
+      ],
+      "target_stdout": "text-ok\n",
+      "guide_chapter": "13-program-runtime-standard-library.md",
+      "roadmap_blockers": [
+        "L5"
+      ],
+      "oracle_derivation": "Guide 13 v0.47 koven.text lines()/split()/parseLong('42') yields 42L and prints 'text-ok' (blocked by L5)",
+      "oracle_origin": "post_baseline_audited",
+      "source_sha256": "5000d67f5cf793dcb8a862c7c169e3ce8da38b93e3410cb054d1daba7bc83096",
+      "baseline_marker": "POST_BASELINE",
+      "source_lines": 19,
+      "source_bytes": 489,
+      "expected_lines": 1,
+      "expected_bytes": 8
+    },
+    "z07_io_path_join": {
+      "kind": "known_unimplemented",
+      "allowed_markers": [
+        "FE:L0148",
+        "BE:UnsupportedNode",
+        "BE:MissingFact"
+      ],
+      "target_stdout": "io-path\n",
+      "guide_chapter": "13-program-runtime-standard-library.md",
+      "roadmap_blockers": [
+        "L6"
+      ],
+      "oracle_derivation": "Guide 13 v0.47 koven.io Path.join('dir', 'file.txt') yields Ok('dir/file.txt') and prints 'io-path' (blocked by L6)",
+      "oracle_origin": "post_baseline_audited",
+      "source_sha256": "cf1679d210e8fc130f07053ea1fb182f14130ed891a0126cdb6b082022fad372",
+      "baseline_marker": "POST_BASELINE",
+      "source_lines": 9,
+      "source_bytes": 229,
+      "expected_lines": 1,
+      "expected_bytes": 8
+    },
+    "z08_interface_delegation": {
+      "kind": "run_ok",
+      "stdout": "delegated\n",
+      "guide_chapter": "08-class-family-members.md",
+      "oracle_derivation": "Guide 08 ordinary class interface delegation `Greeter by inner` forwards label() and prints 'delegated'",
+      "oracle_origin": "post_baseline_audited",
+      "source_sha256": "ad70c5d471f78d7c60ab7ae2aeaeb9fa4fd847e54f781fb1287b851bb58b71e1",
+      "baseline_marker": "POST_BASELINE",
+      "source_lines": 14,
+      "source_bytes": 274,
+      "expected_lines": 1,
+      "expected_bytes": 10
+    },
+    "z09_named_destructure": {
+      "kind": "run_ok",
+      "stdout": "named-destr\n",
+      "guide_chapter": "11-copyability-layout-construction.md",
+      "oracle_derivation": "Guide 11 value class named destructuring `val (right, left) = Pair2(1, 2)` binds by field name and prints 'named-destr'",
+      "oracle_origin": "post_baseline_audited",
+      "source_sha256": "52959ccb5bf55441a7292277aca378c33e5c74aa8194379b0c41f6cd9b573fc4",
+      "baseline_marker": "POST_BASELINE",
+      "source_lines": 8,
+      "source_bytes": 179,
+      "expected_lines": 1,
+      "expected_bytes": 12
+    },
+    "z10_main_result_ok": {
+      "kind": "known_unimplemented",
+      "allowed_markers": [
+        "FE:L0080",
+        "BE:UnsupportedNode",
+        "BE:MissingFact"
+      ],
+      "target_stdout": "main-result\n",
+      "guide_chapter": "13-program-runtime-standard-library.md",
+      "roadmap_blockers": [
+        "L21"
+      ],
+      "oracle_derivation": "Guide 13 conventional `fun main(): Result<Unit, String>` returning Ok(Unit) prints 'main-result' and exits 0 (blocked by L21)",
+      "oracle_origin": "post_baseline_audited",
+      "source_sha256": "745b9350135ea91711f076314ea07bc86ec0d5f3e41debcae7e99f33fdc15a6e",
+      "baseline_marker": "POST_BASELINE",
+      "source_lines": 4,
+      "source_bytes": 84,
+      "expected_lines": 1,
+      "expected_bytes": 12
     }
   },
   "programs": {
@@ -2362,6 +2511,29 @@
       ],
       "oracle_derivation": "parses key=value config lines via Result<Int, String> and ? propagation, printing host/port/retries/missing/bad-int outcomes"
     },
+    "dag_refcount": {
+      "kind": "known_unimplemented",
+      "source_sha256": "1208cc036e917cded51c91f4258c81abf626dee0761a592fb23756944c5f564a",
+      "source_lines": 50,
+      "source_bytes": 1470,
+      "guide_chapter": "10-ownership-borrowing-drop.md",
+      "expected_file": "programs/dag_refcount/expected.txt",
+      "expected_sha256": "599c8f2d5fce3bd533a106d830105aafa957c577e446af5bab89cdeb135591a1",
+      "expected_lines": 12,
+      "expected_bytes": 199,
+      "allowed_markers": [
+        "FE:L0165"
+      ],
+      "oracle_origin": "expected_txt_file",
+      "roadmap_blockers": [
+        "N02",
+        "N07",
+        "L1",
+        "L2",
+        "L7"
+      ],
+      "oracle_derivation": "exercises Rc<T> shared ownership DAG (.share/.value) and composite deinit drop ordering across Rc, Box<enum>, and MutableList"
+    },
     "expr_eval": {
       "kind": "known_unimplemented",
       "source_sha256": "4e21f2c3832f6d793fc6aa9be1afaab8a3136bc11eeeab285699c49f32be18a6",
@@ -2381,9 +2553,11 @@
         "N05",
         "N07",
         "N08",
+        "L1",
+        "L2",
         "L7"
       ],
-      "oracle_derivation": "evaluates recursive Box<Expr> AST with Char/Double/Result error propagation, printing formatted evaluation lines"
+      "oracle_derivation": "evaluates recursive Box<Expr> AST with Char/Result error propagation, printing formatted evaluation lines"
     },
     "linked_stack": {
       "kind": "known_unimplemented",
@@ -2403,9 +2577,37 @@
         "N01",
         "N03",
         "N07",
+        "L1",
+        "L2",
         "L7"
       ],
-      "oracle_derivation": "pushes and pops generic Node<T>? linked stack with ownership transfer, printing popped elements and remaining depth"
+      "oracle_derivation": "pushes and pops owned Node? linked stack with replace splicing and Box<Cons> snapshot, printing elements and depth"
+    },
+    "query_pipeline": {
+      "kind": "known_unimplemented",
+      "source_sha256": "fc533fb269521c8c20ee05f9112875d26e3e8af210f15df401f1c3a612f79847",
+      "source_lines": 87,
+      "source_bytes": 2625,
+      "guide_chapter": "07-calls-lambdas-closures.md",
+      "expected_file": "programs/query_pipeline/expected.txt",
+      "expected_sha256": "01b65b813379a259e5cdaa5b780c83622d78c9aea204d190603683567cd3fbc4",
+      "expected_lines": 8,
+      "expected_bytes": 149,
+      "allowed_markers": [
+        "FE:L0161"
+      ],
+      "oracle_origin": "expected_txt_file",
+      "roadmap_blockers": [
+        "N04",
+        "N05",
+        "N06",
+        "L1",
+        "L2",
+        "L3b",
+        "L11",
+        "S1"
+      ],
+      "oracle_derivation": "combines generic interface-bound sumScores, by delegation, value class Equatable/Hashable Map keys with named destructuring, mutating/move closures, ::fn ref, borrow return, Double, and toIntOrNull"
     },
     "raii_state_machine": {
       "kind": "known_unimplemented",
@@ -2423,9 +2625,34 @@
       "oracle_origin": "expected_txt_file",
       "roadmap_blockers": [
         "N01",
-        "N02"
+        "N02",
+        "L1",
+        "L2"
       ],
       "oracle_derivation": "runs deterministic deinit state transitions across normal, early-return, and nested scopes, printing ordered lifecycle trace"
+    },
+    "text_log_summary": {
+      "kind": "known_unimplemented",
+      "source_sha256": "347410e489afcfb109f5015de495108c5cfe15b8dc7f15c8bfbf3a0007bc6e4b",
+      "source_lines": 117,
+      "source_bytes": 3708,
+      "guide_chapter": "13-program-runtime-standard-library.md",
+      "expected_file": "programs/text_log_summary/expected.txt",
+      "expected_sha256": "4f37dae2bb06c8bc691b7fbba0c4f60d21439a42e80e2c7388de4fe5947156f2",
+      "expected_lines": 11,
+      "expected_bytes": 179,
+      "allowed_markers": [
+        "FE:L0148"
+      ],
+      "oracle_origin": "expected_txt_file",
+      "roadmap_blockers": [
+        "L1",
+        "L2",
+        "L5",
+        "L21",
+        "N08"
+      ],
+      "oracle_derivation": "parses UTF-8 log lines via koven.text lines/split/sliceBytes/parseLong/decodeUtf8 with const val, deinit guard on ? early return, and main(): Result"
     },
     "varint_codec": {
       "kind": "known_unimplemented",
@@ -2444,9 +2671,11 @@
       "roadmap_blockers": [
         "N01",
         "N08",
+        "L1",
+        "L2",
         "L3b"
       ],
-      "oracle_derivation": "encodes and decodes ULong/UInt varints over MutableList<Byte> with bitwise shifts and Result checks, printing roundtrip values"
+      "oracle_derivation": "encodes and decodes ZigZag/LEB128 varints over MutableList<UByte> with bitwise shifts and Result checks, printing roundtrip values"
     },
     "word_count": {
       "kind": "known_unimplemented",
@@ -2464,9 +2693,33 @@
       "oracle_origin": "expected_txt_file",
       "roadmap_blockers": [
         "N02",
-        "N03"
+        "N03",
+        "L1",
+        "L2"
       ],
-      "oracle_derivation": "counts word frequencies in insertion order over MutableMap<String, Int> and prints 'word\tcount' lines"
+      "oracle_derivation": "counts word frequencies in insertion order over MutableMap<String, Int> and prints summary lines"
+    },
+    "worker_pipeline": {
+      "kind": "known_unimplemented",
+      "source_sha256": "090d6ceaed29da33f3e02ded23e9820d7836da67f9a1cf1acb39247da2606306",
+      "source_lines": 62,
+      "source_bytes": 1650,
+      "guide_chapter": "13-program-runtime-standard-library.md",
+      "expected_file": "programs/worker_pipeline/expected.txt",
+      "expected_sha256": "18fa33adfbb2c36d27943d255e200127ab578e71730e4692d5dd59b30014d2a7",
+      "expected_lines": 5,
+      "expected_bytes": 110,
+      "allowed_markers": [
+        "FE:L0080"
+      ],
+      "oracle_origin": "expected_txt_file",
+      "roadmap_blockers": [
+        "T1",
+        "N04",
+        "L1",
+        "L2"
+      ],
+      "oracle_derivation": "runs restricted concurrency via thread(move { }), channel<String>() named destructuring, Sender.clone(), Transferable String ownership transfer, join(), and implicit scope join"
     }
   }
 }

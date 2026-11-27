@@ -64,7 +64,7 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
         "",
         "> 本文件由 `python3 scripts/conformance_gate.py --init-expectations` 从 `conformance/expectations.json` 确定性生成，并由 `scripts/check_docs.py`（`DocsChecker.check_conformance_corpus`）与 `scripts/tests/test_conformance_gate.py` 自动校验同步。",
         "",
-        "## 1. Guide v0.47 章节覆盖与正/负向极性汇总（154 Probes）",
+        f"## 1. Guide v0.47 章节覆盖与正/负向极性汇总（{len(probes)} Probes）",
         "",
         "| Guide v0.47 章节 | Probe 总数 | `run_ok` | `compile_fail` | `runtime_abort` | `known_unimplemented` | 能力通过 (`capability_passed`) | 正/负向极性状态 (`polarity_status`) |",
         "|---|---:|---:|---:|---:|---:|---:|---|",
@@ -118,7 +118,7 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
     lines.extend(
         [
             "",
-            "### 1.2 历史基线 `baseline-aef3f4f8.tsv` 演进与零退化对账汇总（154 Probes）",
+            f"### 1.2 历史基线 `baseline-aef3f4f8.tsv` 演进与零退化对账汇总（{len(probes)} Probes）",
             "",
             "| 演进分类 (`baseline_evolution`) | 历史基线状态 (`baseline-aef3f4f8.tsv`) | 当前强 Oracle 状态 (`expectations.json`) | Probe 数量 | 代表性 / 完整 Probe 列表 |",
             "|---|---|---|---:|---|",
@@ -128,6 +128,7 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
             f"| `upgraded_to_compile_fail` | `FE:L0165` | `compile_fail`（`FE:L0167` 规范拒绝） | {len(base_evo['upgraded_to_compile_fail'])} | " + ", ".join(f"`{p}`" for p in base_evo["upgraded_to_compile_fail"]) + " |",
             f"| `baseline_compile_fail_preserved` | `FE:L0080`..`FE:L0164` | `compile_fail`（精确诊断序列匹配） | {len(base_evo['baseline_compile_fail_preserved'])} | " + ", ".join(f"`{p}`" for p in base_evo["baseline_compile_fail_preserved"]) + " |",
             f"| `remaining_known_unimplemented` | `BE:UnsupportedNode` / `FE:L0165` / `FE:L0135` / `FE:L0080` / `ERR` | `known_unimplemented`（100% 绑定 `target_stdout` 与 `roadmap_blockers`） | {len(base_evo['remaining_known_unimplemented'])} | " + ", ".join(f"`{p}`" for p in base_evo["remaining_known_unimplemented"]) + " |",
+            f"| `post_baseline_added` | `POST_BASELINE`（冻结基线后新增） | `run_ok` / `compile_fail` / `known_unimplemented` | {len(base_evo['post_baseline_added'])} | " + ", ".join(f"`{p}`" for p in base_evo["post_baseline_added"]) + " |",
             f"| `regressed_from_baseline_ok` | `OK` | 非 `run_ok`（基线退化） | {len(base_evo['regressed_from_baseline_ok'])} | 无（零基线退化） |",
             "",
             f"### 1.3 `v046_spec_contract` 历史基线豁免项与 Spec 交付合同溯源矩阵（{exempt_count} Probes）",
@@ -153,7 +154,7 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
     lines.extend(
         [
             "",
-            "### 1.4 强 Oracle 溯源分类矩阵（`oracle_origin` Taxonomy，154 Probes + 6 Programs）",
+            f"### 1.4 强 Oracle 溯源分类矩阵（`oracle_origin` Taxonomy，{len(probes)} Probes + {len(programs)} Programs）",
             "",
             "| 溯源分类 (`oracle_origin`) | 审计验证契约说明 | Probe 数 | Program 数 | 期望类型分布 (`kind`) |",
             "|---|---|---:|---:|---|",
@@ -182,7 +183,7 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
             f"| `zero_stdout_negative` | 零标准输出负向 Probe (`compile_fail` + `runtime_abort`) | {len(shape_stats['zero_stdout_probes'])} | 0 | 0 B | " + ", ".join(f"`{p}`" for p in shape_stats["zero_stdout_probes"]) + " |",
             f"| `acceptance_programs` | V1 验收程序 (`expected.txt`) | {len(programs)} | {shape_stats['total_program_lines']} | {shape_stats['total_program_bytes']} B | " + ", ".join(f"`{k}` ({v['expected_lines']}L/{v['expected_bytes']}B)" for k, v in sorted(programs.items())) + " |",
             "",
-            "### 1.6 Probe 批次前缀与演进关注面分布矩阵（11 Batches，154 Probes）",
+            f"### 1.6 Probe 批次前缀与演进关注面分布矩阵（{len(batch_stats)} Batches，{len(probes)} Probes）",
             "",
             "| 批次前缀 (`probe_batch`) | 关注面与批次说明 | Probe 总数 | `run_ok` | `compile_fail` | `runtime_abort` | `known_unimplemented` | 能力通过 (`capability_passed`) | 批次状态 (`batch_status`) |",
             "|---|---|---:|---:|---:|---:|---:|---:|---|",
@@ -201,12 +202,12 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
             f"{b_row['cap_passed']} / {b_row['total']} | `{b_row['batch_status']}` |"
         )
     lines.append(
-        f"| **合计** | **11 个演进批次** | **{tot_all}** | **{tot_ok}** | **{tot_cf}** | **{tot_ab}** | **{tot_ku}** | **{tot_cap} / {tot_all}** | **{all_passed_batches} 全通过 / {partial_batches} 部分通过** |"
+        f"| **合计** | **{len(batch_stats)} 个演进批次** | **{tot_all}** | **{tot_ok}** | **{tot_cf}** | **{tot_ab}** | **{tot_ku}** | **{tot_cap} / {tot_all}** | **{all_passed_batches} 全通过 / {partial_batches} 部分通过** |"
     )
     lines.extend(
         [
             "",
-            "### 1.7 未实现允许记号（`allowed_markers`）与编译阶段分布矩阵（7 Markers）",
+            f"### 1.7 未实现允许记号（`allowed_markers`）与编译阶段分布矩阵（{len(marker_stats)} Markers）",
             "",
             "| 允许记号 (`allowed_marker`) | 归属编译阶段 | 记号契约说明 | 基线命中数 (`baseline_marker`) | 授权 Probe 数 | 授权 Program 数 |",
             "|---|---|---|---:|---:|---:|",

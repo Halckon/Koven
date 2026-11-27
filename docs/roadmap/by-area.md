@@ -170,7 +170,7 @@
 | 状态 | ID | 内容 | 阶段 | 优先级 | Guide | Phase | Spec / 依据 |
 |---|---|---|---|---|---|---|---|
 | ✅ 已交付 | B20 | Linux ASan/LSan 有界接线与资源程序随机生成首片（M4b） | S0 已交付基线 | v1 必做 | — | 4 | [0266](../archive/specs/0266-native-sanitizer-wiring.md) [0269](../archive/specs/0269-generated-resource-programs.md) |
-| ◐ 部分 | V3 | Linux ASan/LSan 覆盖整个矩阵与六个验收程序 | P5 验收与发布 | v1 必做 | — | 4 | [0266](../archive/specs/0266-native-sanitizer-wiring.md) |
+| ◐ 部分 | V3 | Linux ASan/LSan 覆盖整个矩阵与十个 V1 验收程序 | P5 验收与发布 | v1 必做 | — | 4 | [0266](../archive/specs/0266-native-sanitizer-wiring.md) |
 | ☐ 未开始 | V4 | M4b 随机生成扩展到 E3 之后的通用 lowering | P5 验收与发布 | v1 建议 | — | 4 | [0269](../archive/specs/0269-generated-resource-programs.md) [native-safety-validation](../proposals/native-safety-validation.md) |
 | ⏸ 延后 | X02 | macOS 动态检测、UBSan、外部审计（M4 其余） | X v1 之外 | v1.x | — | 4 | — |
 
@@ -184,7 +184,7 @@
 | ✅ 已交付 | V0 | 154 个 probe 与六个验收程序源码入库，作为 conformance 种子与切换门槛的固定集合 | P0 止血 | v1 必做 | — | 6 | [0354](../archive/specs/0354-conformance-corpus.md) |
 | ✅ 已交付 | G46 | Guide v0.46 决策批：E4、D1、D2、D4、D7、D9、D12–D15、L14 与错误模型 | P0 止血 | v1 必做 | 需新增 | — | [v0.46-language-decisions](../proposals/v0.46-language-decisions.md) |
 | ☐ 未开始 | L14 | 把 v1 不做的内容移出 Guide：unsafe/extern/RawPtr、线程/channel 预声明 API（D6） | P3 语言增量 | v1 必做 | 需新增 | — | — |
-| ☐ 未开始 | V1 | 六个验收程序（词频、配置解析、表达式求值、RAII 状态机、二进制编解码、链表/栈）双宿主运行正确且 ASan/LSan 干净 | P5 验收与发布 | v1 必做 | — | 6 | — |
+| ☐ 未开始 | V1 | 十个 V1 验收程序（词频、配置解析、表达式求值、RAII 状态机、二进制编解码、链表/栈、文本日志汇总、泛型查询管道、共享 DAG 析构、受限并发管道）双宿主运行正确且 ASan/LSan 干净 | P5 验收与发布 | v1 必做 | — | 6 | — |
 | ◐ 部分 | V2 | Conformance 矩阵：按 Guide 每章正反例，合法 100% 运行、非法 100% 前端诊断、0 ICE | P5 验收与发布 | v1 必做 | — | 2,3,4 | [v1-freeze-decisions](../proposals/v1-freeze-decisions.md) |
 | ◐ 部分 | V5 | README、教程、Architecture 按实测能力重写；Guide 不含“当前实现到哪一步”的句子 | P5 验收与发布 | v1 必做 | — | — | — |
 | ◐ 部分 | V6 | v1.0 发行：双宿主安装包、使用材料与已知限制 | P5 验收与发布 | v1 必做 | — | 6 | [0272](../archive/specs/0272-preview-candidate-package.md) [measurement-distribution](../proposals/measurement-distribution.md) [v1-freeze-decisions](../proposals/v1-freeze-decisions.md) |

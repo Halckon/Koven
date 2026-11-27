@@ -1,0 +1,117 @@
+// 文本日志汇总：使用 Guide v0.47 的 koven.text 严格 UTF-8 与 parseLong 解析多行日志，
+// 结合顶层 const val、带 deinit 的 AuditGuard 在 ? 早返回路径下的确定性析构，以及 main(): Result。
+
+import koven.text.ParseError
+import koven.text.TextError
+import koven.text.byteLength
+import koven.text.checkedPlus
+import koven.text.decodeUtf8
+import koven.text.lines
+import koven.text.parseLong
+import koven.text.sliceBytes
+import koven.text.split
+
+const val MAX_TAG_BYTES: Int = 16
+
+enum class AppError : Display {
+    BadLine(line: Int, detail: String),
+    BadUtf8(offset: Int);
+
+    override fun toString(): String = when (this) {
+        is BadLine -> "line ${line}: " + detail
+        is BadUtf8 -> "invalid utf-8 at byte ${offset}"
+    }
+}
+
+class AuditGuard(val batch: String) {
+    deinit() {
+        println("  guard " + this.batch + " closed")
+    }
+}
+
+fun parseColumns(lineNo: Int, parts: Array<String>): Result<Long, AppError> {
+    if (parts.size != 2) {
+        return Err(AppError.BadLine(lineNo, "expected 2 columns"))
+    }
+    if (parts[0].byteLength() > MAX_TAG_BYTES) {
+        return Err(AppError.BadLine(lineNo, "tag too long"))
+    }
+    val slice = parts[0].sliceBytes(0, 3)
+    val labeled = when (slice) {
+        is Ok -> slice.success.checkedPlus(":ok")
+        is Err -> return Err(AppError.BadLine(lineNo, "bad tag slice"))
+    }
+    if (labeled == null) {
+        return Err(AppError.BadLine(lineNo, "concat overflow"))
+    }
+    val parsed = parseLong(parts[1])
+    val latency = when (parsed) {
+        is Ok -> parsed.success
+        is Err -> {
+            val parseErr = parsed.error
+            when (parseErr) {
+                is ParseError.InvalidDigit -> return Err(AppError.BadLine(lineNo, "bad digit"))
+                is ParseError.MissingDigits -> return Err(AppError.BadLine(lineNo, "missing digits"))
+                is ParseError.OutOfRange -> return Err(AppError.BadLine(lineNo, "out of range"))
+            }
+        }
+    }
+    println("  " + labeled + " -> ${latency}ms")
+    return Ok(latency)
+}
+
+fun parseRecord(lineNo: Int, line: String): Result<Long, AppError> {
+    val split = line.split("|")
+    return when (split) {
+        is Ok -> parseColumns(lineNo, split.success)
+        is Err -> Err(AppError.BadLine(lineNo, "empty separator"))
+    }
+}
+
+fun processBatch(name: String, raw: String): Result<Long, AppError> {
+    println("[" + name + "]")
+    val guard = AuditGuard(name.clone())
+    var total: Long = 0L
+    val lines = raw.lines()
+    var i = 0
+    while (i < lines.size) {
+        val ms = parseRecord(i + 1, lines[i])?
+        total = total + ms
+        i = i + 1
+    }
+    return Ok(total)
+}
+
+fun checkInvalidUtf8(): Unit {
+    val bad = arrayOf<UByte>(0x41u, 0xE2u, 0x28u, 0xA1u)
+    val decoded = decodeUtf8(bad)
+    when (decoded) {
+        is Ok -> println("unexpected utf8: " + decoded.success)
+        is Err -> {
+            val textErr = decoded.error
+            when (textErr) {
+                is TextError.InvalidUtf8 -> println("utf8 rejected at ${textErr.offset}")
+                else -> println("utf8 other error")
+            }
+        }
+    }
+}
+
+fun main(): Result<Unit, AppError> {
+    val good = "api|12\ndb_|28\ncch|5\n"
+    val resGood = processBatch("good", good)
+    when (resGood) {
+        is Ok -> println("total: ${resGood.success}ms")
+        is Err -> println("err: ${resGood.error}")
+    }
+
+    val broken = "api|10\ndb_|9x\ncch|1\n"
+    val resBroken = processBatch("broken", broken)
+    when (resBroken) {
+        is Ok -> println("total: ${resBroken.success}ms")
+        is Err -> println("err: ${resBroken.error}")
+    }
+
+    checkInvalidUtf8()
+    return Ok(Unit)
+}
