@@ -72,7 +72,7 @@ pub(crate) struct UnitSession {
     overlays: BTreeMap<String, Overlay>,
     snapshot: UnitSnapshot,
     enrich_diagnostics: bool,
-    workspace_manifest: bool,
+    disk_backed_uris: std::collections::BTreeSet<String>,
 }
 
 impl UnitSession {
@@ -90,12 +90,22 @@ impl UnitSession {
     ) -> Result<Self, UnitSessionError> {
         let overlays = BTreeMap::new();
         let snapshot = UnitSnapshot::analyze(&config, &overlays)?;
+        let disk_backed_uris = config
+            .sources()
+            .iter()
+            .filter(|source| {
+                workspace_manifest
+                    || workspace_manifest::file_uri_to_path(source.uri())
+                        .is_some_and(|path| path.exists())
+            })
+            .map(|source| source.uri().as_str().to_owned())
+            .collect();
         Ok(Self {
             config,
             overlays,
             snapshot,
             enrich_diagnostics,
-            workspace_manifest,
+            disk_backed_uris,
         })
     }
 
@@ -223,7 +233,7 @@ impl UnitSession {
         &self,
         uri: &Uri,
         position: Position,
-    ) -> Result<Option<PrepareRenameResponse>, UnitDefinitionQueryError> {
+    ) -> Result<Option<PrepareRenameResponse>, RenameError> {
         self.snapshot.prepare_rename(&self.config, uri, position)
     }
 
@@ -238,7 +248,7 @@ impl UnitSession {
         self.snapshot.rename(
             &self.config,
             &self.overlays,
-            self.workspace_manifest,
+            &self.disk_backed_uris,
             uri,
             position,
             new_name,
@@ -560,17 +570,17 @@ impl UnitSnapshot {
         config: &SourceSetConfig,
         uri: &Uri,
         position: Position,
-    ) -> Result<Option<PrepareRenameResponse>, UnitDefinitionQueryError> {
-        let Some((_, source_unit, offset)) =
-            self.resolve_source_and_offset(config, uri, position)?
+    ) -> Result<Option<PrepareRenameResponse>, RenameError> {
+        let Some((_, source_unit, offset)) = self
+            .resolve_source_and_offset(config, uri, position)
+            .map_err(|e| match e {
+                UnitDefinitionQueryError::Position(p) => RenameError::Position(p),
+                other => RenameError::Internal(other.to_string()),
+            })?
         else {
             return Ok(None);
         };
-        Ok(ide_features::prepare_rename_at(
-            &self.analysis,
-            source_unit,
-            offset,
-        )?)
+        ide_features::prepare_rename_at(&self.analysis, source_unit, offset)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -578,7 +588,7 @@ impl UnitSnapshot {
         &self,
         config: &SourceSetConfig,
         overlays: &BTreeMap<String, Overlay>,
-        workspace_manifest: bool,
+        disk_backed_uris: &std::collections::BTreeSet<String>,
         uri: &Uri,
         position: Position,
         new_name: &str,
@@ -621,6 +631,7 @@ impl UnitSnapshot {
                 .source_text(sid)
                 .map_err(|e| RenameError::Internal(e.to_string()))?;
             verify_inputs.push(RenameSourceInput {
+                source_id: sid,
                 source_unit: su,
                 name: source.uri().as_str(),
                 root: Some(source.root()),
@@ -653,8 +664,9 @@ impl UnitSnapshot {
                     let expected = sources
                         .source_text(occurrence.span.source_id())
                         .map_err(|e| RenameError::Internal(e.to_string()))?;
+                    let is_disk_backed = disk_backed_uris.contains(location.uri.as_str());
                     if let Some(path) = workspace_manifest::file_uri_to_path(&location.uri) {
-                        if workspace_manifest || path.exists() {
+                        if is_disk_backed || path.exists() {
                             let disk_text = std::fs::read_to_string(&path).map_err(|_| {
                                 RenameError::StaleClosedFile(location.uri.as_str().to_owned())
                             })?;
@@ -664,7 +676,7 @@ impl UnitSnapshot {
                                 ));
                             }
                         }
-                    } else if workspace_manifest {
+                    } else if is_disk_backed {
                         return Err(RenameError::StaleClosedFile(
                             location.uri.as_str().to_owned(),
                         ));

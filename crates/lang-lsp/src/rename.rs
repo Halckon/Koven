@@ -1,7 +1,7 @@
 //! LSP 安全重命名：Lexer 标识符校验、绑定不变性验证与带版本 WorkspaceEdit 构造。
 
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap},
     fmt,
 };
 
@@ -10,7 +10,7 @@ use lang_frontend::{
     diagnostic::{Diagnostic, Severity},
     lexer::{LexemeKind, TokenKind, lex},
     name_resolution::SourceUnitId,
-    source::{SourceMap, Span},
+    source::{SourceId, SourceMap, Span},
     type_checking::{check_compilation_unit_types, standard_environments},
 };
 use lsp_types::{
@@ -98,6 +98,7 @@ pub(crate) fn is_valid_rename_identifier(name: &str) -> bool {
 
 /// 参与绑定不变性校验的一份源码输入。
 pub(crate) struct RenameSourceInput<'a> {
+    pub(crate) source_id: SourceId,
     pub(crate) source_unit: SourceUnitId,
     pub(crate) name: &'a str,
     pub(crate) root: Option<&'a str>,
@@ -105,14 +106,76 @@ pub(crate) struct RenameSourceInput<'a> {
     pub(crate) text: &'a str,
 }
 
-fn error_code_counts(diagnostics: &[Diagnostic]) -> BTreeMap<String, usize> {
-    let mut counts = BTreeMap::new();
-    for diag in diagnostics {
-        if diag.severity() == Severity::Error {
-            *counts.entry(diag.code().to_string()).or_insert(0) += 1;
+type DiagnosticLocationKey = (String, SourceUnitId, usize, usize);
+
+fn shift_offset(offset: usize, edits: &[ByteRange], new_len: usize) -> usize {
+    let mut delta: isize = 0;
+    for &(start, end) in edits {
+        if end <= offset {
+            delta += new_len as isize - (end - start) as isize;
+        } else if start <= offset {
+            return (start as isize + delta).max(0) as usize + new_len;
+        } else {
+            break;
         }
     }
-    counts
+    (offset as isize + delta).max(0) as usize
+}
+
+fn shifted_error_locations(
+    diagnostics: &[Diagnostic],
+    old_source_to_unit: &[(SourceId, SourceUnitId)],
+    old_to_new_unit: &BTreeMap<SourceUnitId, SourceUnitId>,
+    edits_by_unit: &BTreeMap<SourceUnitId, Vec<ByteRange>>,
+    new_len: usize,
+) -> BTreeSet<DiagnosticLocationKey> {
+    let mut set = BTreeSet::new();
+    for diag in diagnostics {
+        if diag.severity() != Severity::Error {
+            continue;
+        }
+        let span = diag.primary_span();
+        let Some(&(_, old_unit)) = old_source_to_unit
+            .iter()
+            .find(|(sid, _)| *sid == span.source_id())
+        else {
+            continue;
+        };
+        let Some(&new_unit) = old_to_new_unit.get(&old_unit) else {
+            continue;
+        };
+        let edits = edits_by_unit.get(&old_unit).map_or(&[][..], Vec::as_slice);
+        let shifted_start = shift_offset(span.start(), edits, new_len);
+        let shifted_end = shift_offset(span.end(), edits, new_len);
+        set.insert((
+            diag.code().to_string(),
+            new_unit,
+            shifted_start,
+            shifted_end,
+        ));
+    }
+    set
+}
+
+fn post_error_locations(
+    diagnostics: &[Diagnostic],
+    new_source_to_unit: &[(SourceId, SourceUnitId)],
+) -> BTreeSet<DiagnosticLocationKey> {
+    let mut set = BTreeSet::new();
+    for diag in diagnostics {
+        if diag.severity() != Severity::Error {
+            continue;
+        }
+        let span = diag.primary_span();
+        let Some(&(_, new_unit)) = new_source_to_unit
+            .iter()
+            .find(|(sid, _)| *sid == span.source_id())
+        else {
+            continue;
+        };
+        set.insert((diag.code().to_string(), new_unit, span.start(), span.end()));
+    }
+    set
 }
 
 /// 在内存中模拟应用全部重命名编辑并重跑前端名称/类型解析，确认：
@@ -184,38 +247,14 @@ pub(crate) fn verify_rename_preserves_bindings(
     let (name_env, type_env) = standard_environments();
     let name_snapshot = analyze_unit_names(new_sources, descriptors, name_env)
         .map_err(|e| RenameError::Internal(e.to_string()))?;
-    let pre_name_errors = error_code_counts(pre_name_diagnostics);
-    let post_name_errors = error_code_counts(name_snapshot.names().diagnostics());
-    for (code, post_count) in &post_name_errors {
-        let pre_count = pre_name_errors.get(code).copied().unwrap_or(0);
-        if *post_count > pre_count {
-            return Err(RenameError::BindingConflict);
-        }
-    }
-    let Some(validated) = name_snapshot.validated_names() else {
-        return Err(RenameError::BindingConflict);
-    };
-    let unit_inputs = name_snapshot.inputs();
-    let typed =
-        check_compilation_unit_types(name_snapshot.sources(), &unit_inputs, validated, &type_env)
-            .map_err(|e| RenameError::Internal(e.to_string()))?;
-    let pre_type_errors = error_code_counts(pre_type_diagnostics);
-    let post_type_errors = error_code_counts(typed.diagnostics());
-    for (code, post_count) in &post_type_errors {
-        let pre_count = pre_type_errors.get(code).copied().unwrap_or(0);
-        if *post_count > pre_count {
-            return Err(RenameError::BindingConflict);
-        }
-    }
-    let post_index = UnitDefinitionIndex::build(
-        name_snapshot.parsed_files(),
-        name_snapshot.names(),
-        Some(&typed),
-    )
-    .map_err(|e| RenameError::Internal(e.to_string()))?;
 
     // Build mapping from old SourceUnitId -> new SourceUnitId via SourceId identity.
+    let old_source_to_unit: Vec<(SourceId, SourceUnitId)> = inputs
+        .iter()
+        .map(|input| (input.source_id, input.source_unit))
+        .collect();
     let mut old_to_new_unit: BTreeMap<SourceUnitId, SourceUnitId> = BTreeMap::new();
+    let mut new_source_to_unit: Vec<(SourceId, SourceUnitId)> = Vec::new();
     for (&old_unit, &sid) in &source_id_by_unit {
         let new_unit = name_snapshot
             .names()
@@ -226,7 +265,45 @@ pub(crate) fn verify_rename_preserves_bindings(
             .ok_or_else(|| RenameError::Internal("missing post-rename source unit".to_owned()))?
             .id();
         old_to_new_unit.insert(old_unit, new_unit);
+        new_source_to_unit.push((sid, new_unit));
     }
+
+    let pre_name_errors = shifted_error_locations(
+        pre_name_diagnostics,
+        &old_source_to_unit,
+        &old_to_new_unit,
+        &edits_by_unit,
+        new_name.len(),
+    );
+    let post_name_errors =
+        post_error_locations(name_snapshot.names().diagnostics(), &new_source_to_unit);
+    if !post_name_errors.is_subset(&pre_name_errors) {
+        return Err(RenameError::BindingConflict);
+    }
+    let Some(validated) = name_snapshot.validated_names() else {
+        return Err(RenameError::BindingConflict);
+    };
+    let unit_inputs = name_snapshot.inputs();
+    let typed =
+        check_compilation_unit_types(name_snapshot.sources(), &unit_inputs, validated, &type_env)
+            .map_err(|e| RenameError::Internal(e.to_string()))?;
+    let pre_type_errors = shifted_error_locations(
+        pre_type_diagnostics,
+        &old_source_to_unit,
+        &old_to_new_unit,
+        &edits_by_unit,
+        new_name.len(),
+    );
+    let post_type_errors = post_error_locations(typed.diagnostics(), &new_source_to_unit);
+    if !post_type_errors.is_subset(&pre_type_errors) {
+        return Err(RenameError::BindingConflict);
+    }
+    let post_index = UnitDefinitionIndex::build(
+        name_snapshot.parsed_files(),
+        name_snapshot.names(),
+        Some(&typed),
+    )
+    .map_err(|e| RenameError::Internal(e.to_string()))?;
 
     let mut expected_targets: Vec<(SourceUnitId, usize, usize)> = Vec::new();
     for (old_unit, ns, ne) in shifted_targets {

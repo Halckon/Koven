@@ -199,14 +199,14 @@ pub(super) fn prepare_rename_response(
             if session.contains_uri(&pos.text_document.uri) {
                 session
                     .prepare_rename(&pos.text_document.uri, pos.position)
-                    .map_err(map_unit_query_error)
+                    .map_err(map_rename_error)
             } else if let Some(document) = fallback.get(pos.text_document.uri.as_str()) {
                 let Some((source_unit, offset)) = single_document_offset(document, pos.position)?
                 else {
                     return Ok(None);
                 };
                 ide_features::prepare_rename_at(&document.analysis, source_unit, offset)
-                    .map_err(map_position_error)
+                    .map_err(map_rename_error)
             } else {
                 Ok(None)
             }
@@ -220,7 +220,7 @@ pub(super) fn prepare_rename_response(
                 return Ok(None);
             };
             ide_features::prepare_rename_at(&document.analysis, source_unit, offset)
-                .map_err(map_position_error)
+                .map_err(map_rename_error)
         }
     }
 }
@@ -267,6 +267,7 @@ fn single_document_rename(
         .source_text(document.source_id)
         .map_err(|e| RequestError::Internal(e.to_string()))?;
     let inputs = [RenameSourceInput {
+        source_id: document.source_id,
         source_unit,
         name: uri.as_str(),
         root: None,

@@ -1,8 +1,7 @@
 use super::*;
 use lsp_types::{
-    DocumentChanges, Hover, HoverContents, HoverParams, PrepareRenameResponse, RenameParams,
-    TextDocumentPositionParams, WorkspaceClientCapabilities, WorkspaceEdit,
-    WorkspaceEditClientCapabilities,
+    DocumentChanges, Hover, HoverContents, HoverParams, RenameParams, TextDocumentPositionParams,
+    WorkspaceClientCapabilities, WorkspaceEdit, WorkspaceEditClientCapabilities,
     request::{HoverRequest, PrepareRenameRequest, Rename},
 };
 
@@ -283,6 +282,27 @@ fn rename_rejects_incomplete_unit_and_stale_source_set_disk_file_and_overload_pr
                 .code,
             ErrorCode::InvalidParams as i32
         );
+
+        // Deleted/moved closed lib.ko on disk -> rename must ALSO reject!
+        std::fs::remove_file(&lib_path).expect("delete lib");
+        send_request(
+            &client,
+            RequestId::from(1111_i32),
+            Rename::METHOD,
+            serde_json::to_value(RenameParams {
+                text_document_position: doc_pos(&app_uri, position_of(app_src, "helper", 0)),
+                new_name: "assist".to_owned(),
+                work_done_progress_params: Default::default(),
+            })
+            .expect("deleted sourceSet rename"),
+        );
+        assert_eq!(
+            receive_response(&client)
+                .response_result
+                .expect_err("deleted closed sourceSet file must reject")
+                .code,
+            ErrorCode::InvalidParams as i32
+        );
         shutdown(&client);
         server_thread
             .join()
@@ -291,7 +311,7 @@ fn rename_rejects_incomplete_unit_and_stale_source_set_disk_file_and_overload_pr
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    // 3. P2-4: `prepareRename` on shared overload `import lib.pick` returns null (consistent with rename).
+    // 3. P2-4 & UX: `prepareRename` on shared overload `import lib.pick` returns readable error.
     {
         let (server, client) = Connection::memory();
         let server_thread = thread::spawn(|| run(server));
@@ -323,15 +343,14 @@ fn rename_rejects_incomplete_unit_and_stale_source_set_disk_file_and_overload_pr
             serde_json::to_value(doc_pos(&app_uri, position_of(app_src, "pick", 0)))
                 .expect("prepare rename"),
         );
-        let prep: Option<PrepareRenameResponse> = serde_json::from_value(
-            receive_response(&client)
-                .response_result
-                .expect("prepare rename ok"),
-        )
-        .expect("prepare response");
+        let prep_err = receive_response(&client)
+            .response_result
+            .expect_err("prepareRename on shared overload import must explain refusal");
+        assert_eq!(prep_err.code, ErrorCode::InvalidParams as i32);
         assert!(
-            prep.is_none(),
-            "prepareRename on shared overload import must return null"
+            prep_err.message.contains("overload"),
+            "expected readable reason, got: {}",
+            prep_err.message
         );
         shutdown(&client);
         server_thread
@@ -339,4 +358,156 @@ fn rename_rejects_incomplete_unit_and_stale_source_set_disk_file_and_overload_pr
             .expect("server thread")
             .expect("server result");
     }
+}
+
+#[test]
+fn hover_bounds_const_comparison_and_distinguishes_val_after_var_and_comments() {
+    let (server, client) = Connection::memory();
+    let server_thread = thread::spawn(|| run(server));
+    initialize_with_doc_changes(&client, false, None);
+    let uri: lsp_types::Uri = "file:///hover_bounds.ko".parse().expect("uri");
+    let source = "\
+const val ok: Boolean = 1 < 2
+fun next(): Int = 1
+
+fun demo() {
+    var alpha = 1; val beta = alpha
+    /* var */ val gamma = beta
+}
+";
+    send_notification(
+        &client,
+        DidOpenTextDocument::METHOD,
+        serde_json::to_value(DidOpenTextDocumentParams {
+            text_document: TextDocumentItem::new(
+                uri.clone(),
+                "koven".to_owned(),
+                1,
+                source.to_owned(),
+            ),
+        })
+        .expect("open"),
+    );
+    let _ = receive_diagnostics(&client);
+
+    // Hover on `ok` must NOT swallow `fun next()` even though initializer contains `<`.
+    send_request(
+        &client,
+        RequestId::from(120_i32),
+        HoverRequest::METHOD,
+        serde_json::to_value(HoverParams {
+            text_document_position_params: doc_pos(&uri, position_of(source, "ok", 0)),
+            work_done_progress_params: Default::default(),
+        })
+        .expect("hover ok"),
+    );
+    let ok_hover: Option<Hover> =
+        serde_json::from_value(receive_response(&client).response_result.expect("ok"))
+            .expect("hover");
+    let HoverContents::Markup(ok_md) = ok_hover.expect("hover").contents else {
+        panic!("expected markup");
+    };
+    assert!(ok_md.value.contains("const val ok"), "{}", ok_md.value);
+    assert!(!ok_md.value.contains("next"), "{}", ok_md.value);
+
+    // Hover on `beta` (same line after `var alpha = 1;`) must show `val beta`, NOT `var beta`.
+    send_request(
+        &client,
+        RequestId::from(121_i32),
+        HoverRequest::METHOD,
+        serde_json::to_value(HoverParams {
+            text_document_position_params: doc_pos(&uri, position_of(source, "beta", 0)),
+            work_done_progress_params: Default::default(),
+        })
+        .expect("hover beta"),
+    );
+    let b_hover: Option<Hover> =
+        serde_json::from_value(receive_response(&client).response_result.expect("ok"))
+            .expect("hover");
+    let HoverContents::Markup(b_md) = b_hover.expect("hover").contents else {
+        panic!("expected markup");
+    };
+    assert!(b_md.value.contains("val beta: Int"), "{}", b_md.value);
+    assert!(!b_md.value.contains("var beta"), "{}", b_md.value);
+
+    // Hover on `gamma` (preceded by `/* var */ val`) must show `val gamma`, NOT `var gamma`.
+    send_request(
+        &client,
+        RequestId::from(122_i32),
+        HoverRequest::METHOD,
+        serde_json::to_value(HoverParams {
+            text_document_position_params: doc_pos(&uri, position_of(source, "gamma", 0)),
+            work_done_progress_params: Default::default(),
+        })
+        .expect("hover gamma"),
+    );
+    let c_hover: Option<Hover> =
+        serde_json::from_value(receive_response(&client).response_result.expect("ok"))
+            .expect("hover");
+    let HoverContents::Markup(c_md) = c_hover.expect("hover").contents else {
+        panic!("expected markup");
+    };
+    assert!(c_md.value.contains("val gamma: Int"), "{}", c_md.value);
+    assert!(!c_md.value.contains("var gamma"), "{}", c_md.value);
+
+    shutdown(&client);
+    server_thread
+        .join()
+        .expect("server thread")
+        .expect("server result");
+}
+
+#[test]
+fn rename_rejects_moving_same_error_code_to_new_location() {
+    let (server, client) = Connection::memory();
+    let server_thread = thread::spawn(|| run(server));
+    initialize_with_doc_changes(&client, false, None);
+    let uri: lsp_types::Uri = "file:///moving_error.ko".parse().expect("uri");
+    // Two pre-existing duplicate-signature functions `dup`, plus a third `other`.
+    // Renaming one `dup` -> `other` would clear L0097 on `dup` and create a NEW L0097 on `other`
+    // (same total L0097 count, different location).
+    let source = "\
+fun dup(): Int = 1
+fun dup(): Int = 2
+fun other(): Int = 3
+";
+    send_notification(
+        &client,
+        DidOpenTextDocument::METHOD,
+        serde_json::to_value(DidOpenTextDocumentParams {
+            text_document: TextDocumentItem::new(
+                uri.clone(),
+                "koven".to_owned(),
+                1,
+                source.to_owned(),
+            ),
+        })
+        .expect("open"),
+    );
+    let _ = receive_diagnostics(&client);
+
+    send_request(
+        &client,
+        RequestId::from(130_i32),
+        Rename::METHOD,
+        serde_json::to_value(RenameParams {
+            text_document_position: doc_pos(&uri, position_of(source, "dup", 0)),
+            new_name: "other".to_owned(),
+            work_done_progress_params: Default::default(),
+        })
+        .expect("rename dup -> other"),
+    );
+    assert_eq!(
+        receive_response(&client)
+            .response_result
+            .expect_err("moving same error code to new location must reject")
+            .code,
+        ErrorCode::InvalidParams as i32
+    );
+
+    shutdown(&client);
+    server_thread
+        .join()
+        .expect("server thread")
+        .expect("server result");
 }

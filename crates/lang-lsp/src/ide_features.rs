@@ -14,7 +14,7 @@ use lsp_types::{
 
 use crate::{
     position_adapter::{PositionMappingError, span_range},
-    rename::{is_valid_rename_identifier, span_slice},
+    rename::{RenameError, is_valid_rename_identifier, span_slice},
     unit_analysis_snapshot::UnitAnalysisSnapshot,
 };
 
@@ -167,25 +167,26 @@ pub(crate) fn inlay_hints_for_source(
     Ok(hints)
 }
 
-/// 检查光标处符号是否支持安全重命名，并返回范围与占位名称。
+/// 检查光标处符号是否支持安全重命名，并返回范围与占位名称；不可安全重命名时返回可读错误原因。
 pub(crate) fn prepare_rename_at(
     snapshot: &UnitAnalysisSnapshot,
     source_unit: SourceUnitId,
     offset: usize,
-) -> Result<Option<PrepareRenameResponse>, PositionMappingError> {
+) -> Result<Option<PrepareRenameResponse>, RenameError> {
     if snapshot.typed().is_none() {
-        return Ok(None);
+        return Err(RenameError::IncompleteAnalysis);
     }
     let sources = snapshot.name_snapshot().sources();
     let Some((ref_span, _)) = snapshot.definitions().entry_at(source_unit, offset) else {
         return Ok(None);
     };
-    let Ok(Some(_)) = snapshot
+    if snapshot
         .definitions()
-        .plan_rename_at(source_unit, offset, sources)
-    else {
+        .plan_rename_at(source_unit, offset, sources)?
+        .is_none()
+    {
         return Ok(None);
-    };
+    }
     let Some(placeholder) = span_slice(sources, ref_span) else {
         return Ok(None);
     };
@@ -214,14 +215,16 @@ fn describe_target(
         .iter()
         .find(|d| d.source_unit() == target_unit && d.name_span() == target_span)
     {
-        let ast_start = parsed_files
+        let ast_span = parsed_files
             .iter()
             .find(|p| p.source_id() == target_span.source_id())
             .and_then(|p| p.ast().items().get(decl.root()).ok())
-            .map(|item| item.span().start());
-        let header = extract_declaration_header(target_text, ast_start, target_span.start());
-        let docs =
-            extract_leading_doc_comment(target_text, ast_start.unwrap_or(target_span.start()));
+            .map(|item| item.span());
+        let header = extract_declaration_header(target_text, ast_span, target_span.start());
+        let docs = extract_leading_doc_comment(
+            target_text,
+            ast_span.map_or(target_span.start(), Span::start),
+        );
         let fallback = if header.is_empty() {
             decl.name().to_owned()
         } else {
@@ -251,11 +254,7 @@ fn describe_target(
             .unwrap_or_default();
         let prefix = match symbol.kind() {
             SymbolKind::Variable => {
-                let line_start = target_text[..target_span.start()]
-                    .rfind('\n')
-                    .map_or(0, |i| i + 1);
-                let before_name = target_text[line_start..target_span.start()].trim();
-                if before_name.split_whitespace().any(|w| w == "var") {
+                if variable_declared_with_var(target_text, target_span.start()) {
                     "var"
                 } else {
                     "val"
@@ -294,9 +293,37 @@ fn position_in_range(pos: Position, range: Range) -> bool {
             || (pos.line == range.end.line && pos.character <= range.end.character))
 }
 
-fn extract_declaration_header(text: &str, ast_start: Option<usize>, name_offset: usize) -> String {
-    let start = ast_start.unwrap_or_else(|| text[..name_offset].rfind('\n').map_or(0, |i| i + 1));
-    let rest = &text[start..];
+fn variable_declared_with_var(text: &str, name_start: usize) -> bool {
+    let prefix = &text[..name_start];
+    let mut map = SourceMap::new();
+    let Ok(sid) = map.add_source("<var-kind>", prefix) else {
+        return false;
+    };
+    let Ok(lexed) = lex(&map, sid) else {
+        return false;
+    };
+    let prev = lexed
+        .lexemes()
+        .iter()
+        .rev()
+        .find(|l| !matches!(l.kind(), LexemeKind::Trivia(_) | LexemeKind::Eof));
+    matches!(
+        prev.map(|l| l.kind()),
+        Some(LexemeKind::Token(TokenKind::Keyword(Keyword::Var)))
+    )
+}
+
+fn extract_declaration_header(text: &str, ast_span: Option<Span>, name_offset: usize) -> String {
+    let (start, bound_end) = match ast_span {
+        Some(span) if span.start() <= span.end() && span.end() <= text.len() => {
+            (span.start(), span.end())
+        }
+        _ => (
+            text[..name_offset].rfind('\n').map_or(0, |i| i + 1),
+            text.len(),
+        ),
+    };
+    let rest = &text[start..bound_end];
     let mut map = SourceMap::new();
     let Ok(sid) = map.add_source("<hover>", rest) else {
         return String::new();
