@@ -1,119 +1,21 @@
 //! LSP IDE 语义查询：Hover、Inlay Hints 与 Rename 校验/准备。
 
-use std::collections::{BTreeMap, HashMap};
-
 use lang_frontend::{
+    lexer::{Keyword, LexemeKind, Symbol, TokenKind, lex},
     name_resolution::{CompilationUnitNames, SourceUnitId, SymbolKind, UnitSymbolId},
-    source::{SourceId, Span},
+    source::{SourceId, SourceMap, Span},
     type_checking::{CompilationUnitTypes, ParameterMode, UnitTypeId, UnitTypeKind},
 };
 use lsp_types::{
-    Hover, HoverContents, InlayHint, InlayHintKind, InlayHintLabel, Location, MarkupContent,
-    MarkupKind, Position, PrepareRenameResponse, Range, TextEdit, Uri, WorkspaceEdit,
+    Hover, HoverContents, InlayHint, InlayHintKind, InlayHintLabel, MarkupContent, MarkupKind,
+    Position, PrepareRenameResponse, Range,
 };
 
 use crate::{
     position_adapter::{PositionMappingError, span_range},
+    rename::{is_valid_rename_identifier, span_slice},
     unit_analysis_snapshot::UnitAnalysisSnapshot,
 };
-
-const HARD_KEYWORDS: &[&str] = &[
-    "as",
-    "break",
-    "class",
-    "const",
-    "continue",
-    "deinit",
-    "else",
-    "enum",
-    "extern",
-    "false",
-    "for",
-    "fun",
-    "if",
-    "import",
-    "in",
-    "interface",
-    "internal",
-    "is",
-    "loop",
-    "null",
-    "object",
-    "override",
-    "package",
-    "private",
-    "public",
-    "return",
-    "super",
-    "this",
-    "true",
-    "val",
-    "var",
-    "when",
-    "while",
-];
-
-/// 判断候选标识符是否是可安全重命名的 Koven 标识符。
-pub(crate) fn is_valid_rename_identifier(name: &str) -> bool {
-    let mut chars = name.chars();
-    let Some(first) = chars.next() else {
-        return false;
-    };
-    if !(first.is_ascii_alphabetic() || first == '_') {
-        return false;
-    }
-    if !chars.all(|ch| ch.is_ascii_alphanumeric() || ch == '_') {
-        return false;
-    }
-    !HARD_KEYWORDS.contains(&name)
-}
-
-/// 将一组已排序的引用位置构造成 `WorkspaceEdit`。
-pub(crate) fn build_workspace_edit(
-    locations: Vec<Location>,
-    new_name: &str,
-) -> Option<WorkspaceEdit> {
-    if locations.is_empty() {
-        return None;
-    }
-    let mut grouped: BTreeMap<String, (Uri, Vec<TextEdit>)> = BTreeMap::new();
-    for location in locations {
-        let entry = grouped
-            .entry(location.uri.as_str().to_owned())
-            .or_insert_with(|| (location.uri, Vec::new()));
-        entry.1.push(TextEdit {
-            range: location.range,
-            new_text: new_name.to_owned(),
-        });
-    }
-    // lsp_types::WorkspaceEdit::changes 固定使用 HashMap<Uri, Vec<TextEdit>>。
-    #[allow(clippy::mutable_key_type)]
-    let mut changes: HashMap<Uri, Vec<TextEdit>> = HashMap::with_capacity(grouped.len());
-    for (_, (uri, mut edits)) in grouped {
-        edits.sort_by_key(|e| {
-            (
-                e.range.start.line,
-                e.range.start.character,
-                e.range.end.line,
-                e.range.end.character,
-            )
-        });
-        edits.dedup_by_key(|e| {
-            (
-                e.range.start.line,
-                e.range.start.character,
-                e.range.end.line,
-                e.range.end.character,
-            )
-        });
-        changes.insert(uri, edits);
-    }
-    Some(WorkspaceEdit {
-        changes: Some(changes),
-        document_changes: None,
-        change_annotations: None,
-    })
-}
 
 /// 在给定位置计算 `textDocument/hover`。
 pub(crate) fn hover_at(
@@ -252,20 +154,19 @@ pub(crate) fn prepare_rename_at(
     source_unit: SourceUnitId,
     offset: usize,
 ) -> Result<Option<PrepareRenameResponse>, PositionMappingError> {
-    let Some((ref_span, targets)) = snapshot.definitions().entry_at(source_unit, offset) else {
-        return Ok(None);
-    };
-    if targets.is_empty() {
-        return Ok(None);
-    }
     let sources = snapshot.name_snapshot().sources();
-    let Ok(text) = sources.source_text(ref_span.source_id()) else {
+    let Some((ref_span, _)) = snapshot.definitions().entry_at(source_unit, offset) else {
         return Ok(None);
     };
-    if ref_span.end() > text.len() || ref_span.start() >= ref_span.end() {
+    let Ok(Some(_)) = snapshot
+        .definitions()
+        .plan_rename_at(source_unit, offset, sources)
+    else {
         return Ok(None);
-    }
-    let placeholder = &text[ref_span.start()..ref_span.end()];
+    };
+    let Some(placeholder) = span_slice(sources, ref_span) else {
+        return Ok(None);
+    };
     if !is_valid_rename_identifier(placeholder) {
         return Ok(None);
     }
@@ -351,11 +252,19 @@ fn describe_target(
 
 fn has_explicit_type_annotation(text: &str, after_name_offset: usize) -> bool {
     let rest = &text[after_name_offset..];
-    for ch in rest.chars() {
-        if ch == ' ' || ch == '\t' {
-            continue;
+    let mut map = SourceMap::new();
+    let Ok(sid) = map.add_source("<inlay>", rest) else {
+        return false;
+    };
+    let Ok(lexed) = lex(&map, sid) else {
+        return false;
+    };
+    for lexeme in lexed.lexemes() {
+        match lexeme.kind() {
+            LexemeKind::Trivia(_) => continue,
+            LexemeKind::Token(TokenKind::Symbol(Symbol::Colon)) => return true,
+            _ => return false,
         }
-        return ch == ':';
     }
     false
 }
@@ -369,11 +278,70 @@ fn position_in_range(pos: Position, range: Range) -> bool {
 
 fn extract_declaration_header(text: &str, name_offset: usize) -> String {
     let line_start = text[..name_offset].rfind('\n').map_or(0, |i| i + 1);
-    let line_end = text[name_offset..]
-        .find('\n')
-        .map_or(text.len(), |i| name_offset + i);
-    let line = text[line_start..line_end].trim();
-    line.trim_end_matches('{').trim_end().to_owned()
+    let rest = &text[line_start..];
+    let mut map = SourceMap::new();
+    let Ok(sid) = map.add_source("<hover>", rest) else {
+        return String::new();
+    };
+    let Ok(lexed) = lex(&map, sid) else {
+        return String::new();
+    };
+    let mut paren = 0usize;
+    let mut angle = 0usize;
+    let mut is_value_decl = false;
+    let mut seen_decl_kw = false;
+    let mut end = rest.len();
+    for lexeme in lexed.lexemes() {
+        match lexeme.kind() {
+            LexemeKind::Token(TokenKind::Keyword(kw)) if !seen_decl_kw => match kw {
+                Keyword::Val | Keyword::Var | Keyword::Const | Keyword::Typealias => {
+                    is_value_decl = true;
+                    seen_decl_kw = true;
+                }
+                Keyword::Fun
+                | Keyword::Class
+                | Keyword::Interface
+                | Keyword::Object
+                | Keyword::Enum => {
+                    seen_decl_kw = true;
+                }
+                _ => {}
+            },
+            LexemeKind::Token(TokenKind::Symbol(Symbol::LeftParen)) => paren += 1,
+            LexemeKind::Token(TokenKind::Symbol(Symbol::RightParen)) => {
+                paren = paren.saturating_sub(1);
+            }
+            LexemeKind::Token(TokenKind::Symbol(Symbol::Less)) => angle += 1,
+            LexemeKind::Token(TokenKind::Symbol(Symbol::Greater)) => {
+                angle = angle.saturating_sub(1);
+            }
+            LexemeKind::Token(TokenKind::Symbol(Symbol::LeftBrace)) if paren == 0 && angle == 0 => {
+                end = lexeme.span().start();
+                break;
+            }
+            LexemeKind::Token(TokenKind::Symbol(Symbol::Equal))
+                if !is_value_decl && paren == 0 && angle == 0 =>
+            {
+                end = lexeme.span().start();
+                break;
+            }
+            LexemeKind::Token(TokenKind::Symbol(Symbol::Semicolon)) if paren == 0 && angle == 0 => {
+                end = lexeme.span().start();
+                break;
+            }
+            LexemeKind::Trivia(_)
+                if is_value_decl
+                    && paren == 0
+                    && angle == 0
+                    && rest[lexeme.span().start()..lexeme.span().end()].contains('\n') =>
+            {
+                end = lexeme.span().start();
+                break;
+            }
+            _ => {}
+        }
+    }
+    rest[..end].trim().to_owned()
 }
 
 fn extract_leading_doc_comment(text: &str, name_offset: usize) -> Option<String> {

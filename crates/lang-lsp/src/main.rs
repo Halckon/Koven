@@ -6,6 +6,7 @@ mod diagnostic_adapter;
 mod formatting;
 mod ide_features;
 mod position_adapter;
+mod rename;
 mod server;
 mod source_set;
 mod unit_analysis_snapshot;
