@@ -6,7 +6,7 @@
   </defs>
   <rect width="5112" height="400" fill="#ffffff"/>
   <rect x="40" y="30" width="280" height="106" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="180" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，480 份）</text>
+  <text x="180" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，481 份）</text>
   <rect x="384" y="30" width="2392" height="298" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="1580" y="50" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
   <rect x="2840" y="186" width="280" height="124" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
@@ -102,11 +102,11 @@
   <text x="2372" y="123" text-anchor="middle" font-size="13"> manifest 加载与诊</text>
   <text x="2372" y="141" text-anchor="middle" font-size="13">断源码片段上下文</text>
   <rect x="2516" y="64" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="2636" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0513</text>
-  <text x="2636" y="105" text-anchor="middle" font-size="13">F6 第十三片 supert</text>
-  <text x="2636" y="123" text-anchor="middle" font-size="13">ypes 委托边界、dein</text>
-  <text x="2636" y="141" text-anchor="middle" font-size="13">it 后缀决策与 Lamb…</text>
+  <text x="2636" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0514</text>
+  <text x="2636" y="105" text-anchor="middle" font-size="13">F6 第十四片 block </text>
+  <text x="2636" y="123" text-anchor="middle" font-size="13">块语句分隔符、换行边界、显式</text>
+  <text x="2636" y="141" text-anchor="middle" font-size="13"> block { 与缺失块…</text>
   <rect x="60" y="64" width="240" height="56" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">已完成 Spec</text>
-  <text x="180" y="105" text-anchor="middle" font-size="13">archive，480 份</text>
+  <text x="180" y="105" text-anchor="middle" font-size="13">archive，481 份</text>
 </svg>
