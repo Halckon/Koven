@@ -1,6 +1,6 @@
 use super::*;
 
-pub(super) fn unsupported_block_element_kind(kind: LexemeKind) -> bool {
+pub(super) const fn unsupported_block_element_kind(kind: LexemeKind) -> bool {
     matches!(
         kind,
         LexemeKind::Token(TokenKind::Keyword(
@@ -15,6 +15,101 @@ pub(super) fn unsupported_block_element_kind(kind: LexemeKind) -> bool {
                 | Keyword::Companion
         ))
     )
+}
+
+pub(super) const fn block_expression_line_break_boundary(
+    block_elements: bool,
+    kind: LexemeKind,
+    has_line_break: bool,
+) -> bool {
+    block_elements
+        && has_line_break
+        && matches!(
+            kind,
+            LexemeKind::Token(TokenKind::Symbol(
+                Symbol::LeftParen | Symbol::Plus | Symbol::Minus
+            ))
+        )
+}
+
+pub(super) const fn is_explicit_block_start(
+    current_kind: LexemeKind,
+    is_block_ident: bool,
+    next_kind: Option<LexemeKind>,
+    has_line_break: bool,
+) -> bool {
+    matches!(current_kind, LexemeKind::Token(TokenKind::Identifier))
+        && is_block_ident
+        && matches!(
+            next_kind,
+            Some(LexemeKind::Token(TokenKind::Symbol(Symbol::LeftBrace)))
+        )
+        && !has_line_break
+}
+
+pub(super) const fn block_element_separator_required(
+    current_kind: LexemeKind,
+    outer_hard_stop: bool,
+    is_poison: bool,
+    is_unsupported_block_element: bool,
+    can_start_expression: bool,
+    prev_is_error: bool,
+    has_line_break: bool,
+) -> bool {
+    let starts_loop = matches!(
+        current_kind,
+        LexemeKind::Token(TokenKind::Keyword(Keyword::While | Keyword::For))
+    );
+    let is_delim_or_eof = matches!(
+        current_kind,
+        LexemeKind::Eof
+            | LexemeKind::Token(TokenKind::Symbol(Symbol::Semicolon | Symbol::RightBrace))
+    );
+    let starts_next = can_start_expression
+        || matches!(
+            current_kind,
+            LexemeKind::Token(TokenKind::Keyword(
+                Keyword::Val | Keyword::Var | Keyword::While | Keyword::For
+            ))
+        );
+    !is_delim_or_eof
+        && !outer_hard_stop
+        && !is_poison
+        && (!is_unsupported_block_element || starts_loop)
+        && starts_next
+        && !prev_is_error
+        && !has_line_break
+}
+
+pub(super) const fn step_missing_block_root_end(
+    current_end: usize,
+    kind: LexemeKind,
+    lexeme_end: usize,
+) -> (usize, bool) {
+    match kind {
+        LexemeKind::Eof => (current_end, true),
+        LexemeKind::Trivia(_) => (current_end, false),
+        _ => (lexeme_end, false),
+    }
+}
+
+#[cfg(any(test, kani))]
+pub(super) fn run_missing_block_root_end(
+    initial_end: usize,
+    lexemes: &[(LexemeKind, usize)],
+) -> usize {
+    let mut end = initial_end;
+    let mut index = 0usize;
+    while index < lexemes.len() {
+        let (kind, lexeme_end) = lexemes[index];
+        let (next_end, stop) = step_missing_block_root_end(end, kind, lexeme_end);
+        end = next_end;
+        if stop {
+            break;
+        }
+        index += 1;
+    }
+    end
 }
 
 impl Parser<'_> {
@@ -72,15 +167,16 @@ impl Parser<'_> {
             return Ok(false);
         }
         let current = self.current()?;
-        if !matches!(
-            current.kind(),
-            LexemeKind::Token(TokenKind::Symbol(
-                Symbol::LeftParen | Symbol::Plus | Symbol::Minus
-            ))
-        ) {
+        if !block_expression_line_break_boundary(true, current.kind(), true) {
             return Ok(false);
         }
-        self.gap_has_line_break(self.expression_span(left)?.end(), current.span().start())
+        let has_line_break =
+            self.gap_has_line_break(self.expression_span(left)?.end(), current.span().start())?;
+        Ok(block_expression_line_break_boundary(
+            stops.block_elements,
+            current.kind(),
+            has_line_break,
+        ))
     }
 
     pub(super) fn parse_block_root(&mut self) -> Result<StatementId, ParserInternalError> {
@@ -118,10 +214,10 @@ impl Parser<'_> {
         while self.index < self.lexed.lexemes().len() {
             let lexeme = self.lexed.lexemes()[self.index];
             self.index += 1;
-            if !matches!(lexeme.kind(), LexemeKind::Trivia(_) | LexemeKind::Eof) {
-                end = lexeme.span().end();
-            }
-            if matches!(lexeme.kind(), LexemeKind::Eof) {
+            let (next_end, stop) =
+                step_missing_block_root_end(end, lexeme.kind(), lexeme.span().end());
+            end = next_end;
+            if stop {
                 break;
             }
         }
@@ -132,21 +228,26 @@ impl Parser<'_> {
         &self,
         current: Lexeme,
     ) -> Result<bool, ParserInternalError> {
-        if !matches!(current.kind(), LexemeKind::Token(TokenKind::Identifier))
-            || self.sources.slice(current.span())? != "block"
-        {
+        if !matches!(current.kind(), LexemeKind::Token(TokenKind::Identifier)) {
+            return Ok(false);
+        }
+        let is_block_ident = self.sources.slice(current.span())? == "block";
+        if !is_block_ident {
             return Ok(false);
         }
         let Some(next) = self.peek(1) else {
             return Ok(false);
         };
-        if !matches!(
-            next.kind(),
-            LexemeKind::Token(TokenKind::Symbol(Symbol::LeftBrace))
-        ) {
+        if !is_explicit_block_start(current.kind(), true, Some(next.kind()), false) {
             return Ok(false);
         }
-        Ok(!self.gap_has_line_break(current.span().end(), next.span().start())?)
+        let has_line_break = self.gap_has_line_break(current.span().end(), next.span().start())?;
+        Ok(is_explicit_block_start(
+            current.kind(),
+            is_block_ident,
+            Some(next.kind()),
+            has_line_break,
+        ))
     }
 
     pub(super) fn parse_explicit_block_statement(
@@ -261,25 +362,30 @@ impl Parser<'_> {
         outer_stops: Stops,
     ) -> Result<(), ParserInternalError> {
         let current = self.current()?;
-        let starts_loop = matches!(
+        let outer_hard_stop = outer_stops.contains_hard(current);
+        let is_poison = self.is_poison_kind(current.kind());
+        if !block_element_separator_required(
             current.kind(),
-            LexemeKind::Token(TokenKind::Keyword(Keyword::While | Keyword::For))
-        );
-        if matches!(
+            outer_hard_stop,
+            is_poison,
+            false,
+            true,
+            false,
+            false,
+        ) {
+            return Ok(());
+        }
+        let is_unsupported = self.is_unsupported_block_element()?;
+        let can_start_expr = self.can_start_expression(current);
+        if !block_element_separator_required(
             current.kind(),
-            LexemeKind::Eof
-                | LexemeKind::Token(TokenKind::Symbol(Symbol::Semicolon | Symbol::RightBrace))
-        ) || outer_stops.contains_hard(current)
-            || self.is_poison_kind(current.kind())
-            || (self.is_unsupported_block_element()? && !starts_loop)
-            || !(self.can_start_expression(current)
-                || matches!(
-                    current.kind(),
-                    LexemeKind::Token(TokenKind::Keyword(
-                        Keyword::Val | Keyword::Var | Keyword::While | Keyword::For
-                    ))
-                ))
-        {
+            outer_hard_stop,
+            is_poison,
+            is_unsupported,
+            can_start_expr,
+            false,
+            false,
+        ) {
             return Ok(());
         }
         let node = self.ast.statements().get(element)?;
@@ -294,12 +400,24 @@ impl Parser<'_> {
             }
             _ => None,
         };
-        if let Some(id) = expression
-            && matches!(self.ast.expressions().get(id)?.payload(), Expression::Error)
-        {
+        let prev_is_error = if let Some(id) = expression {
+            matches!(self.ast.expressions().get(id)?.payload(), Expression::Error)
+        } else {
+            false
+        };
+        if prev_is_error {
             return Ok(());
         }
-        if self.gap_has_line_break(node.span().end(), current.span().start())? {
+        let has_line_break = self.gap_has_line_break(node.span().end(), current.span().start())?;
+        if !block_element_separator_required(
+            current.kind(),
+            outer_hard_stop,
+            is_poison,
+            is_unsupported,
+            can_start_expr,
+            prev_is_error,
+            has_line_break,
+        ) {
             return Ok(());
         }
         self.emit(
@@ -592,5 +710,94 @@ impl Parser<'_> {
         Ok(self
             .peek(0)
             .is_some_and(|lexeme| unsupported_block_element_kind(lexeme.kind())))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::lexer::TriviaKind;
+
+    #[test]
+    fn unsupported_block_element_kind_matches_exact_keyword_set() {
+        for keyword in [
+            Keyword::Const,
+            Keyword::Fun,
+            Keyword::For,
+            Keyword::While,
+            Keyword::Class,
+            Keyword::Interface,
+            Keyword::Enum,
+            Keyword::Object,
+            Keyword::Companion,
+        ] {
+            assert!(unsupported_block_element_kind(LexemeKind::Token(
+                TokenKind::Keyword(keyword)
+            )));
+        }
+        assert!(!unsupported_block_element_kind(LexemeKind::Token(
+            TokenKind::Keyword(Keyword::Val)
+        )));
+        assert!(!unsupported_block_element_kind(LexemeKind::Token(
+            TokenKind::Identifier
+        )));
+    }
+
+    #[test]
+    fn block_expression_line_break_boundary_requires_owner_newline_and_ambiguous_symbol() {
+        for symbol in [Symbol::LeftParen, Symbol::Plus, Symbol::Minus] {
+            let kind = LexemeKind::Token(TokenKind::Symbol(symbol));
+            assert!(block_expression_line_break_boundary(true, kind, true));
+            assert!(!block_expression_line_break_boundary(false, kind, true));
+            assert!(!block_expression_line_break_boundary(true, kind, false));
+        }
+        assert!(!block_expression_line_break_boundary(
+            true,
+            LexemeKind::Token(TokenKind::Symbol(Symbol::Dot)),
+            true
+        ));
+    }
+
+    #[test]
+    fn explicit_block_start_requires_same_line_block_ident_and_left_brace() {
+        let ident = LexemeKind::Token(TokenKind::Identifier);
+        let lbrace = Some(LexemeKind::Token(TokenKind::Symbol(Symbol::LeftBrace)));
+        assert!(is_explicit_block_start(ident, true, lbrace, false));
+        assert!(!is_explicit_block_start(ident, false, lbrace, false));
+        assert!(!is_explicit_block_start(ident, true, lbrace, true));
+        assert!(!is_explicit_block_start(ident, true, None, false));
+    }
+
+    #[test]
+    fn block_element_separator_exempts_same_line_while_and_for_from_unsupported_suppression() {
+        let kw_while = LexemeKind::Token(TokenKind::Keyword(Keyword::While));
+        let kw_for = LexemeKind::Token(TokenKind::Keyword(Keyword::For));
+        let kw_fun = LexemeKind::Token(TokenKind::Keyword(Keyword::Fun));
+        assert!(block_element_separator_required(
+            kw_while, false, false, true, false, false, false
+        ));
+        assert!(block_element_separator_required(
+            kw_for, false, false, true, false, false, false
+        ));
+        assert!(!block_element_separator_required(
+            kw_fun, false, false, true, true, false, false
+        ));
+        assert!(!block_element_separator_required(
+            kw_while, false, false, true, false, false, true
+        ));
+    }
+
+    #[test]
+    fn missing_block_root_end_stops_at_eof_and_ignores_trailing_trivia() {
+        let end = run_missing_block_root_end(
+            3,
+            &[
+                (LexemeKind::Token(TokenKind::Identifier), 8),
+                (LexemeKind::Trivia(TriviaKind::Whitespace), 10),
+                (LexemeKind::Eof, 10),
+                (LexemeKind::Token(TokenKind::Identifier), 25),
+            ],
+        );
+        assert_eq!(end, 8);
     }
 }

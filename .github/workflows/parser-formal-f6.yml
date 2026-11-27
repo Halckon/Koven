@@ -18,11 +18,14 @@ on:
       - 'formal/parser/f6_owner_events/**'
       - 'formal/parser/f6_when_boundary/**'
       - 'formal/parser/f6_supertypes/**'
+      - 'formal/parser/f6_block_boundary/**'
       - 'crates/lang-frontend/src/parser/lambda_trial.rs'
       - 'crates/lang-frontend/src/parser/trial.rs'
       - 'crates/lang-frontend/src/parser/trial/kernel.rs'
       - 'crates/lang-frontend/src/parser/trial/kernel_kani.rs'
       - 'crates/lang-frontend/src/parser/engine.rs'
+      - 'crates/lang-frontend/src/parser/engine/block.rs'
+      - 'crates/lang-frontend/src/parser/engine/block_kani.rs'
       - 'crates/lang-frontend/src/parser/engine/lexeme_stream_kani.rs'
       - 'crates/lang-frontend/src/parser/engine/boundary.rs'
       - 'crates/lang-frontend/src/parser/engine/operator.rs'
@@ -65,11 +68,14 @@ on:
       - 'formal/parser/f6_owner_events/**'
       - 'formal/parser/f6_when_boundary/**'
       - 'formal/parser/f6_supertypes/**'
+      - 'formal/parser/f6_block_boundary/**'
       - 'crates/lang-frontend/src/parser/lambda_trial.rs'
       - 'crates/lang-frontend/src/parser/trial.rs'
       - 'crates/lang-frontend/src/parser/trial/kernel.rs'
       - 'crates/lang-frontend/src/parser/trial/kernel_kani.rs'
       - 'crates/lang-frontend/src/parser/engine.rs'
+      - 'crates/lang-frontend/src/parser/engine/block.rs'
+      - 'crates/lang-frontend/src/parser/engine/block_kani.rs'
       - 'crates/lang-frontend/src/parser/engine/lexeme_stream_kani.rs'
       - 'crates/lang-frontend/src/parser/engine/boundary.rs'
       - 'crates/lang-frontend/src/parser/engine/operator.rs'
@@ -106,7 +112,7 @@ concurrency:
 
 jobs:
   lean4-model-proof:
-    name: F6 Lean 4 Model Proofs (all 13 F6 slices, 88 theorems)
+    name: F6 Lean 4 Model Proofs (all 14 F6 slices, 95 theorems)
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -129,7 +135,8 @@ jobs:
             formal/parser/f6_owner_events/.lake
             formal/parser/f6_when_boundary/.lake
             formal/parser/f6_supertypes/.lake
-          key: f6-lean4-${{ hashFiles('formal/parser/f6_angle_groups/lean-toolchain', 'formal/parser/f6_ordinary_groups/lean-toolchain', 'formal/parser/f6_group_owners/lean-toolchain', 'formal/parser/f6_adjacent_poison/lean-toolchain', 'formal/parser/f6_pratt_precedence/lean-toolchain', 'formal/parser/f6_stops_lattice/lean-toolchain', 'formal/parser/f6_lambda_trial/lean-toolchain', 'formal/parser/f6_lexeme_stream/lean-toolchain', 'formal/parser/f6_diagnostic_anchor/lean-toolchain', 'formal/parser/f6_strict_call_trial/lean-toolchain', 'formal/parser/f6_owner_events/lean-toolchain', 'formal/parser/f6_when_boundary/lean-toolchain', 'formal/parser/f6_supertypes/lean-toolchain') }}
+            formal/parser/f6_block_boundary/.lake
+          key: f6-lean4-${{ hashFiles('formal/parser/f6_angle_groups/lean-toolchain', 'formal/parser/f6_ordinary_groups/lean-toolchain', 'formal/parser/f6_group_owners/lean-toolchain', 'formal/parser/f6_adjacent_poison/lean-toolchain', 'formal/parser/f6_pratt_precedence/lean-toolchain', 'formal/parser/f6_stops_lattice/lean-toolchain', 'formal/parser/f6_lambda_trial/lean-toolchain', 'formal/parser/f6_lexeme_stream/lean-toolchain', 'formal/parser/f6_diagnostic_anchor/lean-toolchain', 'formal/parser/f6_strict_call_trial/lean-toolchain', 'formal/parser/f6_owner_events/lean-toolchain', 'formal/parser/f6_when_boundary/lean-toolchain', 'formal/parser/f6_supertypes/lean-toolchain', 'formal/parser/f6_block_boundary/lean-toolchain') }}
       - name: Install elan if missing
         run: |
           if ! command -v elan >/dev/null 2>&1; then
@@ -910,9 +917,69 @@ jobs:
               sys.exit(f"error: missing axiom reports for: {sorted(missing)}")
           print("all 6 F6Supertypes theorems depend only on allowed core Lean axioms")
           PY
+      - name: Build F6BlockBoundary with warnings as errors
+        working-directory: formal/parser/f6_block_boundary
+        run: |
+          lake build
+          lake env lean -DwarningAsError=true F6BlockBoundary.lean
+      - name: Verify F6BlockBoundary theorem axiom dependencies
+        working-directory: formal/parser/f6_block_boundary
+        run: |
+          set -euo pipefail
+          axioms_out="$(lake env lean --stdin <<'EOF'
+          import F6BlockBoundary
+          #print axioms F6BlockBoundary.unsupportedBlockElement_spec
+          #print axioms F6BlockBoundary.blockExprLineBreakBoundary_spec
+          #print axioms F6BlockBoundary.isExplicitBlockStart_spec
+          #print axioms F6BlockBoundary.blockElementSeparatorRequired_spec
+          #print axioms F6BlockBoundary.blockElementSeparatorRequired_while_for_exempt_from_unsupported
+          #print axioms F6BlockBoundary.runMissingBlockRootEnd_eq_last_content_before_eof
+          #print axioms F6BlockBoundary.runMissingBlockRootEnd_ignores_trailing_trivia_and_after_eof
+          EOF
+          )"
+          printf '%s\n' "$axioms_out"
+          python3 - "$axioms_out" <<'PY'
+          import re, sys
+
+          expected = {
+              "F6BlockBoundary.unsupportedBlockElement_spec",
+              "F6BlockBoundary.blockExprLineBreakBoundary_spec",
+              "F6BlockBoundary.isExplicitBlockStart_spec",
+              "F6BlockBoundary.blockElementSeparatorRequired_spec",
+              "F6BlockBoundary.blockElementSeparatorRequired_while_for_exempt_from_unsupported",
+              "F6BlockBoundary.runMissingBlockRootEnd_eq_last_content_before_eof",
+              "F6BlockBoundary.runMissingBlockRootEnd_ignores_trailing_trivia_and_after_eof",
+          }
+          allowed = {"propext", "Quot.sound", "Classical.choice"}
+          seen = set()
+
+          for raw_line in sys.argv[1].splitlines():
+              line = raw_line.strip()
+              if not line:
+                  continue
+              m_none = re.fullmatch(r"'([^']+)' does not depend on any axioms", line)
+              if m_none:
+                  seen.add(m_none.group(1))
+                  continue
+              m_deps = re.fullmatch(r"'([^']+)' depends on axioms: \[([^\]]*)\]", line)
+              if m_deps:
+                  thm = m_deps.group(1)
+                  deps = {a.strip() for a in m_deps.group(2).split(",") if a.strip()}
+                  bad = deps - allowed
+                  if bad:
+                      sys.exit(f"error: theorem {thm} depends on disallowed axioms: {sorted(bad)}")
+                  seen.add(thm)
+                  continue
+              sys.exit(f"error: unexpected #print axioms output line: {line}")
+
+          missing = expected - seen
+          if missing:
+              sys.exit(f"error: missing axiom reports for: {sorted(missing)}")
+          print("all 7 F6BlockBoundary theorems depend only on allowed core Lean axioms")
+          PY
 
   kani-bounded-rust:
-    name: F6 Kani Bounded Rust Proofs (all 13 F6 slices, 32 harnesses)
+    name: F6 Kani Bounded Rust Proofs (all 14 F6 slices, 35 harnesses)
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -970,4 +1037,7 @@ jobs:
             --harness verify_when_boundary_run_events_balance_len_6 \
             --harness verify_supertype_direct_boundary_and_lambda_token_classification \
             --harness verify_supertype_deinit_and_suffix_stop_decisions \
-            --harness verify_delegation_lambda_tail_run_len_6
+            --harness verify_delegation_lambda_tail_run_len_6 \
+            --harness verify_block_unsupported_line_break_and_explicit_start \
+            --harness verify_block_element_separator_required_matrix \
+            --harness verify_missing_block_root_end_run_len_6

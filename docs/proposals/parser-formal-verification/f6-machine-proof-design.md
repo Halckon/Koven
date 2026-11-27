@@ -1,6 +1,6 @@
 # F6：局部机器证明前置设计与首片选型方案
 
-> **性质**：非规范前置设计与收口索引 · **状态**：12 片 F6 双轨证明全部完成并归档（`SPEC-0490`/`0492`/`0498`–`0500`/`0505`–`0510`/`0512`） · **读取时机**：查阅 F6 证明范围、工具路线、证据边界与已归档切片账本时 · **唯一真源**：各归档 Spec 验收账本；本页维护总体选型与证据边界
+> **性质**：非规范前置设计与收口索引 · **状态**：13 片 F6 双轨证明全部完成并归档（`SPEC-0490`/`0492`/`0498`–`0500`/`0505`–`0510`/`0512`–`0513`） · **读取时机**：查阅 F6 证明范围、工具路线、证据边界与已归档切片账本时 · **唯一真源**：各归档 Spec 验收账本；本页维护总体选型与证据边界
 
 基点：`main@f3b9cc5ad28ffe8db95ff16a0ebda8b70f182ce7`，Guide v0.47。
 本设计严格遵守[主计划](../parser-formal-verification-plan.md#5-分阶段执行与退出条件)与[验证合同 §4](contracts/validation.md#4-文法证据与版本合同)：
@@ -78,9 +78,9 @@
 2. **工具路线**：已确认 **Lean 4（零 Mathlib 无限长定理）+ Kani（有界生产 Rust 符号检验）双轨并行**。
 3. **CI 策略**：不采用源码文本哈希门禁；采用 **路径触发的独立轻量 CI workflow** 直接运行双轨验证（先 advisory，对无关 PR 零开销）。
 
-## 5. 实施收口账本（12 片全量归档）
+## 5. 实施收口账本（13 片全量归档）
 
-截至 `main@a899841c`（PR #477 [F6 Lean 4 作业](https://github.com/Halckon/Koven/actions/runs/45797758634/job/139832703151) 与 [F6 Kani 作业](https://github.com/Halckon/Koven/actions/runs/45797758634/job/139832703749)，以及 PR #483 与 PR #486 连续扩展至 `main@d405ed2b`），全部 **12 个高价值纯解析内核切片（共 82 条 Lean 4 机器检查模型定理 + 29 条 Kani 直接 Rust harness）** 已完成实现、接入 [.github/workflows/parser-formal-f6.yml](../../../.github/workflows/parser-formal-f6.yml) 并验收归档。其中 11 片共 74 条定理为 `proved (model, unbounded)`，Slice 6（`SPEC-0508` Stops 边界格）的 8 条定理为 `proved (model, complete finite lattice)`；Kani 轨道保持 `validated (bounded Rust)`，二者均不升级为全输入生产 G4：
+截至 `main@a899841c`（PR #477 [F6 Lean 4 作业](https://github.com/Halckon/Koven/actions/runs/45797758634/job/139832703151) 与 [F6 Kani 作业](https://github.com/Halckon/Koven/actions/runs/45797758634/job/139832703749)，以及 PR #483、PR #486 与 PR #490 连续扩展至 `main@36012f86`），全部 **13 个高价值纯解析内核切片（共 88 条 Lean 4 机器检查模型定理 + 32 条 Kani 直接 Rust harness）** 已完成实现、接入 [.github/workflows/parser-formal-f6.yml](../../../.github/workflows/parser-formal-f6.yml) 并验收归档。其中 12 片共 80 条定理为 `proved (model, unbounded)`，Slice 6（`SPEC-0508` Stops 边界格）的 8 条定理为 `proved (model, complete finite lattice)`；Kani 轨道保持 `validated (bounded Rust)`，二者均不升级为全输入生产 G4：
 
 | 切片 | 归档 Spec | 证明对象 | Lean 4 定理数（证据等级） | Kani Harness 数 |
 |---|---|---|---|---|
@@ -96,3 +96,4 @@
 | Slice 10 | [SPEC-0507](../../archive/specs/0507-f6-strict-call-trial-machine-proof.md) | `StrictCallTrialIndex` 索引、反向 DP 与递归预算 | 6 (`unbounded`) | 2 |
 | Slice 11 | [SPEC-0510](../../archive/specs/0510-f6-lexical-owner-events-machine-proof.md) | `LexicalRecoveryIndex` 词法 owner 栈与 `verified_events` 构造 | 11 (`unbounded`) | 2 |
 | Slice 12 | [SPEC-0512](../../archive/specs/0512-f6-when-boundary-machine-proof.md) | `WhenEntryBody` / `SelectorScanState` 换行新选择器与 `if`/`else` 平衡 | 7 (`unbounded`) | 3 |
+| Slice 13 | [SPEC-0513](../../archive/specs/0513-f6-supertypes-boundary-machine-proof.md) | `supertypes` 委托边界、`deinit` 后缀决策与 Lambda 尾扫描 | 6 (`unbounded`) | 3 |

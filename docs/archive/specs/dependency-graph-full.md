@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，480 份）"]
+subgraph Garchive["已完成（archive，481 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -489,6 +489,7 @@ subgraph Garchive["已完成（archive，480 份）"]
   S0509["S0509<br/>F6 第七片 LambdaHeaderIndex 单遍流式 DFA 等价性与线性步数双轨证明"]
   S0510["S0510<br/>F6 第十一片 LexicalRecoveryIndex 词法 owner 栈健全性与 verified_events 构造双轨证明"]
   S0512["S0512<br/>F6 第十二片 WhenEntryBody / SelectorScanState 换行新选择器与 if/else 平衡双轨证明"]
+  S0513["S0513<br/>F6 第十三片 supertypes 委托边界、deinit 后缀决策与 Lambda 尾扫描双轨证明"]
 end
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
@@ -501,7 +502,7 @@ subgraph Gactive["现行 active"]
   S0391["S0391<br/>Codegen 测试诊断落盘与有界失败摘要"]
   S0392["S0392<br/>编译器分层复审与前端合同修复"]
   S0511["S0511<br/>lang-lsp 显式工作区 manifest 加载与诊断源码片段上下文"]
-  S0513["S0513<br/>F6 第十三片 supertypes 委托边界、deinit 后缀决策与 Lambda 尾扫描双轨证明"]
+  S0514["S0514<br/>F6 第十四片 block 块语句分隔符、换行边界、显式 block { 与缺失块根扫描双轨证明"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -2071,6 +2072,7 @@ S0502 --> S0503
 | SPEC-0509 | archive | [0509-f6-lambda-trial-machine-proof.md](0509-f6-lambda-trial-machine-proof.md) |
 | SPEC-0510 | archive | [0510-f6-lexical-owner-events-machine-proof.md](0510-f6-lexical-owner-events-machine-proof.md) |
 | SPEC-0512 | archive | [0512-f6-when-boundary-machine-proof.md](0512-f6-when-boundary-machine-proof.md) |
+| SPEC-0513 | archive | [0513-f6-supertypes-boundary-machine-proof.md](0513-f6-supertypes-boundary-machine-proof.md) |
 | SPEC-0291 | active | [0291-readonly-map-construction.md](../../specs/active/0291-readonly-map-construction.md) |
 | SPEC-0333 | active | [0333-static-map-callers.md](../../specs/active/0333-static-map-callers.md) |
 | SPEC-0341 | active | [0341-shared-lowering-core.md](../../specs/active/0341-shared-lowering-core.md) |
@@ -2081,7 +2083,7 @@ S0502 --> S0503
 | SPEC-0391 | active | [0391-codegen-test-diagnostics.md](../../specs/active/0391-codegen-test-diagnostics.md) |
 | SPEC-0392 | active | [0392-compiler-layered-review.md](../../specs/active/0392-compiler-layered-review.md) |
 | SPEC-0511 | active | [0511-lsp-workspace-manifest-and-diagnostic-context.md](../../specs/active/0511-lsp-workspace-manifest-and-diagnostic-context.md) |
-| SPEC-0513 | active | [0513-f6-supertypes-boundary-machine-proof.md](../../specs/active/0513-f6-supertypes-boundary-machine-proof.md) |
+| SPEC-0514 | active | [0514-f6-block-boundary-machine-proof.md](../../specs/active/0514-f6-block-boundary-machine-proof.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](../../specs/drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](../../specs/drafts/v0.44/0335-map-borrow-caller-proof.md) |
