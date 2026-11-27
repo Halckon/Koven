@@ -210,3 +210,4 @@ F2 是否值得做、做多大，取决于 F0 的归因结果，所以现在能�
   2026-11-11 核对：标题为 `fix(parser)` 的提交仍是 33 个，最后一批在 11-10；但本地 HEAD 的日期是 11-11，只隔一天，据此无法判断修复流是否已经停止。
   若修复已经明显减少，F2 可以推迟到 v1 之后；若没有，推迟只会让 v1 的 P3（其中多项需要新语法）继续承受返工。
 - F3–F5（序 9–17）的时限是[演进总纲之十三](evolution-13-implementation-roadmap.md) §4.2 的阶段一 Guide 小版本：首批新表面语法（多来源 `from` 与静态不可变存储）进入 Guide 之前完成，同时继续为阶段二及后续新语法把关。
+- **2026-11-27 进度对账**（详见[分阶段形式化验证计划](parser-formal-verification-plan.md) §5、§7）：F0a/F0b（[归因基线](parser-formal-verification/recovery-baseline.md)与[观察基线](parser-formal-verification/observation-baseline.md)）、F1（[D1–D3 裁决卡](parser-formal-verification/grammar-decisions.md)与未启用的 [Guide 修订草案](parser-formal-verification/guide-amendment-draft.md)）、F3a–F3e 切片、F4a/F4c 首片、F4b 静态漂移核对、F5（[增量门禁清单](parser-formal-verification/syntax-gate-checklist.md)与 D1 演练）及 F6 前置设计均已归档；当前未闭环项为 D1–D3 草案正式启用于 Guide、F2 是否启动迁移的最终拍板、F4b Tree-sitter 二进制差分实跑，以及门禁工具选型与 CI 升级。
