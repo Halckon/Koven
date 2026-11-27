@@ -13,10 +13,11 @@ use lang_frontend::{
 
 use super::{Builder, Lowered, View, when::PredecessorBranch};
 use crate::ssa::{
+    expression_core::parse_float_literal,
     integer::{bitwise_operator, checked_operator, comparison_operator},
     lowering_support::{
         LoweringError, LoweringErrorKind, error, is_float_builtin, parse_char_literal,
-        parse_float_literal, string_literal,
+        string_literal,
     },
     model::{EntityType, ScalarConstant},
     refine::body::{BlockRef, RAbort, ROp, RTerm, Slot},

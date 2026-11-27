@@ -524,34 +524,6 @@ pub(in crate::ssa) fn is_null_only(typed: &CompilationUnitTypes, ty: UnitTypeId)
         if matches!(typed.types().get(*inner), Some(UnitTypeKind::Builtin(BuiltinType::Nothing))))
 }
 
-pub(in crate::ssa) fn parse_float_literal(
-    sources: &lang_frontend::source::SourceMap,
-    kind: lang_frontend::parser::FloatLiteralKind,
-    span: Span,
-) -> Result<super::model::ScalarConstant, LoweringError> {
-    use super::model::ScalarConstant;
-    use lang_frontend::parser::FloatLiteralKind;
-    let text = sources
-        .slice(span)
-        .map_err(|_| error(LoweringErrorKind::MismatchedSource, span))?;
-    let invalid = || error(LoweringErrorKind::InvalidLiteral, span);
-    let digits =
-        lang_frontend::type_checking::float_literal_core(text, kind).ok_or_else(invalid)?;
-    match kind {
-        FloatLiteralKind::Float => digits
-            .parse::<f32>()
-            .ok()
-            .filter(|v| v.is_finite())
-            .map(|value| ScalarConstant::Float32(value.to_bits())),
-        FloatLiteralKind::Double => digits
-            .parse::<f64>()
-            .ok()
-            .filter(|v| v.is_finite())
-            .map(|value| ScalarConstant::Float64(value.to_bits())),
-    }
-    .ok_or_else(invalid)
-}
-
 pub(in crate::ssa) fn parse_char_literal(
     sources: &lang_frontend::source::SourceMap,
     span: Span,

@@ -70,9 +70,10 @@ pub(in crate::ssa) use lang_frontend::{
 
 pub(in crate::ssa) use super::{
     LoweringError, LoweringErrorKind,
+    expression_core::parse_float_literal,
     lowering_support::{
-        error as lowering_error, parse_char_literal, parse_float_literal,
-        parse_integer_literal_text, present_name, span_key, string_literal,
+        error as lowering_error, parse_char_literal, parse_integer_literal_text, present_name,
+        span_key, string_literal,
     },
     model::{
         BlockId, EntityId, EntityType, Function, FunctionId, LoanId, LoanKind, Operation, Origin,
