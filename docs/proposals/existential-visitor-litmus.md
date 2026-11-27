@@ -151,7 +151,12 @@ interface Error : Display {
     fun message(): String
 }
 
-enum class IoError : Error {
+// E2 显式转换接口：postfix ? 在错误类型不同时仅选中已显式声明的转换，不凭“实现接口”隐式装箱
+interface Into<Target> {
+    own fun into(): Target
+}
+
+enum class IoError : Error, Into<Error> {
     NotFound(path: String),
     PermissionDenied(path: String);
 
@@ -161,9 +166,13 @@ enum class IoError : Error {
     }
 
     override fun toString(): String = this.message()
+
+    // X3 pack_owned 要求间接 owner：内联 enum class 经显式 Box(this) 装箱后打包为 owned Error
+    // （X4 隐式装箱糖启用前须显式写 Box(this)）
+    override own fun into(): Error = Box(this)
 }
 
-enum class ParseError : Error {
+enum class ParseError : Error, Into<Error> {
     InvalidSyntax(line: Int);
 
     override fun message(): String = when (this) {
@@ -171,6 +180,8 @@ enum class ParseError : Error {
     }
 
     override fun toString(): String = this.message()
+
+    override own fun into(): Error = Box(this)
 }
 
 class AppConfig(val port: Int)
@@ -179,7 +190,8 @@ class AppConfig(val port: Int)
 fun readConfigText(path: String): Result<String, IoError> { ... }
 fun parseConfigText(text: String): Result<AppConfig, ParseError> { ... }
 
-// 应用层：两处 ? 分别把 IoError / ParseError 经已声明的 Error 打包/转换规则提升为 owned Error
+// 应用层：两处 ? 分别选中 IoError.into(): Error 与 ParseError.into(): Error（E2 显式转换），
+// 内部经 Box(this) 转为间接 owner 后再经 X3 pack_owned 打包为 owned Error
 fun loadAppConfig(path: String): Result<AppConfig, Error> {
     val text = readConfigText(path)?
     val cfg = parseConfigText(text)?

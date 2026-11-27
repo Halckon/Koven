@@ -59,9 +59,10 @@ projection = ".field(", FieldId, ")"       (* class / value class 字段投影 *
 | `StorageLive(local)` / `StorageDead(local)` | 标记局部槽位的词法存活起止边界 | L0/L1 活性分析、IR2 析构展开 |
 | `Init(place, rvalue)` / `Assign(place, rvalue)` | 首次初始化或覆盖赋值（覆盖前须先处理旧值析构） | 借用检查、IR2、IR4 |
 | `Move(place)` / `Copy(place)` | 显式区分所有权转移与 `Copyable` 复制（由 C0 能力谓词决定） | 借用检查、IR4 |
-| `LoanBegin(loan, kind, place, parent?)` | 建立 `Shared` / `Exclusive`（含 `Reserved` 两阶段状态）或子 loan | L0/L1 借用检查、IR4 |
+| `LoanBegin(loan, kind, place, parent?)` | 建立 `Shared` / `Exclusive`（含 `Reserved` 两阶段预留状态）或子 loan | L0/L1 借用检查、IR4 |
+| `LoanActivate(loan)` | **两阶段借用激活点**：置于所有实参求值完成、进入被调方之前，把 `Reserved` 接收者借用升级为 `Active` 并在该程序点重新校验仍存活的重叠借用（区分实参期已结束的临时读与持续到调用边界的共享借用，对齐 Guide 10） | L0/L1 借用检查、IR4 |
 | `LoanEnd(loan)` | 结束指定 loan（IR1 影子版按词法/现行规则放置，L1 改为活性分析产出） | L0/L1、IR4 |
-| `Drop(place, policy)` | IR2 析构展开遍插入的显式析构动作（区分 `Immediate` / `LexicalRequired` / `CondFlag`） | IR2/C1、IR4 |
+| `Drop(place, policy, condition)` | IR2 析构展开遍插入的显式析构动作：**策略与执行条件正交**——`policy ∈ { Immediate, LexicalRequired }`，`condition ∈ { Unconditional, Conditional(DropFlagId) }`（支持带 `deinit` 的值仅在单分支被移动时，汇合处同时满足 `LexicalRequired` 与 `Conditional(flag)`） | IR2/C1、IR4 |
 | `SuspendPoint(id, live_set)` | **阶段五 KB8 预留槽位**：标识 `yield` / `suspend` 挂起边界，阶段一–四不产生 | IR5（S3/S4） |
 
 **基本块终结符（`GraphTerminator`）**：
@@ -71,8 +72,9 @@ projection = ".field(", FieldId, ")"       (* class / value class 字段投影 *
 | `Goto(target)` | 无条件跳转 | 普通控制流 |
 | `Branch(cond, then_bb, else_bb)` / `Switch(discriminant, arms, default?)` | 条件与枚举判别跳转 | 覆盖 `if`、`when`、`while`、`&&`/`||` |
 | `Call(callee, args, dest, normal_bb, failure_bb?)` | 函数/方法/闭包调用；**预留 `failure_bb` 失败出口边** | **落实 [FD0](fd0-supervision-boundary-litmus.md) 预留 #3**：阶段一 `failure_bb` 置空（v1 abort 直接终止进程），阶段四 FD1 启用显式监督边界时激活为失败展开路径 |
+| `CheckedOp(op, operands, dest, normal_bb, failure_bb?)` / `Fail(reason, failure_bb?)` | **可路由的本地程序失败**（越界检查、整数溢出、`!!`、`error()`） | 与 `FatalAbort` 严格分离：阶段一 `failure_bb = None`（进程直接 abort）；FD1 启用监督边界后将本地检查接入 `failure_bb = Some(cleanup_bb)`，沿当前函数展开至最近监督边界 |
 | `Return` | 函数正常返回（含 `?` 提前返回，均走普通 `Return` 而非 `failure_bb`） | 与 Guide 09 一致 |
-| `Abort(reason)` | 不可恢复进程终止（`error()`、`!!`、越界、溢出、`deinit` 失败、跨 FFI 失败） | 终结当前路径 |
+| `FatalAbort(reason)` | **不可路由的致命进程终止**（`deinit` 失败、失败跨越 FFI 帧、runtime 内部错误），永无后继块 | 任何版本均直接终止进程且不执行待运行析构（对齐 U0 FS6/FS7/FFI5） |
 
 ### 2.4 源码映射与诊断保真（回应之八 §2.5 风险项）
 
@@ -83,17 +85,22 @@ projection = ".field(", FieldId, ")"       (* class / value class 字段投影 *
 
 诊断渲染器按 `desugar_origin` 选择面向用户源码语法的模板（例如 `PostfixQuestion` 报“`?` 传播路径上……”而非暴露内部临时槽名），避免图检查导致诊断质量回退。
 
-### 2.5 校验器不变量与影子差分门槛（J28 / J29）
+### 2.5 分层校验与影子差分门槛（J28 / J29）
 
-1. **图结构不变量（构图后立即检验）**：
-   - CFG 可达块均以合法终结符结尾，无悬空 `BlockId`；
-   - 任意路径上不存在未 `Init` 即 `Move`/`Copy`/`Drop` 的读取（或已 `Move` 后未重新 `Init` 的二次使用）；
-   - `LoanBegin` 的 `parent` 必须指向当前支配路径上仍存活的父 loan；
-   - `Drop` 展开后，每条正常返回与失败出口路径上，每个 `MoveOnly` 资源恰好被消费或析构一次（零漏析构、零双析构）。
-2. **IR1–IR3 影子切换门槛**：
-   - 在已声明支持的语法切片内，图参考检查器与生产检查器在全部测试语料上比较接受/拒绝、诊断码与主 `Span`；
+构图结构校验与 Phase 3 所有权诊断必须严格分层，避免把本应由 Phase 3 诊断的用户源码错误误判为内部图损坏：
+
+1. **构图结构校验（IR1 构图后立即执行，只检图本身完好性）**：
+   - CFG 可达块均以合法终结符结尾，无悬空 `BlockId`、`LocalId`、`LoanId` 或跨作用域非法引用；
+   - 每条语句与终结符均携带合法 `Span` 与 `DesugarOrigin`；
+   - `LoanBegin` / `LoanActivate` / `LoanEnd` 的 `LoanId` 引用闭合且 `parent` 引用合法；
+   - **不在此层拒绝**“移动后再次使用”“未初始化读取”“借用冲突”等用户源码所有权错误——这些合法构图后的程序必须交给 Phase 3 图上检查器产出稳定错误码与主 `Span`。
+2. **Phase 3 图上所有权分析与 IR2 展开后不变量**：
+   - 图上检查器负责对 `Move`/`Copy`/`Init`/`LoanBegin`/`LoanActivate`/`LoanEnd` 执行流分析，在冲突点或二次使用点报告与生产检查器一致的诊断码与主 `Span`；
+   - 对**已通过 Phase 3 检查**并完成 IR2 析构展开的合法图，额外校验：每条正常返回与可路由失败出口路径上，每个 `MoveOnly` 资源恰好被消费或析构一次（零漏析构、零双析构）。
+3. **IR1–IR3 影子切换门槛**：
+   - 在已声明支持的语法切片内，图参考检查器与生产检查器在全部测试语料（含正例与应拒绝反例）上比较接受/拒绝、诊断码与主 `Span`；
    - 任何差异必须归因到“生产实现缺陷 / 构图器缺陷 / 规格模糊 / 已批准语义放宽”四类之一；存在未解释差异时禁止切换权威（IR3）；
-   - 必须包含手工故障注入测试（故意在图中构造悬垂 loan、双析构或错调用目标），确认校验器与跨阶段差分均能稳定拦截。
+   - 必须包含手工故障注入测试（故意在已检查图中构造悬垂 loan、双析构或错调用目标），确认展开后不变量与跨阶段差分均能稳定拦截。
 
 ## 3. 多阶段路线图生成脚本扩展设计（之十三 §6）
 

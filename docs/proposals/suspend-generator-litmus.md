@@ -62,7 +62,7 @@ fun sumTreeInOrder(tree: TreeNode): Int {
 > 注：3A 取消接口的具体表面形态（`E` 显式承载 `Cancelled` 还是独立 `ScopedResult<T, E>`）按[裁决纪要](kernel-open-decisions-2026-11.md) §3 仍暂缓裁决；本试金石暂用 `AsyncIoError.Cancelled` 展示值式取消（J19）与 `?` 传播的调用形态，不代表已提前锁定方案 C-I。
 
 ```kotlin
-// 候选源码（依赖 S4 suspend fun、单线程任务作用域、值式取消与 IO4 操作持有缓冲）
+// 候选源码（依赖 S4 suspend fun、单线程任务作用域、值式取消与 IO4 操作持有缓冲+句柄）
 enum class AsyncIoError {
     Cancelled,
     Closed,
@@ -74,56 +74,80 @@ class SingleThreadStats(
     var echoedLines: Int
 )
 
+// RefCell.borrowMut 的参数模式 inout 由期望函数类型声明；调用处写 { s -> ... }（遵守 Guide 07）
+// 签名示意：fun <T> RefCell<T>.borrowMut(body: (inout T) -> Unit): Unit
+
+// 完成式在途 IO 交接包装（落实之七 §2.7）：
+// 提交读/写时同时把 stream 句柄与 IoBuf 的所有权一并移交底层完成式操作；
+// 仅当收到 OS 终结证据（完成通知）后才经 Ok(ReadTurn / WriteTurn) 交还二者。
+// 若在取消或执行器失败时尚未收到 OS 终结证据，反应器继续独占持有该 stream 与 IoBuf，
+// 直到内核完成通知到达后才关闭描述符并释放缓冲；绝不在在途期由任务帧 deinit 关闭句柄或释放缓冲。
+value class ReadTurn(
+    val stream: AsyncTcpStream,
+    val buf: IoBuf,
+    val lineLen: Int
+)
+
+value class WriteTurn(
+    val stream: AsyncTcpStream,
+    val buf: IoBuf
+)
+
 // 单连接处理：Kotlin 式 suspend fun，调用点无 await；
 // 按 J18 默认留在所属单线程执行器上，因此 Rc<RefCell<SingleThreadStats>>
 // 可直接跨挂起点使用，无需 Arc/Mutex 或原子开销。
 suspend fun handleAsyncConnection(
-    own stream: AsyncTcpStream,
+    own initialStream: AsyncTcpStream,
     stats: Rc<RefCell<SingleThreadStats>>
 ): Result<Unit, AsyncIoError> {
-    stats.borrowMut { inout s ->
+    stats.borrowMut { s ->
         s.activeConnections = s.activeConnections + 1
     }
 
-    // 按之七 §2.7：操作持有独立缓冲区 IoBuf（提交时移出任务帧，终结后交还）；
-    // 若在 readLineInto 挂起期间收到作用域取消，取消请求不等于 OS 已停止写入——
-    // readLineInto 要么等到终结证据再返还缓冲，要么保留缓冲直至内核完成通知到达，绝不悬垂释放。
+    var stream = initialStream
     var buf = IoBuf.alloc(4096)
     while (true) {
-        val readRes = stream.readLineInto(buf)
-        val (returnedBuf, lineLen) = when (readRes) {
+        // 同时移交 stream 与 buf；若取消或失败且尚无终结证据，反应器保留二者直至内核终结，不触发提前关闭
+        val readRes = readLineWithOwnership(stream, buf)
+        val turn = when (readRes) {
             is Ok -> readRes.success
             is Err -> {
-                stats.borrowMut { inout s ->
+                stats.borrowMut { s ->
                     s.activeConnections = s.activeConnections - 1
                 }
                 return Err(readRes.error) // 含 AsyncIoError.Cancelled，经普通值路径退出
             }
         }
+        val (stream = returnedStream, buf = returnedBuf, lineLen = lineLen) = turn
+        stream = returnedStream
         buf = returnedBuf
         if (lineLen == 0) {
             break
         }
 
-        val writeRes = stream.writeFrom(buf, lineLen)
-        buf = when (writeRes) {
+        val writeRes = writeFromWithOwnership(stream, buf, lineLen)
+        val writeTurn = when (writeRes) {
             is Ok -> writeRes.success
             is Err -> {
-                stats.borrowMut { inout s ->
+                stats.borrowMut { s ->
                     s.activeConnections = s.activeConnections - 1
                 }
                 return Err(writeRes.error)
             }
         }
+        val (stream = writtenStream, buf = writtenBuf) = writeTurn
+        stream = writtenStream
+        buf = writtenBuf
 
-        stats.borrowMut { inout s ->
+        stats.borrowMut { s ->
             s.echoedLines = s.echoedLines + 1
         }
     }
 
-    stats.borrowMut { inout s ->
+    stats.borrowMut { s ->
         s.activeConnections = s.activeConnections - 1
     }
+    // 正常退出路径上已无任何在途 IO，stream 离开作用域时安全关闭描述符并释放 buf
     return Ok(Unit)
 }
 
@@ -149,11 +173,23 @@ suspend fun runSingleThreadEchoServer(
         while (true) {
             val stream = listener.accept()?
             val statsHandle = stats.share()
-            // 丢弃返回的 Job 句柄既不取消也不丢失败（3A 共识）；
-            // supervisorScope 返回前必须等到全部子任务实际终止并完成资源释放才释放父帧借用。
-            scope.launch {
-                handleAsyncConnection(stream, statsHandle)
-            }
+            // 使用 move 显式把本轮循环的 stream 与 statsHandle 移入子任务（任务活过本轮循环）；
+            // supervisorScope 隔离各子任务失败，因此在子任务内部显式记录并处理 IoFailed，不静默丢弃失败；
+            // 作用域返回前仍须等齐全部子任务实际终止（且无在途句柄/缓冲遗留给任务帧）后才释放父帧借用。
+            scope.launch(move {
+                val res = handleAsyncConnection(stream, statsHandle)
+                when (res) {
+                    is Ok -> Ok(Unit)
+                    is Err -> when (res.error) {
+                        is AsyncIoError.Cancelled -> Err(AsyncIoError.Cancelled)
+                        is AsyncIoError.Closed -> Ok(Unit)
+                        is AsyncIoError.IoFailed -> {
+                            println("connection failed with IoFailed")
+                            Ok(Unit)
+                        }
+                    }
+                }
+            })
         }
         Ok(Unit)
     }
@@ -161,10 +197,10 @@ suspend fun runSingleThreadEchoServer(
 ```
 
 **验证要点**：
-- **低心智与无 `await` 顺序读感（J16 / J50）**：应用层只用到 `suspend fun`、`supervisorScope`、`scope.launch`、`scope.cancel()` 与普通 `Result`/`?`，不出现 `Pin`、手动状态机、`GlobalScope` 或异常式取消。
+- **低心智与无 `await` 顺序读感（J16 / J50）**：应用层只用到 `suspend fun`、`supervisorScope`、`scope.launch`、`scope.cancel()` 与普通 `Result`/`?`，不出现 `Pin`、手动状态机、`GlobalScope` 或异常式取消；回调参数模式由 `borrowMut` 期望函数类型提供，调用处直接写 `{ s -> ... }`。
 - **默认单线程零锁开销（J18 / J36）**：`stats` 使用非原子 `Rc<RefCell<...>>`，编译期不要求 `Transferable`/`Shareable`；只有切到 S5 并行执行器入口时才触发跨线程能力检查。
-- **在途 IO 安全性（§2.7）**：`readLineInto(buf)` / `writeFrom(buf, lineLen)` 以所有权往返方式把 `IoBuf` 交给底层完成式操作，取消或执行器失败时即使任务帧被销毁，OS 仍在访问的缓冲区也不会随帧被提前释放。
-- **OD2 · B1 与排空顺序**：`scope.cancel()` 提交取消后唤醒受支持挂起点；作用域等到所有子任务实际终止（含每个连接的 `AsyncTcpStream.deinit` 关闭描述符）后才释放父帧借用。
+- **在途 IO 安全性（§2.7，缓冲区与句柄双交接）**：`readLineWithOwnership(stream, buf)` / `writeFromWithOwnership(stream, buf, lineLen)` 在提交时把 **`AsyncTcpStream` 句柄与 `IoBuf` 缓冲区一并移交**给底层完成式操作，仅在内核终结证据到达后才返还。若取消先行返回或执行器异常终止时仍缺终结证据，反应器保留句柄与缓冲直至终结再关闭/释放（证据可丢失时按 §2.7 失败政策保留不释放），任务帧 `deinit` 绝不会提前关闭仍在途的描述符。
+- **OD2 · B1 与失败不静默丢失**：子任务经 `move` 显式接管循环局部 `stream`/`statsHandle`，在 `supervisorScope` 隔离策略下由子任务显式分类记录 `IoFailed` 与 `Cancelled`；`scope.cancel()` 唤醒受支持挂起点，作用域等到所有子任务实际终止后才释放父帧借用。
 
 ## 3. S3 / S4 五类必测反例矩阵
 

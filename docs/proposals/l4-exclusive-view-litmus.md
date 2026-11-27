@@ -21,12 +21,6 @@
 
 ```kotlin
 // 候选源码（依赖 L4 inout T / 独占 view class、U1 裸指针与 U0 受信任合同）
-// L4 阶段尚未放开 Pair<view A, view B>（归 L5），故使用专用视图聚合承载拆分结果
-view class MutSlicePair<T>(
-    val left: MutSlice<T>,
-    val right: MutSlice<T>
-)
-
 view class MutSlice<T>(
     private inout val source: Array<T>,
     private val start: Int,
@@ -60,15 +54,16 @@ view class MutSlice<T>(
     }
 
     // R4.5：普通函数不能转发独占字段，只有受信任签名可声明拆分出两个不相交的独占子视图；
-    // 消耗当前 MutSlice（own this），保证原视图不能再与两个子视图并存。
+    // 消耗当前 MutSlice（own this），经非逃逸回调交付两段不相交的 own MutSlice<T>，
+    // 不依赖尚未对 view class 定义的消费式解构，也无需提前启用 L5 的 Pair<view A, view B>。
     // 不相交性（[start, start + mid) 与 [start + mid, start + length)）由库作者按 U0 AL1/AL4 证明。
-    trusted own fun splitAt(mid: Int): MutSlicePair<T> from source {
+    trusted own fun splitAt(mid: Int, body: (own MutSlice<T>, own MutSlice<T>) -> Unit): Unit {
         if (mid < 0 || mid > this.length) {
             error("MutSlice splitAt out of bounds")
         }
         unsafe {
-            // 内部经受信任拆分构造两个互不重叠的子视图（略去底层裸指针构造细节）
-            return intrinsic_split_mut_slice(this, mid)
+            // 内部经受信任拆分构造两个互不重叠的子视图并同步交予非逃逸回调（略去底层裸指针细节）
+            intrinsic_split_mut_slice_with(this, mid, body)
         }
     }
 }
@@ -78,14 +73,19 @@ view class MutSlice<T>(
 
 ```kotlin
 // 应用层：零 unsafe、零生命周期参数
+fun copyInt(x: Int): Int = x
+
 fun partition(inout slice: MutSlice<Int>): Int {
     val n = slice.len()
     val pivotIdx = n - 1
-    val pivot = slice.get(pivotIdx)
+    // 先用 borrow val 接收借用结果并复制出独立的 Int 副本，使对 slice 的共享 loan 在进入 swap 循环前结束
+    borrow val pivotRef = slice.get(pivotIdx)
+    val pivot: Int = copyInt(pivotRef)
     var store = 0
     var i = 0
     while (i < pivotIdx) {
-        if (slice.get(i) <= pivot) {
+        val cur: Int = copyInt(slice.get(i))
+        if (cur <= pivot) {
             slice.swap(store, i)
             store = store + 1
         }
@@ -102,19 +102,21 @@ fun quickSort(own slice: MutSlice<Int>): Unit {
     var working = slice
     val p = partition(&working)
 
-    // 使用局部结构化解构一次性完整消费 MoveOnly 视图聚合（遵守 Guide 08 禁止普通字段部分移出）
-    val (left, rightWithPivot) = working.splitAt(p)
-    // 跳过下标 0 的枢轴元素，只对枢轴右侧 [1, len) 递归
-    val (_, right) = rightWithPivot.splitAt(1)
-
-    quickSort(left)
-    quickSort(right)
+    // 参数模式 own 由 splitAt 的期望函数类型提供；调用处不写参数模式，也不依赖 view class 解构
+    working.splitAt(p, { left, rightWithPivot ->
+        var rwp = rightWithPivot
+        // 跳过下标 0 的枢轴元素，只对枢轴右侧 [1, len) 递归
+        rwp.splitAt(1, { pivotSlice, right ->
+            quickSort(left)
+            quickSort(right)
+        })
+    })
 }
 ```
 
 **验证要点**：
-- `quickSort` 的应用层不出现任何 `from` 或生命周期参数。
-- `splitAt` 接收 `own this`（消费原 `MutSlice`），同时返还两个依赖原 `source` 的不相交 `MutSlice`，因此不存在“父视图与子视图同时可写”的漏洞，也无需编译器做下标算术证明。
+- `quickSort` 的应用层不出现任何 `from` 或生命周期参数；`pivot` 与 `cur` 在每次 `slice.swap(...)` 前已复制为独立 `Int` 副本，共享借用不跨越独占 `swap`。
+- `splitAt` 接收 `own this`（消费原 `MutSlice`）并经非逃逸回调交付两段不相交的 `MutSlice`，既避免“父视图与子视图同时可写”，也不依赖尚未定义的 `view class` 解构（若日后 L4 提案把 Guide 12 消费式解构扩展到 `view class`，可再评估返回值形态）。
 
 ## 2. 试金石二：二维矩阵行视图与用户自定义索引
 
