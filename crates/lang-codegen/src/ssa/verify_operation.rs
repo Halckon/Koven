@@ -57,6 +57,11 @@ pub(super) fn verify_operation(
         Operation::StringFromScalar { scalar } => {
             string_from_scalar_contract(module, function, *scalar, &results)
         }
+        Operation::StringAppend { owner, fragment } => {
+            let owner = EntityId::Value(*owner);
+            owner != *fragment
+                && string_binary_contract(module, function, owner, *fragment, &results, false)
+        }
         Operation::StringConcat { left, right } => {
             string_binary_contract(module, function, *left, *right, &results, false)
         }

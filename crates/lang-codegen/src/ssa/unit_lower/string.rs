@@ -78,23 +78,21 @@ impl UnitExpressionLowerer<'_> {
                     return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
                 }
                 let joined = self.append_scalar(
-                    Operation::StringConcat {
-                        left: EntityId::Value(left),
-                        right: EntityId::Value(right),
+                    Operation::StringAppend {
+                        owner: left,
+                        fragment: EntityId::Value(right),
                     },
                     string,
                     span,
                 )?;
-                for owner in [right, left] {
-                    self.function
-                        .append_instruction(
-                            self.block,
-                            Operation::Drop { owner },
-                            Vec::new(),
-                            Origin::Source(span),
-                        )
-                        .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
-                }
+                self.function
+                    .append_instruction(
+                        self.block,
+                        Operation::Drop { owner: right },
+                        Vec::new(),
+                        Origin::Source(span),
+                    )
+                    .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, span))?;
                 let LoweredValue::Value(joined) = joined else {
                     return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
                 };

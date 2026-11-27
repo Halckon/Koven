@@ -145,6 +145,22 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                 )?;
                 self.values.insert(*result, value.into());
             }
+            Operation::StringAppend { owner, fragment } => {
+                let [result] = results.as_slice() else {
+                    return Err(invalid_result_count("string append", 1, results.len()));
+                };
+                let value = string::append(
+                    self.context,
+                    &self.builder,
+                    self.llvm_function,
+                    self.dependencies.runtime,
+                    value_type(self.function, *owner)?,
+                    self.value(*owner)?.into_struct_value(),
+                    self.string_view(*fragment)?,
+                    &value_name(*result),
+                )?;
+                self.values.insert(*result, value.into());
+            }
             Operation::StringConcat { left, right } => {
                 let [result] = results.as_slice() else {
                     return Err(invalid_result_count("string concat", 1, results.len()));

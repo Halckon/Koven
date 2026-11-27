@@ -160,29 +160,8 @@ pub(super) fn concat<'ctx>(
     right: StringView<'ctx>,
     name: &str,
 ) -> Result<StructValue<'ctx>, LlvmAdapterError> {
-    let length = builder.build_int_add(left.length, right.length, &format!("{name}.length"))?;
-    let overflow = builder.build_int_compare(
-        IntPredicate::ULT,
-        length,
-        left.length,
-        &format!("{name}.overflow"),
-    )?;
-    let length_exceeded = builder.build_int_compare(
-        IntPredicate::UGT,
-        length,
-        runtime.size_type().const_int(MAX_STRING_BYTE_LENGTH, false),
-        &format!("{name}.length_exceeded"),
-    )?;
-    let invalid_length =
-        builder.build_or(overflow, length_exceeded, &format!("{name}.invalid_length"))?;
-    runtime.abort_if(
-        builder,
-        function,
-        invalid_length,
-        name,
-        super::runtime::AbortMessage::Text("size overflow"),
-    )?;
-
+    let length =
+        checked_concat_length(builder, function, runtime, left.length, right.length, name)?;
     let before_empty = builder
         .get_insert_block()
         .ok_or_else(|| LlvmAdapterError::Build("String concat 缺少 preheader".to_owned()))?;
@@ -242,6 +221,136 @@ pub(super) fn concat<'ctx>(
         (&empty_value, empty_block),
         (&allocated_value, allocated_block),
     ]);
+    Ok(result.as_basic_value().into_struct_value())
+}
+
+fn checked_concat_length<'ctx>(
+    builder: &Builder<'ctx>,
+    function: FunctionValue<'ctx>,
+    runtime: &RuntimeAbi<'ctx>,
+    prefix: IntValue<'ctx>,
+    suffix: IntValue<'ctx>,
+    name: &str,
+) -> Result<IntValue<'ctx>, LlvmAdapterError> {
+    let length = builder.build_int_add(prefix, suffix, &format!("{name}.length"))?;
+    let overflow = builder.build_int_compare(
+        IntPredicate::ULT,
+        length,
+        prefix,
+        &format!("{name}.overflow"),
+    )?;
+    let length_exceeded = builder.build_int_compare(
+        IntPredicate::UGT,
+        length,
+        runtime.size_type().const_int(MAX_STRING_BYTE_LENGTH, false),
+        &format!("{name}.length_exceeded"),
+    )?;
+    let invalid_length =
+        builder.build_or(overflow, length_exceeded, &format!("{name}.invalid_length"))?;
+    runtime.abort_if(
+        builder,
+        function,
+        invalid_length,
+        name,
+        super::runtime::AbortMessage::Text("size overflow"),
+    )?;
+    Ok(length)
+}
+
+/// Consume the unique accumulator. A nonzero capacity denotes writable heap storage.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn append<'ctx>(
+    context: &'ctx Context,
+    builder: &Builder<'ctx>,
+    function: FunctionValue<'ctx>,
+    runtime: &RuntimeAbi<'ctx>,
+    string: SsaTypeId,
+    owner: StructValue<'ctx>,
+    fragment: StringView<'ctx>,
+    name: &str,
+) -> Result<StructValue<'ctx>, LlvmAdapterError> {
+    let prefix = view(builder, owner, &format!("{name}.prefix"))?;
+    let length = checked_concat_length(
+        builder,
+        function,
+        runtime,
+        prefix.length,
+        fragment.length,
+        name,
+    )?;
+    let size = runtime.size_type();
+    let capacity = builder
+        .build_extract_value(owner, 2, "append.capacity")?
+        .into_int_value();
+    let dispatch = builder.get_insert_block().ok_or_else(|| {
+        LlvmAdapterError::Build("String append has no predecessor block".to_owned())
+    })?;
+    let room = context.append_basic_block(function, "append.room");
+    let grow = context.append_basic_block(function, "append.grow");
+    let copy = context.append_basic_block(function, "append.copy");
+    let done = context.append_basic_block(function, "append.done");
+    let empty = builder.build_int_compare(
+        IntPredicate::EQ,
+        fragment.length,
+        size.const_zero(),
+        "append.empty",
+    )?;
+    builder.build_conditional_branch(empty, done, room)?;
+
+    builder.position_at_end(room);
+    let fits = builder.build_int_compare(IntPredicate::ULE, length, capacity, "append.fits")?;
+    builder.build_conditional_branch(fits, copy, grow)?;
+
+    builder.position_at_end(grow);
+    // The configured maximum is at most i32::MAX. A valid capacity can be doubled
+    // without wrapping the smallest supported unsigned size type.
+    let maximum = size.const_int(MAX_STRING_BYTE_LENGTH, false);
+    let doubled = builder.build_int_add(capacity, capacity, "append.doubled")?;
+    let over = builder.build_int_compare(IntPredicate::UGT, doubled, maximum, "append.at_limit")?;
+    let growth = builder
+        .build_select(over, maximum, doubled, "append.growth")?
+        .into_int_value();
+    let undersized =
+        builder.build_int_compare(IntPredicate::ULT, growth, length, "append.undersized")?;
+    let grown = builder
+        .build_select(undersized, length, growth, "append.grown")?
+        .into_int_value();
+    let allocation = runtime.allocate_string_bytes(builder, function, grown, name)?;
+    builder.build_memcpy(allocation, 1, prefix.bytes, 1, prefix.length)?;
+    runtime.emit_drop(builder, string, owner.into())?;
+    let grown_block = builder.get_insert_block().ok_or_else(|| {
+        LlvmAdapterError::Build("String append has no allocation completion block".to_owned())
+    })?;
+    builder.build_unconditional_branch(copy)?;
+
+    builder.position_at_end(copy);
+    let bytes = builder.build_phi(
+        context.ptr_type(inkwell::AddressSpace::default()),
+        "append.bytes",
+    )?;
+    bytes.add_incoming(&[(&prefix.bytes, room), (&allocation, grown_block)]);
+    let bytes = bytes.as_basic_value().into_pointer_value();
+    let reserved = builder.build_phi(size, "append.reserved")?;
+    reserved.add_incoming(&[(&capacity, room), (&grown, grown_block)]);
+    // SAFETY: both incoming buffers have room for prefix.length + fragment.length.
+    // The verifier requires a unique consumed owner and a distinct live fragment.
+    let suffix = unsafe {
+        builder.build_in_bounds_gep(context.i8_type(), bytes, &[prefix.length], "append.suffix")?
+    };
+    builder.build_memcpy(suffix, 1, fragment.bytes, 1, fragment.length)?;
+    let appended = build_owner(
+        builder,
+        owner.get_type(),
+        bytes,
+        length,
+        reserved.as_basic_value().into_int_value(),
+        name,
+    )?;
+    builder.build_unconditional_branch(done)?;
+
+    builder.position_at_end(done);
+    let result = builder.build_phi(owner.get_type(), &format!("{name}.append.result"))?;
+    result.add_incoming(&[(&owner, dispatch), (&appended, copy)]);
     Ok(result.as_basic_value().into_struct_value())
 }
 

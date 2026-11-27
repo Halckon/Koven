@@ -54,6 +54,7 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
             | Operation::PrintString { .. }
             | Operation::StringLiteral { .. }
             | Operation::StringConcat { .. }
+            | Operation::StringAppend { .. }
             | Operation::StringFromScalar { .. }
             | Operation::StringClone { .. }
             | Operation::StringCopyBytes { .. }

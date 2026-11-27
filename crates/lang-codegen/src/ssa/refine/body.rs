@@ -41,6 +41,11 @@ pub(super) enum ROp {
     PrintString {
         value: Slot,
     },
+    /// Consume the accumulator and borrow the next fragment.
+    StringAppend {
+        owner: Slot,
+        fragment: Slot,
+    },
     /// Operands are owned values or shared loans; neither is consumed.
     StringConcat {
         left: Slot,
@@ -600,6 +605,10 @@ impl ROp {
             | Self::StringByteAt {
                 source: left,
                 index: right,
+            }
+            | Self::StringAppend {
+                owner: left,
+                fragment: right,
             }
             | Self::StringConcat { left, right }
             | Self::StringEqual { left, right }

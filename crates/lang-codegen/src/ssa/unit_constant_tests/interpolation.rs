@@ -13,7 +13,7 @@ fn constant_native_lowering_interpolation_uses_string_conversions_and_exits() {
         assert!(
             program.modules[0].functions.iter().any(|function| {
                 function.instructions.iter().any(|instruction| {
-                    matches!(instruction.operation, Operation::StringConcat { .. })
+                    matches!(instruction.operation, Operation::StringAppend { .. })
                 })
             }),
             "{literal}"

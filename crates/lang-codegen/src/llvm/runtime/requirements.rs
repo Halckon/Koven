@@ -114,6 +114,14 @@ impl RuntimeRequirements {
                     Operation::StringLiteral { ref bytes, .. } if bytes.is_empty() => {
                         requirements.needs_empty_string = true;
                     }
+                    Operation::StringAppend { owner, .. } => {
+                        requirements.needs_allocation = true;
+                        requirements.needs_abort = true;
+                        let Some(EntityType::Value(ty)) = function.entity(EntityId::Value(owner)).map(|data| data.ty) else {
+                            return Err(LlvmAdapterError::InvalidSsa("String append requires an owner".to_owned()));
+                        };
+                        requirements.collect_drop_type(module, ty)?;
+                    }
                     Operation::StringConcat { .. }
                     | Operation::StringFromScalar { .. }
                     | Operation::StringClone { .. }

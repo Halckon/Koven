@@ -33,6 +33,30 @@ pub(super) fn apply_operation(
         | Operation::IntegerNot { .. }
         | Operation::Compare { .. }
         | Operation::BooleanNot { .. } => {}
+        Operation::StringAppend { owner, fragment } => {
+            require_string_view(
+                module,
+                function,
+                *fragment,
+                aliases,
+                state,
+                location.clone(),
+                origin,
+                errors,
+            );
+            consume_value(
+                module,
+                function,
+                *owner,
+                aliases,
+                state,
+                &BTreeSet::new(),
+                &BTreeSet::new(),
+                location,
+                origin,
+                errors,
+            );
+        }
         Operation::StringConcat { left, right } | Operation::StringEqual { left, right } => {
             require_string_view(
                 module,

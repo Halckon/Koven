@@ -300,6 +300,12 @@ fn write_operation(output: &mut String, operation: &Operation) -> fmt::Result {
             write_type_id(output, *string)?;
             write!(output, ", {bytes:?}")
         }
+        Operation::StringAppend { owner, fragment } => {
+            output.write_str("string.append ")?;
+            write_entity_id(output, EntityId::Value(*owner))?;
+            output.write_str(", ")?;
+            write_entity_id(output, *fragment)
+        }
         Operation::StringConcat { left, right } => {
             output.write_str("string.concat ")?;
             write_entity_id(output, *left)?;

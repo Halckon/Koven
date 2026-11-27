@@ -320,11 +320,13 @@ impl Builder<'_, '_> {
     ) -> Result<(), LoweringError> {
         let (left, loop_depth) = self.interpolation_owners[index];
         let result = self.value(
-            ROp::StringConcat { left, right },
+            ROp::StringAppend {
+                owner: left,
+                fragment: right,
+            },
             EntityType::Value(string),
             span,
         )?;
-        self.push(ROp::Drop { owner: left }, Vec::new(), span)?;
         self.interpolation_owners[index] = (result, loop_depth);
         Ok(())
     }

@@ -142,6 +142,32 @@ pub(crate) fn emit_link_and_run(source_name: &str, text: &str, entry_name: &str)
 }
 
 #[test]
+fn long_interpolation_grows_one_accumulator_geometrically() {
+    for (fragments, growth_allocations) in [(32, 6), (64, 7)] {
+        let parts = "${fragment}".repeat(fragments);
+        let source = format!(
+            r#"fun assemble(fragment: String): String = "{parts}"
+fun entry(): Unit {{
+    val fragment = "é".clone()
+    println(assemble(fragment))
+    println(assemble(""))
+}}"#
+        );
+        let analysis = UnitSource::analyze("long-interpolation.ko", &source)
+            .expect("long dynamic interpolation passes frontend admission");
+        let (program, entry) = analysis
+            .lower_entry(analysis.declaration("entry", SymbolKind::Function))
+            .expect("long dynamic interpolation lowers");
+        let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+        // One allocation for the source, then one per doubled accumulator capacity.
+        // The all-empty call must allocate nothing.
+        let run = boxed_enum_tests::run_counted_allocations(&llvm, 1 + growth_allocations);
+        let expected = format!("{}\n\n", "é".repeat(fragments));
+        boxed_enum_tests::assert_success(&run, expected.as_bytes());
+    }
+}
+
+#[test]
 fn standard_println_links_and_writes_exact_utf8_stdout() {
     let analysis = UnitSource::analyze(
         "println-entry.ko",

@@ -18,6 +18,11 @@ pub(crate) enum Operation {
     StringFromScalar {
         scalar: ValueId,
     },
+    /// Consumes the interpolation accumulator while borrowing the next fragment.
+    StringAppend {
+        owner: ValueId,
+        fragment: EntityId,
+    },
     /// 读取两个 String view 并创建新的唯一 owner，不消费具名 operand。
     StringConcat {
         left: EntityId,
@@ -504,6 +509,7 @@ impl Operation {
             | Self::StringLiteral { .. }
             | Self::NullableNull { .. } => Vec::new(),
             Self::StringFromScalar { scalar } => vec![EntityId::Value(*scalar)],
+            Self::StringAppend { owner, fragment } => vec![EntityId::Value(*owner), *fragment],
             Self::StringConcat { left, right } | Self::StringEqual { left, right } => {
                 vec![*left, *right]
             }

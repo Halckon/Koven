@@ -188,6 +188,31 @@ fun main(): Unit {{
 }
 
 #[test]
+fn compatibility_char_interpolation_uses_the_owned_accumulator() {
+    let source = r#"fun f(value: Char): Unit {
+    for (label in arrayOf("loop")) {
+        println(label)
+        println("<${value}${value}>")
+    }
+}
+fun main(): Unit { f('é') }"#;
+    let (program, refined) = route(source);
+    assert!(!refined, "this ordinary loop must use Compatibility");
+    let program = program.expect("Compatibility Char interpolation lowers");
+    let appends = program
+        .modules
+        .iter()
+        .flat_map(|module| &module.functions)
+        .flat_map(|function| &function.instructions)
+        .filter(|i| matches!(i.operation, Operation::StringAppend { .. }))
+        .count();
+    assert_eq!(appends, 3);
+    let run =
+        crate::native_tests::emit_link_and_run("compat-char-interpolation.ko", source, "main");
+    crate::native_tests::boxed_enum_tests::assert_success(&run, "loop\n<éé>\n".as_bytes());
+}
+
+#[test]
 fn null_only_assertion_aborts_without_creating_a_payload_proof_in_either_route() {
     for (body, refined) in [
         ("missing()!!", true),
