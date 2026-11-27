@@ -352,7 +352,7 @@ fn edges(terminator: &TerminatorKind) -> Vec<&Edge> {
     }
 }
 
-// Break edges join the real while-false exit and use the while origin, not the jump span.
+// The actual while-false edge identifies the join that every break must reach.
 fn break_destination(
     source: &UnitSource,
     function: &Function,
@@ -380,12 +380,22 @@ fn break_destination(
         panic!("one real enclosing while for the source break")
     };
     let span = statement.span();
+    let lang_frontend::parser::Statement::While { condition, .. } = statement.payload() else {
+        unreachable!("only the enclosing while was selected");
+    };
+    let condition = source
+        .parsed
+        .ast()
+        .expressions()
+        .get(*condition)
+        .unwrap()
+        .span();
     let headers = function
         .blocks
         .iter()
         .filter(|block| {
             block.terminator.as_ref().is_some_and(|terminator| {
-                terminator.origin == Origin::Source(span)
+                [Origin::Source(span), Origin::Source(condition)].contains(&terminator.origin)
                     && matches!(terminator.kind, TerminatorKind::Conditional { .. })
             })
         })
@@ -393,22 +403,24 @@ fn break_destination(
     let [header] = headers.as_slice() else {
         panic!("one actual while header")
     };
-    let TerminatorKind::Conditional { when_false, .. } = &header.terminator.as_ref().unwrap().kind
+    let TerminatorKind::Conditional {
+        when_true,
+        when_false,
+        ..
+    } = &header.terminator.as_ref().unwrap().kind
     else {
         unreachable!("the header was selected by its actual terminator")
     };
     let false_exit = function.block(when_false.target).unwrap();
-    assert_eq!(false_exit.origin, Origin::Source(span));
     let terminator = false_exit.terminator.as_ref().unwrap();
     assert_eq!(terminator.origin, Origin::Source(span));
     let TerminatorKind::Branch(edge) = &terminator.kind else {
         panic!("the actual while-false exit branches to the shared break join")
     };
     assert_ne!(edge.target, header.id);
-    assert_eq!(
-        function.block(edge.target).unwrap().origin,
-        Origin::Source(span)
-    );
+    assert_ne!(when_true.target, false_exit.id);
+    assert_ne!(edge.target, false_exit.id);
+    assert_ne!(edge.target, when_true.target);
     (span, edge.target)
 }
 
@@ -575,7 +587,8 @@ impl Transaction<'_> {
         let terminator = block.terminator.as_ref().unwrap();
         let cancelled = if self.fixture.exit == Exit::Break {
             self.break_exit.is_some_and(|(span, target)| {
-                terminator.origin == Origin::Source(span)
+                [Some(span), self.exit].into_iter().flatten()
+                    .any(|origin| terminator.origin == Origin::Source(origin))
                     && matches!(&terminator.kind, TerminatorKind::Branch(edge) if edge.target == target)
             })
         } else {
