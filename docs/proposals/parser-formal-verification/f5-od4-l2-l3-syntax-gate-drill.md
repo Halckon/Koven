@@ -81,7 +81,7 @@ origin_target     = origin_root
 
 | 合同项 | 影响评估与约束 |
 |---|---|
-| **R1（调用方边界与 hard stop）** | `type_parameter_list` 内出现非法 `view`（如重复 `view view T` 或 `<view >` 后缺名）继续沿用 Guide 05 统一 owner-aware 扫描，保留 `>`、`)`、`;`、`{` 与 EOF 作为 hard stop，不越过 `>` 消费函数名或参数表；`flows` 子句遇到缺来源或缺 `into` 目标时，在 `{`、`=`、`;`、`NL`、外层 `}` 或 EOF 前停止，不吞掉函数体或下一成员 |
+| **R1（调用方边界与 hard stop）** | `type_parameter_list` 内出现非法 `view`（如重复修饰 `fun <view view T> bad()`、末尾逗号 `fun <view, > bad()` 或上界缺类型 `fun <view T :> bad()`；注意带空格的 `<view >` 为合法的名为 `view` 的类型参数，不得误报缺名）继续沿用 Guide 05 统一 owner-aware 扫描，保留 `>`、`)`、`;`、`{` 与 EOF 作为 hard stop，不越过 `>` 消费函数名或参数表；`flows` 子句遇到缺来源或缺 `into` 目标时，在 `{`、`=`、`;`、`NL`、外层 `}` 或 EOF 前停止，不吞掉函数体或下一成员 |
 | **R2（软声明边界）** | `flows` / `into` / `origins` / `view` 均不加入顶层或类体软声明同步起始词集合，避免合法标识符误触发跨声明同步 |
 | **R3（owner stack）** | 三项增量均不引入新的词法分隔符或字符串插值模式切换，不改变 owner stack 深度 |
 | **R4（词法错误交接）** | 遇到 Lexer poison / invalid token 时保持既有 `ImplicitUnitAbsent` 与原根因优先策略，不在 `flows` 位置重复追加伪造诊断 |
@@ -99,7 +99,7 @@ origin_target     = origin_root
 | P2 | `fun merge(inout dst: Slot, borrow a: Item, borrow p: View) flows a, p.origins into dst.target {}` | 多来源逗号列表 + `p.origins` + 目标字段路径 |
 | P3 | `fun attach(inout a: Slot, inout b: Slot, borrow x: Item, borrow y: Item): borrow Item from x flows x into a flows y into b {}` | 返回 `from` 与多条连续 `flows` 共存 |
 | P4 | `view class Bag<view T: Display> {}` + `fun <view T> hold(borrow x: T): T from x {}` | `view class` 与 `view T`（带/不带上界） |
-| P5 | `val view = origins` + `class view<view: Any> {}` + `fun <view view: Any> flows(borrow into: view) {}` | 四个软词全部作为普通标识符、类型名、参数名与类型参数名共存 |
+| P5 | `val view = origins` + `class view<view: Any> {}` + `fun <view > id() {}` + `fun <view view: Any> flows(borrow into: view) {}` | 四个软词全部作为普通标识符、类型名、带空格的合法 `<view >` 类型参数名与参数名共存 |
 | P6 | `fun <view T> forward(borrow p: T): borrow Item from p.origins {}` | `p.origins` 用于返回 `from` 合同 |
 | P7 | `fun extract(borrow p: Holder): borrow Item from p.inner.origins {}` | 嵌套字段路径后接 `.origins` 选择器 |
 | P8 | `fun push(inout b: Bag, borrow x: Item) flows x into b` | 无体接口方法携带 `flows` |
@@ -130,9 +130,9 @@ origin_target     = origin_root
   - **F4b Tree-sitter 漂移账本**：在 `tree-sitter` 文法同步前，将三项候选登记为已知待同步漂移项。
 - **F5 评审放行清单自检（对照 [syntax-gate-checklist.md §2](syntax-gate-checklist.md#评审放行清单进入-guide-前)）**：
   - [x] 规则增量回链唯一 Guide 章节，未在多章复制矛盾条件。
-  - [x] 冲突变化由 GNU Bison 2.3 实测并保留原始结果（含 `from s into v` 1 S/R、跨行 `flows` 1 R/R、`origins` 撞名 2 R/R）。
+  - [ ] 冲突变化已由 GNU Bison 2.3 实测并汇总于 §2.2（含 `from s into v` 1 S/R、跨行 `flows` 1 R/R、`origins` 撞名 2 R/R），但**完整 `.y` 基准/增量输入文件与原始 `.output` 报告未固化入仓**（临时目录已清理）；进入正式 Guide 提案前须随案固化可复核的完整输入与原始报告。
   - [x] 软词（`flows`/`into`/`view`/`origins`）未破坏普通 `Identifier` 或词法错误交接（R4）。
-  - [x] 正反例覆盖分号阻断、换行边界、重复修饰、误作 `into` 目标与撞名边界。
+  - [ ] 正反例已覆盖抽象 `NL` / 分号阻断、重复修饰、误作 `into` 目标与撞名边界，但**尚未在真实 Lexer/Parser 上验证 CRLF、含换行块注释、未闭合回退及恢复期调用方边界保留**；进入正式 Guide 提案前须补齐对应见证。
   - [x] 未将 Bison 或 Tree-sitter 提升为第二规范，未夸称有限用例为全语言证明。
 
 ## 7. 验证与未运行项

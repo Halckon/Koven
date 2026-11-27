@@ -25,20 +25,22 @@ class U0RawModelTests(unittest.TestCase):
         interp.raw_write(ptr)
         self.assertEqual(["UB1"], [v.code for v in interp.violations])
 
-    def test_al1_al7_rawcell_allows_shared_write_unless_exclusive_active(self):
-        """AL7：RawCell 允许经共享借用写入，但仍不得与存活 Exclusive loan 冲突。"""
-        interp = U0.U0RawInterpreter()
-        interp.alloc_owner("cell", initialized=True, is_cell=True)
-        shared_loan = interp.borrow("cell", "Shared")
-        ptr = interp.address_of("cell", derived_mode="Shared", derived_loan_id=shared_loan)
-        interp.raw_write(ptr)
-        self.assertEqual([], interp.violations)
-        interp.end_loan(shared_loan)
+    def test_al1_al7_rawcell_allows_shared_and_cell_write_unless_exclusive_active(self):
+        """AL7：RawCell 允许经 Shared 或 Cell 路径写入，但两条路径均不得与存活 Exclusive loan 冲突。"""
+        for mode in ("Shared", "Cell"):
+            with self.subTest(mode=mode):
+                interp = U0.U0RawInterpreter()
+                interp.alloc_owner("cell", initialized=True, is_cell=True)
+                shared_loan = interp.borrow("cell", "Shared")
+                ptr = interp.address_of("cell", derived_mode=mode, derived_loan_id=shared_loan)
+                interp.raw_write(ptr)
+                self.assertEqual([], interp.violations)
+                interp.end_loan(shared_loan)
 
-        excl_loan = interp.borrow("cell", "Exclusive")
-        interp.raw_write(ptr)
-        self.assertEqual(["UB1"], [v.code for v in interp.violations])
-        interp.end_loan(excl_loan)
+                excl_loan = interp.borrow("cell", "Exclusive")
+                interp.raw_write(ptr)
+                self.assertEqual(["UB1"], [v.code for v in interp.violations])
+                interp.end_loan(excl_loan)
 
     def test_al1_exclusive_derived_ptr_allows_own_ancestor_blocks_conflicting_child(self):
         """AL1：inout 派生裸指针不与自身祖先独占 loan 冲突，但与存活子 loan 冲突（UB1），子 loan 结束后恢复合法。"""
@@ -46,16 +48,13 @@ class U0RawModelTests(unittest.TestCase):
         interp.alloc_owner("pair", fields=("a", "b"), initialized=True)
         excl_parent = interp.borrow("pair", "Exclusive")
         ptr_a = interp.address_of("pair.a", derived_mode="Exclusive", derived_loan_id=excl_parent)
-        # 无子 loan 冲突：允许经祖先 Exclusive loan 写回（支撑 U1 replace/swap）
         interp.raw_write(ptr_a)
         self.assertEqual([], interp.violations)
 
-        # 建立重叠的共享子 loan：此时写 pair.a 报 UB1
         child = interp.borrow("pair.a", "Shared", parent_id=excl_parent)
         interp.raw_write(ptr_a)
         self.assertEqual(["UB1"], [v.code for v in interp.violations])
 
-        # 子 loan 结束后恢复可写
         interp.violations.clear()
         interp.end_loan(child)
         interp.raw_write(ptr_a)
@@ -79,19 +78,16 @@ class U0RawModelTests(unittest.TestCase):
         interp = U0.U0RawInterpreter()
         interp.alloc_owner("x", initialized=True)
         ptr = interp.address_of("x", derived_mode="Shared")
-        # 屏障阻止提前析构
         interp.drop_owner("x", early=True)
         self.assertEqual(["AL2_BARRIER"], [v.code for v in interp.violations])
         self.assertTrue(interp.owners["x"].alive)
 
-        # 词法作用域结束正常析构后，解引用悬垂裸指针报 UB2
         interp.violations.clear()
         interp.exit_scope()
         self.assertEqual([], interp.violations)
         interp.raw_read(ptr)
         self.assertEqual(["UB2"], [v.code for v in interp.violations])
 
-        # 整体移出导致原存储失效，随后经旧指针写入报 UB2
         interp2 = U0.U0RawInterpreter()
         interp2.alloc_owner("y", initialized=True)
         ptr_y = interp2.address_of("y", derived_mode="Exclusive")
@@ -100,7 +96,7 @@ class U0RawModelTests(unittest.TestCase):
         self.assertEqual(["UB2"], [v.code for v in interp2.violations])
 
     def test_al2_ub5_uninit_alloc_and_ptr_read_write_lifecycle(self):
-        """AL2 / MM7 / UB5：刚分配未初始化存储读取报 UB5；ptr_read 后必须 ptr_write 回填，否则读或析构均报 UB5。"""
+        """AL2 / MM7 / UB5：刚分配未初始化存储、ptr_read 后未回填读取/析构，以及聚合根与子字段的双向未初始化检查。"""
         # 1. 刚分配未初始化存储直接读取 -> UB5
         interp_uninit = U0.U0RawInterpreter()
         interp_uninit.alloc_owner("raw_buf", initialized=False)
@@ -108,14 +104,19 @@ class U0RawModelTests(unittest.TestCase):
         interp_uninit.raw_read(p_raw)
         self.assertEqual(["UB5"], [v.code for v in interp_uninit.violations])
 
-        # 2. 合法 replace：ptr_read -> Uninit -> ptr_write -> Init -> exit_scope 零违规
+        # 2. 合法 replace（含资源句柄）：ptr_read 移交旧句柄，ptr_write 分配新句柄，exit_scope 零违规（不误报 UB4）
         interp_ok = U0.U0RawInterpreter()
-        interp_ok.alloc_owner("slot", initialized=True)
+        interp_ok.alloc_owner("slot", initialized=True, resource_handle=True)
+        old_handle = interp_ok.owners["slot"].handle_id
         p_slot = interp_ok.address_of("slot", derived_mode="Exclusive")
-        interp_ok.ptr_read(p_slot)
+        interp_ok.ptr_read(p_slot, into_owner="taken")
         self.assertEqual("Uninit", interp_ok.owners["slot"].slots["slot"])
+        self.assertIsNone(interp_ok.owners["slot"].handle_id)
+        self.assertEqual(old_handle, interp_ok.owners["taken"].handle_id)
         interp_ok.ptr_write(p_slot)
         self.assertEqual("Init", interp_ok.owners["slot"].slots["slot"])
+        self.assertIsNotNone(interp_ok.owners["slot"].handle_id)
+        self.assertNotEqual(old_handle, interp_ok.owners["slot"].handle_id)
         interp_ok.exit_scope()
         self.assertEqual([], interp_ok.violations)
 
@@ -127,6 +128,24 @@ class U0RawModelTests(unittest.TestCase):
         interp_bad.raw_read(p_bad)
         interp_bad.exit_scope()
         self.assertEqual(["UB5", "UB5"], [v.code for v in interp_bad.violations])
+
+        # 4. 移出字段 pair.a 后读取整个聚合 pair -> UB5
+        interp_agg1 = U0.U0RawInterpreter()
+        interp_agg1.alloc_owner("pair", fields=("a", "b"), initialized=True)
+        p_a = interp_agg1.address_of("pair.a", derived_mode="Exclusive")
+        p_whole = interp_agg1.address_of("pair", derived_mode="Exclusive")
+        interp_agg1.ptr_read(p_a)
+        interp_agg1.raw_read(p_whole)
+        self.assertEqual(["UB5"], [v.code for v in interp_agg1.violations])
+
+        # 5. 移出整个聚合 pair 后读取字段 pair.a -> UB5
+        interp_agg2 = U0.U0RawInterpreter()
+        interp_agg2.alloc_owner("pair", fields=("a", "b"), initialized=True)
+        p_whole2 = interp_agg2.address_of("pair", derived_mode="Exclusive")
+        p_a2 = interp_agg2.address_of("pair.a", derived_mode="Exclusive")
+        interp_agg2.ptr_read(p_whole2)
+        interp_agg2.raw_read(p_a2)
+        self.assertEqual(["UB5"], [v.code for v in interp_agg2.violations])
 
     def test_fs8_ub4_double_drop_and_safe_insert_order(self):
         """AL3 / FS3 / FS8 / UB4：复现 U0 §4 列表插入的错误次序（失败展开触发 UB4）vs 正确次序（零违规）。"""

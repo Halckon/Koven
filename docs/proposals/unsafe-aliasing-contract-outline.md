@@ -183,7 +183,7 @@
 | 并发内存模型（真实数据竞争） | UB6（数据竞争） | TSan（运行时数据竞争检测） | **预 U1 TSan 代理已实跑捕获**（`ThreadSanitizer: data race`）；U1 后换 Koven 源码复跑 | — |
 | 并发内存模型（弱内存交错） | UB6（弱内存重排） | 内存模型级并发模型检查（Loom / GenMC 风格，建模普通内存位置、原子操作与 happens-before；注：[失败与清理模型](failure-cleanup-model.md)仅建模任务失败、析构与在途 IO，不表达数据竞争） | 待补 / **U1 验收欠项**（不挡 U0 迁入，亦不得与 TSan 互代） | 弱内存序（`Relaxed`/`Acquire`/`Release`）在特定硬件架构上的罕见重排 |
 | 受信任合同与能力 | UB7、UB8 | 试金石程序 + 反例矩阵（之五）、参考检查器附加前提检验、TR4 全类型成员审查 | 静态/原型范围（非运行时 UB 门槛） | `trusted` 签名背后任意算法不变量 |
-| 外部函数边界 | UB9（FFI1–FFI5） | C 头文件签名比对（FF3 绑定生成器）、ASan + FFI 边界回调 abort 进程终止测试 | FFI2/FFI4（ASan）与 FFI5（`SIGABRT`）预 U1 代理已跑通；FFI1/FFI3 待 U1/FF1 复跑 | 第三方 C 库内部隐式留存指针 |
+| 外部函数边界 | UB9（FFI1–FFI5） | C 头文件签名比对（FF3 绑定生成器）、ASan + FFI 边界回调 abort 进程终止测试 | FFI2/FFI4（ASan）预 U1 代理已跑通；FFI5 仅跑通 `abort()` 终止基线对照，跨 C 帧阻断展开边界捕获与 FFI1/FFI3 待 FD2/FF1 验收 | 第三方 C 库内部隐式留存指针 |
 
 ## 10. 开放问题
 
