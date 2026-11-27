@@ -20,6 +20,10 @@ mod lexeme_stream_tests;
 mod operator;
 mod postfix;
 #[cfg(kani)]
+mod postfix_kani;
+#[cfg(test)]
+mod postfix_tests;
+#[cfg(kani)]
 mod pratt_kani;
 #[cfg(test)]
 mod pratt_tests;

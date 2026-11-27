@@ -1,5 +1,94 @@
 use super::*;
 
+pub(super) const fn is_postfix_start_kind(kind: LexemeKind) -> bool {
+    matches!(
+        kind,
+        LexemeKind::Token(TokenKind::Symbol(
+            Symbol::Dot
+                | Symbol::QuestionDot
+                | Symbol::LeftParen
+                | Symbol::LeftBracket
+                | Symbol::BangBang
+                | Symbol::Question
+                | Symbol::ColonColon
+        ))
+    )
+}
+
+pub(super) const fn is_recovery_callee_ignored_kind(kind: LexemeKind) -> bool {
+    matches!(
+        kind,
+        LexemeKind::Trivia(_)
+            | LexemeKind::Token(TokenKind::Symbol(Symbol::Question | Symbol::BangBang))
+    )
+}
+
+pub(super) const fn is_recovery_callee_terminal_kind(kind: LexemeKind) -> bool {
+    matches!(
+        kind,
+        LexemeKind::Token(
+            TokenKind::Identifier
+                | TokenKind::IntegerLiteral(_)
+                | TokenKind::FloatLiteral(_)
+                | TokenKind::CharLiteral
+                | TokenKind::StringEnd
+                | TokenKind::Keyword(
+                    Keyword::True | Keyword::False | Keyword::Null | Keyword::This
+                )
+                | TokenKind::Symbol(Symbol::RightParen | Symbol::RightBracket | Symbol::RightBrace)
+        )
+    )
+}
+
+#[cfg(any(test, kani))]
+pub(super) fn has_recovery_callee_end_kinds(kinds: &[LexemeKind]) -> bool {
+    let mut index = kinds.len();
+    while index > 0 {
+        index -= 1;
+        let kind = kinds[index];
+        if !is_recovery_callee_ignored_kind(kind) {
+            return is_recovery_callee_terminal_kind(kind);
+        }
+    }
+    false
+}
+
+pub(super) const fn typed_call_suffix_continues_kind(
+    suffix_kind: LexemeKind,
+    has_line_break: bool,
+) -> bool {
+    !matches!(
+        suffix_kind,
+        LexemeKind::Token(TokenKind::Symbol(Symbol::LeftBrace))
+    ) || !has_line_break
+}
+
+pub(super) const fn call_argument_boundary_decision(
+    kind: LexemeKind,
+    outer_contains: bool,
+    can_start_expr: bool,
+    at_block_separator: bool,
+) -> bool {
+    matches!(
+        kind,
+        LexemeKind::Eof | LexemeKind::Token(TokenKind::Symbol(Symbol::Comma | Symbol::RightParen))
+    ) || (outer_contains && !can_start_expr)
+        || at_block_separator
+}
+
+pub(super) const fn trailing_lambda_attaches_after_call(
+    closed: bool,
+    current_kind: LexemeKind,
+    next_when_entry: bool,
+) -> bool {
+    closed
+        && matches!(
+            current_kind,
+            LexemeKind::Token(TokenKind::Symbol(Symbol::LeftBrace))
+        )
+        && !next_when_entry
+}
+
 impl Parser<'_> {
     pub(super) fn parse_postfix(
         &mut self,
@@ -108,18 +197,9 @@ impl Parser<'_> {
     }
 
     pub(super) fn is_postfix_start(&self) -> bool {
-        matches!(
-            self.peek(0).map(Lexeme::kind),
-            Some(LexemeKind::Token(TokenKind::Symbol(
-                Symbol::Dot
-                    | Symbol::QuestionDot
-                    | Symbol::LeftParen
-                    | Symbol::LeftBracket
-                    | Symbol::BangBang
-                    | Symbol::Question
-                    | Symbol::ColonColon
-            )))
-        )
+        self.peek(0)
+            .map(Lexeme::kind)
+            .is_some_and(is_postfix_start_kind)
     }
 
     pub(super) fn consume_error_postfix(
@@ -203,33 +283,12 @@ impl Parser<'_> {
     fn has_recovery_callee_end(&self, start: usize, angle: usize) -> bool {
         // Walk only the trivia and postfix markers immediately before this angle.
         // A marker without an operand in this recovery region proves no callee.
-        let terminal = self.lexed.lexemes()[start..angle]
+        self.lexed.lexemes()[start..angle]
             .iter()
             .rev()
             .map(|lexeme| lexeme.kind())
-            .find(|kind| {
-                !matches!(
-                    kind,
-                    LexemeKind::Trivia(_)
-                        | LexemeKind::Token(TokenKind::Symbol(Symbol::Question | Symbol::BangBang))
-                )
-            });
-        matches!(
-            terminal,
-            Some(LexemeKind::Token(
-                TokenKind::Identifier
-                    | TokenKind::IntegerLiteral(_)
-                    | TokenKind::FloatLiteral(_)
-                    | TokenKind::CharLiteral
-                    | TokenKind::StringEnd
-                    | TokenKind::Keyword(
-                        Keyword::True | Keyword::False | Keyword::Null | Keyword::This
-                    )
-                    | TokenKind::Symbol(
-                        Symbol::RightParen | Symbol::RightBracket | Symbol::RightBrace
-                    )
-            ))
-        )
+            .find(|&kind| !is_recovery_callee_ignored_kind(kind))
+            .is_some_and(is_recovery_callee_terminal_kind)
     }
 
     /// An explicit lambda header distinguishes a local brace from a caller's block.
@@ -443,13 +502,14 @@ impl Parser<'_> {
             }
             (last_consumed_end, false)
         };
+        let current_kind = self.current()?.kind();
         let next_when_entry = match outer_stops.when_entry_body {
-            Some(body) if closed && self.current_is_symbol(Symbol::LeftBrace) => {
+            Some(body) if trailing_lambda_attaches_after_call(closed, current_kind, false) => {
                 self.brace_when_entry_follows(end, body)?
             }
             _ => false,
         };
-        if closed && self.current_is_symbol(Symbol::LeftBrace) && !next_when_entry {
+        if trailing_lambda_attaches_after_call(closed, current_kind, next_when_entry) {
             let argument = self.parse_trailing_lambda_argument(outer_stops)?;
             end = argument.span.end();
             arguments.push(argument);
@@ -637,14 +697,22 @@ impl Parser<'_> {
         lexeme: Lexeme,
         outer_stops: Stops,
     ) -> Result<bool, ParserInternalError> {
-        Ok(matches!(lexeme.kind(), LexemeKind::Eof)
-            || self.current_is_symbol(Symbol::Comma)
-            || self.current_is_symbol(Symbol::RightParen)
-            || (outer_stops.contains(lexeme)
-                && !self.can_start_expression(lexeme)
-                && !self.current_is_symbol(Symbol::Comma)
-                && !self.current_is_symbol(Symbol::RightParen))
-            || self.at_block_statement_separator(lexeme, outer_stops)?)
+        let kind = lexeme.kind();
+        if call_argument_boundary_decision(kind, false, true, false) {
+            return Ok(true);
+        }
+        let outer_contains = outer_stops.contains(lexeme);
+        let can_start_expr = outer_contains && self.can_start_expression(lexeme);
+        if call_argument_boundary_decision(kind, outer_contains, can_start_expr, false) {
+            return Ok(true);
+        }
+        let at_block_separator = self.at_block_statement_separator(lexeme, outer_stops)?;
+        Ok(call_argument_boundary_decision(
+            kind,
+            outer_contains,
+            can_start_expr,
+            at_block_separator,
+        ))
     }
 
     pub(super) fn recover_call_region(
@@ -724,10 +792,15 @@ impl Parser<'_> {
             .lexemes()
             .get(suffix_raw)
             .ok_or(ParserInternalError::InvalidLexemeStream)?;
-        Ok(!matches!(
+        if typed_call_suffix_continues_kind(suffix.kind(), true) {
+            return Ok(true);
+        }
+        let has_line_break =
+            self.gap_has_line_break(closing.span().end(), suffix.span().start())?;
+        Ok(typed_call_suffix_continues_kind(
             suffix.kind(),
-            LexemeKind::Token(TokenKind::Symbol(Symbol::LeftBrace))
-        ) || !self.gap_has_line_break(closing.span().end(), suffix.span().start())?)
+            has_line_break,
+        ))
     }
 
     pub(super) fn parse_index(
