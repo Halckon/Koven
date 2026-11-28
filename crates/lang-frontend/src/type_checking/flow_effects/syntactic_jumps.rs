@@ -190,7 +190,7 @@ impl<'a, 'b> SyntacticJumps<'a, 'b> {
                     callee, arguments, ..
                 } => {
                     let receiver = match ast.expressions().get(*callee)?.payload() {
-                        Expression::Name => None,
+                        Expression::Name | Expression::SuperMember { .. } => None,
                         Expression::Member {
                             receiver,
                             safe: false,

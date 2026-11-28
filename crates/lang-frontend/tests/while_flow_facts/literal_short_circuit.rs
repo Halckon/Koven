@@ -579,6 +579,16 @@ fn ordinary_member_conditions_keep_entry_proofs_only_when_there_is_no_backedge()
             rejected: None,
         },
         Case {
+            name: "super_call_argument_breaks_before_the_loop_body",
+            text: "interface I { fun cond(value: Int, stop: Boolean): Boolean = stop }\n\
+                   class Gate: I { fun test(initial: Int?): Unit { var x = initial; if (x != null) {\n\
+                       loop { while (super<I>.cond(/*condition*/x, break)) { x = null } };\n\
+                       val after: Int = /*after*/x\n\
+                   } } }",
+            marks: vec![read("condition", Shape::Int), read("after", Shape::Int)],
+            rejected: None,
+        },
+        Case {
             name: "instance_call_receiver_breaks_before_the_arguments",
             text: "class Gate { fun cond(value: Int, stop: Boolean): Boolean = stop }\n\
                    fun gate(stop: Int): Gate = Gate()\n\
