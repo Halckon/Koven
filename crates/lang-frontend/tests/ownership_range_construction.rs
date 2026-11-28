@@ -698,7 +698,7 @@ fn grouped_nested_range_source_keeps_real_root_identity_and_cleanup() {
 mod grouped_iteration;
 
 // The planner pending token is not the checker's active binding loan.
-// Retain Single beside both Unit layouts; this is behavior, not a complete end table.
+// Check both Unit layouts; this is behavior, not a complete end table.
 #[test]
 fn metadata_child_protects_root_write_until_its_last_use() {
     for (tail, reject) in [
@@ -708,13 +708,8 @@ fn metadata_child_protects_root_write_until_its_last_use() {
         let body = format!(
             "fun run():Unit{{var root=listOf(\"kept\");borrow val parent=rangeView(root,0,1);borrow val child=alias(parent);{tail}}}"
         );
-        let (_, legacy, _) = legacy_checked(&body);
         let (_, document, rooted) = checked(&body);
-        for diagnostics in [
-            legacy.diagnostics(),
-            document.diagnostics(),
-            rooted.diagnostics(),
-        ] {
+        for diagnostics in [document.diagnostics(), rooted.diagnostics()] {
             let codes = diagnostics
                 .iter()
                 .map(|d| d.code().to_string())

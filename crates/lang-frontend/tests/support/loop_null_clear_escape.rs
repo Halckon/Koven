@@ -162,3 +162,90 @@ fn failed_loop_write_retains_original_error_before_any_shadow_publication() {
         assert!(owned.validate().is_err());
     }
 }
+
+#[test]
+fn pre_loop_copy_and_unknown_branch_preserve_borrowed_escape_rejection() {
+    for (label, borrowed, body, reject) in [
+        (
+            "pre_loop_copy_before_while_clear",
+            true,
+            "var optional = if (choose) f else null; val saved = optional; while (iterate) { optional = null; break }; return saved!!",
+            true,
+        ),
+        (
+            "pre_loop_copy_before_definite_loop_clear",
+            true,
+            "var optional = if (choose) f else null; val saved = optional; loop { optional = null; break }; return saved!!",
+            true,
+        ),
+        (
+            "pre_loop_copy_after_pre_loop_clear_is_safe",
+            true,
+            "var optional = if (choose) f else null; optional = null; val saved = optional; while (iterate) { optional = null; break }; return saved!!",
+            false,
+        ),
+        (
+            "pre_loop_copy_capture_free_is_safe",
+            false,
+            "var optional = if (choose) f else null; val saved = optional; while (iterate) { optional = null; break }; return saved!!",
+            false,
+        ),
+        (
+            "unknown_branch_then_zero_iteration_while",
+            true,
+            "var optional = if (choose) f else null; if (change) { optional = make() }; while (iterate) { optional = null; break }; return optional!!",
+            true,
+        ),
+        (
+            "unknown_else_branch_then_zero_iteration_while",
+            true,
+            "var optional = if (choose) f else null; if (change) {} else { optional = make() }; while (iterate) { optional = null; break }; return optional!!",
+            true,
+        ),
+        (
+            "unknown_branch_then_definite_loop_clear_is_safe",
+            true,
+            "var optional = if (choose) f else null; if (change) { optional = make() }; loop { optional = null; break }; return optional!!",
+            false,
+        ),
+        (
+            "unknown_branch_then_while_then_post_loop_clear_is_safe",
+            true,
+            "var optional = if (choose) f else null; if (change) { optional = make() }; while (iterate) { optional = null; break }; optional = null; return optional!!",
+            false,
+        ),
+        (
+            "mixed_unknown_and_borrowed_init_then_zero_iteration_while",
+            true,
+            "val borrowed = if (choose) f else null; var optional = if (change) make() else borrowed; while (iterate) { optional = null; break }; return optional!!",
+            true,
+        ),
+    ] {
+        let lambda = if borrowed { "{ read(xs) }" } else { "{}" };
+        let text = format!(
+            "fun read(xs: List<Int>) {{}}\nfun make(): () -> Unit {{ return ({{}}) }}\nfun run(own xs: List<Int>, choose: Boolean, change: Boolean, iterate: Boolean): () -> Unit {{ val f: () -> Unit = {lambda}; {body} }}"
+        );
+        for rooted in [false, true] {
+            let (_, owned) = borrow_rejection_unit::checked(
+                &text,
+                "loop-p2.ko",
+                rooted,
+                standard_environments(),
+            );
+            let codes: Vec<_> = owned
+                .diagnostics()
+                .iter()
+                .map(|d| d.code().to_string())
+                .collect();
+            let raw = format!("{:?}", owned.diagnostics());
+            let valid = owned.validate().is_ok();
+            if reject {
+                assert_eq!(codes, ["L0137"], "{label}/{rooted}: {raw}");
+                assert!(!valid, "{label}/{rooted}");
+            } else {
+                assert!(codes.is_empty(), "{label}/{rooted}: {raw}");
+                assert!(valid, "{label}/{rooted}");
+            }
+        }
+    }
+}

@@ -3,6 +3,7 @@ use super::super::{Checker, OwnershipCheckingError, State};
 use crate::{
     ast::{ExpressionId, StatementId},
     parser::{Expression, LiteralKind, Statement},
+    type_checking::{BuiltinType, UnitTypeKind},
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -19,6 +20,9 @@ impl Checker<'_> {
         state: &mut State,
     ) -> Result<(), OwnershipCheckingError> {
         let node = self.parsed.ast().expressions().get(id)?;
+        if !self.escape_coverage_relevant(id, node.payload()) {
+            return Ok(());
+        }
         let known = if self.loop_spans.contains(self.parsed, node.span()) {
             false
         } else {
@@ -56,6 +60,24 @@ impl Checker<'_> {
             },
         );
         Ok(())
+    }
+
+    fn escape_coverage_relevant(&self, id: ExpressionId, payload: &Expression) -> bool {
+        if matches!(payload, Expression::Literal(LiteralKind::Null)) {
+            return true;
+        }
+        match self
+            .typed
+            .expression_type(self.unit_expression(id))
+            .and_then(|ty| self.typed.types().get(ty))
+        {
+            Some(UnitTypeKind::Function { .. }) => true,
+            Some(UnitTypeKind::Nullable(inner)) => matches!(
+                self.typed.types().get(*inner),
+                Some(UnitTypeKind::Function { .. } | UnitTypeKind::Builtin(BuiltinType::Nothing))
+            ),
+            _ => false,
+        }
     }
 
     fn escape_coverage_known(&self, expression: ExpressionId, state: &State) -> bool {

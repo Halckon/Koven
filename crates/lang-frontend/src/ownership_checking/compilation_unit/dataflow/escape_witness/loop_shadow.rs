@@ -17,6 +17,7 @@ pub(in super::super) struct LoopEscapeShadow(Option<Box<LoopEscapeShadowState>>)
 struct LoopEscapeShadowState {
     candidates: BTreeSet<UnitSymbolId>,
     bindings: BTreeMap<UnitSymbolId, BTreeSet<UnitExpressionId>>,
+    incomplete: BTreeSet<UnitSymbolId>,
     invalid: BTreeSet<UnitSymbolId>,
     published: BTreeSet<UnitSymbolId>,
     depth: usize,
@@ -37,21 +38,25 @@ impl LoopEscapeShadowState {
         value: UnitExpressionId,
         facts: &EscapeWitnesses,
     ) {
+        let witnesses = facts.results.get(&value).cloned().unwrap_or_default();
         if facts.coverage.get(&value) == Some(&Coverage::Known) {
+            self.incomplete.remove(&symbol);
             self.invalid.remove(&symbol);
-            self.bindings.insert(
-                symbol,
-                facts.results.get(&value).cloned().unwrap_or_default(),
-            );
+            self.bindings.insert(symbol, witnesses);
         } else {
-            self.invalid.insert(symbol);
-            self.bindings.remove(&symbol);
+            self.incomplete.insert(symbol);
+            if witnesses.is_empty() {
+                self.bindings.remove(&symbol);
+            } else {
+                self.bindings.insert(symbol, witnesses);
+            }
         }
     }
     pub(in super::super) fn merge(&mut self, other: Self) {
         debug_assert_eq!(self.depth, other.depth);
         self.candidates
             .retain(|symbol| other.candidates.contains(symbol));
+        self.incomplete.extend(other.incomplete);
         self.invalid.extend(other.invalid);
         self.published.extend(other.published);
         for (symbol, witnesses) in other.bindings {
@@ -64,6 +69,7 @@ impl LoopEscapeShadowState {
     pub(in super::super) fn retain(&mut self, mut keep: impl FnMut(&UnitSymbolId) -> bool) {
         self.candidates.retain(&mut keep);
         self.bindings.retain(|symbol, _| keep(symbol));
+        self.incomplete.retain(&mut keep);
         self.invalid.retain(&mut keep);
         self.published.retain(&mut keep);
     }
@@ -153,12 +159,17 @@ impl Checker<'_> {
 }
 impl State {
     pub(in super::super) fn begin_loop_escape_shadow(&mut self) {
-        // A previous bounded loop may have published a seed. Quarantine it again
-        // before any later loop condition/body can consume incomplete evidence.
+        // Quarantine every loop-written candidate (active pre-loop or published by
+        // an earlier bounded loop) before any loop condition/body can read it.
         let Some(shadow) = &mut self.loop_escape_shadow.0 else {
             return;
         };
-        for symbol in std::mem::take(&mut shadow.published) {
+        for symbol in shadow
+            .candidates
+            .iter()
+            .copied()
+            .chain(std::mem::take(&mut shadow.published))
+        {
             self.escape_witnesses.bindings.remove(&symbol);
             self.escape_witnesses.known_bindings.remove(&symbol);
             self.escape_witnesses.mutable_locals.remove(&symbol);
@@ -194,7 +205,20 @@ impl State {
             if shadow.invalid.contains(&symbol) {
                 continue;
             }
-            let Some(witnesses) = shadow.bindings.get(&symbol) else {
+            let witnesses = shadow.bindings.get(&symbol);
+            if shadow.incomplete.contains(&symbol) {
+                self.escape_witnesses.known_bindings.remove(&symbol);
+                if let Some(witnesses) = witnesses.filter(|w| !w.is_empty()) {
+                    self.escape_witnesses
+                        .bindings
+                        .insert(symbol, witnesses.clone());
+                    self.escape_witnesses.mutable_locals.insert(symbol);
+                } else {
+                    self.escape_witnesses.bindings.remove(&symbol);
+                }
+                continue;
+            }
+            let Some(witnesses) = witnesses else {
                 continue;
             };
             if witnesses.is_empty() {
@@ -446,11 +470,14 @@ mod tests {
                     .0
                     .as_mut()
                     .unwrap()
-                    .invalid
+                    .incomplete
                     .contains(&symbol)
             );
             assert!(!left.escape_witnesses.known_bindings.contains(&symbol));
-            assert!(!left.escape_witnesses.mutable_locals.contains(&symbol));
+            assert_eq!(
+                left.escape_witnesses.bindings.get(&symbol),
+                Some(&[source].into())
+            );
         }
     }
     #[test]

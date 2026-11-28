@@ -28,16 +28,16 @@ impl Checker<'_> {
             return self.bind_escape_witness(symbol, initializer, state);
         }
         if kind == VariableKind::Var && self.mutable_escape_witness_eligible(symbol, initializer)? {
+            state.escape_witnesses.mutable_locals.insert(symbol);
+            self.replace_mutable_escape_witness(symbol, initializer, state);
             if self.mutable_escape_witness_has_loop_write(symbol)? {
-                // An excluded binding retains a private seed, not an active escape proof.
+                // Keep pre-loop reads active; `begin_loop_escape_shadow` quarantines
+                // loop-written bindings on loop entry.
                 state.loop_escape_shadow.seed(
                     symbol,
                     self.unit_expression(initializer),
                     &state.escape_witnesses,
                 );
-            } else {
-                state.escape_witnesses.mutable_locals.insert(symbol);
-                self.replace_mutable_escape_witness(symbol, initializer, state);
             }
         }
         Ok(())
