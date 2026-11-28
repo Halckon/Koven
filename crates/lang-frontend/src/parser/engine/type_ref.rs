@@ -1,5 +1,102 @@
 use super::{class::ClassifierHeaderOwner, *};
 
+pub(super) const fn is_function_type_start_kinds(
+    current_kind: LexemeKind,
+    is_move_ident: bool,
+    next_kind: Option<LexemeKind>,
+) -> bool {
+    (matches!(current_kind, LexemeKind::Token(TokenKind::Identifier))
+        && is_move_ident
+        && matches!(
+            next_kind,
+            Some(LexemeKind::Token(TokenKind::Symbol(Symbol::LeftParen)))
+        ))
+        || matches!(
+            current_kind,
+            LexemeKind::Token(TokenKind::Symbol(Symbol::LeftParen))
+        )
+}
+
+pub(super) const fn is_extension_receiver_dot_stop(
+    ends_at_extension_name: bool,
+    next_kind: Option<LexemeKind>,
+    next2_kind: Option<LexemeKind>,
+) -> bool {
+    ends_at_extension_name
+        && matches!(next_kind, Some(LexemeKind::Token(TokenKind::Identifier)))
+        && matches!(
+            next2_kind,
+            Some(LexemeKind::Token(TokenKind::Symbol(Symbol::LeftParen)))
+        )
+}
+
+pub(super) const fn is_function_type_right_paren_closer(
+    current_kind: LexemeKind,
+    current_raw: usize,
+    proven_type_closer: Option<usize>,
+) -> bool {
+    matches!(
+        current_kind,
+        LexemeKind::Token(TokenKind::Symbol(Symbol::RightParen))
+    ) && match proven_type_closer {
+        Some(limit) => current_raw != limit,
+        None => true,
+    }
+}
+
+pub(super) const fn bounded_proven_parameter_closer(
+    closer: Option<usize>,
+    proven_type_closer: Option<usize>,
+) -> Option<usize> {
+    match closer {
+        Some(c) => match proven_type_closer {
+            Some(limit) => {
+                if c < limit {
+                    Some(c)
+                } else {
+                    None
+                }
+            }
+            None => Some(c),
+        },
+        None => None,
+    }
+}
+
+pub(super) const fn step_segmented_string_type_poison_end(
+    current_end: usize,
+    recovery_end: usize,
+    kind: LexemeKind,
+    lexeme_end: usize,
+) -> (usize, bool) {
+    if current_end >= recovery_end || matches!(kind, LexemeKind::Eof) {
+        (current_end, true)
+    } else {
+        (lexeme_end, false)
+    }
+}
+
+#[cfg(any(test, kani))]
+pub(super) fn run_segmented_string_type_poison_end(
+    initial_end: usize,
+    recovery_end: usize,
+    lexemes: &[(LexemeKind, usize)],
+) -> usize {
+    let mut end = initial_end;
+    let mut index = 0usize;
+    while index < lexemes.len() {
+        let (kind, lexeme_end) = lexemes[index];
+        let (next_end, stop) =
+            step_segmented_string_type_poison_end(end, recovery_end, kind, lexeme_end);
+        end = next_end;
+        if stop {
+            break;
+        }
+        index += 1;
+    }
+    end
+}
+
 impl Parser<'_> {
     pub(super) fn complete_function_type_starts_here(&self) -> Result<bool, ParserInternalError> {
         // A strict function type can own the same arrow the selector probe saw.
@@ -31,9 +128,17 @@ impl Parser<'_> {
         &mut self,
         stops: TypeStops,
     ) -> Result<(TypeRefId, bool), ParserInternalError> {
-        if (self.current_identifier_is("move")? && self.peek_is_symbol(1, Symbol::LeftParen))
-            || self.current_is_symbol(Symbol::LeftParen)
+        let first_kind = self.current()?.kind();
+        let is_function_start = if is_function_type_start_kinds(first_kind, false, None) {
+            true
+        } else if matches!(first_kind, LexemeKind::Token(TokenKind::Identifier))
+            && self.current_identifier_is("move")?
         {
+            is_function_type_start_kinds(first_kind, true, self.peek(1).map(Lexeme::kind))
+        } else {
+            false
+        };
+        if is_function_start {
             return self.parse_function_type(stops);
         }
         let (raw, current) = self
@@ -144,10 +249,17 @@ impl Parser<'_> {
 
         while end < recovery_end {
             let current = self.current()?;
-            if matches!(current.kind(), LexemeKind::Eof) {
+            let (next_end, stop) = step_segmented_string_type_poison_end(
+                end,
+                recovery_end,
+                current.kind(),
+                current.span().end(),
+            );
+            if stop {
                 break;
             }
-            end = self.bump()?.span().end();
+            self.bump()?;
+            end = next_end;
         }
 
         self.add_type_ref(self.span(start, end)?, TypeRef::Error)
@@ -171,11 +283,13 @@ impl Parser<'_> {
         let mut end = first.end();
 
         while self.current_is_symbol(Symbol::Dot) {
-            if stops.ends_at_extension_name()
-                && self.peek_is_identifier(1)
-                && self.peek_is_symbol(2, Symbol::LeftParen)
-            {
-                break;
+            if stops.ends_at_extension_name() {
+                let next = self.peek(1).map(Lexeme::kind);
+                if matches!(next, Some(LexemeKind::Token(TokenKind::Identifier)))
+                    && is_extension_receiver_dot_stop(true, next, self.peek(2).map(Lexeme::kind))
+                {
+                    break;
+                }
             }
             let dot = self.bump()?.span();
             let current = self.current()?;
@@ -368,13 +482,11 @@ impl Parser<'_> {
                 .map(|id| (id, false));
         }
         let proven_parameter_close = if outer_stops.supertype_owner().is_some() {
-            self.lexical_recoveries
-                .angle_group_closer(self.lexed, self.current_raw()?)
-                .filter(|&closer| {
-                    outer_stops
-                        .proven_type_closer()
-                        .is_none_or(|limit| closer < limit)
-                })
+            bounded_proven_parameter_closer(
+                self.lexical_recoveries
+                    .angle_group_closer(self.lexed, self.current_raw()?),
+                outer_stops.proven_type_closer(),
+            )
         } else {
             None
         };
@@ -445,9 +557,23 @@ impl Parser<'_> {
             .last()
             .map(|parameter| parameter.span.end())
             .unwrap_or(opener.end());
-        let has_right_paren = self.current_is_symbol(Symbol::RightParen)
-            && (outer_stops.proven_type_closer().is_none()
-                || Some(self.current_raw()?) != outer_stops.proven_type_closer());
+        let current_kind = self.current()?.kind();
+        let has_right_paren = if matches!(
+            current_kind,
+            LexemeKind::Token(TokenKind::Symbol(Symbol::RightParen))
+        ) {
+            if outer_stops.proven_type_closer().is_none() {
+                is_function_type_right_paren_closer(current_kind, 0, None)
+            } else {
+                is_function_type_right_paren_closer(
+                    current_kind,
+                    self.current_raw()?,
+                    outer_stops.proven_type_closer(),
+                )
+            }
+        } else {
+            false
+        };
         if has_right_paren {
             last_end = self.bump()?.span().end();
         } else {

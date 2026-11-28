@@ -102,7 +102,7 @@ origin_target     = origin_root
 | P5 | `val view = origins` + `class view<view: Any> {}` + `fun <view > id() {}` + `fun <view view: Any> flows(borrow into: view) {}` | 四个软词全部作为普通标识符、类型名、带空格的合法 `<view >` 类型参数名与参数名共存 |
 | P6 | `fun <view T> forward(borrow p: T): borrow Item from p.origins {}` | `p.origins` 用于返回 `from` 合同 |
 | P7 | `fun extract(borrow p: Holder): borrow Item from p.inner.origins {}` | 嵌套字段路径后接 `.origins` 选择器 |
-| P8 | `fun push(inout b: Bag, borrow x: Item) flows x into b` | 无体接口方法携带 `flows` |
+| P8 | `interface Store { fun push(inout b: Bag, borrow x: Item) flows x into b\n fun size(): Int }` | 接口体内的无体方法携带 `flows` 且正确与下一成员分隔 |
 | P9 | `fun id(inout dst: Slot, borrow x: Item): Int flows x into dst = x` | 表达式体函数 `=` 之前携带 `flows` |
 | P10 | `fun stash(inout dst: Slot) flows this.origins into dst.slot {}` | `this.origins` 作为来源流入参数字段 |
 
@@ -120,24 +120,25 @@ origin_target     = origin_root
 | N8 | `fun bad(inout dst: Slot, borrow x: Item); flows x into dst {}` | **文法拒绝**：分号阻断函数头，`flows` 不得跨 `;` 附着 |
 | N9 | `fun bad(inout dst: Slot, borrow x: Item)\nflows x into dst {}` | **文法拒绝**（同行基准）：无显式跨行谓词时，`flows` 不跨 `NL` 附着 |
 | N10 | `fun <view view T> bad() {}` | **文法拒绝**：禁止重复 `view` 修饰前缀 |
+| N11 | `fun bad(inout b: Bag, borrow x: Item) flows x into b = x` | **文法拒绝**：按 Guide 05 与 `D-FUN`，表达式体 `= expr` 必须显式标注返回类型，不得省略 |
 | S1（Phase 2） | `class Bad(val origins: Int)` 上写 `fun f(borrow p: Bad): borrow Int from p.origins` | **Phase 2 拒绝（`SIG`）**：纯 CFG 无法区分同名字段与选择器（见 `B_origins_collision`），由签名解析在目标类型存在真实 `origins` 字段时直接报错拒绝（与 `scripts/loan_kernel/cases/Z44.lk` 对齐） |
 
 ## 6. 下游同步范围与放行清单核对
 
 - **下游同步范围（本轮均为范围外，进入正式 Guide 前须逐项补齐）**：
   - **F4c Formatter 往返投影**：新增 `flows … into`、`view T`、`p.origins` 的规范打印与往返测试。
-  - **F4a 独立参考差分语料**：将上述 21 组正反例并入独立参考声明切片语料，并与生产 parser 做差分。
+  - **F4a 独立参考差分语料**：将上述 22 组正反例并入独立参考声明切片语料，并与生产 parser 做差分。
   - **F4b Tree-sitter 漂移账本**：在 `tree-sitter` 文法同步前，将三项候选登记为已知待同步漂移项。
 - **F5 评审放行清单自检（对照 [syntax-gate-checklist.md §2](syntax-gate-checklist.md#评审放行清单进入-guide-前)）**：
   - [x] 规则增量回链唯一 Guide 章节，未在多章复制矛盾条件。
-  - [x] 冲突变化已由仓库内可复跑套件 `scripts/loan_kernel/f5_od4_grammar_probe.py`（单测 `scripts/tests/test_f5_od4_grammar_probe.py`）固化全部 9 组基准/增量/对照 Bison 文法并实测通过（含 `from s into v` 1 S/R、跨行 `flows` 1 R/R、`origins` 撞名 2 R/R，以及 `3_combined_od4` 11 正例 + 10 反例编译实跑）。
-  - [x] 软词（`flows`/`into`/`view`/`origins`）未破坏普通 `Identifier` 或词法错误交接（R4）。
-  - [ ] 正反例已覆盖抽象 `NL` / 分号阻断、重复修饰、带空格 `<view >`、误作 `into` 目标与撞名边界，但**尚未在真实 Lexer/Parser 上验证 CRLF、含换行块注释、未闭合回退及恢复期调用方边界保留**；进入正式 Guide 提案前须补齐对应见证。
+  - [x] 冲突变化已由仓库内可复跑套件 `scripts/loan_kernel/f5_od4_grammar_probe.py`（单测 `scripts/tests/test_f5_od4_grammar_probe.py`）固化全部 9 组基准/增量/对照 Bison 文法并实测通过（含 `from s into v` 1 S/R、跨行 `flows` 1 R/R、`origins` 撞名 2 R/R，以及 `3_combined_od4` 11 正例 + 11 反例编译实跑，反例严格断言退出码 `1`）。
+  - [ ] 软词（`flows`/`into`/`view`/`origins`）在预分词文法下未破坏普通 `Identifier`；但**见证解析器读取预分词实参且 `yylex()` 将未知输入统一转为 `ID`，尚未覆盖真实 Lexer 的词法错误 token 与 R4 交接**，须在真实 Lexer/Parser 上补验后再勾选。
+  - [ ] 正反例已覆盖抽象 `NL` / 分号阻断、重复修饰、带空格 `<view >`、接口体内无体方法分隔、表达式体省略返回类型、误作 `into` 目标与撞名边界，但**尚未在真实 Lexer/Parser 上验证 CRLF、含换行块注释、未闭合回退及恢复期调用方边界保留**；进入正式 Guide 提案前须补齐对应见证。
   - [x] 未将 Bison 或 Tree-sitter 提升为第二规范，未夸称有限用例为全语言证明。
 
 ## 7. 验证与未运行项
 
 - **已运行**：
-  - macOS AArch64 下 `python3 -m unittest scripts.tests.test_f5_od4_grammar_probe`（Python 3.12+ 与 Python 3.9 双版本均通过）：通过 GNU Bison 2.3（`%expect 0`，无 `%left`/`%right`）复现全部 9 组文法冲突计数，并用 `cc -Wall -Wextra -Werror` 编译 `3_combined_od4` 跑通 21 组正反例见证（`POS 11/11, NEG 10/10`）。
+  - macOS AArch64 下 `python3 -m unittest scripts.tests.test_f5_od4_grammar_probe`（Python 3.12+ 与 Python 3.9 双版本均通过）：通过 GNU Bison 2.3（`%expect 0`，无 `%left`/`%right`）复现全部 9 组文法冲突计数，并用 `cc -Wall -Wextra -Werror` 编译 `3_combined_od4` 跑通 22 组正反例见证（`POS 11/11, NEG 11/11`，反例均返回语法错误码 `1`）。
   - `/opt/homebrew/bin/python3 scripts/check_docs.py && /opt/homebrew/bin/python3 -m unittest scripts.tests.test_check_docs`。
-- **未运行**：未修改 `docs/guide/`、`crates/`、Formatter、Tree-sitter 或 CI；未启用 OD4 任何候选语法；未在真实生产 Lexer/Parser 上运行 CRLF/含换行块注释/恢复边界测试；未运行 `cargo test`。
+- **未运行**：未修改 `docs/guide/`、`crates/`、Formatter、Tree-sitter 或 CI；未启用 OD4 任何候选语法；未在真实生产 Lexer/Parser 上运行词法错误交接（R4）、CRLF/含换行块注释或恢复边界测试；未运行 `cargo test`。

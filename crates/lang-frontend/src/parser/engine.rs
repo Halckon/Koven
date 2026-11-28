@@ -10,8 +10,16 @@ mod core;
 mod declaration;
 mod declaration_head;
 mod destructuring;
+#[cfg(kani)]
+mod destructuring_kani;
+#[cfg(test)]
+mod destructuring_tests;
 mod expression;
 mod file;
+#[cfg(kani)]
+mod file_kani;
+#[cfg(test)]
+mod file_tests;
 mod lambda;
 #[cfg(kani)]
 mod lexeme_stream_kani;
@@ -19,6 +27,11 @@ mod lexeme_stream_kani;
 mod lexeme_stream_tests;
 mod operator;
 mod postfix;
+#[cfg(kani)]
+mod postfix_kani;
+mod postfix_kernel;
+#[cfg(test)]
+mod postfix_tests;
 #[cfg(kani)]
 mod pratt_kani;
 #[cfg(test)]
@@ -33,6 +46,10 @@ mod stops_tests;
 #[cfg(test)]
 mod tests;
 mod type_ref;
+#[cfg(kani)]
+mod type_ref_kani;
+#[cfg(test)]
+mod type_ref_tests;
 mod when_boundary;
 #[cfg(kani)]
 mod when_boundary_kani;

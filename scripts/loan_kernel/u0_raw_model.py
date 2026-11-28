@@ -38,6 +38,7 @@ def is_prefix_or_equal(prefix: str, target: str) -> bool:
 class Loan:
     loan_id: int
     place: str
+    alloc_id: int
     kind: str  # "Shared" | "Exclusive"
     parent_id: Optional[int] = None
 
@@ -51,6 +52,7 @@ class RawPtr:
     derived_mode: str  # "Shared" | "Exclusive" | "Cell"
     provenance_kind: str  # 实际派生权限："Shared" | "Exclusive" | "Cell"
     derived_loan_id: Optional[int] = None
+    out_of_scope_loan: Optional[str] = None
 
 
 @dataclass
@@ -119,7 +121,9 @@ class U0RawInterpreter:
         state = "Init" if initialized else "Uninit"
         slots = {root: state}
         for f in fields:
-            slots[f"{root}.{f}"] = state
+            parts = f.split(".")
+            for depth in range(1, len(parts) + 1):
+                slots[f"{root}.{'.'.join(parts[:depth])}"] = state
         handle_id = self._new_handle() if (resource_handle and initialized) else None
         self.owners[root] = OwnerState(
             root=root,
@@ -134,9 +138,10 @@ class U0RawInterpreter:
     def borrow(self, place: str, kind: str, *, parent_id: Optional[int] = None) -> int:
         self.step += 1
         assert kind in ("Shared", "Exclusive")
+        owner = self.owners[root_of(place)]
         loan_id = self.next_loan_id
         self.next_loan_id += 1
-        loan = Loan(loan_id=loan_id, place=place, kind=kind, parent_id=parent_id)
+        loan = Loan(loan_id=loan_id, place=place, alloc_id=owner.alloc_id, kind=kind, parent_id=parent_id)
         self.loans[loan_id] = loan
         self.loan_history[loan_id] = loan
         return loan_id
@@ -162,6 +167,20 @@ class U0RawInterpreter:
             return "Cell" if derived_mode == "Cell" else "Shared"
         return derived_mode
 
+    def _check_derived_loan_scope(self, place: str, derived_loan_id: Optional[int]) -> Optional[str]:
+        """校验目标 place 是否落在派生借用链覆盖范围内；越界时返回首个不覆盖它的借用位置。"""
+        if derived_loan_id is None:
+            return None
+        cur: Optional[int] = derived_loan_id
+        visited: Set[int] = set()
+        while cur is not None and cur in self.loan_history and cur not in visited:
+            visited.add(cur)
+            loan = self.loan_history[cur]
+            if not is_prefix_or_equal(loan.place, place):
+                return loan.place
+            cur = loan.parent_id
+        return None
+
     def address_of(
         self,
         place: str,
@@ -169,7 +188,7 @@ class U0RawInterpreter:
         derived_mode: str,
         derived_loan_id: Optional[int] = None,
     ) -> int:
-        """U1 R1.2 + AL2：建立带分配实例 ID 与真实派生权限的裸指针，并在 root owner 上设置 place 级析构屏障。"""
+        """U1 R1.2 + AL2：建立带分配实例 ID、范围核对与真实派生权限的裸指针，并在 root owner 上设置 place 级析构屏障。"""
         self.step += 1
         assert derived_mode in ("Shared", "Exclusive", "Cell")
         root = root_of(place)
@@ -185,6 +204,7 @@ class U0RawInterpreter:
             derived_mode=derived_mode,
             provenance_kind=self._effective_provenance(derived_mode, derived_loan_id),
             derived_loan_id=derived_loan_id,
+            out_of_scope_loan=self._check_derived_loan_scope(place, derived_loan_id),
         )
         return ptr_id
 
@@ -207,9 +227,15 @@ class U0RawInterpreter:
         return owner
 
     def _check_al1_read(self, ptr: RawPtr) -> bool:
+        if ptr.out_of_scope_loan is not None:
+            self._record(
+                "UB1",
+                f"raw_read({ptr.place}) is outside derived loan #{ptr.derived_loan_id} scope ({ptr.out_of_scope_loan})",
+            )
+            return False
         allowed = self._ancestors(ptr.derived_loan_id)
         for loan in self.loans.values():
-            if loan.loan_id in allowed:
+            if loan.loan_id in allowed or loan.alloc_id != ptr.alloc_id:
                 continue
             if loan.kind == "Exclusive" and overlaps(loan.place, ptr.place):
                 self._record(
@@ -223,7 +249,7 @@ class U0RawInterpreter:
         """AL7：RawCell 允许经 Shared/Cell 路径写入，但仍不得与存活 Exclusive loan 重叠冲突。"""
         allowed = self._ancestors(ptr.derived_loan_id)
         for loan in self.loans.values():
-            if loan.loan_id in allowed:
+            if loan.loan_id in allowed or loan.alloc_id != ptr.alloc_id:
                 continue
             if loan.kind == "Exclusive" and overlaps(loan.place, ptr.place):
                 self._record(
@@ -234,6 +260,12 @@ class U0RawInterpreter:
         return True
 
     def _check_al1_write(self, ptr: RawPtr, owner: OwnerState, op: str) -> bool:
+        if ptr.out_of_scope_loan is not None:
+            self._record(
+                "UB1",
+                f"{op}({ptr.place}) is outside derived loan #{ptr.derived_loan_id} scope ({ptr.out_of_scope_loan})",
+            )
+            return False
         if ptr.provenance_kind in ("Shared", "Cell"):
             if not owner.is_cell:
                 self._record(
@@ -244,16 +276,22 @@ class U0RawInterpreter:
                 return False
             return self._check_rawcell_write_no_exclusive(ptr, op)
 
-        # Exclusive 派生写：若绑定了派生 loan，则该 loan 必须仍存活，且不得与其他重叠存活 loan 冲突
-        if ptr.derived_loan_id is not None and ptr.derived_loan_id not in self.loans:
-            self._record(
-                "UB1",
-                f"{op}({ptr.place}) uses Exclusive RawPtr after its derived loan #{ptr.derived_loan_id} ended",
-            )
-            return False
+        # Exclusive 派生写：若绑定了派生 loan，整条祖先授权链必须持续存活，且不得与其他重叠存活 loan 冲突
+        if ptr.derived_loan_id is not None:
+            cur: Optional[int] = ptr.derived_loan_id
+            visited: Set[int] = set()
+            while cur is not None and cur not in visited:
+                visited.add(cur)
+                if cur not in self.loans:
+                    self._record(
+                        "UB1",
+                        f"{op}({ptr.place}) uses Exclusive RawPtr after loan #{cur} in derivation chain ended",
+                    )
+                    return False
+                cur = self.loan_history[cur].parent_id
         allowed = self._ancestors(ptr.derived_loan_id)
         for loan in self.loans.values():
-            if loan.loan_id in allowed:
+            if loan.loan_id in allowed or loan.alloc_id != ptr.alloc_id:
                 continue
             if overlaps(loan.place, ptr.place):
                 self._record(
@@ -264,23 +302,43 @@ class U0RawInterpreter:
         return True
 
     def _is_initialized(self, owner: OwnerState, place: str) -> bool:
-        """检查 place 的全部祖先槽位与全部后代槽位均处于 Init。"""
+        """按目标粒度检查初始化状态：
+        - 若 place 自身已显式建槽，要求其自身及全部后代槽位均为 Init（不因兄弟字段未初始化而误拒）；
+        - 若 place 未单独建槽，回退检查最近的祖先槽位以及全部后代槽位。
+        """
+        if place in owner.slots:
+            if owner.slots[place] != "Init":
+                return False
+        else:
+            ancestors = [
+                (len(split_place(slot)), st)
+                for slot, st in owner.slots.items()
+                if is_prefix_or_equal(slot, place)
+            ]
+            if not ancestors or max(ancestors)[1] != "Init":
+                return False
         for slot, st in owner.slots.items():
-            if is_prefix_or_equal(slot, place) or is_prefix_or_equal(place, slot):
-                if st != "Init":
-                    return False
+            if is_prefix_or_equal(place, slot) and st != "Init":
+                return False
         return True
 
     def _set_slot_state(self, owner: OwnerState, place: str, state: str) -> None:
-        """更新 place 及其全部后代槽位的初始化状态；若为子字段恢复 Init 且所有字段均 Init，则恢复根槽位。"""
+        """更新 place 及其全部后代槽位的初始化状态，并沿祖先链自底向上同步聚合完整性。"""
         owner.slots[place] = state
         for slot in list(owner.slots.keys()):
             if is_prefix_or_equal(place, slot):
                 owner.slots[slot] = state
-        if state == "Init" and place != owner.root:
-            children = [s for s in owner.slots if s != owner.root]
-            if children and all(owner.slots[s] == "Init" for s in children):
-                owner.slots[owner.root] = "Init"
+        parts = split_place(place)
+        for depth in range(len(parts) - 1, 0, -1):
+            anc = ".".join(parts[:depth])
+            if anc not in owner.slots:
+                continue
+            if state == "Uninit":
+                owner.slots[anc] = "Uninit"
+            else:
+                descendants = [s for s in owner.slots if s != anc and is_prefix_or_equal(anc, s)]
+                if descendants and all(owner.slots[s] == "Init" for s in descendants):
+                    owner.slots[anc] = "Init"
 
     def raw_read(self, ptr_id: int) -> None:
         self.step += 1
@@ -315,6 +373,12 @@ class U0RawInterpreter:
         if not self._is_initialized(owner, ptr.place):
             self._record("UB5", f"ptr_read({ptr.place}) reads uninitialized slot")
             return
+        moved_slots = {into_owner: "Init"} if into_owner is not None else {}
+        if into_owner is not None:
+            prefix = f"{ptr.place}."
+            for slot in owner.slots:
+                if slot.startswith(prefix):
+                    moved_slots[f"{into_owner}.{slot[len(prefix):]}"] = "Init"
         self._set_slot_state(owner, ptr.place, "Uninit")
         moved_handle = owner.handle_id if ptr.place == owner.root else None
         if ptr.place == owner.root:
@@ -323,7 +387,8 @@ class U0RawInterpreter:
             self.owners[into_owner] = OwnerState(
                 root=into_owner,
                 alloc_id=self._new_alloc_id(),
-                slots={into_owner: "Init"},
+                slots=moved_slots,
+                is_cell=owner.is_cell if ptr.place == owner.root else False,
                 is_resource=moved_handle is not None,
                 handle_id=moved_handle,
             )
@@ -339,10 +404,16 @@ class U0RawInterpreter:
         if not self._is_initialized(owner, ptr.place):
             self._record("UB5", f"ptr_read_duplicate_handle({ptr.place}) reads uninitialized slot")
             return
+        dup_slots = {into_owner: "Init"}
+        prefix = f"{ptr.place}."
+        for slot in owner.slots:
+            if slot.startswith(prefix):
+                dup_slots[f"{into_owner}.{slot[len(prefix):]}"] = "Init"
         self.owners[into_owner] = OwnerState(
             root=into_owner,
             alloc_id=self._new_alloc_id(),
-            slots={into_owner: "Init"},
+            slots=dup_slots,
+            is_cell=owner.is_cell if ptr.place == owner.root else False,
             is_resource=owner.handle_id is not None,
             handle_id=owner.handle_id,
         )

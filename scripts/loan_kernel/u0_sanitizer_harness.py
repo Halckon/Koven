@@ -12,9 +12,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 import os
 import shutil
+import signal
 import subprocess
 import tempfile
-from typing import Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 
 @dataclass(frozen=True)
@@ -26,6 +27,7 @@ class SanitizerCase:
     expect_nonzero: bool
     source: str
     env_extra: Tuple[Tuple[str, str], ...] = ()
+    expected_returncode: Optional[int] = None
 
 
 CASES: Tuple[SanitizerCase, ...] = (
@@ -157,6 +159,7 @@ int main(void) {
         flags=("-g", "-O0"),
         expected_substrings=(),
         expect_nonzero=True,
+        expected_returncode=-signal.SIGABRT,
         source=r"""
 #include <stdlib.h>
 typedef void (*cb_t)(void);
@@ -254,7 +257,10 @@ def run_case(case: SanitizerCase, compiler: str = "clang") -> CaseResult:
             env[k] = v
         run = subprocess.run([bin_path], capture_output=True, text=True, env=env)
         combined = run.stderr + "\n" + run.stdout
-        rc_ok = (run.returncode != 0) if case.expect_nonzero else (run.returncode == 0)
+        if case.expected_returncode is not None:
+            rc_ok = run.returncode == case.expected_returncode
+        else:
+            rc_ok = (run.returncode != 0) if case.expect_nonzero else (run.returncode == 0)
         sub_ok = all(sub in combined for sub in case.expected_substrings)
         passed = rc_ok and sub_ok
         highlights = [

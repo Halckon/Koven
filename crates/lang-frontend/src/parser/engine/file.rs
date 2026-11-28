@@ -1,5 +1,159 @@
 use super::{class::ClassifierHeaderOwner, *};
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum FileHeaderSeparatorDecision {
+    Satisfied,
+    ConsumeSemicolon,
+    Missing,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum FileRootSeparatorDiagnostic {
+    None,
+    ExpectedFileHeaderSeparator,
+    ExpectedDeclarationSeparator,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum ModifierToken {
+    Visibility,
+    Override,
+    Receiver,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum ModifierStepOutcome {
+    Accept,
+    Invalid,
+    Stop,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(super) struct ModifierScanState {
+    pub(super) has_visibility: bool,
+    pub(super) saw_override: bool,
+    pub(super) saw_receiver: bool,
+}
+
+pub(super) const fn file_header_separator_decision(
+    kind: LexemeKind,
+    has_line_break: bool,
+) -> FileHeaderSeparatorDecision {
+    if matches!(kind, LexemeKind::Eof) || has_line_break {
+        FileHeaderSeparatorDecision::Satisfied
+    } else if matches!(
+        kind,
+        LexemeKind::Token(TokenKind::Symbol(Symbol::Semicolon))
+    ) {
+        FileHeaderSeparatorDecision::ConsumeSemicolon
+    } else {
+        FileHeaderSeparatorDecision::Missing
+    }
+}
+
+pub(super) const fn file_root_separator_diagnostic(
+    started_as_declaration: bool,
+    at_file_boundary: bool,
+    has_line_break: bool,
+    kind: LexemeKind,
+) -> FileRootSeparatorDiagnostic {
+    if matches!(
+        kind,
+        LexemeKind::Eof | LexemeKind::Token(TokenKind::Symbol(Symbol::Semicolon))
+    ) || !started_as_declaration
+        || !at_file_boundary
+        || has_line_break
+    {
+        FileRootSeparatorDiagnostic::None
+    } else if matches!(
+        kind,
+        LexemeKind::Token(TokenKind::Keyword(Keyword::Package | Keyword::Import))
+    ) {
+        FileRootSeparatorDiagnostic::ExpectedFileHeaderSeparator
+    } else {
+        FileRootSeparatorDiagnostic::ExpectedDeclarationSeparator
+    }
+}
+
+pub(super) const fn step_declaration_modifier(
+    allow_override: bool,
+    policy: ReceiverModifierPolicy,
+    state: ModifierScanState,
+    token: ModifierToken,
+) -> (ModifierScanState, ModifierStepOutcome) {
+    match token {
+        ModifierToken::Visibility => {
+            if state.has_visibility || state.saw_override || state.saw_receiver {
+                (state, ModifierStepOutcome::Invalid)
+            } else {
+                (
+                    ModifierScanState {
+                        has_visibility: true,
+                        ..state
+                    },
+                    ModifierStepOutcome::Accept,
+                )
+            }
+        }
+        ModifierToken::Override => {
+            let next = ModifierScanState {
+                saw_override: true,
+                ..state
+            };
+            if !allow_override || state.saw_override || state.saw_receiver {
+                (next, ModifierStepOutcome::Invalid)
+            } else {
+                (next, ModifierStepOutcome::Accept)
+            }
+        }
+        ModifierToken::Receiver => match policy {
+            ReceiverModifierPolicy::NotRecognized => (state, ModifierStepOutcome::Stop),
+            ReceiverModifierPolicy::Rejected => (
+                ModifierScanState {
+                    saw_receiver: true,
+                    ..state
+                },
+                ModifierStepOutcome::Invalid,
+            ),
+            ReceiverModifierPolicy::Allowed => {
+                let next = ModifierScanState {
+                    saw_receiver: true,
+                    ..state
+                };
+                if state.saw_receiver {
+                    (next, ModifierStepOutcome::Invalid)
+                } else {
+                    (next, ModifierStepOutcome::Accept)
+                }
+            }
+        },
+    }
+}
+
+#[cfg(any(test, kani))]
+pub(super) fn run_declaration_modifiers(
+    allow_override: bool,
+    policy: ReceiverModifierPolicy,
+    initial: ModifierScanState,
+    tokens: &[ModifierToken],
+) -> (ModifierScanState, usize) {
+    let mut state = initial;
+    let mut errors = 0usize;
+    let mut index = 0usize;
+    while index < tokens.len() {
+        let (next, outcome) =
+            step_declaration_modifier(allow_override, policy, state, tokens[index]);
+        state = next;
+        match outcome {
+            ModifierStepOutcome::Stop => break,
+            ModifierStepOutcome::Accept => {}
+            ModifierStepOutcome::Invalid => errors += 1,
+        }
+        index += 1;
+    }
+    (state, errors)
+}
+
 impl Parser<'_> {
     pub(super) fn parse_declaration_root(&mut self) -> Result<ItemId, ParserInternalError> {
         let root = self.parse_declaration_item()?;
@@ -28,22 +182,29 @@ impl Parser<'_> {
     }
 
     pub(super) fn consume_file_header_separator(&mut self) -> Result<bool, ParserInternalError> {
-        if matches!(self.current()?.kind(), LexemeKind::Eof) {
+        let current = self.current()?;
+        if matches!(
+            file_header_separator_decision(current.kind(), false),
+            FileHeaderSeparatorDecision::Satisfied
+        ) {
             return Ok(true);
         }
-        if self.file_separator_region_has_line_break()? {
-            return Ok(true);
+        let has_line_break = self.file_separator_region_has_line_break()?;
+        match file_header_separator_decision(current.kind(), has_line_break) {
+            FileHeaderSeparatorDecision::Satisfied => Ok(true),
+            FileHeaderSeparatorDecision::ConsumeSemicolon => {
+                self.bump()?;
+                Ok(true)
+            }
+            FileHeaderSeparatorDecision::Missing => {
+                self.emit(
+                    codes::EXPECTED_FILE_HEADER_SEPARATOR,
+                    "expected file header separator",
+                    current.span(),
+                )?;
+                Ok(false)
+            }
         }
-        if self.current_is_symbol(Symbol::Semicolon) {
-            self.bump()?;
-            return Ok(true);
-        }
-        self.emit(
-            codes::EXPECTED_FILE_HEADER_SEPARATOR,
-            "expected file header separator",
-            self.current()?.span(),
-        )?;
-        Ok(false)
     }
 
     pub(super) fn parse_package_directive(
@@ -243,7 +404,8 @@ impl Parser<'_> {
             }
             roots.push(root);
 
-            if matches!(self.current()?.kind(), LexemeKind::Eof) {
+            let current = self.current()?;
+            if matches!(current.kind(), LexemeKind::Eof) {
                 break;
             }
             let separated_by_line_break = self.file_separator_region_has_line_break()?;
@@ -251,28 +413,30 @@ impl Parser<'_> {
                 self.bump()?;
                 continue;
             }
-            if started_as_declaration
-                && (self.is_file_declaration_boundary(self.current()?)
-                    || self.value_class_start_at(0)?)
+            let at_file_boundary = started_as_declaration
                 && !separated_by_line_break
-            {
-                self.emit(
-                    if self.current_is_keyword(Keyword::Package)
-                        || self.current_is_keyword(Keyword::Import)
-                    {
-                        codes::EXPECTED_FILE_HEADER_SEPARATOR
-                    } else {
-                        codes::EXPECTED_DECLARATION_SEPARATOR
-                    },
-                    if self.current_is_keyword(Keyword::Package)
-                        || self.current_is_keyword(Keyword::Import)
-                    {
-                        "expected file header separator"
-                    } else {
-                        "expected declaration separator"
-                    },
-                    self.current()?.span(),
-                )?;
+                && (self.is_file_declaration_boundary(current) || self.value_class_start_at(0)?);
+            match file_root_separator_diagnostic(
+                started_as_declaration,
+                at_file_boundary,
+                separated_by_line_break,
+                current.kind(),
+            ) {
+                FileRootSeparatorDiagnostic::None => {}
+                FileRootSeparatorDiagnostic::ExpectedFileHeaderSeparator => {
+                    self.emit(
+                        codes::EXPECTED_FILE_HEADER_SEPARATOR,
+                        "expected file header separator",
+                        current.span(),
+                    )?;
+                }
+                FileRootSeparatorDiagnostic::ExpectedDeclarationSeparator => {
+                    self.emit(
+                        codes::EXPECTED_DECLARATION_SEPARATOR,
+                        "expected declaration separator",
+                        current.span(),
+                    )?;
+                }
             }
         }
         Ok(roots)
@@ -378,8 +542,7 @@ impl Parser<'_> {
         receiver_policy: ReceiverModifierPolicy,
     ) -> Result<DeclarationModifiers, ParserInternalError> {
         let mut modifiers = DeclarationModifiers::default();
-        let mut saw_override = false;
-        let mut saw_receiver = false;
+        let mut scan_state = ModifierScanState::default();
         loop {
             let visibility = if self.current_is_keyword(Keyword::Public) {
                 Some(VisibilityModifier::Public(self.current()?.span()))
@@ -392,48 +555,73 @@ impl Parser<'_> {
             };
             if let Some(visibility) = visibility {
                 let span = self.bump()?.span();
-                if modifiers.visibility.is_some() || saw_override || saw_receiver {
-                    self.emit(
-                        codes::INVALID_DECLARATION_MODIFIER,
-                        "invalid declaration modifier",
-                        span,
-                    )?;
-                } else {
-                    modifiers.visibility = Some(visibility);
+                let (next_state, outcome) = step_declaration_modifier(
+                    allow_override,
+                    receiver_policy,
+                    scan_state,
+                    ModifierToken::Visibility,
+                );
+                scan_state = next_state;
+                match outcome {
+                    ModifierStepOutcome::Accept => modifiers.visibility = Some(visibility),
+                    ModifierStepOutcome::Invalid => {
+                        self.emit(
+                            codes::INVALID_DECLARATION_MODIFIER,
+                            "invalid declaration modifier",
+                            span,
+                        )?;
+                    }
+                    ModifierStepOutcome::Stop => break,
                 }
                 continue;
             }
             if self.current_is_keyword(Keyword::Override) {
                 let span = self.bump()?.span();
-                if !allow_override || saw_override || saw_receiver {
-                    self.emit(
-                        codes::INVALID_DECLARATION_MODIFIER,
-                        "invalid declaration modifier",
-                        span,
-                    )?;
-                } else {
-                    modifiers.override_span = Some(span);
+                let (next_state, outcome) = step_declaration_modifier(
+                    allow_override,
+                    receiver_policy,
+                    scan_state,
+                    ModifierToken::Override,
+                );
+                scan_state = next_state;
+                match outcome {
+                    ModifierStepOutcome::Accept => modifiers.override_span = Some(span),
+                    ModifierStepOutcome::Invalid => {
+                        self.emit(
+                            codes::INVALID_DECLARATION_MODIFIER,
+                            "invalid declaration modifier",
+                            span,
+                        )?;
+                    }
+                    ModifierStepOutcome::Stop => break,
                 }
-                saw_override = true;
                 continue;
             }
             let Some(receiver) = self.receiver_modifier_at(0)? else {
                 break;
             };
-            if receiver_policy == ReceiverModifierPolicy::NotRecognized {
+            let (next_state, outcome) = step_declaration_modifier(
+                allow_override,
+                receiver_policy,
+                scan_state,
+                ModifierToken::Receiver,
+            );
+            if outcome == ModifierStepOutcome::Stop {
                 break;
             }
             let span = self.bump()?.span();
-            if receiver_policy == ReceiverModifierPolicy::Rejected || saw_receiver {
-                self.emit(
-                    codes::INVALID_DECLARATION_MODIFIER,
-                    "invalid declaration modifier",
-                    span,
-                )?;
-            } else {
-                modifiers.receiver_mode = Some(receiver);
+            scan_state = next_state;
+            match outcome {
+                ModifierStepOutcome::Accept => modifiers.receiver_mode = Some(receiver),
+                ModifierStepOutcome::Invalid => {
+                    self.emit(
+                        codes::INVALID_DECLARATION_MODIFIER,
+                        "invalid declaration modifier",
+                        span,
+                    )?;
+                }
+                ModifierStepOutcome::Stop => break,
             }
-            saw_receiver = true;
         }
         Ok(modifiers)
     }
