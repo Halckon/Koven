@@ -3,23 +3,26 @@
 use std::collections::BTreeMap;
 
 use lang_frontend::{
-    analysis::{UnitSourceDescriptor, analyze_unit_names},
-    lexer::{Lexeme, LexemeKind, Symbol, TokenKind, lex},
+    lexer::{Lexeme, LexemeKind, Symbol, TokenKind},
     name_resolution::{
-        CompilationUnitNames, DeclarationVisibility, Namespace, ScopeId, SourceUnitId,
+        CompilationUnitNames, DeclarationVisibility, Namespace, SourceUnitId,
         SymbolKind as FrontSymbolKind, UnitDeclaration, UnitSymbolId,
     },
-    parser::ParsedFile,
-    source::{SourceId, SourceMap},
-    type_checking::{
-        CompilationUnitTypes, UnitTypeId, UnitTypeKind, check_compilation_unit_types,
-        standard_environments,
-    },
+    parser::{Item, NameMarker, ParsedFile, VisibilityModifier},
+    source::SourceId,
+    type_checking::{CompilationUnitTypes, UnitTypeId, UnitTypeKind},
 };
 use lsp_types::{CompletionItem, CompletionItemKind};
 
 use crate::{
-    ide_features::format_unit_type, symbols::format_callable_detail,
+    ide_features::format_unit_type,
+    scope_query::{
+        collect_qualifier_segments, expression_type_ending_at, find_local_symbol_in_scope,
+        find_receiver_expression_start, local_symbols_in_scope, non_trivia_tokens_through,
+        recover_unit_snapshot, replace_span_with_spaces, replace_span_with_zero,
+        visible_declarations,
+    },
+    symbols::format_callable_detail,
     unit_analysis_snapshot::UnitAnalysisSnapshot,
 };
 
@@ -78,6 +81,14 @@ const BUILTIN_FUNCTIONS: &[(&str, &str)] = &[
     ("replace", "(inout place: T, own value: T) -> T"),
     ("swap", "(inout a: T, inout b: T) -> Unit"),
     ("rangeView", "(range: IntRange) -> View<Int>"),
+    ("textByteLength", "(text: String) -> Int"),
+    ("textByteAt", "(text: String, index: Int) -> UByte"),
+    ("textUtf8ErrorOffset", "(bytes: Array<UByte>) -> Int"),
+    ("textCopyBytes", "(bytes: Array<UByte>) -> String"),
+    (
+        "textCopySlice",
+        "(text: String, start: Int, end: Int) -> String",
+    ),
 ];
 
 /// 计算给定位置的补全候选（支持 `.` / `?.` 成员与多段包补全，以及作用域/导入感知标识符补全）。
@@ -128,17 +139,15 @@ pub(crate) fn completions_at(
                 source_id,
                 text,
                 receiver_tokens,
+                clamped,
                 prefix,
             );
         }
-        // P1: When typing `origin.` or `Color.` or `MyGreeter.` caused a parse error so `typed()`
-        // is `None`, replace the incomplete `<receiver>.<prefix>` with a same-length dummy literal
-        // (`0   `) in memory so surrounding declarations/locals type-check cleanly.
-        let replace_start = receiver_tokens
-            .last()
-            .map_or(dot.span().start(), |tok| tok.span().start());
-        if let Some((repaired, repaired_su, repaired_sid)) =
-            recover_snapshot_for_dot(snapshot, source_unit, source_id, replace_start, erase_end)
+        // Pass 1: erase only `.<prefix>` so value receivers (`origin`, `obj.field`, `factory()`)
+        // remain intact expressions and preserve their exact inferred `UnitTypeId`.
+        if let Some(repaired_text) = replace_span_with_spaces(text, dot.span().start(), erase_end)
+            && let Some((repaired, repaired_su, repaired_sid)) =
+                recover_unit_snapshot(snapshot, source_unit, source_id, repaired_text)
         {
             return dot_completions(
                 &repaired,
@@ -146,6 +155,25 @@ pub(crate) fn completions_at(
                 repaired_sid,
                 text,
                 receiver_tokens,
+                clamped,
+                prefix,
+            );
+        }
+        // Pass 2: fallback for type/package receivers (`Color.`, `MyGreeter.`, `a.b.MyGreeter.`)
+        // by replacing the full receiver expression with a same-length `0   ` placeholder.
+        let expr_start =
+            find_receiver_expression_start(receiver_tokens).unwrap_or_else(|| dot.span().start());
+        if let Some(repaired_text) = replace_span_with_zero(text, expr_start, erase_end)
+            && let Some((repaired, repaired_su, repaired_sid)) =
+                recover_unit_snapshot(snapshot, source_unit, source_id, repaired_text)
+        {
+            return dot_completions(
+                &repaired,
+                repaired_su,
+                repaired_sid,
+                text,
+                receiver_tokens,
+                clamped,
                 prefix,
             );
         }
@@ -155,6 +183,7 @@ pub(crate) fn completions_at(
             source_id,
             text,
             receiver_tokens,
+            clamped,
             prefix,
         );
     }
@@ -162,86 +191,14 @@ pub(crate) fn completions_at(
     scope_completions(snapshot, source_unit, source_id, clamped, prefix)
 }
 
-fn recover_snapshot_for_dot(
-    snapshot: &UnitAnalysisSnapshot,
-    target_unit: SourceUnitId,
-    target_source_id: SourceId,
-    dot_start: usize,
-    erase_end: usize,
-) -> Option<(UnitAnalysisSnapshot, SourceUnitId, SourceId)> {
-    let orig_sources = snapshot.name_snapshot().sources();
-    let orig_units = snapshot.name_snapshot().names().index().source_units();
-    let mut new_sources = SourceMap::new();
-    let mut descriptors = Vec::with_capacity(orig_units.len());
-    let mut new_target_sid = None;
-
-    for su in orig_units {
-        let sid = su.source_id();
-        let name = orig_sources.source_name(sid).ok()?;
-        let orig_text = orig_sources.source_text(sid).ok()?;
-        let text = if su.id() == target_unit && sid == target_source_id {
-            if dot_start > erase_end || erase_end > orig_text.len() {
-                return None;
-            }
-            let mut repaired = String::with_capacity(orig_text.len());
-            repaired.push_str(&orig_text[..dot_start]);
-            let mut wrote_placeholder = false;
-            for ch in orig_text[dot_start..erase_end].chars() {
-                if ch == '\n' {
-                    repaired.push('\n');
-                } else if !wrote_placeholder {
-                    repaired.push('0');
-                    wrote_placeholder = true;
-                } else {
-                    repaired.push(' ');
-                }
-            }
-            repaired.push_str(&orig_text[erase_end..]);
-            repaired
-        } else {
-            orig_text.to_owned()
-        };
-        let new_sid = new_sources.add_source(name, text).ok()?;
-        if su.id() == target_unit {
-            new_target_sid = Some(new_sid);
-        }
-        let desc = match su.key() {
-            lang_frontend::name_resolution::SourceUnitKey::Rooted { root, logical_path } => {
-                UnitSourceDescriptor::new(root.as_str(), logical_path.as_str(), new_sid)
-            }
-            lang_frontend::name_resolution::SourceUnitKey::MemoryDocument => {
-                UnitSourceDescriptor::memory_document(new_sid)
-            }
-        };
-        descriptors.push(desc);
-    }
-
-    let (name_env, type_env) = standard_environments();
-    let name_snapshot = analyze_unit_names(new_sources, descriptors, name_env).ok()?;
-    let validated = name_snapshot.validated_names()?;
-    let inputs = name_snapshot.inputs();
-    let typed =
-        check_compilation_unit_types(name_snapshot.sources(), &inputs, validated, &type_env)
-            .ok()?;
-    let new_sid = new_target_sid?;
-    let new_su = name_snapshot
-        .names()
-        .index()
-        .source_units()
-        .iter()
-        .find(|u| u.source_id() == new_sid)?
-        .id();
-    let recovered =
-        UnitAnalysisSnapshot::finish(name_snapshot, Some(typed), None, Vec::new()).ok()?;
-    Some((recovered, new_su, new_sid))
-}
-
+#[allow(clippy::too_many_arguments)]
 fn dot_completions(
     snapshot: &UnitAnalysisSnapshot,
     source_unit: SourceUnitId,
     source_id: SourceId,
     text: &str,
     receiver_tokens: &[Lexeme],
+    cursor_offset: usize,
     prefix: &str,
 ) -> Vec<CompletionItem> {
     let Some(recv_tok) = receiver_tokens.last() else {
@@ -310,12 +267,60 @@ fn dot_completions(
         }
     }
 
-    // 2. Resolve receiver via definition index, or fall back to scope-aware lookup when parser
-    // recovered an incomplete `origin.` / `Color.` into `Expression::Error`.
     let Some(typed) = typed else {
         return items.into_values().collect();
     };
     let parsed_files = snapshot.name_snapshot().parsed_files();
+    let parsed_file = parsed_files.iter().find(|p| p.source_id() == source_id);
+
+    // 2. If `recv_tok` resolves via definition index to a nominal type, emit static/companion/enum/object members.
+    if let Some((_, targets)) = snapshot
+        .definitions()
+        .entry_at(source_unit, recv_tok.span().start())
+        && let Some(target) = targets.first().copied()
+        && names.index().declarations().iter().any(|d| {
+            d.source_unit() == target.source_unit
+                && d.name_span() == target.span
+                && d.namespace() == Namespace::Type
+        })
+    {
+        add_target_dot_completions(
+            names,
+            typed,
+            parsed_files,
+            source_unit,
+            cursor_offset,
+            target.source_unit,
+            target.span,
+            &prefix_lower,
+            &mut items,
+        );
+        return items.into_values().collect();
+    }
+
+    // 3. Expression-type lookup handles chained access (`obj.field.`), call results (`factory().`), and locals (`origin.`).
+    let expr_start = find_receiver_expression_start(receiver_tokens);
+    if let Some(ty_id) = expression_type_ending_at(
+        typed,
+        parsed_file,
+        source_unit,
+        expr_start,
+        recv_tok.span().end(),
+    ) {
+        add_type_member_completions(
+            ty_id,
+            typed,
+            names,
+            parsed_files,
+            source_unit,
+            cursor_offset,
+            &prefix_lower,
+            &mut items,
+        );
+        return items.into_values().collect();
+    }
+
+    // 4. Definition-index lookup for value symbols when receiver AST was replaced or partial.
     if let Some((_, targets)) = snapshot
         .definitions()
         .entry_at(source_unit, recv_tok.span().start())
@@ -326,6 +331,7 @@ fn dot_completions(
             typed,
             parsed_files,
             source_unit,
+            cursor_offset,
             target.source_unit,
             target.span,
             &prefix_lower,
@@ -334,21 +340,77 @@ fn dot_completions(
         return items.into_values().collect();
     }
 
-    // Fallback for Expression::Error recovery: resolve receiver name in lexical scope or imports.
+    // 5. Package-qualified nominal type receiver (e.g. `a.b.MyGreeter.` recovered via Pass 2).
+    if qualifier.len() >= 2 {
+        let (pkg_segs, type_name) = (
+            &qualifier[..qualifier.len() - 1],
+            qualifier[qualifier.len() - 1],
+        );
+        for decl in names.index().declarations() {
+            if decl.namespace() != Namespace::Type || decl.name() != type_name {
+                continue;
+            }
+            let pkg_matches = names
+                .index()
+                .packages()
+                .get(decl.package().index())
+                .and_then(|p| p.name())
+                .is_some_and(|name| {
+                    name.segments().len() == pkg_segs.len()
+                        && name
+                            .segments()
+                            .iter()
+                            .zip(pkg_segs.iter())
+                            .all(|(a, b)| a.as_str() == *b)
+                });
+            let accessible = decl.source_unit() == source_unit
+                || matches!(
+                    decl.visibility(),
+                    DeclarationVisibility::Public | DeclarationVisibility::Internal
+                );
+            if pkg_matches && accessible {
+                add_target_dot_completions(
+                    names,
+                    typed,
+                    parsed_files,
+                    source_unit,
+                    cursor_offset,
+                    decl.source_unit(),
+                    decl.name_span(),
+                    &prefix_lower,
+                    &mut items,
+                );
+            }
+        }
+        if !items.is_empty() {
+            return items.into_values().collect();
+        }
+    }
+
+    // 6. Lexical scope or visible declaration fallback (e.g. `Color.` or `MyGreeter.` recovered via Pass 2).
     let recv_name = &text[recv_tok.span().start()..recv_tok.span().end()];
     if let Some((sym_id, _)) = find_local_symbol_in_scope(
         names,
+        parsed_file,
         source_unit,
         source_id,
         recv_tok.span().start(),
         recv_name,
     ) && let Some(ty_id) = typed.symbol_type(UnitSymbolId::new(source_unit, sym_id))
     {
-        add_type_member_completions(ty_id, typed, names, source_unit, &prefix_lower, &mut items);
+        add_type_member_completions(
+            ty_id,
+            typed,
+            names,
+            parsed_files,
+            source_unit,
+            cursor_offset,
+            &prefix_lower,
+            &mut items,
+        );
         return items.into_values().collect();
     }
 
-    let parsed_file = parsed_files.iter().find(|p| p.source_id() == source_id);
     for (visible_name, decl) in visible_declarations(
         names,
         parsed_file,
@@ -361,6 +423,7 @@ fn dot_completions(
                 typed,
                 parsed_files,
                 source_unit,
+                cursor_offset,
                 decl.source_unit(),
                 decl.name_span(),
                 &prefix_lower,
@@ -372,12 +435,32 @@ fn dot_completions(
     items.into_values().collect()
 }
 
+fn is_inside_nominal_decl(
+    parsed_files: &[ParsedFile],
+    decl: &UnitDeclaration,
+    caller_unit: SourceUnitId,
+    cursor_offset: usize,
+) -> bool {
+    if caller_unit != decl.source_unit() {
+        return false;
+    }
+    parsed_files
+        .iter()
+        .find(|p| p.source_id() == decl.name_span().source_id())
+        .and_then(|p| p.ast().items().get(decl.root()).ok())
+        .is_some_and(|item| {
+            let span = item.span();
+            span.start() <= cursor_offset && cursor_offset <= span.end()
+        })
+}
+
 #[allow(clippy::too_many_arguments)]
 fn add_target_dot_completions(
     names: &CompilationUnitNames,
     typed: &CompilationUnitTypes,
     parsed_files: &[ParsedFile],
     caller_unit: SourceUnitId,
+    cursor_offset: usize,
     target_unit: SourceUnitId,
     target_span: lang_frontend::source::Span,
     prefix_lower: &str,
@@ -391,9 +474,9 @@ fn add_target_dot_completions(
     }) && let Some(sig) = typed.signatures().declaration(decl.id())
         && let Some(nominal) = sig.nominal()
     {
-        let same_file = caller_unit == decl.source_unit();
+        let inside_decl = is_inside_nominal_decl(parsed_files, decl, caller_unit, cursor_offset);
         for member in nominal.companion_members() {
-            if (same_file || member.visibility() != DeclarationVisibility::Private)
+            if (inside_decl || member.visibility() != DeclarationVisibility::Private)
                 && matches_prefix(member.name(), prefix_lower)
             {
                 insert_item(
@@ -405,30 +488,16 @@ fn add_target_dot_completions(
                 );
             }
         }
-        // Companion constants declared inside this nominal type's AST span.
-        if let Some(decl_ast_span) = parsed_files
-            .iter()
-            .find(|p| p.source_id() == decl.name_span().source_id())
-            .and_then(|p| p.ast().items().get(decl.root()).ok())
-            .map(|item| item.span())
-            && let Some(unit_names) = names
-                .source_units()
-                .iter()
-                .find(|u| u.source_unit() == decl.source_unit())
-        {
-            for sym in unit_names.resolution().symbols() {
-                if sym.kind() == FrontSymbolKind::Constant
-                    && sym.span().start() >= decl_ast_span.start()
-                    && sym.span().end() <= decl_ast_span.end()
-                    && matches_prefix(sym.name(), prefix_lower)
-                {
-                    let detail = typed
-                        .symbol_type(UnitSymbolId::new(decl.source_unit(), sym.id()))
-                        .and_then(|ty| format_unit_type(ty, typed, names));
-                    insert_item(items, sym.name(), CompletionItemKind::CONSTANT, detail, "0");
-                }
-            }
-        }
+        // Companion constants with AST visibility check.
+        add_companion_constant_completions(
+            decl,
+            parsed_files,
+            names,
+            typed,
+            inside_decl,
+            prefix_lower,
+            items,
+        );
         for case in nominal.enum_cases() {
             if matches_prefix(case.name(), prefix_lower) {
                 insert_item(
@@ -443,11 +512,13 @@ fn add_target_dot_completions(
         // If this is a singleton `object`, also expose its instance members directly.
         if nominal.kind() == lang_frontend::type_checking::NominalKind::Object {
             add_nominal_instance_members(
-                decl.source_unit(),
+                decl,
                 nominal,
                 typed,
                 names,
+                parsed_files,
                 caller_unit,
+                cursor_offset,
                 prefix_lower,
                 items,
             );
@@ -466,15 +537,124 @@ fn add_target_dot_completions(
             .find(|s| s.span() == target_span)
         && let Some(ty_id) = typed.symbol_type(UnitSymbolId::new(target_unit, sym.id()))
     {
-        add_type_member_completions(ty_id, typed, names, caller_unit, prefix_lower, items);
+        add_type_member_completions(
+            ty_id,
+            typed,
+            names,
+            parsed_files,
+            caller_unit,
+            cursor_offset,
+            prefix_lower,
+            items,
+        );
     }
 }
 
+fn add_companion_constant_completions(
+    decl: &UnitDeclaration,
+    parsed_files: &[ParsedFile],
+    names: &CompilationUnitNames,
+    typed: &CompilationUnitTypes,
+    inside_decl: bool,
+    prefix_lower: &str,
+    items: &mut BTreeMap<String, CompletionItem>,
+) {
+    let Some(parsed) = parsed_files
+        .iter()
+        .find(|p| p.source_id() == decl.name_span().source_id())
+    else {
+        return;
+    };
+    let Ok(root_node) = parsed.ast().items().get(decl.root()) else {
+        return;
+    };
+    let classifier_item = match root_node.payload() {
+        Item::Modified { declaration, .. } => parsed
+            .ast()
+            .items()
+            .get(*declaration)
+            .ok()
+            .map(|n| n.payload()),
+        other => Some(other),
+    };
+    let Some(Item::Classifier(classifier)) = classifier_item else {
+        return;
+    };
+    let Some(body) = &classifier.body else {
+        return;
+    };
+    let unit_names = names
+        .source_units()
+        .iter()
+        .find(|u| u.source_unit() == decl.source_unit());
+
+    for &member_id in &body.members {
+        let Ok(member_node) = parsed.ast().items().get(member_id) else {
+            continue;
+        };
+        let member_payload = match member_node.payload() {
+            Item::Modified { declaration, .. } => parsed
+                .ast()
+                .items()
+                .get(*declaration)
+                .ok()
+                .map(|n| n.payload()),
+            other => Some(other),
+        };
+        let Some(Item::Companion(comp)) = member_payload else {
+            continue;
+        };
+        for &comp_item_id in &comp.body.members {
+            let Ok(comp_node) = parsed.ast().items().get(comp_item_id) else {
+                continue;
+            };
+            let (is_private, inner_payload) = match comp_node.payload() {
+                Item::Modified {
+                    modifiers,
+                    declaration,
+                } => (
+                    matches!(modifiers.visibility, Some(VisibilityModifier::Private(_))),
+                    parsed
+                        .ast()
+                        .items()
+                        .get(*declaration)
+                        .ok()
+                        .map(|n| n.payload()),
+                ),
+                other => (false, Some(other)),
+            };
+            if is_private && !inside_decl {
+                continue;
+            }
+            if let Some(Item::Constant {
+                name: NameMarker::Present(name_span),
+                ..
+            }) = inner_payload
+                && let Some(sym) = unit_names.and_then(|u| {
+                    u.resolution()
+                        .symbols()
+                        .iter()
+                        .find(|s| s.span() == *name_span)
+                })
+                && matches_prefix(sym.name(), prefix_lower)
+            {
+                let detail = typed
+                    .symbol_type(UnitSymbolId::new(decl.source_unit(), sym.id()))
+                    .and_then(|ty| format_unit_type(ty, typed, names));
+                insert_item(items, sym.name(), CompletionItemKind::CONSTANT, detail, "0");
+            }
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
 fn add_type_member_completions(
     ty_id: UnitTypeId,
     typed: &CompilationUnitTypes,
     names: &CompilationUnitNames,
+    parsed_files: &[ParsedFile],
     caller_unit: SourceUnitId,
+    cursor_offset: usize,
     prefix_lower: &str,
     items: &mut BTreeMap<String, CompletionItem>,
 ) {
@@ -500,28 +680,33 @@ fn add_type_member_completions(
         return;
     };
     add_nominal_instance_members(
-        decl.source_unit(),
+        decl,
         nominal,
         typed,
         names,
+        parsed_files,
         caller_unit,
+        cursor_offset,
         prefix_lower,
         items,
     );
 }
 
+#[allow(clippy::too_many_arguments)]
 fn add_nominal_instance_members(
-    owner_unit: SourceUnitId,
+    owner_decl: &UnitDeclaration,
     nominal: &lang_frontend::type_checking::UnitNominalSignature,
     typed: &CompilationUnitTypes,
     names: &CompilationUnitNames,
+    parsed_files: &[ParsedFile],
     caller_unit: SourceUnitId,
+    cursor_offset: usize,
     prefix_lower: &str,
     items: &mut BTreeMap<String, CompletionItem>,
 ) {
-    let same_file = caller_unit == owner_unit;
+    let inside_owner = is_inside_nominal_decl(parsed_files, owner_decl, caller_unit, cursor_offset);
     for field in nominal.fields() {
-        if (same_file || field.visibility() != DeclarationVisibility::Private)
+        if (inside_owner || field.visibility() != DeclarationVisibility::Private)
             && matches_prefix(field.name(), prefix_lower)
         {
             insert_item(
@@ -534,7 +719,7 @@ fn add_nominal_instance_members(
         }
     }
     for member in nominal.members() {
-        if (same_file || member.visibility() != DeclarationVisibility::Private)
+        if (inside_owner || member.visibility() != DeclarationVisibility::Private)
             && matches_prefix(member.name(), prefix_lower)
         {
             insert_item(
@@ -546,7 +731,7 @@ fn add_nominal_instance_members(
             );
         }
     }
-    // Inherited interface methods (transitive closure).
+    // Inherited interface methods.
     for &iface_ty in nominal.interfaces() {
         let Some(UnitTypeKind::Nominal { declaration, .. }) = typed.types().get(iface_ty) else {
             continue;
@@ -566,9 +751,10 @@ fn add_nominal_instance_members(
         else {
             continue;
         };
-        let iface_same_file = caller_unit == iface_decl.source_unit();
+        let inside_iface =
+            is_inside_nominal_decl(parsed_files, iface_decl, caller_unit, cursor_offset);
         for member in iface_nominal.members() {
-            if (iface_same_file || member.visibility() != DeclarationVisibility::Private)
+            if (inside_iface || member.visibility() != DeclarationVisibility::Private)
                 && matches_prefix(member.name(), prefix_lower)
             {
                 insert_item(
@@ -601,8 +787,9 @@ fn scope_completions(
     let prefix_lower = prefix.to_ascii_lowercase();
     let mut items: BTreeMap<String, CompletionItem> = BTreeMap::new();
 
-    // 1. Lexically enclosing local scopes (innermost -> outermost so shadowing shows inner type).
-    for (sym_id, sym) in local_symbols_in_scope(names, source_unit, source_id, offset) {
+    // 1. Lexically enclosing local scopes (innermost -> outermost; excludes self-initializer).
+    for (sym_id, sym) in local_symbols_in_scope(names, parsed_file, source_unit, source_id, offset)
+    {
         if !matches_prefix(sym.name(), &prefix_lower) {
             continue;
         }
@@ -670,232 +857,6 @@ fn scope_completions(
     }
 
     items.into_values().collect()
-}
-
-/// 返回在 `offset` 处可见的局部符号列表（按词法作用域由内向外排列，排除已退出块和兄弟函数）。
-fn local_symbols_in_scope(
-    names: &CompilationUnitNames,
-    source_unit: SourceUnitId,
-    source_id: SourceId,
-    offset: usize,
-) -> Vec<(
-    lang_frontend::name_resolution::SymbolId,
-    &lang_frontend::name_resolution::Symbol,
-)> {
-    let Some(unit_names) = names
-        .source_units()
-        .iter()
-        .find(|u| u.source_unit() == source_unit)
-    else {
-        return Vec::new();
-    };
-    let resolution = unit_names.resolution();
-    let scopes = resolution.scopes();
-    let enclosing = scopes
-        .iter()
-        .filter_map(|scope| {
-            let span = scope.span()?;
-            (span.source_id() == source_id && span.start() <= offset && offset <= span.end())
-                .then_some((scope.id(), span.len()))
-        })
-        .min_by_key(|(_, len)| *len)
-        .map(|(id, _)| id);
-
-    let mut scope_chain: Vec<ScopeId> = Vec::new();
-    let mut current = enclosing;
-    while let Some(sid) = current {
-        scope_chain.push(sid);
-        current = scopes
-            .iter()
-            .find(|s| s.id() == sid)
-            .and_then(|s| s.parent());
-    }
-
-    let mut out = Vec::new();
-    for sid in scope_chain {
-        for sym in resolution.symbols() {
-            if sym.is_synthetic() || sym.span().source_id() != source_id {
-                continue;
-            }
-            if sym.scope() != sid || sym.span().start() >= offset {
-                continue;
-            }
-            if !matches!(
-                sym.kind(),
-                FrontSymbolKind::Variable
-                    | FrontSymbolKind::ValueParameter
-                    | FrontSymbolKind::ForBinding
-                    | FrontSymbolKind::LambdaParameter
-                    | FrontSymbolKind::Constant
-                    | FrontSymbolKind::TypeParameter
-            ) {
-                continue;
-            }
-            out.push((sym.id(), sym));
-        }
-    }
-    out
-}
-
-fn find_local_symbol_in_scope<'a>(
-    names: &'a CompilationUnitNames,
-    source_unit: SourceUnitId,
-    source_id: SourceId,
-    offset: usize,
-    name: &str,
-) -> Option<(
-    lang_frontend::name_resolution::SymbolId,
-    &'a lang_frontend::name_resolution::Symbol,
-)> {
-    local_symbols_in_scope(names, source_unit, source_id, offset)
-        .into_iter()
-        .find(|(_, sym)| sym.name() == name)
-}
-
-/// 计算当前文件内裸名可见的全部顶层声明（同文件全部声明、同包非 private 声明、显式导入/别名与通配导入）。
-pub(crate) fn visible_declarations<'a>(
-    names: &'a CompilationUnitNames,
-    parsed_file: Option<&ParsedFile>,
-    sources: &SourceMap,
-    source_unit: SourceUnitId,
-) -> Vec<(String, &'a UnitDeclaration)> {
-    let current_pkg = names
-        .index()
-        .source_units()
-        .iter()
-        .find(|u| u.id() == source_unit)
-        .map(|u| u.package());
-    let mut out = Vec::new();
-
-    // 1. Same file (including private) & same package (Public/Internal only).
-    for decl in names.index().declarations() {
-        let same_file = decl.source_unit() == source_unit;
-        let same_pkg = Some(decl.package()) == current_pkg;
-        if same_file
-            || (same_pkg
-                && matches!(
-                    decl.visibility(),
-                    DeclarationVisibility::Public | DeclarationVisibility::Internal
-                ))
-        {
-            out.push((decl.name().to_owned(), decl));
-        }
-    }
-
-    // 2. Explicit imports, aliases, and wildcard imports from the current file.
-    if let Some(parsed) = parsed_file
-        && let Ok(text) = sources.source_text(parsed.source_id())
-    {
-        for import in parsed.imports() {
-            let segs: Vec<&str> = import
-                .segments
-                .iter()
-                .filter_map(|s| {
-                    (s.span.start() <= s.span.end() && s.span.end() <= text.len())
-                        .then_some(&text[s.span.start()..s.span.end()])
-                })
-                .collect();
-            if segs.is_empty() {
-                continue;
-            }
-            if import.wildcard_span.is_some() {
-                for decl in names.index().declarations() {
-                    let pkg_matches = names
-                        .index()
-                        .packages()
-                        .get(decl.package().index())
-                        .and_then(|p| p.name())
-                        .is_some_and(|p| {
-                            p.segments().len() == segs.len()
-                                && p.segments().iter().zip(segs.iter()).all(|(a, b)| a == b)
-                        });
-                    if pkg_matches
-                        && matches!(
-                            decl.visibility(),
-                            DeclarationVisibility::Public | DeclarationVisibility::Internal
-                        )
-                    {
-                        out.push((decl.name().to_owned(), decl));
-                    }
-                }
-            } else if segs.len() >= 2 {
-                let (pkg_segs, target_name) = (&segs[..segs.len() - 1], segs[segs.len() - 1]);
-                let alias_name = import.alias.and_then(|a| {
-                    (!a.name_span.is_empty() && a.name_span.end() <= text.len())
-                        .then_some(&text[a.name_span.start()..a.name_span.end()])
-                });
-                let exposed_name = alias_name.unwrap_or(target_name);
-                for decl in names.index().declarations() {
-                    let pkg_matches = names
-                        .index()
-                        .packages()
-                        .get(decl.package().index())
-                        .and_then(|p| p.name())
-                        .is_some_and(|p| {
-                            p.segments().len() == pkg_segs.len()
-                                && p.segments()
-                                    .iter()
-                                    .zip(pkg_segs.iter())
-                                    .all(|(a, b)| a == b)
-                        });
-                    if pkg_matches
-                        && decl.name() == target_name
-                        && matches!(
-                            decl.visibility(),
-                            DeclarationVisibility::Public | DeclarationVisibility::Internal
-                        )
-                    {
-                        out.push((exposed_name.to_owned(), decl));
-                    }
-                }
-            }
-        }
-    }
-
-    out
-}
-
-fn collect_qualifier_segments<'a>(text: &'a str, receiver_tokens: &[Lexeme]) -> Vec<&'a str> {
-    let mut segs = Vec::new();
-    let mut expect_ident = true;
-    for tok in receiver_tokens.iter().rev() {
-        if expect_ident {
-            if matches!(tok.kind(), LexemeKind::Token(TokenKind::Identifier)) {
-                segs.push(&text[tok.span().start()..tok.span().end()]);
-                expect_ident = false;
-            } else {
-                break;
-            }
-        } else if matches!(
-            tok.kind(),
-            LexemeKind::Token(TokenKind::Symbol(Symbol::Dot))
-        ) {
-            expect_ident = true;
-        } else {
-            break;
-        }
-    }
-    segs.reverse();
-    segs
-}
-
-pub(crate) fn non_trivia_tokens_through(
-    sources: &SourceMap,
-    source_id: SourceId,
-    offset: usize,
-) -> Vec<Lexeme> {
-    let Ok(lexed) = lex(sources, source_id) else {
-        return Vec::new();
-    };
-    lexed
-        .lexemes()
-        .iter()
-        .copied()
-        .filter(|l| {
-            !matches!(l.kind(), LexemeKind::Trivia(_) | LexemeKind::Eof)
-                && l.span().start() < offset
-        })
-        .collect()
 }
 
 fn decl_detail(

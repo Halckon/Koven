@@ -445,6 +445,7 @@ pub(super) fn signature_help_response(
 pub(super) fn document_symbol_response(
     params: serde_json::Value,
     state: &SessionState,
+    hierarchical_support: bool,
 ) -> Result<Option<DocumentSymbolResponse>, RequestError> {
     let params: DocumentSymbolParams = serde_json::from_value(params)
         .map_err(|error| RequestError::InvalidParams(error.to_string()))?;
@@ -471,7 +472,12 @@ pub(super) fn document_symbol_response(
                 .map_err(map_position_error)?
         }
     };
-    Ok(Some(DocumentSymbolResponse::Nested(syms)))
+    if hierarchical_support {
+        Ok(Some(DocumentSymbolResponse::Nested(syms)))
+    } else {
+        let flat = symbols::flatten_document_symbols(&params.text_document.uri, &syms);
+        Ok(Some(DocumentSymbolResponse::Flat(flat)))
+    }
 }
 
 pub(super) fn workspace_symbol_response(

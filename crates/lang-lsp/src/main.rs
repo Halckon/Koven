@@ -8,6 +8,7 @@ mod formatting;
 mod ide_features;
 mod position_adapter;
 mod rename;
+mod scope_query;
 mod server;
 mod signature_help;
 mod source_set;

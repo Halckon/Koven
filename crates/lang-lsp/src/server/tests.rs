@@ -22,6 +22,7 @@ mod definition;
 mod formatting;
 mod ide_features;
 mod ide_features_p2;
+mod ide_features_p2_review;
 mod ide_features_safety;
 mod initialization;
 mod lifecycle;
@@ -34,7 +35,23 @@ fn initialize(client: &Connection) {
 }
 
 fn initialize_with_options(client: &Connection, options: Option<serde_json::Value>) {
-    let mut params = serde_json::to_value(InitializeParams::default()).expect("params");
+    initialize_with_capabilities_and_options(
+        client,
+        lsp_types::ClientCapabilities::default(),
+        options,
+    );
+}
+
+fn initialize_with_capabilities_and_options(
+    client: &Connection,
+    capabilities: lsp_types::ClientCapabilities,
+    options: Option<serde_json::Value>,
+) {
+    let mut params = serde_json::to_value(InitializeParams {
+        capabilities,
+        ..InitializeParams::default()
+    })
+    .expect("params");
     if let Some(options) = options {
         params["initializationOptions"] = options;
     }

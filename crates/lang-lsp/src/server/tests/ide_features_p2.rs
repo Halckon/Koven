@@ -10,6 +10,19 @@ fn doc_pos(uri: &lsp_types::Uri, position: Position) -> TextDocumentPositionPara
     TextDocumentPositionParams::new(TextDocumentIdentifier::new(uri.clone()), position)
 }
 
+fn hierarchical_caps() -> lsp_types::ClientCapabilities {
+    lsp_types::ClientCapabilities {
+        text_document: Some(lsp_types::TextDocumentClientCapabilities {
+            document_symbol: Some(lsp_types::DocumentSymbolClientCapabilities {
+                hierarchical_document_symbol_support: Some(true),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }),
+        ..Default::default()
+    }
+}
+
 #[test]
 fn document_and_workspace_symbols_completion_and_signature_help_work_across_files() {
     let (server, client) = Connection::memory();
@@ -43,8 +56,9 @@ fun main() {
     val q = demo.DEFAULT_SCALE
 }
 ";
-    initialize_with_options(
+    initialize_with_capabilities_and_options(
         &client,
+        hierarchical_caps(),
         Some(serde_json::json!({"koven": {"sourceSet": {
             "schema": "koven.lsp.source-set",
             "version": 1,
@@ -370,8 +384,9 @@ fun testAll() {
     val pkg = a.shared.internalHelper()
 }
 ";
-    initialize_with_options(
+    initialize_with_capabilities_and_options(
         &client,
+        hierarchical_caps(),
         Some(serde_json::json!({"koven": {"sourceSet": {
             "schema": "koven.lsp.source-set",
             "version": 1,

@@ -75,6 +75,13 @@ pub(crate) fn run_with_options(
         .and_then(|w| w.workspace_edit.as_ref())
         .and_then(|e| e.document_changes)
         .unwrap_or(false);
+    let hierarchical_document_symbols = initialize_params
+        .capabilities
+        .text_document
+        .as_ref()
+        .and_then(|t| t.document_symbol.as_ref())
+        .and_then(|d| d.hierarchical_document_symbol_support)
+        .unwrap_or(false);
     let source_set = match SourceSetConfig::from_initialization_options(
         initialize_params.initialization_options.as_ref(),
     ) {
@@ -199,7 +206,11 @@ pub(crate) fn run_with_options(
                         dispatch_json!(ide_requests::signature_help_response(params, &state))
                     }
                     DocumentSymbolRequest::METHOD => {
-                        dispatch_json!(ide_requests::document_symbol_response(params, &state))
+                        dispatch_json!(ide_requests::document_symbol_response(
+                            params,
+                            &state,
+                            hierarchical_document_symbols
+                        ))
                     }
                     WorkspaceSymbolRequest::METHOD => {
                         dispatch_json!(ide_requests::workspace_symbol_response(params, &state))
