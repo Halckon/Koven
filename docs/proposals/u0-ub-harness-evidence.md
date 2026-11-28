@@ -52,6 +52,7 @@ U0 §9 第一条硬门槛要求“路线 L 的参考检查器能把 AL1、AL2 �
 ## 4. 验证与未运行项
 
 - **已运行**：
-  - `/opt/homebrew/bin/python3 -m unittest scripts.tests.test_loan_kernel scripts.tests.test_failure_model scripts.tests.test_u0_raw_model scripts.tests.test_u0_sanitizer_harness scripts.tests.test_f5_od4_grammar_probe`（及 `/usr/bin/python3` Python 3.9 兼容复跑）。
+  - `/opt/homebrew/bin/python3 -m unittest scripts.tests.test_loan_kernel scripts.tests.test_failure_model scripts.tests.test_ir0_graph scripts.tests.test_ir0_roadmap_schema scripts.tests.test_coherence_unit_model scripts.tests.test_u0_raw_model scripts.tests.test_u0_al8_backend_attrs scripts.tests.test_u0_memory_model scripts.tests.test_u0_sanitizer_harness scripts.tests.test_f5_od4_grammar_probe`（及 `/usr/bin/python3` Python 3.9 兼容复跑）。
+  - 另补齐 U0 §3.3 后端别名与 `nocapture` 属性映射离线原型（`scripts/loan_kernel/u0_al8_backend_attrs.py`）及 U0 §5 MM1–MM6 有界执行图内存模型离线原型（`scripts/loan_kernel/u0_memory_model.py`；仅检验 U0 §5 条款一致性，不替代 U1 的 Loom/GenMC 弱内存模型检查）。
   - `/opt/homebrew/bin/python3 scripts/check_docs.py && /opt/homebrew/bin/python3 -m unittest scripts.tests.test_check_docs`。
 - **未运行**：未运行 Linux x86_64 MSan、FFI5 跨 C 帧阻断展开测试或弱内存模型检查（Loom/GenMC）；未修改 `crates/` 或 `docs/guide/`；未运行 `cargo test`。

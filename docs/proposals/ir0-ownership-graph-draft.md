@@ -115,3 +115,5 @@ projection = ".field(", FieldId, ")"       (* class / value class 字段投影 *
    - v1 已占用裸编号 `L1–L21`、`S1–S7`、`X02–X12`、`V1–V6`；
    - 阶段一及之后的路线图 JSON 中，所有步骤条目 ID **强制带路线前缀**（例如 `RL-L0`、`RL-L3`、`RC-C0`、`RS-S2a`、`RU-U1`、`RX-X0a`、`RIR-IR1`、`RF-F3`），由 `gen_roadmap.py` 的 schema 校验直接拒绝与 v1 撞名的裸编号。
 3. **跨阶段入口显式引用**：每份后续阶段 JSON 的 `meta.entry_gates` 字段显式声明前置阶段 ID 与必过门槛（如 `stage1.json` 声明 `v1.0` + `P1/E2/E3/E5`），防止在入口未满足前提前激活条目。
+
+**多阶段路线图离线校验原型（2026-11-28）**：上述防撞名、路线前缀、入口门槛与依赖无环约束已在非规范原型 `scripts/loan_kernel/ir0_roadmap_schema.py` 与 `scripts/tests/test_ir0_roadmap_schema.py`（3 组单测，只读对接真实 `docs/roadmap/v1.json`）中固化可复跑。
