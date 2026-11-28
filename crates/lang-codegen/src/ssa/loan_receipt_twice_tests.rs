@@ -36,6 +36,12 @@ fn independently_anchored_distinct_shared_methods_keep_per_call_dispatch_and_own
     verify_shared_receiver_calls(source, true, true);
 }
 
+#[test]
+fn distinct_shared_methods_refine_without_an_independent_anchor() {
+    let source = "class Node { fun touch(): Int = 1; fun other(): Int = 2 }\nfun run(own node: Node): Unit { node.touch(); node.other() }";
+    verify_shared_receiver_calls(source, false, true);
+}
+
 fn verify_two_shared_receiver_calls(source_text: &str, anchored: bool) {
     verify_shared_receiver_calls(source_text, anchored, false);
 }
@@ -419,7 +425,8 @@ fn verify_shared_receiver_calls(source_text: &str, anchored: bool, distinct: boo
             for product in [owned.ownership(), off.ownership()] {
                 let audit =
                     |calls| mandatory::audit(&parsed, run_decl, typed.types(), product, calls);
-                assert_eq!(audit([first, second]), Some(()));
+                // The historical same-target audit is not a certificate for distinct methods.
+                assert_eq!(audit([first, second]), (!distinct).then_some(()));
                 assert!(audit([second, first]).is_none());
                 assert!(audit([first, first]).is_none());
             }
@@ -702,7 +709,8 @@ fn two_receiver_route_work_scales_by_indexed_facts_and_callers() {
                 drops: callers,
                 probes: 4 * callers,
                 receiver_rows: 2 * callers,
-                receiver_probes: 2 * callers,
+                // One exact lookup per call in route admission and one in the builder.
+                receiver_probes: 4 * callers,
             }
         );
     }

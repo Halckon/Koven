@@ -1,4 +1,9 @@
 //! Unit source identities and frozen routes consume the sealed frontend provenance tables.
+mod route_plan;
+mod runtime_callback_scope;
+
+use runtime_callback_scope::RuntimeCallbackScope;
+
 use lang_frontend::ownership_checking::UnitLoweringFacts;
 
 use super::*;
@@ -51,75 +56,15 @@ impl UnitPlannedCallableReturn {
 #[derive(Debug, Default, PartialEq, Eq)]
 pub(crate) struct UnitCallablePlan {
     arena: CallableArena<UnitFunctionInstanceKey, UnitExpressionId>,
-    routes: BTreeMap<(SourceToken, UnitExpressionId), PlannedUnitCallSite>,
+    routes: BTreeMap<SourceToken, BTreeMap<UnitExpressionId, PlannedUnitCallSite>>,
     display_sites: BTreeMap<(SourceToken, UnitExpressionId), PlannedUnitCallSite>,
     returns: BTreeMap<SourceToken, UnitPlannedCallableReturn>,
-    runtime_callbacks: BTreeMap<(SourceToken, UnitExpressionId), CallableToken>,
+    runtime_callbacks: BTreeMap<SourceToken, BTreeMap<UnitExpressionId, CallableToken>>,
     /// ADR-0034: concrete callables passed to Borrow function parameters, by caller and argument
     /// expression. The callee receives a view, so the callable never specializes the callee.
-    borrowed_arguments: BTreeMap<(SourceToken, UnitExpressionId), CallableToken>,
+    borrowed_arguments: BTreeMap<SourceToken, BTreeMap<UnitExpressionId, CallableToken>>,
     /// Views formed by completed operands even when a later operand prevents invocation.
     prefix_views: BTreeMap<UnitTypeId, Span>,
-}
-
-impl UnitCallablePlan {
-    pub(in crate::ssa) fn source(&self, token: SourceToken) -> Option<&UnitFunctionInstanceKey> {
-        self.arena.source(token)
-    }
-
-    pub(in crate::ssa) fn callable(
-        &self,
-        token: CallableToken,
-    ) -> Option<&CallableKey<UnitExpressionId>> {
-        self.arena.callable(token)
-    }
-
-    pub(in crate::ssa) fn call_site(
-        &self,
-        caller: SourceToken,
-        expression: UnitExpressionId,
-    ) -> Option<&PlannedUnitCallSite> {
-        self.routes.get(&(caller, expression))
-    }
-
-    pub(in crate::ssa) fn runtime_callback(
-        &self,
-        source: SourceToken,
-        constructor: UnitExpressionId,
-    ) -> Option<CallableToken> {
-        self.runtime_callbacks.get(&(source, constructor)).copied()
-    }
-
-    #[cfg(test)]
-    pub(in crate::ssa) fn borrowed_argument(
-        &self,
-        source: SourceToken,
-        argument: UnitExpressionId,
-    ) -> Option<CallableToken> {
-        self.borrowed_arguments.get(&(source, argument)).copied()
-    }
-
-    /// Every concrete callable a source passes to a Borrow function parameter.
-    pub(in crate::ssa) fn borrowed_arguments(
-        &self,
-        source: SourceToken,
-    ) -> impl Iterator<Item = CallableToken> + '_ {
-        self.borrowed_arguments
-            .iter()
-            .filter(move |((caller, _), _)| *caller == source)
-            .map(|(_, token)| *token)
-    }
-
-    pub(in crate::ssa) fn prefix_views(&self) -> impl Iterator<Item = (UnitTypeId, Span)> + '_ {
-        self.prefix_views.iter().map(|(&ty, &span)| (ty, span))
-    }
-
-    pub(in crate::ssa) fn callable_return(
-        &self,
-        factory: SourceToken,
-    ) -> Option<UnitPlannedCallableReturn> {
-        self.returns.get(&factory).copied()
-    }
 }
 
 pub(super) struct CallablePlanner<'a> {
@@ -127,6 +72,7 @@ pub(super) struct CallablePlanner<'a> {
     parsed: &'a [&'a ParsedFile],
     typed: &'a CompilationUnitTypes,
     owned: &'a dyn UnitLoweringFacts,
+    runtime_callback_scope: RuntimeCallbackScope,
     templates: &'a [UnitFunctionTemplate],
     by_target: &'a BTreeMap<UnitCallableTarget, usize>,
 }
@@ -144,6 +90,7 @@ impl<'a> CallablePlanner<'a> {
             parsed,
             typed,
             owned,
+            runtime_callback_scope: RuntimeCallbackScope::build(parsed, typed, owned),
             templates,
             by_target,
         }
@@ -154,10 +101,7 @@ impl<'a> CallablePlanner<'a> {
         key: &UnitFunctionInstanceKey,
         span: Span,
     ) -> Result<SourceToken, LoweringError> {
-        self.plan
-            .arena
-            .intern_source(key.clone())
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))
+        self.plan.reserve_source(key, span)
     }
 
     pub(super) fn freeze_runtime_callbacks(
@@ -186,15 +130,11 @@ impl<'a> CallablePlanner<'a> {
             .get(source_unit.index())
             .copied()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        for descriptor in self.typed.container_constructions() {
-            if descriptor.expression().source_unit() != source_unit
-                || descriptor.kind()
-                    != lang_frontend::type_checking::ContainerConstructionKind::RuntimeLength
-                // A source constructor that never establishes its first Borrow does not run.
-                || !self.owned.loans().iter().any(|loan| loan.call() == descriptor.expression())
-            {
-                continue;
-            }
+        for index in self
+            .runtime_callback_scope
+            .constructors(source_unit, source_span)
+        {
+            let descriptor = &self.typed.container_constructions()[index];
             let node = parsed
                 .ast()
                 .expressions()
@@ -238,20 +178,17 @@ impl<'a> CallablePlanner<'a> {
             {
                 self.plan
                     .runtime_callbacks
-                    .insert((caller, descriptor.expression()), token);
+                    .entry(caller)
+                    .or_default()
+                    .insert(descriptor.expression(), token);
             }
         }
-        for descriptor in self.typed.map_with_values() {
+        for index in self
+            .runtime_callback_scope
+            .map_actions(source_unit, source_span)
+        {
+            let descriptor = &self.typed.map_with_values()[index];
             let call = descriptor.expression();
-            if call.source_unit() != source_unit
-                || !self
-                    .owned
-                    .loans()
-                    .iter()
-                    .any(|loan| loan.call() == call && loan.argument() == descriptor.action())
-            {
-                continue;
-            }
             let node = parsed
                 .ast()
                 .expressions()
@@ -268,7 +205,11 @@ impl<'a> CallablePlanner<'a> {
                 .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, node.span()))?
                 .span();
             if let Some(token) = self.origin(caller, substitutions, action, pending, action_span)? {
-                self.plan.runtime_callbacks.insert((caller, call), token);
+                self.plan
+                    .runtime_callbacks
+                    .entry(caller)
+                    .or_default()
+                    .insert(call, token);
             }
         }
         Ok(())
@@ -281,23 +222,15 @@ impl<'a> CallablePlanner<'a> {
     ) -> BTreeSet<UnitExpressionId> {
         let tokens = self
             .plan
-            .routes
-            .iter()
-            .filter(|((caller, _), _)| *caller == source)
-            .flat_map(|(_, route)| {
+            .routes_for(source)
+            .flat_map(|route| {
                 route
                     .key
                     .callable_arguments()
                     .iter()
                     .map(|(_, token)| *token)
             })
-            .chain(
-                self.plan
-                    .runtime_callbacks
-                    .iter()
-                    .filter(|((caller, _), _)| *caller == source)
-                    .map(|(_, token)| *token),
-            )
+            .chain(self.plan.runtime_callbacks_for(source))
             .chain(self.plan.borrowed_arguments(source))
             .chain(
                 self.plan
@@ -506,29 +439,40 @@ impl<'a> CallablePlanner<'a> {
             {
                 self.plan
                     .borrowed_arguments
-                    .insert((caller, expression), token);
+                    .entry(caller)
+                    .or_default()
+                    .insert(expression, token);
             }
         }
         slots.sort_by_key(|(slot, _)| *slot);
         resolved.key.callable_arguments = slots;
-        if dispatches {
-            self.validate_arguments(resolved.key(), &target_substitutions, span)?;
-            self.reserve_source(resolved.key(), span)?;
-        }
-        let route = PlannedUnitCallSite {
-            key: resolved.key.clone(),
-            delegation: resolved.delegation.clone(),
+        self.reserve_checked_route(
+            caller,
+            call.expression(),
+            resolved,
+            &target_substitutions,
             dispatches,
-        };
-        if let Some(previous) = self
-            .plan
-            .routes
-            .insert((caller, call.expression()), route.clone())
-            && previous != route
-        {
-            return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
-        }
+            span,
+        )?;
         Ok(dispatches)
+    }
+
+    // Only called once typed operand mapping and the original completed-
+    // argument/dispatch queries have been handled by specialization.
+    fn reserve_checked_route(
+        &mut self,
+        caller: SourceToken,
+        expression: UnitExpressionId,
+        resolved: &ResolvedUnitCallInstance,
+        target_substitutions: &BTreeMap<UnitSymbolId, UnitTypeId>,
+        dispatches: bool,
+        span: Span,
+    ) -> Result<(), LoweringError> {
+        if dispatches {
+            self.validate_arguments(resolved.key(), target_substitutions, span)?;
+        }
+        self.plan
+            .record_checked_route(caller, expression, resolved, dispatches, span)
     }
 
     /// Direct factory calls are already planned by the unit call worklist.

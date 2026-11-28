@@ -143,7 +143,7 @@ pub(in crate::ssa) struct RefineInputs<'a> {
     pub(in crate::ssa) names: &'a ValidatedCompilationUnitNames,
     pub(in crate::ssa) typed: &'a CompilationUnitTypes,
     pub(in crate::ssa) owned: &'a dyn UnitLoweringFacts,
-    pub(in crate::ssa) two_receiver_facts: Option<&'a TwoReceiverFacts>,
+    pub(in crate::ssa) owned_receiver_sequence_facts: Option<&'a OwnedReceiverSequenceFacts>,
     pub(in crate::ssa) single_receiver_receipts: Option<&'a SingleReceiverReceiptIndex>,
     pub(in crate::ssa) subset_drop_index: Option<&'a SubsetDropIndex>,
     pub(in crate::ssa) single_receiver_facts: Option<&'a SingleReceiverFacts>,
@@ -946,8 +946,8 @@ pub(in crate::ssa) mod two_receiver_plan_test_support;
 #[cfg(test)]
 pub(in crate::ssa) mod two_receiver_route_metrics;
 
-mod two_receiver_facts;
-pub(in crate::ssa) use two_receiver_facts::TwoReceiverFacts;
+mod owned_receiver_sequence_facts;
+pub(in crate::ssa) use owned_receiver_sequence_facts::OwnedReceiverSequenceFacts;
 
 mod single_receiver_receipt_index;
 pub(in crate::ssa) use single_receiver_receipt_index::SingleReceiverReceiptIndex;

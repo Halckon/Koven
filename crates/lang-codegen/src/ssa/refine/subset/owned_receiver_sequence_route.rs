@@ -1,16 +1,16 @@
-//! Narrow same-owner two-call route; independent of optional observer and single-call receipts.
+//! Narrow same-owner receiver sequence route; independent of optional observer and single-call receipts.
 use super::{Checker, RefineBody};
 use lang_frontend::{
     ownership_checking::{UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget},
     parser::{Expression, Item, ParameterModeMarker, Statement},
     type_checking::{
         BuiltinType, CallableResultSource, Copyability, ExpressionCategory, ParameterMode,
-        UnitCallReceiverOrigin, UnitCallTarget, UnitTypeKind,
+        UnitCallReceiverOrigin, UnitCallTarget, UnitCallableTarget, UnitTypeKind,
     },
 };
 
 impl Checker<'_, '_> {
-    pub(super) fn two_owned_receiver_route(&self) -> Option<()> {
+    pub(super) fn owned_receiver_sequence_route(&self) -> Option<()> {
         let inputs = self.inputs;
         if inputs.receiver.is_some()
             || inputs.static_self.is_some()
@@ -57,15 +57,15 @@ impl Checker<'_, '_> {
         let Statement::Block { elements } = ast.statements().get(body).ok()?.payload() else {
             return None;
         };
-        let [first, second] = elements.as_slice() else {
+        if !(2..=3).contains(&elements.len()) {
             return None;
-        };
+        }
         let caller = inputs.source_plan.source(inputs.source_token)?;
         let receivers = inputs.single_receiver_facts?;
-        let paired_facts = inputs.two_receiver_facts?;
+        let sequence_facts = inputs.owned_receiver_sequence_facts?;
         let mut previous = None;
-        let mut checks = [None; 2];
-        for (index, statement) in [first, second].into_iter().enumerate() {
+        let mut checks = [None; 3];
+        for (slot, statement) in checks.iter_mut().zip(elements) {
             let Statement::Expression { expression } =
                 ast.statements().get(*statement).ok()?.payload()
             else {
@@ -86,15 +86,28 @@ impl Checker<'_, '_> {
             else {
                 return None;
             };
-            let root_node = ast.expressions().get(*root).ok()?;
+            // Strip only transparent groups to resolve the place. The outer
+            // occurrence still owns the typed receiver and loan-begin span.
+            let receiver_node = ast.expressions().get(*root).ok()?;
+            let mut binding = *root;
+            while let Expression::Group { expression } =
+                ast.expressions().get(binding).ok()?.payload()
+            {
+                binding = *expression;
+            }
             let id = self.id(*expression);
             let root_id = self.id(*root);
             let call = inputs.typed.call(id)?;
             let receiver = call.receiver()?;
+            let UnitCallTarget::Symbol(member) = call.target() else {
+                return None;
+            };
             if !arguments.is_empty()
-                || !matches!(root_node.payload(), Expression::Name)
-                || self.reference(*root) != Some(*symbol)
-                || !matches!(call.target(), UnitCallTarget::Symbol(_))
+                || !matches!(
+                    ast.expressions().get(binding).ok()?.payload(),
+                    Expression::Name
+                )
+                || self.reference(binding) != Some(*symbol)
                 || call.aborts()
                 || !call.arguments().is_empty()
                 || !call.instance().type_arguments().is_empty()
@@ -113,19 +126,14 @@ impl Checker<'_, '_> {
             let site = inputs.source_plan.call_site(inputs.source_token, id)?;
             let dispatch = site.dispatch_key()?;
             if dispatch == caller
+                || dispatch.target() != UnitCallableTarget::Symbol(member)
                 || !site.delegation().is_empty()
                 || !inputs.function_ids.contains_key(dispatch)
             {
                 return None;
             }
-            if previous.is_some_and(
-                |(earlier, span, target, key): (_, lang_frontend::source::Span, _, _)| {
-                    earlier == id
-                        || span.end() > node.span().start()
-                        || target != call.target()
-                        || key != dispatch
-                },
-            ) {
+            // The loans share a root, not a callee. Each call proved its own direct dispatch.
+            if previous.is_some_and(|(earlier, end)| earlier == id || end > node.span().start()) {
                 return None;
             }
 
@@ -141,17 +149,17 @@ impl Checker<'_, '_> {
                 || fact.activation_point().is_some()
                 || !place.is_root()
                 || place.root() != *symbol
-                || fact.begin_span() != root_node.span()
+                || fact.begin_span() != receiver_node.span()
                 || fact.end_span() != node.span()
             {
                 return None;
             }
 
-            checks[index] = Some((id, fact));
-            previous = Some((id, node.span(), call.target(), dispatch));
+            *slot = Some((id, fact));
+            previous = Some((id, node.span().end()));
         }
-        paired_facts
-            .validates(inputs.owned, *symbol, checks[0]?, checks[1]?)
+        sequence_facts
+            .validates(inputs.owned, *symbol, &checks[..elements.len()])
             .then_some(())
     }
 }

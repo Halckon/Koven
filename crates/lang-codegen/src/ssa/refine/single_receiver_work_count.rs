@@ -140,7 +140,7 @@ fn count(n: usize) -> Counts {
                 drop_candidates: 0,
                 precheck_ends: 0,
                 declaration_rows: 0,
-                receiver_probes: 2 * n,
+                receiver_probes: 3 * n,
                 ..counts.without_subset_drops()
             }
         );
@@ -189,7 +189,7 @@ fn default_single_receiver_receipt_scan_work_8_and_16() {
         count(0).without_subset_drops(),
         Counts {
             receiver_rows: 2,
-            receiver_probes: 2,
+            receiver_probes: 4,
             ..Default::default()
         }
     );
@@ -210,7 +210,7 @@ fn default_single_receiver_receipt_scan_work_8_and_16() {
                 precheck_ends: callers,
                 declaration_rows: callers,
                 receiver_rows: callers,
-                receiver_probes: 3 * callers,
+                receiver_probes: 4 * callers,
                 subset_drop_index_rows: 0,
                 subset_drop_rows: 0,
                 subset_conditional_drop_rows: 0,

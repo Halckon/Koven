@@ -148,7 +148,7 @@ pub(in crate::ssa) fn publish<'a>(
         names: handoff.names(),
         typed,
         owned: handoff,
-        two_receiver_facts: Default::default(),
+        owned_receiver_sequence_facts: Default::default(),
         single_receiver_receipts: Default::default(),
         single_receiver_facts: Default::default(),
         subset_drop_index: None,

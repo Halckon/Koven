@@ -3,32 +3,40 @@
 > **性质**：当前交付账本 · **状态**：current · **读取时机**：核对 E3 交付与兼容路径 · **唯一真源**：下列 Git 快照及指向的测试 · [历史发现与证据](ownership-refinement-gaps.md)
 
 
-核对 GitHub `main` 与本地 `main`、`origin/main`，均为
-`8207b21266dc1228e0ee6d912ae27f4f010ac6af`。本地 E3 代码快照为 `fbca0700`；
-其共同基点是同一 main。以下按**主干已交付／本地已实现／仍需迁移**分别记账。
-本次只核对代码、Git 祖先关系、补丁等价性和已有测试证据，不执行 Cargo、native 或 CI。
+[PR #454](https://github.com/Halckon/Koven/pull/454) 已合入 `main`（`c27bfd57`）。
+下表记录已经交付的固定形态；后文的本地候选与基点是合入前的历史证据，不是当前待合清单。
 
-| 项目 | 主干事实 | 本地候选与下一步 |
-|---|---|---|
-| A2 · Shared 接收者返回 Boolean | 固定的 owned 非 Resource、一次无实参调用仍走 Compatibility。 | `0620936c` 已迁入 Refine；在限定形态保留真实的 Protocol 2 收据。 |
-| A2 · 一个显式整数字面量 | 固定的单调用仍走 Compatibility。 | `8d639f4b` 已迁入 Refine：无名称、模式标记、括号或后缀的 Int 字面量传给 `own Int` 形参；核对真实实参 SSA Value。 |
-| A2 · 单次 Shared 接收者的 Borrow 转发 | 固定的零实参、Int 结果调用仍走 Compatibility。 | `63973d9d` 已迁入 Refine，转发传入的原借用；不新建本地借用终止或所有者释放，不产生后端 Protocol 2 收据。 |
-| A2 · 同一 owner 两次 Shared 调用 | 固定的同方法、两次零实参调用仍走 Compatibility。 | `38828620` 已迁入 Refine，两次借用有独立身份，最后才释放一次 owner；没有后端 Protocol 2 收据，末次 Complete2 不追认首条借用。 |
-| A3 · owned nullable `when` | [SPEC-0455](../archive/specs/0455-refine-owned-nullable-when.md) 已交付；原 Node 12、Box 6、Rc 6 个函数实际走 Refine，有 SSA/LLVM 及两种 Unit 布局证据。 | 从迁移待办移出；后续 nullable place 需单独的 Borrow/Inout/字段/元素合同。 |
-| A4 · 原 inline `Int?` + `replace` | 原固定源码的普通入口走 Refine，LLVM 通过，native 输出 `ok`。`UnsupportedNode` 是强制旧路径的测试结果。 | 该固定源码从待办移出；不能据此推出所有可空值与 `replace` 组合均已支持。 |
-| 构造器内混合 return/break | 不据本地测试推断主干已接收该切片。 | 本地 `a65ff070` 的无触发条件版本仍走 Compatibility；`fbca0700` 使用既有独立触发条件实际走 Refine。两版的 native 都确认只在继续分支构造并释放一次；不扩大生产路由。 |
+| 项目 | 主干已交付的固定形态与边界 |
+|---|---|
+| A2 · Shared 接收者返回 Boolean | owned 非 Resource、一次无实参调用走 Refine；限定形态有 Protocol 2 收据。 |
+| A2 · 一个显式整数字面量 | owned 非 Resource、一个无名称、模式标记、括号或后缀的 Int 字面量传给 `own Int`；验收核对真实实参 SSA Value。 |
+| A2 · 单次 Shared 接收者的 Borrow 转发 | 零实参、Int 结果；转发原借用，不新建本地借用终止或所有者释放，也无后端 Protocol 2 收据。 |
+| A2 · 同一 owner 两次 Shared 调用 | 同方法、两次零实参调用；借用身份各自独立，最后只释放一次 owner，无后端 Protocol 2 收据。末次 Complete2 不追认首条借用。 |
+| A3 · owned nullable `when` | [SPEC-0455](../archive/specs/0455-refine-owned-nullable-when.md) 已交付；原 Node 12、Box 6、Rc 6 个函数实际走 Refine。后续 nullable place 需单独的 Borrow/Inout/字段/元素合同。 |
+| A4 · 原 inline `Int?` + `replace` | 原固定源码的普通入口走 Refine，LLVM 通过，native 输出 `ok`。`UnsupportedNode` 是强制旧路径的测试结果，不能据此推出所有可空值与 `replace` 组合均已支持。 |
+| 构造器内混合 return/break | 有既有独立触发条件的用例走 Refine；无该条件的用例仍是 Compatibility 对照。只在继续分支构造并释放，不扩大生产路由。 |
 
-四笔 A2 实现和 `11886bf3` 的观察开关对照已是同一 E3 代码线的祖先；在上述 main
-上均没有祖先或补丁等价命中，不必在本地再逐笔合并，也不能标为已上线。
-尚有**实际兼容路径**，包括三次 Shared 调用、不同被调方法、分组接收者、带额外参数或重复调用的 Borrow 转发、
+[#454 PR-event CI](https://github.com/Halckon/Koven/actions/runs/44981089506)
+为 `8207b212` / `03699c3a` 的组合提供证据；在
+[macOS](https://github.com/Halckon/Koven/actions/runs/44981089506/job/137081749471) 和
+[Linux](https://github.com/Halckon/Koven/actions/runs/44981089506/job/137081749515)
+的 Targeted 日志均核对到四个 A2 正例、近邻路由负控、构造器正控和 receiver 索引规模回归实际通过。
+合并后的 [main push CI](https://github.com/Halckon/Koven/actions/runs/45038013512)
+也已在 `d6976cf0` 完成；[macOS](https://github.com/Halckon/Koven/actions/runs/45038013512/job/137256223593)
+和 [Linux](https://github.com/Halckon/Koven/actions/runs/45038013512/job/137256223571)
+的 Targeted 日志均确认上述四个 A2 正例、近邻路由负控及 receiver 索引规模回归实际通过。
+这些证据只覆盖对应的固定形态，不代表全部接收者形态都完成迁移。
+
+上述主干快照尚有**实际兼容路径**，包括三次 Shared 调用、不同被调方法（两者的窄形态见下方本地候选）、
+分组接收者、带额外参数或重复调用的 Borrow 转发、
 命名／分组／计算实参以及借用形参等固定近邻；Box 和 Resource 接收者有单独有界负控。
 这些是后续迁移和取舍的输入，不是任意合法形态的穷尽清单，也不是扩大准入的授权。
 
-### 合并候选验收与退役条件
+### 已合候选的验收项与后续退役条件
 
-- 先以最终候选对齐 D10/E2 与 E3。重点检查共用的借用结果测试和 Range/Refine 挂载；
-  不能把独立本地候选的通过归到组合后的新树，也不能把 E2 试验规划算作 E3 已交付能力。
-- 最终候选在 Mac/Linux 上以默认配置和 `loan-observation-test-support` 验四个原始正例和兼容负控。
+- 已合候选同时包含 D10 迁移及 E2 的普通 Unit ABI 注册；未引入 E2 DirectRange 试验，
+  不将 E2 试验规划算作 E3 已交付能力。
+- 四个原始正例和兼容负控的精确测试名如下。
   公共前缀为 `ssa::loan_region_ssa_tests::receipts::`，下列测试已包含自身的源身份、SSA、LLVM
   和相应 native 行为，不另加重复的 native 过滤器：
 
@@ -43,8 +51,7 @@
 
 ## 早期固定见证复核（2026-11-21）
 
-
-以下只重分类列出的固定源码，不把相邻语法、借用或 owner 形态一并标成完成。
+以下为 #454 合入前的历史记录，主干现状以上表为准。这里只重分类列出的固定源码，不把相邻语法、借用或 owner 形态一并标成完成。
 A3、A4 两个测试模块在主干同步点 `8207b212` 与本地复核树 `570a3633` 中无差异。
 
 | 见证 | 复核后的路径与证据 |
@@ -108,6 +115,45 @@ Protocol 2 的三个动作和五个 SSA 生命周期指令。
 未纳入旧的整对象退出、nullable 写回和 pending-argument 探针：它们是未验收的研究，
 不算生产修复。两个旧 post445 快照共有的 30 个暂存文件中有 18 个与当前候选逐字相同，
 其余含后继拆分或路由差异，不用旧快照覆盖新实现。原工作树、分支和研究均保留。
+
+### 本地跨源清理索引（2026-11-23）
+
+`6b11a4b1` 按实际源码和函数范围预选普通 Unit 的清理事实；不同文件的相同偏移不会串源。
+Mac 定向验证了同偏移路由正反例、单源 8/16 规模计数和跨源成对 receiver 的 SSA、LLVM 与 native。
+这是 #455 后的独立本地变更，尚未合入或通过远端 CI，不沿用上述 A2 主干证据。
+
+### 本地双方法 Shared 接收者迁移（2026-11-23）
+
+普通 Unit 中同一个 owned 非 Resource、非泛型 class 根上的两次连续 Shared 调用，
+各自以原类型事实核对零实参、Int 返回与非委托的直接方法目标；两个目标可以不同。
+两条借用分别开始和结束，第二条结束后唯一释放原 owner。不同方法不获得后端 Protocol 2 收据，
+也不沿用原同方法的专用审计。分组接收者、三次调用、带参数及混合 Int/Boolean 保持原路由。
+Mac 定向验证了无额外触发条件的异方法原源码、同方法、近邻负控与索引规模，
+并在异方法的两种 Unit 布局下核对观察开关、实际 Refine 操作、SSA、LLVM 和 native 唯一释放。
+此候选未推送，尚无 Linux 或远端 CI 证据。
+
+### 本地三次 Shared 接收者调用（2026-11-23）
+
+同一 owned 根上的直达 Shared 调用可在上述条件下连续三次，仍逐调用查核真实借用与终止事实，
+最后一次返回后唯一释放根，不产生新的 Protocol 2 收据。四次调用、分组接收者、带参数和
+混合返回类型保留原路由。Mac 用两个本地表达式 ID 相同、但来源不同的函数核对各自的三个
+实际方法目标、三次借用起止和唯一释放，并复核反转输入的 SSA/LLVM 产物与 native 释放顺序。
+本地候选尚未推送，无远端 CI 证据。
+
+### 本地多次 Shared 调用的括号接收者（2026-11-23）
+
+两到三次调用的既有边界内，`(node)` 与 `((node))` 可与裸 `node` 混用。
+只为验证具名根而去除分组；仍按原始外层表达式核对类型、借用起点和实际调用，
+不将分组误认成临时值或独立 owner。单次调用、四次以上、非具名根仍不因本片改变路由。
+这不是新的 Protocol 2 收据，也未修改独立的单次调用门禁。Mac 定向验证了跨文件重复 ID、
+实际 SSA 借用起止与唯一释放、反转输入的 SSA/LLVM 等价及 native 顺序；无远端 CI 证据。
+
+### #449：默认路由迁移不等于兼容实现退役
+
+Map 构造和大小读取、Rc 构造及顺序容器大小读取的独立用例默认走 Refine。
+普通 Unit 的混合函数若不满足整个 Refine 子集，仍可在 Compatibility 发出这些操作；
+不可仅按默认路由测试删除对应实现。定向测试用带可空对象替换的实际普通函数验证这四种
+SSA 操作及 LLVM/native 输出，未强制测试路由。此项本地证据不将其他 Map 操作外推为全覆盖。
 
 ## 局部组合候选验收（2026-11-22）
 
