@@ -1,6 +1,93 @@
 //! Lambda header、body 与恢复的完整语法入口。
 use super::*;
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum LambdaBodyLoopAction {
+    Stop,
+    SkipSemicolon,
+    ParseElement,
+}
+
+pub(super) const fn lambda_body_loop_action(
+    kind: LexemeKind,
+    outer_hard_stop: bool,
+) -> LambdaBodyLoopAction {
+    if matches!(
+        kind,
+        LexemeKind::Token(TokenKind::Symbol(Symbol::RightBrace))
+    ) || outer_hard_stop
+    {
+        LambdaBodyLoopAction::Stop
+    } else if matches!(
+        kind,
+        LexemeKind::Token(TokenKind::Symbol(Symbol::Semicolon))
+    ) {
+        LambdaBodyLoopAction::SkipSemicolon
+    } else {
+        LambdaBodyLoopAction::ParseElement
+    }
+}
+
+pub(super) fn skip_lambda_body_semicolons_with<S, T: Copy, E>(
+    state: &mut S,
+    mut current: impl FnMut(&S) -> Result<T, E>,
+    mut advance: impl FnMut(&mut S) -> Result<(), E>,
+    kind_of: impl Fn(T) -> LexemeKind,
+    is_outer_hard_stop: impl Fn(T) -> bool,
+) -> Result<(T, LambdaBodyLoopAction), E> {
+    loop {
+        let item = current(state)?;
+        let kind = kind_of(item);
+        let outer_hard_stop = if matches!(
+            kind,
+            LexemeKind::Token(TokenKind::Symbol(Symbol::RightBrace))
+        ) {
+            false
+        } else {
+            is_outer_hard_stop(item)
+        };
+        let action = lambda_body_loop_action(kind, outer_hard_stop);
+        match action {
+            LambdaBodyLoopAction::SkipSemicolon => advance(state)?,
+            LambdaBodyLoopAction::Stop | LambdaBodyLoopAction::ParseElement => {
+                return Ok((item, action));
+            }
+        }
+    }
+}
+
+pub(super) const fn is_lambda_body_unsupported_symbol_kind(kind: LexemeKind) -> bool {
+    matches!(
+        kind,
+        LexemeKind::Token(TokenKind::Symbol(Symbol::Comma | Symbol::Arrow))
+    )
+}
+
+pub(super) const fn lambda_body_missing_closer_emits_diagnostic(
+    current_kind: LexemeKind,
+    terminal_error_at_eof: bool,
+    is_poison: bool,
+) -> bool {
+    !matches!(
+        current_kind,
+        LexemeKind::Token(TokenKind::Symbol(Symbol::RightBrace))
+    ) && !terminal_error_at_eof
+        && !is_poison
+}
+
+pub(super) const fn unsupported_lambda_body_consumes_val_kind(
+    first_kind: LexemeKind,
+    second_kind: Option<LexemeKind>,
+) -> bool {
+    matches!(
+        first_kind,
+        LexemeKind::Token(TokenKind::Keyword(Keyword::Const))
+    ) && matches!(
+        second_kind,
+        Some(LexemeKind::Token(TokenKind::Keyword(Keyword::Val)))
+    )
+}
+
 impl Parser<'_> {
     pub(super) fn parse_lambda(
         &mut self,
@@ -73,20 +160,15 @@ impl Parser<'_> {
         let expression_stops = Stops::lambda_expression(outer_stops);
 
         let current = loop {
-            let current = self.current()?;
-            if matches!(
-                current.kind(),
-                LexemeKind::Token(TokenKind::Symbol(Symbol::RightBrace))
-            ) || outer_stops.contains_hard(current)
-            {
+            let (current, action) = skip_lambda_body_semicolons_with(
+                self,
+                |parser| parser.current(),
+                |parser| parser.bump().map(|_| ()),
+                Lexeme::kind,
+                |lexeme| outer_stops.contains_hard(lexeme),
+            )?;
+            if action == LambdaBodyLoopAction::Stop {
                 break current;
-            }
-            if matches!(
-                current.kind(),
-                LexemeKind::Token(TokenKind::Symbol(Symbol::Semicolon))
-            ) {
-                self.bump()?;
-                continue;
             }
             #[cfg(test)]
             {
@@ -137,10 +219,7 @@ impl Parser<'_> {
                 if self.is_poison_kind(current.kind()) {
                     let span = self.bump()?.span();
                     self.add_statement(span, Statement::Error)?
-                } else if matches!(
-                    current.kind(),
-                    LexemeKind::Token(TokenKind::Symbol(Symbol::Comma | Symbol::Arrow))
-                ) {
+                } else if is_lambda_body_unsupported_symbol_kind(current.kind()) {
                     self.parse_unsupported_lambda_body_form()?
                 } else if self.can_start_expression(current) {
                     let expression = self.parse_expression_bp(0, expression_stops)?;
@@ -176,9 +255,11 @@ impl Parser<'_> {
         ) {
             self.bump()?.span().end()
         } else {
-            if !self.lexical_recoveries.terminal_error_at_eof
-                && !self.is_poison_kind(current.kind())
-            {
+            if lambda_body_missing_closer_emits_diagnostic(
+                current.kind(),
+                self.lexical_recoveries.terminal_error_at_eof,
+                self.is_poison_kind(current.kind()),
+            ) {
                 self.emit_closing(self.empty_at(current.span().start())?, opener)?;
             }
             self.previous_significant_end().max(opener.end())
@@ -195,12 +276,15 @@ impl Parser<'_> {
         let first_lexeme = self.bump()?;
         let first = first_lexeme.span();
         let mut end = first.end();
-        if self.current_is_keyword(Keyword::Val)
-            && matches!(
-                first_lexeme.kind(),
-                LexemeKind::Token(TokenKind::Keyword(Keyword::Const))
-            )
-        {
+        let second_kind = if matches!(
+            first_lexeme.kind(),
+            LexemeKind::Token(TokenKind::Keyword(Keyword::Const))
+        ) {
+            self.peek(0).map(Lexeme::kind)
+        } else {
+            None
+        };
+        if unsupported_lambda_body_consumes_val_kind(first_lexeme.kind(), second_kind) {
             end = self.bump()?.span().end();
         }
         let span = self.span(first.start(), end)?;

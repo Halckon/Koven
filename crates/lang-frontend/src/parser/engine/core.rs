@@ -1,5 +1,92 @@
 use super::*;
 
+#[inline]
+pub(super) const fn try_enter_recursion_depth(depth: usize, max_depth: usize) -> Option<usize> {
+    if depth >= max_depth {
+        None
+    } else {
+        Some(depth + 1)
+    }
+}
+
+#[inline]
+pub(super) fn previous_significant_end_with<T>(
+    items: &[T],
+    kind_of: impl Fn(&T) -> LexemeKind,
+    end_of: impl Fn(&T) -> usize,
+) -> usize {
+    items
+        .iter()
+        .rev()
+        .find(|item| !matches!(kind_of(item), LexemeKind::Trivia(_)))
+        .map(end_of)
+        .unwrap_or(0)
+}
+
+#[inline]
+pub(super) const fn lambda_body_element_is_statement(
+    index: usize,
+    len: usize,
+    is_expression_stmt: bool,
+) -> bool {
+    !(index == len.saturating_sub(1) && is_expression_stmt)
+}
+
+#[inline]
+pub(super) const fn control_body_element_is_statement(
+    value_required: bool,
+    index: usize,
+    len: usize,
+    is_expression_stmt: bool,
+) -> bool {
+    !(value_required && index == len.saturating_sub(1) && is_expression_stmt)
+}
+
+#[inline]
+pub(super) const fn if_missing_else_emits_diagnostic(
+    has_else: bool,
+    statement_allowed: bool,
+) -> bool {
+    !has_else && !statement_allowed
+}
+
+#[inline]
+pub(super) const fn expression_tail_is_block_boundary(
+    block_elements: bool,
+    is_semicolon: bool,
+    can_start_expr: bool,
+) -> bool {
+    block_elements && (is_semicolon || can_start_expr)
+}
+
+#[inline]
+pub(super) const fn expression_tail_emits_unexpected_trailing(
+    in_stops: bool,
+    block_boundary: bool,
+) -> bool {
+    !in_stops && !block_boundary
+}
+
+#[inline]
+pub(super) const fn boundary_uses_empty_span(in_stops: bool, at_block_sep: bool) -> bool {
+    in_stops || at_block_sep
+}
+
+#[inline]
+pub(super) const fn type_recovery_boundary_hit(
+    in_stops: bool,
+    has_block_sep: bool,
+    at_block_sep: bool,
+    has_class_file: bool,
+    at_class_file: bool,
+    at_file_angle: bool,
+) -> bool {
+    in_stops
+        || (has_block_sep && at_block_sep)
+        || (has_class_file && at_class_file)
+        || at_file_angle
+}
+
 impl Parser<'_> {
     pub(super) fn significant(&self, ordinal: usize) -> Option<(usize, Lexeme)> {
         self.significant_from(self.index, ordinal)
@@ -15,12 +102,13 @@ impl Parser<'_> {
     }
 
     pub(super) fn enter_recursion(&mut self) -> Result<(), ParserInternalError> {
-        if self.recursion_depth >= MAX_RECURSION_DEPTH {
+        let Some(next_depth) = try_enter_recursion_depth(self.recursion_depth, MAX_RECURSION_DEPTH)
+        else {
             return Err(ParserInternalError::NestingLimitExceeded {
                 limit: MAX_RECURSION_DEPTH,
             });
-        }
-        self.recursion_depth += 1;
+        };
+        self.recursion_depth = next_depth;
         Ok(())
     }
 
@@ -134,7 +222,9 @@ impl Parser<'_> {
         current: Lexeme,
         stops: Stops,
     ) -> Result<Span, ParserInternalError> {
-        if stops.contains(current) || self.at_block_statement_separator(current, stops)? {
+        let in_stops = stops.contains(current);
+        let at_block_sep = !in_stops && self.at_block_statement_separator(current, stops)?;
+        if boundary_uses_empty_span(in_stops, at_block_sep) {
             self.empty_at(current.span().start())
         } else {
             Ok(current.span())
@@ -172,11 +262,25 @@ impl Parser<'_> {
         current: Lexeme,
         stops: TypeStops,
     ) -> Result<bool, ParserInternalError> {
-        Ok(stops.contains(current)
-            || (stops.has_block_statement_separator()
-                && self.at_proven_block_statement_separator(current)?)
-            || (stops.has_class_file_boundary() && self.at_class_header_file_boundary(true)?)
-            || self.at_file_angle_boundary(current)?)
+        let in_stops = stops.contains(current);
+        let has_block_sep = stops.has_block_statement_separator();
+        let at_block_sep =
+            !in_stops && has_block_sep && self.at_proven_block_statement_separator(current)?;
+        let has_class_file = stops.has_class_file_boundary();
+        let at_class_file = !in_stops
+            && !at_block_sep
+            && has_class_file
+            && self.at_class_header_file_boundary(true)?;
+        let at_file_angle =
+            !in_stops && !at_block_sep && !at_class_file && self.at_file_angle_boundary(current)?;
+        Ok(type_recovery_boundary_hit(
+            in_stops,
+            has_block_sep,
+            at_block_sep,
+            has_class_file,
+            at_class_file,
+            at_file_angle,
+        ))
     }
 
     pub(super) fn type_boundary_span(
@@ -192,12 +296,11 @@ impl Parser<'_> {
     }
 
     pub(super) fn previous_significant_end(&self) -> usize {
-        self.lexed.lexemes()[..self.index]
-            .iter()
-            .rev()
-            .find(|lexeme| !matches!(lexeme.kind(), LexemeKind::Trivia(_)))
-            .map(|lexeme| lexeme.span().end())
-            .unwrap_or(0)
+        previous_significant_end_with(
+            &self.lexed.lexemes()[..self.index],
+            |lexeme| lexeme.kind(),
+            |lexeme| lexeme.span().end(),
+        )
     }
 
     pub(super) fn expression_span(&self, id: ExpressionId) -> Result<Span, ParserInternalError> {
@@ -335,16 +438,21 @@ impl Parser<'_> {
                             }
                         }
                         Statement::LambdaBody { elements } => {
-                            let last = elements.len().saturating_sub(1);
+                            let len = elements.len();
+                            let last = len.saturating_sub(1);
                             for (index, element) in elements.into_iter().enumerate().rev() {
-                                let is_tail_expression = index == last
+                                let is_expression_stmt = index == last
                                     && matches!(
                                         self.ast.statements().get(element)?.payload(),
                                         Statement::Expression { .. }
                                     );
                                 work.push(ContextWork::Statement {
                                     id: element,
-                                    expression_is_statement: !is_tail_expression,
+                                    expression_is_statement: lambda_body_element_is_statement(
+                                        index,
+                                        len,
+                                        is_expression_stmt,
+                                    ),
                                 });
                             }
                         }
@@ -397,9 +505,10 @@ impl Parser<'_> {
                     let statement = self.ast.statements().get(id)?.payload().clone();
                     match statement {
                         Statement::ControlBody { elements } => {
-                            let last = elements.len().saturating_sub(1);
+                            let len = elements.len();
+                            let last = len.saturating_sub(1);
                             for (index, element) in elements.into_iter().enumerate().rev() {
-                                let is_tail_expression = value_required
+                                let is_expression_stmt = value_required
                                     && index == last
                                     && matches!(
                                         self.ast.statements().get(element)?.payload(),
@@ -407,7 +516,12 @@ impl Parser<'_> {
                                     );
                                 work.push(ContextWork::Statement {
                                     id: element,
-                                    expression_is_statement: !is_tail_expression,
+                                    expression_is_statement: control_body_element_is_statement(
+                                        value_required,
+                                        index,
+                                        len,
+                                        is_expression_stmt,
+                                    ),
                                 });
                             }
                         }
@@ -479,7 +593,10 @@ impl Parser<'_> {
                             condition,
                             ..
                         } => {
-                            if else_branch.is_none() && !statement_allowed {
+                            if if_missing_else_emits_diagnostic(
+                                else_branch.is_some(),
+                                statement_allowed,
+                            ) {
                                 let span =
                                     self.empty_at(self.statement_span(then_branch)?.end())?;
                                 self.emit(
@@ -682,10 +799,15 @@ impl Parser<'_> {
 
         // A complete block expression may recover at the next expression starter.
         // Dispatch must still reject a missing separator; this never accepts an implicit ';'.
-        let block_boundary = stops.block_elements
-            && (self.current_is_symbol(Symbol::Semicolon)
-                || self.can_start_expression(self.current()?));
-        if !stops.contains(self.current()?) && !block_boundary {
+        let is_semicolon = stops.block_elements && self.current_is_symbol(Symbol::Semicolon);
+        let can_start_expr =
+            stops.block_elements && !is_semicolon && self.can_start_expression(self.current()?);
+        let block_boundary =
+            expression_tail_is_block_boundary(stops.block_elements, is_semicolon, can_start_expr);
+        if expression_tail_emits_unexpected_trailing(
+            stops.contains(self.current()?),
+            block_boundary,
+        ) {
             let first = self.current()?.span();
             self.emit(
                 codes::UNEXPECTED_TRAILING_TOKEN,

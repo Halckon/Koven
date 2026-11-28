@@ -1,13 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="4848" height="868" viewBox="0 0 4848 868" font-family="PingFang SC, Microsoft YaHei, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="4848" height="1492" viewBox="0 0 4848 1492" font-family="PingFang SC, Microsoft YaHei, sans-serif">
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
     </marker>
   </defs>
-  <rect width="4848" height="868" fill="#ffffff"/>
+  <rect width="4848" height="1492" fill="#ffffff"/>
   <rect x="40" y="30" width="280" height="106" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="180" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，482 份）</text>
-  <rect x="384" y="30" width="2128" height="766" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="180" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，486 份）</text>
+  <rect x="384" y="30" width="2128" height="1390" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="1448" y="50" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
   <rect x="2576" y="186" width="280" height="124" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="2716" y="206" text-anchor="middle" font-size="13" fill="#64748b">v0.43（draft）</text>
@@ -16,6 +16,10 @@
   <path d="M 1052 312 C 1052 344, 524 344, 524 376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 524 468 C 524 500, 524 500, 524 532" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 524 624 C 524 656, 524 656, 524 688" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 524 780 C 524 812, 524 812, 524 844" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 524 936 C 524 968, 524 968, 524 1000" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 524 1092 C 524 1124, 524 1124, 524 1156" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 524 1248 C 524 1280, 524 1280, 524 1312" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 300 92 C 1448 92, 1448 257, 2596 257" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 300 92 C 352 92, 352 257, 404 257" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 300 92 C 1620 92, 1620 266, 2940 266" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -106,26 +110,46 @@
   <text x="2372" y="123" text-anchor="middle" font-size="13"> manifest 加载与诊</text>
   <text x="2372" y="141" text-anchor="middle" font-size="13">断源码片段上下文</text>
   <rect x="932" y="220" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="1052" y="243" text-anchor="middle" font-size="13" font-weight="600">SPEC-0515</text>
-  <text x="1052" y="261" text-anchor="middle" font-size="13">F6 第十五片 postfi</text>
-  <text x="1052" y="279" text-anchor="middle" font-size="13">x 后缀起始、带类型调用延续</text>
-  <text x="1052" y="297" text-anchor="middle" font-size="13">、实参边界与 callee…</text>
+  <text x="1052" y="243" text-anchor="middle" font-size="13" font-weight="600">SPEC-0519</text>
+  <text x="1052" y="261" text-anchor="middle" font-size="13">F6 第十九片 lambda</text>
+  <text x="1052" y="279" text-anchor="middle" font-size="13"> 块体循环分派、分号跳过、缺</text>
+  <text x="1052" y="297" text-anchor="middle" font-size="13">失闭合与 const va…</text>
   <rect x="404" y="376" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="524" y="399" text-anchor="middle" font-size="13" font-weight="600">SPEC-0516</text>
-  <text x="524" y="417" text-anchor="middle" font-size="13">F6 第十六片 file 声</text>
-  <text x="524" y="435" text-anchor="middle" font-size="13">明修饰符顺序状态机与文件头/</text>
-  <text x="524" y="453" text-anchor="middle" font-size="13">顶层分隔符双轨证明</text>
+  <text x="524" y="399" text-anchor="middle" font-size="13" font-weight="600">SPEC-0520</text>
+  <text x="524" y="417" text-anchor="middle" font-size="13">F6 第二十片 borrow</text>
+  <text x="524" y="435" text-anchor="middle" font-size="13">_result 与 decl</text>
+  <text x="524" y="453" text-anchor="middle" font-size="13">aration_head …</text>
   <rect x="404" y="532" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="524" y="555" text-anchor="middle" font-size="13" font-weight="600">SPEC-0517</text>
-  <text x="524" y="573" text-anchor="middle" font-size="13">F6 第十七片 destru</text>
-  <text x="524" y="591" text-anchor="middle" font-size="13">cturing 局部解构起始</text>
-  <text x="524" y="609" text-anchor="middle" font-size="13">、绑定循环防重报状态机与初…</text>
+  <text x="524" y="555" text-anchor="middle" font-size="13" font-weight="600">SPEC-0521</text>
+  <text x="524" y="573" text-anchor="middle" font-size="13">F6 第二十一片 decla</text>
+  <text x="524" y="591" text-anchor="middle" font-size="13">ration 常量恢复、函数</text>
+  <text x="524" y="609" text-anchor="middle" font-size="13">返回分派、参数模式前瞻与值…</text>
   <rect x="404" y="688" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="524" y="711" text-anchor="middle" font-size="13" font-weight="600">SPEC-0518</text>
-  <text x="524" y="729" text-anchor="middle" font-size="13">F6 第十八片 type_r</text>
-  <text x="524" y="747" text-anchor="middle" font-size="13">ef 函数类型起始、扩展接收</text>
-  <text x="524" y="765" text-anchor="middle" font-size="13">者点号停止、proven_…</text>
+  <text x="524" y="711" text-anchor="middle" font-size="13" font-weight="600">SPEC-0522</text>
+  <text x="524" y="729" text-anchor="middle" font-size="13">F6 第二十二片 opera</text>
+  <text x="524" y="747" text-anchor="middle" font-size="13">tor 非法相邻运算符、表达</text>
+  <text x="524" y="765" text-anchor="middle" font-size="13">式/类型起始、毒化层级与中…</text>
+  <rect x="404" y="844" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="524" y="867" text-anchor="middle" font-size="13" font-weight="600">SPEC-0523</text>
+  <text x="524" y="885" text-anchor="middle" font-size="13">F6 第二十三片 expre</text>
+  <text x="524" y="903" text-anchor="middle" font-size="13">ssion 前缀运算符、wh</text>
+  <text x="524" y="921" text-anchor="middle" font-size="13">en 条件分派、retur…</text>
+  <rect x="404" y="1000" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="524" y="1023" text-anchor="middle" font-size="13" font-weight="600">SPEC-0524</text>
+  <text x="524" y="1041" text-anchor="middle" font-size="13">F6 第二十四片 class</text>
+  <text x="524" y="1059" text-anchor="middle" font-size="13"> 分类器策略、成员上下文规则</text>
+  <text x="524" y="1077" text-anchor="middle" font-size="13">、名称/枚举边界与非法前缀…</text>
+  <rect x="404" y="1156" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="524" y="1179" text-anchor="middle" font-size="13" font-weight="600">SPEC-0525</text>
+  <text x="524" y="1197" text-anchor="middle" font-size="13">F6 第二十五片 core </text>
+  <text x="524" y="1215" text-anchor="middle" font-size="13">递归守卫、逆向有效词法扫描与</text>
+  <text x="524" y="1233" text-anchor="middle" font-size="13">上下文传播双轨证明</text>
+  <rect x="404" y="1312" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="524" y="1335" text-anchor="middle" font-size="13" font-weight="600">SPEC-0526</text>
+  <text x="524" y="1353" text-anchor="middle" font-size="13">F6 第二十六片 bound</text>
+  <text x="524" y="1371" text-anchor="middle" font-size="13">ary 起始集层级、Name</text>
+  <text x="524" y="1389" text-anchor="middle" font-size="13">Context 停止一致性…</text>
   <rect x="60" y="64" width="240" height="56" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">已完成 Spec</text>
-  <text x="180" y="105" text-anchor="middle" font-size="13">archive，482 份</text>
+  <text x="180" y="105" text-anchor="middle" font-size="13">archive，486 份</text>
 </svg>

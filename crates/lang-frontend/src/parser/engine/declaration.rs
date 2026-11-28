@@ -1,5 +1,121 @@
 use super::*;
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum ConstValRecoveryAction {
+    MissingAtBoundary,
+    ConsumeErrorVar,
+    MissingKeepCurrent,
+    ConsumeErrorOther,
+}
+
+#[inline]
+pub(super) const fn const_val_recovery_action(
+    kind: LexemeKind,
+    boundary: bool,
+) -> ConstValRecoveryAction {
+    if boundary {
+        ConstValRecoveryAction::MissingAtBoundary
+    } else if matches!(kind, LexemeKind::Token(TokenKind::Keyword(Keyword::Var))) {
+        ConstValRecoveryAction::ConsumeErrorVar
+    } else if matches!(
+        kind,
+        LexemeKind::Token(
+            TokenKind::Identifier
+                | TokenKind::StringStart
+                | TokenKind::Symbol(Symbol::Colon | Symbol::Equal)
+        )
+    ) {
+        ConstValRecoveryAction::MissingKeepCurrent
+    } else {
+        ConstValRecoveryAction::ConsumeErrorOther
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum FunctionFormDispatch {
+    ExplicitColon,
+    MissingReturnTypeBeforeEqual,
+    ImplicitUnitBlock,
+    MissingColonBeforeTypeRef,
+    ImplicitUnitAbsent,
+}
+
+#[inline]
+pub(super) const fn function_form_dispatch(
+    kind: LexemeKind,
+    can_start_type_ref: bool,
+) -> FunctionFormDispatch {
+    match kind {
+        LexemeKind::Token(TokenKind::Symbol(Symbol::Colon)) => FunctionFormDispatch::ExplicitColon,
+        LexemeKind::Token(TokenKind::Symbol(Symbol::Equal)) => {
+            FunctionFormDispatch::MissingReturnTypeBeforeEqual
+        }
+        LexemeKind::Token(TokenKind::Symbol(Symbol::LeftBrace)) => {
+            FunctionFormDispatch::ImplicitUnitBlock
+        }
+        _ if can_start_type_ref => FunctionFormDispatch::MissingColonBeforeTypeRef,
+        _ => FunctionFormDispatch::ImplicitUnitAbsent,
+    }
+}
+
+#[inline]
+pub(super) const fn is_parameter_mode_follow_kind(
+    context: ParameterModeContext,
+    next1: LexemeKind,
+) -> bool {
+    matches!(next1, LexemeKind::Token(TokenKind::Identifier))
+        || (matches!(context, ParameterModeContext::FunctionType)
+            && matches!(
+                next1,
+                LexemeKind::Token(TokenKind::Symbol(Symbol::LeftParen))
+            ))
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum ValueParamTypeAction {
+    EmptyErrorAtBoundary,
+    ParseTypeRef,
+    RecoverErrorRegion,
+}
+
+#[inline]
+pub(super) const fn value_param_type_action(
+    kind: LexemeKind,
+    can_start_type_ref: bool,
+) -> ValueParamTypeAction {
+    if matches!(
+        kind,
+        LexemeKind::Token(TokenKind::Symbol(
+            Symbol::Equal | Symbol::Comma | Symbol::RightParen
+        )) | LexemeKind::Eof
+    ) {
+        ValueParamTypeAction::EmptyErrorAtBoundary
+    } else if can_start_type_ref {
+        ValueParamTypeAction::ParseTypeRef
+    } else {
+        ValueParamTypeAction::RecoverErrorRegion
+    }
+}
+
+#[inline]
+pub(super) const fn value_param_default_emits_diagnostic(
+    saw_equal_before_type: bool,
+    colon_is_empty: bool,
+    current_is_equal_after_type: bool,
+) -> bool {
+    let missing_colon_default = saw_equal_before_type && colon_is_empty;
+    current_is_equal_after_type && !missing_colon_default
+}
+
+#[inline]
+pub(super) const fn declaration_tail_emits_unexpected_trailing(
+    current_kind: LexemeKind,
+    implicit_function: bool,
+    is_trailing_poison: bool,
+) -> bool {
+    !matches!(current_kind, LexemeKind::Eof) && (!implicit_function || !is_trailing_poison)
+}
+
 impl Parser<'_> {
     pub(super) fn parse_variable_declaration(
         &mut self,
@@ -51,19 +167,16 @@ impl Parser<'_> {
                     primary,
                 )?;
             }
-            if boundary {
-                NameMarker::Missing(primary)
-            } else if self.current_is_keyword(Keyword::Var) {
-                NameMarker::Error(self.bump()?.span())
-            } else if self.current_is_identifier()
-                || matches!(current.kind(), LexemeKind::Token(TokenKind::StringStart))
-                || self.current_is_symbol(Symbol::Colon)
-                || self.current_is_symbol(Symbol::Equal)
-            {
-                // 保留 StringStart，让名称恢复一次消费完整 lexical owner。
-                NameMarker::Missing(self.empty_at(current.span().start())?)
-            } else {
-                NameMarker::Error(self.bump()?.span())
+            match const_val_recovery_action(current.kind(), boundary) {
+                ConstValRecoveryAction::MissingAtBoundary => NameMarker::Missing(primary),
+                ConstValRecoveryAction::ConsumeErrorVar
+                | ConstValRecoveryAction::ConsumeErrorOther => {
+                    NameMarker::Error(self.bump()?.span())
+                }
+                ConstValRecoveryAction::MissingKeepCurrent => {
+                    // 保留 StringStart，让名称恢复一次消费完整 lexical owner。
+                    NameMarker::Missing(self.empty_at(current.span().start())?)
+                }
             }
         };
         // 名称恢复保留外层成员的 closer 与显式 separator。
@@ -147,61 +260,61 @@ impl Parser<'_> {
         parameter_end: usize,
         declaration_stops: Stops,
     ) -> Result<(FunctionForm, usize), ParserInternalError> {
-        if self.current_is_symbol(Symbol::Colon) {
-            let colon_span = self.bump()?.span();
-            let (type_ref, result_source) = self.parse_explicit_result(declaration_stops)?;
-            return self.finish_explicit_function_form(
-                colon_span,
-                type_ref,
-                result_source,
-                declaration_stops,
-            );
-        }
-
-        if self.current_is_symbol(Symbol::Equal) {
-            let insertion = self.empty_at(self.current()?.span().start())?;
-            self.emit(
-                codes::EXPECTED_RETURN_TYPE,
-                "expected explicit return type",
-                insertion,
-            )?;
-            let type_ref = self.add_type_ref(insertion, TypeRef::Error)?;
-            return self.finish_explicit_function_form(
-                insertion,
-                type_ref,
-                None,
-                declaration_stops,
-            );
-        }
-
-        if self.current_is_symbol(Symbol::LeftBrace) {
-            let block = self.parse_block_statement(Stops::ROOT)?;
-            let end = self.statement_span(block)?.end();
-            return Ok((FunctionForm::ImplicitUnitBlock(block), end));
-        }
-
         let current = self.current()?;
-        if self.can_start_type_ref(current) {
-            let colon_span = self.empty_at(current.span().start())?;
-            self.emit(
-                codes::EXPECTED_RETURN_TYPE,
-                "expected explicit return type",
-                current.span(),
-            )?;
-            let type_ref = self.parse_type_ref(
-                TypeStops::from_expression(declaration_stops)
-                    .with(TypeStops::EQUAL)
-                    .with(TypeStops::LEFT_BRACE),
-            )?;
-            return self.finish_explicit_function_form(
-                colon_span,
-                type_ref,
-                None,
-                declaration_stops,
-            );
+        let can_start_type = if matches!(
+            current.kind(),
+            LexemeKind::Token(TokenKind::Symbol(
+                Symbol::Colon | Symbol::Equal | Symbol::LeftBrace
+            ))
+        ) {
+            false
+        } else {
+            self.can_start_type_ref(current)
+        };
+        match function_form_dispatch(current.kind(), can_start_type) {
+            FunctionFormDispatch::ExplicitColon => {
+                let colon_span = self.bump()?.span();
+                let (type_ref, result_source) = self.parse_explicit_result(declaration_stops)?;
+                self.finish_explicit_function_form(
+                    colon_span,
+                    type_ref,
+                    result_source,
+                    declaration_stops,
+                )
+            }
+            FunctionFormDispatch::MissingReturnTypeBeforeEqual => {
+                let insertion = self.empty_at(current.span().start())?;
+                self.emit(
+                    codes::EXPECTED_RETURN_TYPE,
+                    "expected explicit return type",
+                    insertion,
+                )?;
+                let type_ref = self.add_type_ref(insertion, TypeRef::Error)?;
+                self.finish_explicit_function_form(insertion, type_ref, None, declaration_stops)
+            }
+            FunctionFormDispatch::ImplicitUnitBlock => {
+                let block = self.parse_block_statement(Stops::ROOT)?;
+                let end = self.statement_span(block)?.end();
+                Ok((FunctionForm::ImplicitUnitBlock(block), end))
+            }
+            FunctionFormDispatch::MissingColonBeforeTypeRef => {
+                let colon_span = self.empty_at(current.span().start())?;
+                self.emit(
+                    codes::EXPECTED_RETURN_TYPE,
+                    "expected explicit return type",
+                    current.span(),
+                )?;
+                let type_ref = self.parse_type_ref(
+                    TypeStops::from_expression(declaration_stops)
+                        .with(TypeStops::EQUAL)
+                        .with(TypeStops::LEFT_BRACE),
+                )?;
+                self.finish_explicit_function_form(colon_span, type_ref, None, declaration_stops)
+            }
+            FunctionFormDispatch::ImplicitUnitAbsent => {
+                Ok((FunctionForm::ImplicitUnitAbsent, parameter_end))
+            }
         }
-
-        Ok((FunctionForm::ImplicitUnitAbsent, parameter_end))
     }
 
     pub(super) fn finish_explicit_function_form(
@@ -569,12 +682,16 @@ impl Parser<'_> {
         &self,
         context: ParameterModeContext,
     ) -> Result<bool, ParserInternalError> {
-        Ok((self.current_identifier_is("own")?
+        if !(self.current_identifier_is("own")?
             || self.current_identifier_is("borrow")?
             || self.current_identifier_is("inout")?)
-            && (self.peek_is_identifier(1)
-                || (matches!(context, ParameterModeContext::FunctionType)
-                    && self.peek_is_symbol(1, Symbol::LeftParen))))
+        {
+            return Ok(false);
+        }
+        Ok(self
+            .peek(1)
+            .map(Lexeme::kind)
+            .is_some_and(|next1| is_parameter_mode_follow_kind(context, next1)))
     }
 
     pub(super) fn parse_value_parameters(
@@ -646,28 +763,36 @@ impl Parser<'_> {
             if !colon_span.is_empty() {
                 last_consumed_end = Some(last_consumed_end.unwrap_or(0).max(colon_span.end()));
             }
-            let missing_colon_default =
-                self.current_is_symbol(Symbol::Equal) && colon_span.is_empty();
-            let type_ref = if self.current_is_symbol(Symbol::Equal)
-                || self.current_is_symbol(Symbol::Comma)
-                || self.current_is_symbol(Symbol::RightParen)
-                || matches!(self.current()?.kind(), LexemeKind::Eof)
-            {
-                self.add_type_ref(
-                    self.empty_at(self.current()?.span().start())?,
-                    TypeRef::Error,
-                )?
-            } else if self.can_start_type_ref(self.current()?) {
-                self.parse_type_ref(stops)?
+            let type_current = self.current()?;
+            let saw_equal_before_type = matches!(
+                type_current.kind(),
+                LexemeKind::Token(TokenKind::Symbol(Symbol::Equal))
+            );
+            let can_start_type = if matches!(
+                type_current.kind(),
+                LexemeKind::Token(TokenKind::Symbol(
+                    Symbol::Equal | Symbol::Comma | Symbol::RightParen
+                )) | LexemeKind::Eof
+            ) {
+                false
             } else {
-                let start = self.current()?.span().start();
-                let end = self.recover_declaration_region(
-                    DeclarationStops::EMPTY
-                        .with(DeclarationStops::COMMA)
-                        .with(DeclarationStops::RIGHT_PAREN)
-                        .with(DeclarationStops::LEFT_BRACE),
-                )?;
-                self.add_type_ref(self.span(start, end.max(start))?, TypeRef::Error)?
+                self.can_start_type_ref(type_current)
+            };
+            let type_ref = match value_param_type_action(type_current.kind(), can_start_type) {
+                ValueParamTypeAction::EmptyErrorAtBoundary => {
+                    self.add_type_ref(self.empty_at(type_current.span().start())?, TypeRef::Error)?
+                }
+                ValueParamTypeAction::ParseTypeRef => self.parse_type_ref(stops)?,
+                ValueParamTypeAction::RecoverErrorRegion => {
+                    let start = type_current.span().start();
+                    let end = self.recover_declaration_region(
+                        DeclarationStops::EMPTY
+                            .with(DeclarationStops::COMMA)
+                            .with(DeclarationStops::RIGHT_PAREN)
+                            .with(DeclarationStops::LEFT_BRACE),
+                    )?;
+                    self.add_type_ref(self.span(start, end.max(start))?, TypeRef::Error)?
+                }
             };
             let type_span = self.type_span(type_ref)?;
             if !type_span.is_empty() {
@@ -688,7 +813,11 @@ impl Parser<'_> {
                         .with(DeclarationStops::COMMA)
                         .with(DeclarationStops::RIGHT_PAREN),
                 )?;
-                if !missing_colon_default {
+                if value_param_default_emits_diagnostic(
+                    saw_equal_before_type,
+                    colon_span.is_empty(),
+                    true,
+                ) {
                     self.emit(
                         codes::UNSUPPORTED_PARAMETER_DEFAULT,
                         "unsupported parameter default",
@@ -773,10 +902,10 @@ impl Parser<'_> {
         &mut self,
         item: ItemId,
     ) -> Result<ItemId, ParserInternalError> {
-        if matches!(self.current()?.kind(), LexemeKind::Eof) {
+        let current = self.current()?;
+        if matches!(current.kind(), LexemeKind::Eof) {
             return Ok(item);
         }
-        let current = self.current()?;
         let implicit_function = matches!(
             self.ast.items().get(item)?.payload(),
             Item::Function {
@@ -784,7 +913,12 @@ impl Parser<'_> {
                 ..
             }
         );
-        if !implicit_function || !self.is_declaration_trailing_poison(current) {
+        let is_trailing_poison = implicit_function && self.is_declaration_trailing_poison(current);
+        if declaration_tail_emits_unexpected_trailing(
+            current.kind(),
+            implicit_function,
+            is_trailing_poison,
+        ) {
             self.emit(
                 codes::UNEXPECTED_TRAILING_TOKEN,
                 "unexpected trailing token",

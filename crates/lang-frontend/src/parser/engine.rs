@@ -4,17 +4,38 @@ mod block;
 #[cfg(kani)]
 mod block_kani;
 mod borrow_result;
+#[cfg(kani)]
+mod borrow_result_kani;
+#[cfg(test)]
+mod borrow_result_tests;
 mod boundary;
+#[cfg(kani)]
+mod boundary_kani;
+#[cfg(test)]
+mod boundary_tests;
 mod class;
 mod core;
+#[cfg(kani)]
+mod core_kani;
+#[cfg(test)]
+mod core_tests;
 mod declaration;
 mod declaration_head;
+#[cfg(kani)]
+mod declaration_kani;
+#[cfg(test)]
+mod declaration_tests;
 mod destructuring;
 #[cfg(kani)]
 mod destructuring_kani;
 #[cfg(test)]
 mod destructuring_tests;
 mod expression;
+#[cfg(kani)]
+mod expression_kani;
+mod expression_kernel;
+#[cfg(test)]
+mod expression_tests;
 mod file;
 #[cfg(kani)]
 mod file_kani;
@@ -22,10 +43,18 @@ mod file_kani;
 mod file_tests;
 mod lambda;
 #[cfg(kani)]
+mod lambda_kani;
+#[cfg(test)]
+mod lambda_tests;
+#[cfg(kani)]
 mod lexeme_stream_kani;
 #[cfg(test)]
 mod lexeme_stream_tests;
 mod operator;
+#[cfg(kani)]
+mod operator_kani;
+#[cfg(test)]
+mod operator_tests;
 mod postfix;
 #[cfg(kani)]
 mod postfix_kani;

@@ -305,20 +305,22 @@ pub(super) fn visibility_span(visibility: VisibilityModifier) -> Span {
     }
 }
 
+const fn opt_min_usize(a: Option<usize>, b: Option<usize>) -> Option<usize> {
+    match (a, b) {
+        (None, y) => y,
+        (x, None) => x,
+        (Some(x), Some(y)) => Some(if x <= y { x } else { y }),
+    }
+}
+
 pub(super) fn declaration_modifier_start(modifiers: DeclarationModifiers) -> Option<usize> {
-    modifiers
-        .visibility
-        .map(visibility_span)
-        .map(Span::start)
-        .into_iter()
-        .chain(modifiers.override_span.map(Span::start))
-        .chain(
-            modifiers
-                .receiver_mode
-                .map(parameter_mode_span)
-                .map(Span::start),
-        )
-        .min()
+    let vis = modifiers.visibility.map(visibility_span).map(Span::start);
+    let ovr = modifiers.override_span.map(Span::start);
+    let recv = modifiers
+        .receiver_mode
+        .map(parameter_mode_span)
+        .map(Span::start);
+    opt_min_usize(opt_min_usize(vis, ovr), recv)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -758,11 +760,15 @@ pub(super) enum NameContext {
 
 impl NameContext {
     pub(super) fn is_stop(self, lexeme: Lexeme) -> bool {
-        if matches!(self, Self::LocalDeclaration) && unsupported_block_element_kind(lexeme.kind()) {
+        self.is_stop_kind(lexeme.kind())
+    }
+
+    pub(super) fn is_stop_kind(self, kind: LexemeKind) -> bool {
+        if matches!(self, Self::LocalDeclaration) && unsupported_block_element_kind(kind) {
             return true;
         }
         matches!(
-            (self, lexeme.kind()),
+            (self, kind),
             (
                 Self::Declaration | Self::LocalDeclaration,
                 LexemeKind::Token(TokenKind::Symbol(
@@ -939,56 +945,50 @@ impl DeclarationStops {
     }
 
     pub(super) fn contains_hard(self, lexeme: Lexeme, symbol: Option<Symbol>) -> bool {
-        matches!(
-            symbol,
-            Some(Symbol::RightParen) if self.0 & Self::RIGHT_PAREN != 0
-        ) || matches!(
-            symbol,
-            Some(Symbol::Greater) if self.0 & Self::GREATER != 0
-        ) || matches!(
-            symbol,
-            Some(Symbol::LeftBrace) if self.0 & Self::LEFT_BRACE != 0
-        ) || matches!(
-            symbol,
-            Some(Symbol::RightBrace) if self.0 & Self::RIGHT_BRACE != 0
-        ) || matches!(
-            symbol,
-            Some(Symbol::RightBracket) if self.0 & Self::RIGHT_BRACKET != 0
-        ) || (self.0 & Self::BLOCK_ELEMENT != 0
-            && matches!(
-                lexeme.kind(),
-                LexemeKind::Token(TokenKind::Keyword(Keyword::Val | Keyword::Var))
-            ))
-            || (self.0 & Self::BLOCK_ELEMENT != 0 && unsupported_block_element_kind(lexeme.kind()))
+        self.contains_hard_kind(lexeme.kind(), symbol)
+    }
+
+    pub(super) fn contains_hard_kind(self, kind: LexemeKind, symbol: Option<Symbol>) -> bool {
+        let sym_hit = match symbol {
+            Some(Symbol::RightParen) => self.0 & Self::RIGHT_PAREN != 0,
+            Some(Symbol::Greater) => self.0 & Self::GREATER != 0,
+            Some(Symbol::LeftBrace) => self.0 & Self::LEFT_BRACE != 0,
+            Some(Symbol::RightBrace) => self.0 & Self::RIGHT_BRACE != 0,
+            Some(Symbol::RightBracket) => self.0 & Self::RIGHT_BRACKET != 0,
+            _ => false,
+        };
+        sym_hit
+            || (self.0 & Self::BLOCK_ELEMENT != 0
+                && (matches!(
+                    kind,
+                    LexemeKind::Token(TokenKind::Keyword(Keyword::Val | Keyword::Var))
+                ) || unsupported_block_element_kind(kind)))
             || (self.0 & Self::INTERPOLATION_END != 0
-                && matches!(
-                    lexeme.kind(),
-                    LexemeKind::Token(TokenKind::InterpolationEnd)
-                ))
+                && matches!(kind, LexemeKind::Token(TokenKind::InterpolationEnd)))
     }
 
     pub(super) fn contains_soft(self, lexeme: Lexeme, symbol: Option<Symbol>) -> bool {
-        matches!(symbol, Some(Symbol::Comma) if self.0 & Self::COMMA != 0)
-            || matches!(symbol, Some(Symbol::LeftBrace) if self.0 & Self::CLASS_BODY != 0)
-            || matches!(symbol, Some(Symbol::Colon) if self.0 & Self::COLON != 0)
-            || matches!(symbol, Some(Symbol::Equal) if self.0 & Self::EQUAL != 0)
-            || matches!(
-                symbol,
-                Some(Symbol::LeftParen) if self.0 & Self::LEFT_PAREN != 0
-            )
-            || matches!(symbol, Some(Symbol::Semicolon) if self.0 & Self::FILE.0 != 0)
-            || matches!(symbol, Some(Symbol::Semicolon) if self.0 & Self::SEMICOLON != 0)
-            || matches!(symbol, Some(Symbol::Arrow) if self.0 & Self::ARROW != 0)
+        self.contains_soft_kind(lexeme.kind(), symbol)
+    }
+
+    pub(super) fn contains_soft_kind(self, kind: LexemeKind, symbol: Option<Symbol>) -> bool {
+        let sym_hit = match symbol {
+            Some(Symbol::Comma) => self.0 & Self::COMMA != 0,
+            Some(Symbol::LeftBrace) => self.0 & Self::CLASS_BODY != 0,
+            Some(Symbol::Colon) => self.0 & Self::COLON != 0,
+            Some(Symbol::Equal) => self.0 & Self::EQUAL != 0,
+            Some(Symbol::LeftParen) => self.0 & Self::LEFT_PAREN != 0,
+            Some(Symbol::Semicolon) => self.0 & (Self::FILE.0 | Self::SEMICOLON) != 0,
+            Some(Symbol::Arrow) => self.0 & Self::ARROW != 0,
+            _ => false,
+        };
+        sym_hit
             || (self.0 & Self::ELSE != 0
-                && matches!(
-                    lexeme.kind(),
-                    LexemeKind::Token(TokenKind::Keyword(Keyword::Else))
-                ))
+                && matches!(kind, LexemeKind::Token(TokenKind::Keyword(Keyword::Else))))
             || (self.0 & Self::ENUM_VARIANT != 0
-                && matches!(lexeme.kind(), LexemeKind::Token(TokenKind::Identifier)))
-            || (self.0 & Self::CONTROL_EXPRESSION != 0
-                && control_expression_start_kind(lexeme.kind()))
-            || (self.0 & Self::FILE.0 != 0 && file_construct_start_kind(lexeme.kind()))
+                && matches!(kind, LexemeKind::Token(TokenKind::Identifier)))
+            || (self.0 & Self::CONTROL_EXPRESSION != 0 && control_expression_start_kind(kind))
+            || (self.0 & Self::FILE.0 != 0 && file_construct_start_kind(kind))
     }
 
     pub(super) const fn stops_at_class_member(self) -> bool {

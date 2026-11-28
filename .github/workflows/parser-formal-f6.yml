@@ -23,11 +23,21 @@ on:
       - 'formal/parser/f6_file_modifiers/**'
       - 'formal/parser/f6_destructuring/**'
       - 'formal/parser/f6_type_ref/**'
+      - 'formal/parser/f6_lambda_body/**'
+      - 'formal/parser/f6_borrow_result/**'
+      - 'formal/parser/f6_declaration/**'
+      - 'formal/parser/f6_operator/**'
+      - 'formal/parser/f6_expression/**'
+      - 'formal/parser/f6_class/**'
+      - 'formal/parser/f6_core/**'
+      - 'formal/parser/f6_boundary/**'
       - 'crates/lang-frontend/src/parser/lambda_trial.rs'
       - 'crates/lang-frontend/src/parser/trial.rs'
       - 'crates/lang-frontend/src/parser/trial/kernel.rs'
       - 'crates/lang-frontend/src/parser/trial/kernel_kani.rs'
       - 'crates/lang-frontend/src/parser/engine.rs'
+      - 'crates/lang-frontend/src/parser/engine/core.rs'
+      - 'crates/lang-frontend/src/parser/engine/core_kani.rs'
       - 'crates/lang-frontend/src/parser/engine/block.rs'
       - 'crates/lang-frontend/src/parser/engine/block_kani.rs'
       - 'crates/lang-frontend/src/parser/engine/postfix.rs'
@@ -39,14 +49,28 @@ on:
       - 'crates/lang-frontend/src/parser/engine/destructuring_kani.rs'
       - 'crates/lang-frontend/src/parser/engine/type_ref.rs'
       - 'crates/lang-frontend/src/parser/engine/type_ref_kani.rs'
+      - 'crates/lang-frontend/src/parser/engine/lambda.rs'
+      - 'crates/lang-frontend/src/parser/engine/lambda_kani.rs'
+      - 'crates/lang-frontend/src/parser/engine/borrow_result.rs'
+      - 'crates/lang-frontend/src/parser/engine/borrow_result_kani.rs'
+      - 'crates/lang-frontend/src/parser/engine/declaration_head.rs'
+      - 'crates/lang-frontend/src/parser/engine/declaration.rs'
+      - 'crates/lang-frontend/src/parser/engine/declaration_kani.rs'
       - 'crates/lang-frontend/src/parser/engine/lexeme_stream_kani.rs'
       - 'crates/lang-frontend/src/parser/engine/boundary.rs'
+      - 'crates/lang-frontend/src/parser/engine/boundary_kani.rs'
       - 'crates/lang-frontend/src/parser/engine/operator.rs'
+      - 'crates/lang-frontend/src/parser/engine/operator_kani.rs'
+      - 'crates/lang-frontend/src/parser/engine/expression.rs'
+      - 'crates/lang-frontend/src/parser/engine/expression_kernel.rs'
+      - 'crates/lang-frontend/src/parser/engine/expression_kani.rs'
       - 'crates/lang-frontend/src/parser/engine/pratt_kani.rs'
       - 'crates/lang-frontend/src/parser/engine/stops_kani.rs'
       - 'crates/lang-frontend/src/parser/engine/when_boundary.rs'
       - 'crates/lang-frontend/src/parser/engine/when_boundary_kani.rs'
       - 'crates/lang-frontend/src/parser/engine/class.rs'
+      - 'crates/lang-frontend/src/parser/engine/class/kernel.rs'
+      - 'crates/lang-frontend/src/parser/engine/class/kernel_kani.rs'
       - 'crates/lang-frontend/src/parser/engine/class/supertypes.rs'
       - 'crates/lang-frontend/src/parser/engine/class/supertypes_kani.rs'
       - 'crates/lang-frontend/src/parser/engine/recovery.rs'
@@ -86,11 +110,21 @@ on:
       - 'formal/parser/f6_file_modifiers/**'
       - 'formal/parser/f6_destructuring/**'
       - 'formal/parser/f6_type_ref/**'
+      - 'formal/parser/f6_lambda_body/**'
+      - 'formal/parser/f6_borrow_result/**'
+      - 'formal/parser/f6_declaration/**'
+      - 'formal/parser/f6_operator/**'
+      - 'formal/parser/f6_expression/**'
+      - 'formal/parser/f6_class/**'
+      - 'formal/parser/f6_core/**'
+      - 'formal/parser/f6_boundary/**'
       - 'crates/lang-frontend/src/parser/lambda_trial.rs'
       - 'crates/lang-frontend/src/parser/trial.rs'
       - 'crates/lang-frontend/src/parser/trial/kernel.rs'
       - 'crates/lang-frontend/src/parser/trial/kernel_kani.rs'
       - 'crates/lang-frontend/src/parser/engine.rs'
+      - 'crates/lang-frontend/src/parser/engine/core.rs'
+      - 'crates/lang-frontend/src/parser/engine/core_kani.rs'
       - 'crates/lang-frontend/src/parser/engine/block.rs'
       - 'crates/lang-frontend/src/parser/engine/block_kani.rs'
       - 'crates/lang-frontend/src/parser/engine/postfix.rs'
@@ -102,14 +136,28 @@ on:
       - 'crates/lang-frontend/src/parser/engine/destructuring_kani.rs'
       - 'crates/lang-frontend/src/parser/engine/type_ref.rs'
       - 'crates/lang-frontend/src/parser/engine/type_ref_kani.rs'
+      - 'crates/lang-frontend/src/parser/engine/lambda.rs'
+      - 'crates/lang-frontend/src/parser/engine/lambda_kani.rs'
+      - 'crates/lang-frontend/src/parser/engine/borrow_result.rs'
+      - 'crates/lang-frontend/src/parser/engine/borrow_result_kani.rs'
+      - 'crates/lang-frontend/src/parser/engine/declaration_head.rs'
+      - 'crates/lang-frontend/src/parser/engine/declaration.rs'
+      - 'crates/lang-frontend/src/parser/engine/declaration_kani.rs'
       - 'crates/lang-frontend/src/parser/engine/lexeme_stream_kani.rs'
       - 'crates/lang-frontend/src/parser/engine/boundary.rs'
+      - 'crates/lang-frontend/src/parser/engine/boundary_kani.rs'
       - 'crates/lang-frontend/src/parser/engine/operator.rs'
+      - 'crates/lang-frontend/src/parser/engine/operator_kani.rs'
+      - 'crates/lang-frontend/src/parser/engine/expression.rs'
+      - 'crates/lang-frontend/src/parser/engine/expression_kernel.rs'
+      - 'crates/lang-frontend/src/parser/engine/expression_kani.rs'
       - 'crates/lang-frontend/src/parser/engine/pratt_kani.rs'
       - 'crates/lang-frontend/src/parser/engine/stops_kani.rs'
       - 'crates/lang-frontend/src/parser/engine/when_boundary.rs'
       - 'crates/lang-frontend/src/parser/engine/when_boundary_kani.rs'
       - 'crates/lang-frontend/src/parser/engine/class.rs'
+      - 'crates/lang-frontend/src/parser/engine/class/kernel.rs'
+      - 'crates/lang-frontend/src/parser/engine/class/kernel_kani.rs'
       - 'crates/lang-frontend/src/parser/engine/class/supertypes.rs'
       - 'crates/lang-frontend/src/parser/engine/class/supertypes_kani.rs'
       - 'crates/lang-frontend/src/parser/engine/recovery.rs'
@@ -138,7 +186,7 @@ concurrency:
 
 jobs:
   lean4-model-proof:
-    name: F6 Lean 4 Model Proofs (all 18 F6 slices, 121 theorems)
+    name: F6 Lean 4 Model Proofs (all 26 F6 slices, 162 theorems)
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -166,7 +214,15 @@ jobs:
             formal/parser/f6_file_modifiers/.lake
             formal/parser/f6_destructuring/.lake
             formal/parser/f6_type_ref/.lake
-          key: f6-lean4-${{ hashFiles('formal/parser/f6_angle_groups/lean-toolchain', 'formal/parser/f6_ordinary_groups/lean-toolchain', 'formal/parser/f6_group_owners/lean-toolchain', 'formal/parser/f6_adjacent_poison/lean-toolchain', 'formal/parser/f6_pratt_precedence/lean-toolchain', 'formal/parser/f6_stops_lattice/lean-toolchain', 'formal/parser/f6_lambda_trial/lean-toolchain', 'formal/parser/f6_lexeme_stream/lean-toolchain', 'formal/parser/f6_diagnostic_anchor/lean-toolchain', 'formal/parser/f6_strict_call_trial/lean-toolchain', 'formal/parser/f6_owner_events/lean-toolchain', 'formal/parser/f6_when_boundary/lean-toolchain', 'formal/parser/f6_supertypes/lean-toolchain', 'formal/parser/f6_block_boundary/lean-toolchain', 'formal/parser/f6_postfix_boundary/lean-toolchain', 'formal/parser/f6_file_modifiers/lean-toolchain', 'formal/parser/f6_destructuring/lean-toolchain', 'formal/parser/f6_type_ref/lean-toolchain') }}
+            formal/parser/f6_lambda_body/.lake
+            formal/parser/f6_borrow_result/.lake
+            formal/parser/f6_declaration/.lake
+            formal/parser/f6_operator/.lake
+            formal/parser/f6_expression/.lake
+            formal/parser/f6_class/.lake
+            formal/parser/f6_core/.lake
+            formal/parser/f6_boundary/.lake
+          key: f6-lean4-${{ hashFiles('formal/parser/f6_angle_groups/lean-toolchain', 'formal/parser/f6_ordinary_groups/lean-toolchain', 'formal/parser/f6_group_owners/lean-toolchain', 'formal/parser/f6_adjacent_poison/lean-toolchain', 'formal/parser/f6_pratt_precedence/lean-toolchain', 'formal/parser/f6_stops_lattice/lean-toolchain', 'formal/parser/f6_lambda_trial/lean-toolchain', 'formal/parser/f6_lexeme_stream/lean-toolchain', 'formal/parser/f6_diagnostic_anchor/lean-toolchain', 'formal/parser/f6_strict_call_trial/lean-toolchain', 'formal/parser/f6_owner_events/lean-toolchain', 'formal/parser/f6_when_boundary/lean-toolchain', 'formal/parser/f6_supertypes/lean-toolchain', 'formal/parser/f6_block_boundary/lean-toolchain', 'formal/parser/f6_postfix_boundary/lean-toolchain', 'formal/parser/f6_file_modifiers/lean-toolchain', 'formal/parser/f6_destructuring/lean-toolchain', 'formal/parser/f6_type_ref/lean-toolchain', 'formal/parser/f6_lambda_body/lean-toolchain', 'formal/parser/f6_borrow_result/lean-toolchain', 'formal/parser/f6_declaration/lean-toolchain', 'formal/parser/f6_operator/lean-toolchain', 'formal/parser/f6_expression/lean-toolchain', 'formal/parser/f6_class/lean-toolchain', 'formal/parser/f6_core/lean-toolchain', 'formal/parser/f6_boundary/lean-toolchain') }}
       - name: Install elan if missing
         run: |
           if ! command -v elan >/dev/null 2>&1; then
@@ -1243,9 +1299,459 @@ jobs:
               sys.exit(f"error: missing axiom reports for: {sorted(missing)}")
           print("all 6 F6TypeRef theorems depend only on allowed core Lean axioms")
           PY
+      - name: Build F6LambdaBody with warnings as errors
+        working-directory: formal/parser/f6_lambda_body
+        run: |
+          lake build
+          lake env lean -DwarningAsError=true F6LambdaBody.lean
+      - name: Verify F6LambdaBody theorem axiom dependencies
+        working-directory: formal/parser/f6_lambda_body
+        run: |
+          set -euo pipefail
+          axioms_out="$(lake env lean --stdin <<'EOF'
+          import F6LambdaBody
+          #print axioms F6LambdaBody.lambdaBodyLoopAction_spec
+          #print axioms F6LambdaBody.isLambdaBodyUnsupportedSymbol_spec
+          #print axioms F6LambdaBody.missingCloserEmitsDiagnostic_spec
+          #print axioms F6LambdaBody.unsupportedConsumesVal_spec
+          #print axioms F6LambdaBody.skipLambdaBodySemicolons_stops_at_non_semicolon
+          #print axioms F6LambdaBody.skipLambdaBodySemicolons_prepend_semicolons
+          EOF
+          )"
+          printf '%s\n' "$axioms_out"
+          python3 - "$axioms_out" <<'PY'
+          import re, sys
+
+          expected = {
+              "F6LambdaBody.lambdaBodyLoopAction_spec",
+              "F6LambdaBody.isLambdaBodyUnsupportedSymbol_spec",
+              "F6LambdaBody.missingCloserEmitsDiagnostic_spec",
+              "F6LambdaBody.unsupportedConsumesVal_spec",
+              "F6LambdaBody.skipLambdaBodySemicolons_stops_at_non_semicolon",
+              "F6LambdaBody.skipLambdaBodySemicolons_prepend_semicolons",
+          }
+          allowed = {"propext", "Quot.sound", "Classical.choice"}
+          seen = set()
+
+          for raw_line in sys.argv[1].splitlines():
+              line = raw_line.strip()
+              if not line:
+                  continue
+              m_none = re.fullmatch(r"'([^']+)' does not depend on any axioms", line)
+              if m_none:
+                  seen.add(m_none.group(1))
+                  continue
+              m_deps = re.fullmatch(r"'([^']+)' depends on axioms: \[([^\]]*)\]", line)
+              if m_deps:
+                  thm = m_deps.group(1)
+                  deps = {a.strip() for a in m_deps.group(2).split(",") if a.strip()}
+                  bad = deps - allowed
+                  if bad:
+                      sys.exit(f"error: theorem {thm} depends on disallowed axioms: {sorted(bad)}")
+                  seen.add(thm)
+                  continue
+              sys.exit(f"error: unexpected #print axioms output line: {line}")
+
+          missing = expected - seen
+          if missing:
+              sys.exit(f"error: missing axiom reports for: {sorted(missing)}")
+          print("all 6 F6LambdaBody theorems depend only on allowed core Lean axioms")
+          PY
+      - name: Build F6BorrowResult with warnings as errors
+        working-directory: formal/parser/f6_borrow_result
+        run: |
+          lake build
+          lake env lean -DwarningAsError=true F6BorrowResult.lean
+      - name: Verify F6BorrowResult theorem axiom dependencies
+        working-directory: formal/parser/f6_borrow_result
+        run: |
+          set -euo pipefail
+          axioms_out="$(lake env lean --stdin <<'EOF'
+          import F6BorrowResult
+          #print axioms F6BorrowResult.explicitResultAction_spec
+          #print axioms F6BorrowResult.borrowLocalStartTail_spec
+          #print axioms F6BorrowResult.borrowLocalContractInvalid_spec
+          #print axioms F6BorrowResult.extensionReceiverHead_spec
+          #print axioms F6BorrowResult.borrowLocal_and_extensionReceiver_disjoint
+          EOF
+          )"
+          printf '%s\n' "$axioms_out"
+          python3 - "$axioms_out" <<'PY'
+          import re, sys
+
+          expected = {
+              "F6BorrowResult.explicitResultAction_spec",
+              "F6BorrowResult.borrowLocalStartTail_spec",
+              "F6BorrowResult.borrowLocalContractInvalid_spec",
+              "F6BorrowResult.extensionReceiverHead_spec",
+              "F6BorrowResult.borrowLocal_and_extensionReceiver_disjoint",
+          }
+          allowed = {"propext", "Quot.sound", "Classical.choice"}
+          seen = set()
+
+          for raw_line in sys.argv[1].splitlines():
+              line = raw_line.strip()
+              if not line:
+                  continue
+              m_none = re.fullmatch(r"'([^']+)' does not depend on any axioms", line)
+              if m_none:
+                  seen.add(m_none.group(1))
+                  continue
+              m_deps = re.fullmatch(r"'([^']+)' depends on axioms: \[([^\]]*)\]", line)
+              if m_deps:
+                  thm = m_deps.group(1)
+                  deps = {a.strip() for a in m_deps.group(2).split(",") if a.strip()}
+                  bad = deps - allowed
+                  if bad:
+                      sys.exit(f"error: theorem {thm} depends on disallowed axioms: {sorted(bad)}")
+                  seen.add(thm)
+                  continue
+              sys.exit(f"error: unexpected #print axioms output line: {line}")
+
+          missing = expected - seen
+          if missing:
+              sys.exit(f"error: missing axiom reports for: {sorted(missing)}")
+          print("all 5 F6BorrowResult theorems depend only on allowed core Lean axioms")
+          PY
+      - name: Build F6Declaration with warnings as errors
+        working-directory: formal/parser/f6_declaration
+        run: |
+          lake build
+          lake env lean -DwarningAsError=true F6Declaration.lean
+      - name: Verify F6Declaration theorem axiom dependencies
+        working-directory: formal/parser/f6_declaration
+        run: |
+          set -euo pipefail
+          axioms_out="$(lake env lean --stdin <<'EOF'
+          import F6Declaration
+          #print axioms F6Declaration.constValRecoveryAction_spec
+          #print axioms F6Declaration.functionFormDispatch_spec
+          #print axioms F6Declaration.parameterModeFollow_spec
+          #print axioms F6Declaration.valueParamTypeAction_and_defaultGuard_spec
+          #print axioms F6Declaration.declarationTailEmits_spec
+          EOF
+          )"
+          printf '%s\n' "$axioms_out"
+          python3 - "$axioms_out" <<'PY'
+          import re, sys
+
+          expected = {
+              "F6Declaration.constValRecoveryAction_spec",
+              "F6Declaration.functionFormDispatch_spec",
+              "F6Declaration.parameterModeFollow_spec",
+              "F6Declaration.valueParamTypeAction_and_defaultGuard_spec",
+              "F6Declaration.declarationTailEmits_spec",
+          }
+          allowed = {"propext", "Quot.sound", "Classical.choice"}
+          seen = set()
+
+          for raw_line in sys.argv[1].splitlines():
+              line = raw_line.strip()
+              if not line:
+                  continue
+              m_none = re.fullmatch(r"'([^']+)' does not depend on any axioms", line)
+              if m_none:
+                  seen.add(m_none.group(1))
+                  continue
+              m_deps = re.fullmatch(r"'([^']+)' depends on axioms: \[([^\]]*)\]", line)
+              if m_deps:
+                  thm = m_deps.group(1)
+                  deps = {a.strip() for a in m_deps.group(2).split(",") if a.strip()}
+                  bad = deps - allowed
+                  if bad:
+                      sys.exit(f"error: theorem {thm} depends on disallowed axioms: {sorted(bad)}")
+                  seen.add(thm)
+                  continue
+              sys.exit(f"error: unexpected #print axioms output line: {line}")
+
+          missing = expected - seen
+          if missing:
+              sys.exit(f"error: missing axiom reports for: {sorted(missing)}")
+          print("all 5 F6Declaration theorems depend only on allowed core Lean axioms")
+          PY
+      - name: Build F6Operator with warnings as errors
+        working-directory: formal/parser/f6_operator
+        run: |
+          lake build
+          lake env lean -DwarningAsError=true F6Operator.lean
+      - name: Verify F6Operator theorem axiom dependencies
+        working-directory: formal/parser/f6_operator
+        run: |
+          set -euo pipefail
+          axioms_out="$(lake env lean --stdin <<'EOF'
+          import F6Operator
+          #print axioms F6Operator.unsupportedAdjacentOperatorPair_spec
+          #print axioms F6Operator.starter_and_poison_hierarchy_spec
+          #print axioms F6Operator.declarationTrailingPoison_spec
+          #print axioms F6Operator.infixRule_precedence_and_associativity_spec
+          #print axioms F6Operator.infixRule_operand_and_soft_keyword_spec
+          EOF
+          )"
+          printf '%s\n' "$axioms_out"
+          python3 - "$axioms_out" <<'PY'
+          import re, sys
+
+          expected = {
+              "F6Operator.unsupportedAdjacentOperatorPair_spec",
+              "F6Operator.starter_and_poison_hierarchy_spec",
+              "F6Operator.declarationTrailingPoison_spec",
+              "F6Operator.infixRule_precedence_and_associativity_spec",
+              "F6Operator.infixRule_operand_and_soft_keyword_spec",
+          }
+          allowed = {"propext", "Quot.sound", "Classical.choice"}
+          seen = set()
+
+          for raw_line in sys.argv[1].splitlines():
+              line = raw_line.strip()
+              if not line:
+                  continue
+              m_none = re.fullmatch(r"'([^']+)' does not depend on any axioms", line)
+              if m_none:
+                  seen.add(m_none.group(1))
+                  continue
+              m_deps = re.fullmatch(r"'([^']+)' depends on axioms: \[([^\]]*)\]", line)
+              if m_deps:
+                  thm = m_deps.group(1)
+                  deps = {a.strip() for a in m_deps.group(2).split(",") if a.strip()}
+                  bad = deps - allowed
+                  if bad:
+                      sys.exit(f"error: theorem {thm} depends on disallowed axioms: {sorted(bad)}")
+                  seen.add(thm)
+                  continue
+              sys.exit(f"error: unexpected #print axioms output line: {line}")
+
+          missing = expected - seen
+          if missing:
+              sys.exit(f"error: missing axiom reports for: {sorted(missing)}")
+          print("all 5 F6Operator theorems depend only on allowed core Lean axioms")
+          PY
+      - name: Build F6Expression with warnings as errors
+        working-directory: formal/parser/f6_expression
+        run: |
+          lake build
+          lake env lean -DwarningAsError=true F6Expression.lean
+      - name: Verify F6Expression theorem axiom dependencies
+        working-directory: formal/parser/f6_expression
+        run: |
+          set -euo pipefail
+          axioms_out="$(lake env lean --stdin <<'EOF'
+          import F6Expression
+          #print axioms F6Expression.prefixOperator_and_whenInfixStop_spec
+          #print axioms F6Expression.whenConditionDispatch_spec
+          #print axioms F6Expression.returnParsesValue_spec
+          #print axioms F6Expression.groupNonPoisonTailAction_spec
+          #print axioms F6Expression.stringMissingCloserEmitsDiagnostic_spec
+          EOF
+          )"
+          printf '%s\n' "$axioms_out"
+          python3 - "$axioms_out" <<'PY'
+          import re, sys
+
+          expected = {
+              "F6Expression.prefixOperator_and_whenInfixStop_spec",
+              "F6Expression.whenConditionDispatch_spec",
+              "F6Expression.returnParsesValue_spec",
+              "F6Expression.groupNonPoisonTailAction_spec",
+              "F6Expression.stringMissingCloserEmitsDiagnostic_spec",
+          }
+          allowed = {"propext", "Quot.sound", "Classical.choice"}
+          seen = set()
+
+          for raw_line in sys.argv[1].splitlines():
+              line = raw_line.strip()
+              if not line:
+                  continue
+              m_none = re.fullmatch(r"'([^']+)' does not depend on any axioms", line)
+              if m_none:
+                  seen.add(m_none.group(1))
+                  continue
+              m_deps = re.fullmatch(r"'([^']+)' depends on axioms: \[([^\]]*)\]", line)
+              if m_deps:
+                  thm = m_deps.group(1)
+                  deps = {a.strip() for a in m_deps.group(2).split(",") if a.strip()}
+                  bad = deps - allowed
+                  if bad:
+                      sys.exit(f"error: theorem {thm} depends on disallowed axioms: {sorted(bad)}")
+                  seen.add(thm)
+                  continue
+              sys.exit(f"error: unexpected #print axioms output line: {line}")
+
+          missing = expected - seen
+          if missing:
+              sys.exit(f"error: missing axiom reports for: {sorted(missing)}")
+          print("all 5 F6Expression theorems depend only on allowed core Lean axioms")
+          PY
+      - name: Build F6Class with warnings as errors
+        working-directory: formal/parser/f6_class
+        run: |
+          lake build
+          lake env lean -DwarningAsError=true F6Class.lean
+      - name: Verify F6Class theorem axiom dependencies
+        working-directory: formal/parser/f6_class
+        run: |
+          set -euo pipefail
+          axioms_out="$(lake env lean --stdin <<'EOF'
+          import F6Class
+          #print axioms F6Class.classifierKindPolicy_spec
+          #print axioms F6Class.classMemberContext_policy_spec
+          #print axioms F6Class.memberModifierAndCompanionGuards_spec
+          #print axioms F6Class.classifierNameBoundary_and_enumBodyStop_spec
+          #print axioms F6Class.fieldAndEnumParamInvalidPrefix_spec
+          EOF
+          )"
+          printf '%s\n' "$axioms_out"
+          python3 - "$axioms_out" <<'PY'
+          import re, sys
+
+          expected = {
+              "F6Class.classifierKindPolicy_spec",
+              "F6Class.classMemberContext_policy_spec",
+              "F6Class.memberModifierAndCompanionGuards_spec",
+              "F6Class.classifierNameBoundary_and_enumBodyStop_spec",
+              "F6Class.fieldAndEnumParamInvalidPrefix_spec",
+          }
+          allowed = {"propext", "Quot.sound", "Classical.choice"}
+          seen = set()
+
+          for raw_line in sys.argv[1].splitlines():
+              line = raw_line.strip()
+              if not line:
+                  continue
+              m_none = re.fullmatch(r"'([^']+)' does not depend on any axioms", line)
+              if m_none:
+                  seen.add(m_none.group(1))
+                  continue
+              m_deps = re.fullmatch(r"'([^']+)' depends on axioms: \[([^\]]*)\]", line)
+              if m_deps:
+                  thm = m_deps.group(1)
+                  deps = {a.strip() for a in m_deps.group(2).split(",") if a.strip()}
+                  bad = deps - allowed
+                  if bad:
+                      sys.exit(f"error: theorem {thm} depends on disallowed axioms: {sorted(bad)}")
+                  seen.add(thm)
+                  continue
+              sys.exit(f"error: unexpected #print axioms output line: {line}")
+
+          missing = expected - seen
+          if missing:
+              sys.exit(f"error: missing axiom reports for: {sorted(missing)}")
+          print("all 5 F6Class theorems depend only on allowed core Lean axioms")
+          PY
+      - name: Build F6Core with warnings as errors
+        working-directory: formal/parser/f6_core
+        run: |
+          lake build
+          lake env lean -DwarningAsError=true F6Core.lean
+      - name: Verify F6Core theorem axiom dependencies
+        working-directory: formal/parser/f6_core
+        run: |
+          set -euo pipefail
+          axioms_out="$(lake env lean --stdin <<'EOF'
+          import F6Core
+          #print axioms F6Core.tryEnterRecursionDepth_spec
+          #print axioms F6Core.previousSignificantEndRev_spec
+          #print axioms F6Core.bodyElementIsStatement_spec
+          #print axioms F6Core.ifElse_and_expressionTail_spec
+          #print axioms F6Core.boundarySpan_and_typeRecoveryBoundary_spec
+          EOF
+          )"
+          printf '%s\n' "$axioms_out"
+          python3 - "$axioms_out" <<'PY'
+          import re, sys
+
+          expected = {
+              "F6Core.tryEnterRecursionDepth_spec",
+              "F6Core.previousSignificantEndRev_spec",
+              "F6Core.bodyElementIsStatement_spec",
+              "F6Core.ifElse_and_expressionTail_spec",
+              "F6Core.boundarySpan_and_typeRecoveryBoundary_spec",
+          }
+          allowed = {"propext", "Quot.sound", "Classical.choice"}
+          seen = set()
+
+          for raw_line in sys.argv[1].splitlines():
+              line = raw_line.strip()
+              if not line:
+                  continue
+              m_none = re.fullmatch(r"'([^']+)' does not depend on any axioms", line)
+              if m_none:
+                  seen.add(m_none.group(1))
+                  continue
+              m_deps = re.fullmatch(r"'([^']+)' depends on axioms: \[([^\]]*)\]", line)
+              if m_deps:
+                  thm = m_deps.group(1)
+                  deps = {a.strip() for a in m_deps.group(2).split(",") if a.strip()}
+                  bad = deps - allowed
+                  if bad:
+                      sys.exit(f"error: theorem {thm} depends on disallowed axioms: {sorted(bad)}")
+                  seen.add(thm)
+                  continue
+              sys.exit(f"error: unexpected #print axioms output line: {line}")
+
+          missing = expected - seen
+          if missing:
+              sys.exit(f"error: missing axiom reports for: {sorted(missing)}")
+          print("all 5 F6Core theorems depend only on allowed core Lean axioms")
+          PY
+      - name: Build F6Boundary with warnings as errors
+        working-directory: formal/parser/f6_boundary
+        run: |
+          lake build
+          lake env lean -DwarningAsError=true F6Boundary.lean
+      - name: Verify F6Boundary theorem axiom dependencies
+        working-directory: formal/parser/f6_boundary
+        run: |
+          set -euo pipefail
+          axioms_out="$(lake env lean --stdin <<'EOF'
+          import F6Boundary
+          #print axioms F6Boundary.starterHierarchy_and_disjointness_spec
+          #print axioms F6Boundary.nameContext_isStop_iff_recoveryStops_spec
+          #print axioms F6Boundary.declarationModifierStart_spec
+          #print axioms F6Boundary.keepsUnprovedAngleComma_spec
+          #print axioms F6Boundary.supertypeElementRecovery_owner_and_flags_spec
+          EOF
+          )"
+          printf '%s\n' "$axioms_out"
+          python3 - "$axioms_out" <<'PY'
+          import re, sys
+
+          expected = {
+              "F6Boundary.starterHierarchy_and_disjointness_spec",
+              "F6Boundary.nameContext_isStop_iff_recoveryStops_spec",
+              "F6Boundary.declarationModifierStart_spec",
+              "F6Boundary.keepsUnprovedAngleComma_spec",
+              "F6Boundary.supertypeElementRecovery_owner_and_flags_spec",
+          }
+          allowed = {"propext", "Quot.sound", "Classical.choice"}
+          seen = set()
+
+          for raw_line in sys.argv[1].splitlines():
+              line = raw_line.strip()
+              if not line:
+                  continue
+              m_none = re.fullmatch(r"'([^']+)' does not depend on any axioms", line)
+              if m_none:
+                  seen.add(m_none.group(1))
+                  continue
+              m_deps = re.fullmatch(r"'([^']+)' depends on axioms: \[([^\]]*)\]", line)
+              if m_deps:
+                  thm = m_deps.group(1)
+                  deps = {a.strip() for a in m_deps.group(2).split(",") if a.strip()}
+                  bad = deps - allowed
+                  if bad:
+                      sys.exit(f"error: theorem {thm} depends on disallowed axioms: {sorted(bad)}")
+                  seen.add(thm)
+                  continue
+              sys.exit(f"error: unexpected #print axioms output line: {line}")
+
+          missing = expected - seen
+          if missing:
+              sys.exit(f"error: missing axiom reports for: {sorted(missing)}")
+          print("all 5 F6Boundary theorems depend only on allowed core Lean axioms")
+          PY
 
   kani-bounded-rust:
-    name: F6 Kani Bounded Rust Proofs (all 18 F6 slices, 47 harnesses)
+    name: F6 Kani Bounded Rust Proofs (all 26 F6 slices, 71 harnesses)
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -1318,4 +1824,28 @@ jobs:
             --harness verify_destructuring_loop_state_invariant_len_6 \
             --harness verify_type_ref_start_extension_and_closer_guards \
             --harness verify_bounded_proven_parameter_closer_invariants \
-            --harness verify_string_type_poison_scan_len_6
+            --harness verify_string_type_poison_scan_len_6 \
+            --harness verify_lambda_body_loop_action_and_unsupported_symbol \
+            --harness verify_lambda_body_missing_closer_and_const_val_guards \
+            --harness verify_lambda_body_semicolon_skip_len_6 \
+            --harness verify_explicit_result_action_and_borrow_local_contract \
+            --harness verify_borrow_local_start_tail_exhaustive \
+            --harness verify_extension_receiver_head_exhaustive \
+            --harness verify_const_val_recovery_and_function_form_dispatch \
+            --harness verify_parameter_mode_follow_and_value_param_guards \
+            --harness verify_declaration_tail_guard_exhaustive \
+            --harness verify_unsupported_adjacent_operator_pair_exhaustive \
+            --harness verify_expression_type_poison_and_trailing_poison_exhaustive \
+            --harness verify_infix_rule_from_parts_exhaustive \
+            --harness verify_prefix_operator_and_when_condition_dispatch_exhaustive \
+            --harness verify_return_value_and_string_missing_closer_guards \
+            --harness verify_group_non_poison_tail_action_exhaustive \
+            --harness verify_classifier_kind_and_member_context_policies_exhaustive \
+            --harness verify_classifier_name_boundary_and_enum_body_stop_exhaustive \
+            --harness verify_class_field_and_enum_param_invalid_prefix_exhaustive \
+            --harness verify_recursion_depth_and_body_context_propagation \
+            --harness verify_previous_significant_end_len_6 \
+            --harness verify_if_else_tail_and_recovery_boundary_guards_exhaustive \
+            --harness verify_boundary_starter_hierarchy_and_disjointness_exhaustive \
+            --harness verify_name_context_stop_and_recovery_alignment_exhaustive \
+            --harness verify_modifier_start_min_and_angle_comma_and_supertype_recovery

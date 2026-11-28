@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph.svg](dependency-graph.svg)。
 
 ```mermaid
 flowchart TD
-ARCH(("已完成<br/>archive 482 份"))
+ARCH(("已完成<br/>archive 486 份"))
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
   S0333["S0333<br/>静态 Map 返回调用的双入口闭合"]
@@ -20,10 +20,14 @@ subgraph Gactive["现行 active"]
   S0391["S0391<br/>Codegen 测试诊断落盘与有界失败摘要"]
   S0392["S0392<br/>编译器分层复审与前端合同修复"]
   S0511["S0511<br/>lang-lsp 显式工作区 manifest 加载与诊断源码片段上下文"]
-  S0515["S0515<br/>F6 第十五片 postfix 后缀起始、带类型调用延续、实参边界与 callee 尾逆向扫描双轨证明"]
-  S0516["S0516<br/>F6 第十六片 file 声明修饰符顺序状态机与文件头/顶层分隔符双轨证明"]
-  S0517["S0517<br/>F6 第十七片 destructuring 局部解构起始、绑定循环防重报状态机与初始化器守卫双轨证明"]
-  S0518["S0518<br/>F6 第十八片 type_ref 函数类型起始、扩展接收者点号停止、proven_type_closer 守卫与字符串毒化扫描双轨证明"]
+  S0519["S0519<br/>F6 第十九片 lambda 块体循环分派、分号跳过、缺失闭合与 const val 守卫双轨证明"]
+  S0520["S0520<br/>F6 第二十片 borrow_result 与 declaration_head 借用返回、局部借用守卫与扩展接收者前瞻双轨证明"]
+  S0521["S0521<br/>F6 第二十一片 declaration 常量恢复、函数返回分派、参数模式前瞻与值参数守卫双轨证明"]
+  S0522["S0522<br/>F6 第二十二片 operator 非法相邻运算符、表达式/类型起始、毒化层级与中缀规则表双轨证明"]
+  S0523["S0523<br/>F6 第二十三片 expression 前缀运算符、when 条件分派、return 守卫、括号分组尾与字符串闭合双轨证明"]
+  S0524["S0524<br/>F6 第二十四片 class 分类器策略、成员上下文规则、名称/枚举边界与非法前缀双轨证明"]
+  S0525["S0525<br/>F6 第二十五片 core 递归守卫、逆向有效词法扫描与上下文传播双轨证明"]
+  S0526["S0526<br/>F6 第二十六片 boundary 起始集层级、NameContext 停止一致性与修饰符/恢复映射双轨证明"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -37,9 +41,13 @@ subgraph Gdrafts_v044["v0.44（draft）"]
   S0339["S0339<br/>Unit 值实参与待决调用求值"]
   S0340["S0340<br/>名义类型 nullable retest view 的普通读取"]
 end
-S0515 --> S0516
-S0516 --> S0517
-S0517 --> S0518
+S0519 --> S0520
+S0520 --> S0521
+S0521 --> S0522
+S0522 --> S0523
+S0523 --> S0524
+S0524 --> S0525
+S0525 --> S0526
 ARCH --> S0292
 ARCH --> S0333
 ARCH --> S0334
@@ -50,7 +58,7 @@ ARCH --> S0338
 ARCH --> S0339
 ARCH --> S0340
 ARCH --> S0341
-ARCH --> S0515
+ARCH --> S0519
 ```
 
 ## 节点链接
@@ -67,10 +75,14 @@ ARCH --> S0515
 | SPEC-0391 | active | [0391-codegen-test-diagnostics.md](active/0391-codegen-test-diagnostics.md) |
 | SPEC-0392 | active | [0392-compiler-layered-review.md](active/0392-compiler-layered-review.md) |
 | SPEC-0511 | active | [0511-lsp-workspace-manifest-and-diagnostic-context.md](active/0511-lsp-workspace-manifest-and-diagnostic-context.md) |
-| SPEC-0515 | active | [0515-f6-postfix-boundary-machine-proof.md](active/0515-f6-postfix-boundary-machine-proof.md) |
-| SPEC-0516 | active | [0516-f6-file-modifiers-machine-proof.md](active/0516-f6-file-modifiers-machine-proof.md) |
-| SPEC-0517 | active | [0517-f6-destructuring-machine-proof.md](active/0517-f6-destructuring-machine-proof.md) |
-| SPEC-0518 | active | [0518-f6-type-ref-machine-proof.md](active/0518-f6-type-ref-machine-proof.md) |
+| SPEC-0519 | active | [0519-f6-lambda-body-machine-proof.md](active/0519-f6-lambda-body-machine-proof.md) |
+| SPEC-0520 | active | [0520-f6-borrow-result-and-head-machine-proof.md](active/0520-f6-borrow-result-and-head-machine-proof.md) |
+| SPEC-0521 | active | [0521-f6-declaration-machine-proof.md](active/0521-f6-declaration-machine-proof.md) |
+| SPEC-0522 | active | [0522-f6-operator-machine-proof.md](active/0522-f6-operator-machine-proof.md) |
+| SPEC-0523 | active | [0523-f6-expression-machine-proof.md](active/0523-f6-expression-machine-proof.md) |
+| SPEC-0524 | active | [0524-f6-class-machine-proof.md](active/0524-f6-class-machine-proof.md) |
+| SPEC-0525 | active | [0525-f6-core-machine-proof.md](active/0525-f6-core-machine-proof.md) |
+| SPEC-0526 | active | [0526-f6-boundary-machine-proof.md](active/0526-f6-boundary-machine-proof.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](drafts/v0.44/0335-map-borrow-caller-proof.md) |
@@ -79,4 +91,4 @@ ARCH --> S0515
 | SPEC-0338 | drafts/v0.44 | [0338-never-condition-evaluation.md](drafts/v0.44/0338-never-condition-evaluation.md) |
 | SPEC-0339 | drafts/v0.44 | [0339-unit-call-argument-values.md](drafts/v0.44/0339-unit-call-argument-values.md) |
 | SPEC-0340 | drafts/v0.44 | [0340-nullable-nominal-retest-view.md](drafts/v0.44/0340-nullable-nominal-retest-view.md) |
-| 已完成 Spec（482 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |
+| 已完成 Spec（486 份） | archive | [archive/specs/README.md](../archive/specs/README.md) |

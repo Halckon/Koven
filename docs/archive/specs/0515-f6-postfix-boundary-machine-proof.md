@@ -1,17 +1,17 @@
 # SPEC-0515：F6 第十五片 `postfix` 后缀起始、带类型调用延续、实参边界与 callee 尾逆向扫描双轨证明
 
-> **性质**：交付合同 · **状态**：in-progress · **读取时机**：实施或验收 F6 第十五片局部机器证明与双轨 CI 时 · **唯一真源**：本页验收账本
+> **性质**：交付合同 · **状态**：done（历史归档） · **读取时机**：实施或验收 F6 第十五片局部机器证明与双轨 CI 时 · **唯一真源**：本页验收账本
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | 所属 Phase | Phase 1 局部形式化验证（F6 延伸） |
 | 语言规范 | [Guide v0.47](../../guide/README.md) |
-| 前置 Spec | [SPEC-0514](../../archive/specs/0514-f6-block-boundary-machine-proof.md) |
+| 前置 Spec | [SPEC-0514](0514-f6-block-boundary-machine-proof.md) |
 | 基线 | `main@f2ea2feb` |
 | 分支 | `feature/spec-0515-f6-postfix-boundary` |
 
-本 Spec 承接 [F6 局部机器证明前置设计](../../proposals/parser-formal-verification/f6-machine-proof-design.md) 与 [SPEC-0514](../../archive/specs/0514-f6-block-boundary-machine-proof.md)，
+本 Spec 承接 [F6 局部机器证明前置设计](../../proposals/parser-formal-verification/f6-machine-proof-design.md) 与 [SPEC-0514](0514-f6-block-boundary-machine-proof.md)，
 对 [postfix.rs](../../../crates/lang-frontend/src/parser/engine/postfix.rs) 中的后缀起始判定、带类型调用后缀延续判定、调用实参边界判定、闭合调用尾 lambda 附着判定及恢复区 callee 尾逆向扫描内核交付 **Lean 4（无界状态与任意长度前缀流模型定理）+ Kani（零堆分配生产 Rust 符号检验）** 双轨证明，并接入 [.github/workflows/parser-formal-f6.yml](../../../.github/workflows/parser-formal-f6.yml)。
 生产解析行为与公开 Rust API 零变化，不引入 Cargo 生产依赖，不宣称全输入生产 G4。
 
@@ -43,4 +43,4 @@
 
 - [x] `F6PostfixBoundary.lean` 零告警构建与 7 条定理核心公理白名单本机通过（仅依赖 `propext`、`Quot.sound`）
 - [x] `verify_postfix_start_typed_call_and_trailing_lambda`、`verify_call_argument_boundary_and_callee_disjointness` 与 `verify_recovery_callee_end_reverse_scan_len_6` 本机 Kani 0.68.0 实跑通过（3/3 harnesses, 0 failures），`postfix_tests`（5/5）单测、`cargo fmt --check` 与 `cargo clippy --all-targets` 通过
-- [ ] 接入 `parser-formal-f6.yml`（15 片 / 102 定理 / 38 harness），待 PR 远端主 CI 与 F6 双轨作业实跑验收后归档
+- [x] 接入 `parser-formal-f6.yml`（15 片 / 102 定理 / 38 harness），经 PR #496 远端主 CI 与 F6 双轨作业验收合入 `main@f7ad5fd7` 并归档
