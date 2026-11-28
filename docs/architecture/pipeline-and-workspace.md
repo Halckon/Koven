@@ -110,7 +110,7 @@ environment、validated types/ownership，返回 `OwnedCompilationUnitView<'view
 不存回自引用 snapshot。const 和 recovery 类型不能进入 factory，也没有 unchecked 或 mutable 入口。
 
 工厂一次重建 index，依次核 source/input、names index、signatures 保存的 index/names owners/
-environment owner、owned 对应的 typed body owner，随后丢弃 rebuilt；下游读取 names 既有 index。
+type environment 快照、owned 对应的 typed body owner，随后丢弃 rebuilt；下游读取 names 既有 index。
 签名 `is_compatible_with_index` 是 frontend crate-private 共享比较；旧 public compatibility 仍自行
 建 index。合法 clone、输入重排及同 T0 重做 ownership 保持有效，fresh T1 与 O0 仍拒绝。
 basic 与 const 工厂共用私有 source/name/signature 来源门；输入非法仍优先返回

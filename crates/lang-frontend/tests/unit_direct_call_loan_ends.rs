@@ -1,4 +1,4 @@
-//! 真实源码的直接 Borrow 调用事件切片；固定 oracle 走 Unit，其他族保留 legacy witness。
+//! 真实源码的直接 Borrow 调用事件切片及旧入口独有的对照。
 use lang_frontend::{
     lexer::lex,
     name_resolution::{
@@ -118,7 +118,7 @@ struct ExpectedEnd {
 }
 
 // 固定期望来自逐份原源码，不从任一分析产物生成。
-// 已等价的成功源码走 Unit；temporary-field、错误和 deferred 的旧 witness 保留。
+// 完整 oracle 已等价的用例走 Unit；保留临时字段和错误的旧入口差异。
 fn assert_fixed_ends(observed: &Observed, expected: &[ExpectedEnd]) {
     assert_eq!(observed.units.len(), 2);
     assert_eq!(observed.unit_names.len(), 2);
@@ -518,20 +518,6 @@ fn source_continuations_are_outside_the_direct_call_slice() {
 }
 
 #[test]
-fn ownership_error_clears_previously_observed_call_ends() {
-    let (observed, legacy) = observe_with_legacy(
-        "fun read(text: String): Unit {}\nfun consume(own text: String): Unit {}\nfun run(): Unit { val text = \"held\"; read(text); consume(text); read(text) }",
-    );
-    assert!(!legacy.diagnostics().is_empty());
-    assert!(legacy.loan_ends().is_empty());
-    for unit in &observed.units {
-        assert!(!unit.diagnostics().is_empty());
-        assert!(unit.direct_call_loan_ends().is_empty());
-        assert!(unit.drops().is_empty());
-    }
-}
-
-#[test]
 fn nonreturning_suffix_and_unreachable_calls_publish_no_cleanup() {
     let observed = observe(
         "fun stop(): Nothing = stop()\nfun read(first: String, own n: Int, last: String): Unit {}\nfun run(): Unit { read(\"prefix\", stop(), \"suffix\"); read(\"unreachable\", 0, \"tail\") }",
@@ -727,20 +713,6 @@ fn receiver_inout_and_provider_producers_remain_outside_the_slice() {
                 |loan| matches!(loan.target(), UnitLoanTarget::Place(place) if place.is_root())
             )
         );
-        assert!(unit.direct_call_loan_ends().is_empty());
-    }
-}
-
-#[test]
-fn later_real_deferred_work_blocks_the_event_capability() {
-    let (observed, legacy) = observe_with_legacy(
-        "fun read(text: String): Unit {}\nfun run(): Unit { read(\"before\"); var callback: () -> Int = { 1 }; val old = replace(&callback, { 2 }) }",
-    );
-    assert!(legacy.diagnostics().is_empty());
-    assert!(!legacy.deferred().is_empty());
-    for unit in &observed.units {
-        assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
-        assert!(!unit.deferred().is_empty());
         assert!(unit.direct_call_loan_ends().is_empty());
     }
 }

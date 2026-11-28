@@ -2,14 +2,12 @@
 //! Borrow function parameters are callable views, local callable bindings hold concrete
 //! function pointers or closures, and lambda bodies lower as thunks.
 mod joins;
+mod unwind;
 
 use lang_frontend::{
     ast::ExpressionId,
     name_resolution::UnitSymbolId,
-    ownership_checking::{
-        ClosureCaptureEffect, ClosureCaptureMode, LoanKind, UnitDropFact, UnitLoanFact,
-        UnitLoanTarget,
-    },
+    ownership_checking::{ClosureCaptureEffect, ClosureCaptureMode, LoanKind},
     parser::Expression,
     source::Span,
     type_checking::{
@@ -753,43 +751,6 @@ impl Checker<'_, '_> {
                 || descriptor.text_primitive().is_some()
                 || self.named_nothing_call(descriptor));
         ok
-    }
-
-    /// Ordinary control exits end pending call loans before emitting any drops.
-    pub(super) fn pending_direct_borrow_temporary(
-        &self,
-        owner: UnitExpressionId,
-        transfer: UnitExpressionId,
-        drop: &UnitDropFact,
-        loan: &UnitLoanFact,
-    ) -> bool {
-        let call = loan.call();
-        self.inputs.borrow_return.is_none()
-            && self.inputs.carrier_return.is_none()
-            && loan.kind() == LoanKind::Shared
-            && loan.argument() == owner
-            && loan.target() == &UnitLoanTarget::Temporary(owner)
-            && !drop.is_conditional_temporary()
-            && drop.value_origin() == loan.begin_span()
-            && self.inputs.owned.call_argument_completed(owner)
-            && self
-                .inputs
-                .source_plan
-                .call_site(self.inputs.source_token, call)
-                .is_some_and(|site| {
-                    site.delegation().is_empty()
-                        && self.inputs.owned.call_may_dispatch(call)
-                            == Some(site.dispatch_key().is_some())
-                })
-            && super::super::SubsetDropIndex::ends_before_drops(
-                self.inputs.subset_drop_index,
-                [
-                    self.inputs.owned.direct_call_loan_ends(),
-                    self.inputs.owned.class_result_argument_unwinds(),
-                ],
-                transfer,
-                loan,
-            )
     }
 
     /// Completed operands can require storage even if there is no callee instance.

@@ -107,7 +107,7 @@ impl<'a> Resolver<'a> {
             .collect();
         Ok(NameResolution::new(
             self.parsed.source_id(),
-            self.environment.owner(),
+            self.environment.declarations().clone(),
             self.scopes.into_iter().map(|scope| scope.public).collect(),
             self.symbols,
             self.enum_cases,

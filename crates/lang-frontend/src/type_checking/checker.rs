@@ -605,6 +605,7 @@ impl<'a> Checker<'a> {
         let typed = TypedFile::new(
             self.parsed.source_id(),
             self.environment.owner().clone(),
+            self.environment.snapshot_owner().clone(),
             self.name_analysis_owner,
             self.types,
             TypedFileParts {

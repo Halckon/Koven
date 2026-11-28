@@ -354,3 +354,33 @@ fn empty_constant_entry_keeps_short_circuit_facts_and_cannot_bypass_basic_valida
         },
     );
 }
+
+#[test]
+fn const_view_rejects_a_changed_environment_in_the_same_name_domain() {
+    with_unit(
+        "package a
+import b.FLAG
+fun entry(): Boolean = FLAG",
+        "package b
+const val FLAG = true",
+        |sources, inputs, names, environment, typed, owned| {
+            let mut clone = environment.clone();
+            assert!(
+                const_owned_compilation_unit_view(sources, inputs, names, &clone, typed, owned)
+                    .is_ok()
+            );
+            clone
+                .authorize_range_extension_source(sources, inputs[0].source_id())
+                .unwrap();
+            assert_eq!(
+                const_owned_compilation_unit_view(sources, inputs, names, &clone, typed, owned)
+                    .err(),
+                Some(OwnedCompilationUnitViewError::MismatchedAnalysis)
+            );
+            assert!(
+                check_compilation_unit_constant_ownership(sources, inputs, names, &clone, typed)
+                    .is_err()
+            );
+        },
+    );
+}

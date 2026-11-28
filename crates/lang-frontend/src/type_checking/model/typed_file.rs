@@ -5,6 +5,7 @@ impl TypedFile {
     pub(crate) fn new(
         source_id: SourceId,
         environment_owner: Arc<()>,
+        environment_snapshot_owner: Arc<()>,
         name_analysis_owner: Arc<()>,
         types: TypeTable,
         parts: TypedFileParts,
@@ -14,6 +15,7 @@ impl TypedFile {
             resource_classifications: super::super::resource::ResourceCache::new(),
             source_id,
             environment_owner,
+            environment_snapshot_owner,
             name_analysis_owner,
             analysis_owner: parts
                 .constants
@@ -77,6 +79,10 @@ impl TypedFile {
 
     pub(crate) fn environment_owner(&self) -> &Arc<()> {
         &self.environment_owner
+    }
+
+    pub(in crate::type_checking) fn environment_snapshot_owner(&self) -> &Arc<()> {
+        &self.environment_snapshot_owner
     }
 
     pub(crate) fn analysis_owner(&self) -> &Arc<()> {

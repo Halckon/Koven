@@ -8,9 +8,9 @@
 身份；可选的宿主文件名元数据与用户可见逻辑名称独立，未提供时回退到逻辑名。
 该元数据不读文件系统、不参与名称唯一性或 SourceId 分配；`Span` 是同一 source 上的 `[start, end)` 半开字节范围，只能通过受检 API 创建。
 
-- 重复 source 名称、foreign `SourceId`、逆序范围、越界和非 UTF-8 边界返回具体 `SourceError`。
+- 重复 source 名称、foreign `SourceId`、逆序范围、越界和非 UTF-8 边界返回具体 `SourceError`。 查重使用逻辑名称有序索引，索引和源码条目共享同一名称。
 - 行列只在展示边界派生；行为覆盖 LF、CRLF、空文件、EOF 和 Unicode scalar 列。
-- Lexer、Parser、诊断和 LSP 共用 SourceMap 的切片与位置换算，不各自维护行表。
+- Lexer、Parser、诊断和 LSP 共用 SourceMap 的切片与位置换算，不各自维护行表。 长行首次查询时独立建立稀疏列索引，标量列和 UTF-16 列共用检查点。
 
 实现入口是 `crates/lang-frontend/src/source.rs`；对应覆盖位于 `source_span` integration suite。
 

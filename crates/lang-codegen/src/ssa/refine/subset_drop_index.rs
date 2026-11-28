@@ -50,7 +50,7 @@ impl SubsetDropIndex {
     /// Use the source-qualified edge and operand identity before comparing the full loan.
     pub(super) fn ends_before_drops(
         index: Option<&Self>,
-        facts: [&[UnitDirectCallLoanEndFact]; 2],
+        facts: [&[UnitDirectCallLoanEndFact]; 3],
         transfer: UnitExpressionId,
         loan: &UnitLoanFact,
     ) -> bool {

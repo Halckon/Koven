@@ -453,3 +453,60 @@ fn owned_string_call_result_publishes_the_actual_prefix_unwind() {
         assert!(!drop.is_conditional_temporary());
     }
 }
+
+#[test]
+fn singleton_unwind_reports_the_actual_completed_string_argument() {
+    for (argument, stop, expected) in [
+        ("make()", "return", true),
+        (r#""""#, "return", true),
+        (r#""value=${1}""#, "return", true),
+        ("(make() + make())", "return", true),
+        ("make()", "if (flag) { 1 } else { 0 }", false),
+        ("make()", "0", false),
+        ("borrowed", "return", false),
+    ] {
+        let call = format!("Gate.inspect({argument}, {stop})");
+        let observed = observe(&format!(
+            "fun make(): String = \"text\".clone()\nobject Gate {{ fun inspect(text: String, stop: Int): Unit {{}} }}\nfun run(flag: Boolean, borrowed: String): Unit {{ {call} }}"
+        ));
+        assert_units_admitted(&observed);
+        for unit in &observed.units {
+            assert!(unit.direct_call_loan_ends().is_empty());
+            assert!(unit.class_result_argument_unwinds().is_empty());
+            let facts = unit.singleton_temporary_argument_unwinds();
+            if !expected {
+                assert!(facts.is_empty(), "{call}: {facts:?}");
+                continue;
+            }
+            let [fact] = facts else {
+                panic!("{call}: exactly one completed argument must retire");
+            };
+            let loan = fact.loan();
+            let expressions = observed.parsed.ast().expressions();
+            let call_span = expressions.get(loan.call().expression()).unwrap().span();
+            let operand_span = expressions
+                .get(loan.argument().expression())
+                .unwrap()
+                .span();
+            assert_eq!(observed.sources.slice(call_span), Ok(call.as_str()));
+            assert_eq!(observed.sources.slice(operand_span), Ok(argument));
+            assert_eq!(unit.call_may_dispatch(loan.call()), Some(false));
+            assert_eq!(loan.kind(), LoanKind::Shared);
+            assert_eq!(loan.target(), &UnitLoanTarget::Temporary(loan.argument()));
+            let UnitDropPoint::ControlTransfer(transfer) = fact.point() else {
+                panic!("the loan must end on the actual exit");
+            };
+            let exit_span = expressions.get(transfer.expression()).unwrap().span();
+            assert_eq!(observed.sources.slice(exit_span), Ok("return"));
+            assert_eq!(fact.preceding_drops(), 0);
+            assert_eq!(
+                unit.drops()
+                    .iter()
+                    .filter(|drop| drop.target() == UnitDropTarget::Temporary(loan.argument()))
+                    .map(|drop| drop.point())
+                    .collect::<Vec<_>>(),
+                [fact.point()]
+            );
+        }
+    }
+}

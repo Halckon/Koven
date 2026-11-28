@@ -401,3 +401,21 @@ mod iteration_recovery;
 
 #[path = "final_type_admission/primitive_arity.rs"]
 mod primitive_arity;
+
+#[test]
+fn legacy_final_admission_rejects_a_changed_environment_in_the_same_name_domain() {
+    use lang_frontend::type_checking::{FinalTypeAdmissionError, complete_file_types};
+
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(&mut sources, "main.ko", "fun entry(): Unit {}");
+    let (environment, types) = standard_environments();
+    let names = resolve_names(&sources, &file, &environment).unwrap();
+    let typed = check_types(&sources, &file, &names, &types).unwrap();
+    let mut changed = types.clone();
+    assert!(complete_file_types(&sources, &file, &names, &changed, &typed).is_ok());
+    changed.authorize_text_source(&sources, source).unwrap();
+    assert!(matches!(
+        complete_file_types(&sources, &file, &names, &changed, &typed),
+        Err(FinalTypeAdmissionError::Internal(_))
+    ));
+}

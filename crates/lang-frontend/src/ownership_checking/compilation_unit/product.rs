@@ -264,7 +264,12 @@ impl CompilationUnitOwnership {
                 Vec::new()
             },
             class_result_argument_unwinds: if successful && dataflow.deferred.is_empty() {
-                dataflow.class_result_argument_unwinds
+                dataflow.temporary_argument_unwinds.class_results
+            } else {
+                Vec::new()
+            },
+            singleton_temporary_argument_unwinds: if successful && dataflow.deferred.is_empty() {
+                dataflow.temporary_argument_unwinds.singleton_temporaries
             } else {
                 Vec::new()
             },
@@ -428,10 +433,19 @@ impl CompilationUnitOwnership {
     }
 
     /// Actual control-transfer endings for shared temporary arguments that
-    /// hold the owned result of a class-producing call.
+    /// hold an owned class result. Also covers a checked class construction
+    /// before a later operand abandons a named singleton call on that edge.
     #[must_use]
     pub fn class_result_argument_unwinds(&self) -> &[UnitDirectCallLoanEndFact] {
         &self.class_result_argument_unwinds
+    }
+
+    /// Actual control-transfer endings for supported shared owned temporaries
+    /// already evaluated by a named singleton call before an operand exits.
+    /// The same call may still dispatch on a different edge.
+    #[must_use]
+    pub fn singleton_temporary_argument_unwinds(&self) -> &[UnitDirectCallLoanEndFact] {
+        &self.singleton_temporary_argument_unwinds
     }
 
     /// 真实 source token 跨 inner return 的有界同步 consumer 运输；不是完整 loan-end 流。

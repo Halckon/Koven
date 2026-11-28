@@ -897,3 +897,80 @@ pub(crate) use numeric_literal_tests::field_resource_replace_tests;
 #[cfg(feature = "d10-catalog-experiment")]
 #[path = "native_d10_counter_tests.rs"]
 mod d10_counter_tests;
+
+#[test]
+fn singleton_abandoned_string_arguments_release_in_source_reverse_order() {
+    let source = r#"
+fun make(label: String): String { println(label); return label.clone() }
+fun suffix(): Int { println("suffix"); return 0 }
+object Gate {
+    fun inspect(first: String, second: String, stop: Int, last: Int): Unit { println("dispatch") }
+}
+fun exercise(flag: Boolean): Unit {
+    loop {
+        Gate.inspect(second = make("second"), first = make("first"),
+                     stop = if (flag) break else return, last = suffix())
+    }
+    println("survived-break")
+}
+fun entry(): Unit { exercise(true); exercise(false) }
+"#;
+    let analysis = UnitSource::analyze("singleton-string-prefix.ko", source).unwrap();
+    analysis.assert_frontend_clean();
+    let (program, entry) = analysis
+        .lower_entry(analysis.declaration("entry", SymbolKind::Function))
+        .expect("the complete String operands and cleanup lower through Unit");
+    let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+    let run = boxed_enum_tests::run_counted_allocations_in_order(&llvm, &[1, 0, 3, 2]);
+    boxed_enum_tests::assert_success(&run, b"second\nfirst\nsurvived-break\nsecond\nfirst\n");
+}
+
+#[test]
+fn singleton_abandoned_grouped_constant_cleans_up_its_materialized_string() {
+    let source = r#"
+const val TEXT = "payload"
+object Gate { fun inspect(value: String, stop: Int): Unit { println(value) } }
+fun main(): Unit {
+    loop { Gate.inspect(((TEXT)), break) }
+    println("done")
+}
+"#;
+    let run = emit_link_and_run("singleton-grouped-string.ko", source, "main");
+    boxed_enum_tests::assert_success(&run, b"done\n");
+}
+
+#[test]
+fn singleton_abandoned_rc_arguments_release_only_the_callers_ownership() {
+    let source = r#"
+class Leaf(val label: String) { deinit() { println("destroy"); println(label) } }
+object Gate {
+    fun inspect(value: Rc<Leaf>, stop: Int): Unit { println("dispatch") }
+    fun nullable(value: Rc<Leaf>?, stop: Int): Unit { println("nullable-dispatch") }
+}
+fun maybe(present: Boolean): Rc<Leaf>? {
+    if (present) { return Rc(Leaf("drop-nullable")) }
+    return null
+}
+fun returning(present: Boolean): Unit { Gate.nullable(maybe(present), return) }
+fun entry(): Unit {
+    loop { Gate.inspect(Rc(Leaf("drop-construction")), break) }
+    val source = Rc(Leaf("drop-source"))
+    var again = true
+    while (again) {
+        again = false
+        Gate.inspect(source.share(), continue)
+    }
+    println("held")
+    println(source.value.label)
+    returning(true)
+    returning(false)
+    println("done")
+}
+"#;
+    let llvm = boxed_enum_tests::lower_to_llvm("singleton-rc-prefix.ko", source);
+    let run = boxed_enum_tests::run_counted_allocations(&llvm, 6);
+    boxed_enum_tests::assert_success(
+        &run,
+        b"destroy\ndrop-construction\nheld\ndrop-source\ndestroy\ndrop-nullable\ndone\ndestroy\ndrop-source\n",
+    );
+}

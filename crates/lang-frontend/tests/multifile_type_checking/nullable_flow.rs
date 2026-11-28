@@ -893,3 +893,94 @@ fn pending_field_blocks_assertion_and_rc_execution_facts() {
         "{diagnostics:?}"
     );
 }
+
+#[test]
+fn short_circuit_restoration_tracks_later_writebacks_and_edge_changes() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "short-circuit-restoration.ko",
+        "fun clear(inout value: Int?): Boolean { value = null; return true }
+         fun accept(value: Int): Boolean = true
+         fun probe(input: Int?, flag: Boolean): Boolean {
+             var x = input
+             var y = input
+             if (x == null) return false
+             if (y == null) return false
+             return (flag || (clear(&x) && false))
+                 && (flag || (clear(&y) && false))
+                 && x != null
+                 && accept(x)
+                 && clear(&x)
+                 && accept(y)
+                 && accept(x)
+         }
+         fun startsBypassing(input: Int?, flag: Boolean): Boolean {
+             var x = input
+             var y = input
+             if (x == null) return false
+             if (y == null) return false
+             return (flag && (clear(&x) || true))
+                 && flag
+                 && (flag || (clear(&y) && false))
+                 && accept(y)
+         }
+         fun switchesEdge(input: Int?, flag: Boolean): Boolean {
+             var y = input
+             if (y == null) return false
+             return (flag || (clear(&y) && false))
+                 && flag && flag
+                 || accept(y)
+         }",
+    );
+    let inputs = [SourceUnitInput::memory_document(source, &file)];
+    let (names, types) = standard_environments();
+    let names = validated_names(&sources, &inputs, &names);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
+    let diagnostics = typed
+        .body_diagnostics()
+        .iter()
+        .map(|diagnostic| {
+            let span = diagnostic.primary_span();
+            (diagnostic.code().to_string(), sources.slice(span).unwrap())
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        diagnostics,
+        [("L0084".to_owned(), "x"), ("L0084".to_owned(), "y")]
+    );
+}
+
+#[test]
+fn no_else_guard_keeps_only_facts_from_the_surviving_exit() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "no-else-guard.ko",
+        "fun accept(value: Int): Boolean = true
+         fun surviving(input: Int?): Boolean {
+             var x = input
+             var y = input
+             if (y == null) return false
+             if (x == null) { y = null; return false }
+             return accept(y) && accept(x)
+         }
+         fun joins(input: Int?, flag: Boolean): Boolean {
+             var joined = input
+             if (joined == null) return false
+             if (flag) { joined = null }
+             return accept(joined)
+         }",
+    );
+    let inputs = [SourceUnitInput::memory_document(source, &file)];
+    let (names, types) = standard_environments();
+    let names = validated_names(&sources, &inputs, &names);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &types).unwrap();
+    let diagnostics = typed.body_diagnostics();
+    assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+    assert_eq!(diagnostics[0].code().to_string(), "L0084");
+    assert_eq!(
+        sources.slice(diagnostics[0].primary_span()).unwrap(),
+        "joined"
+    );
+}

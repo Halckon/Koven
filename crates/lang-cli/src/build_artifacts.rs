@@ -1,6 +1,6 @@
 //! 单次构建的私有 staging 与最终 no-clobber 发布；不删除已公开的调试包。
 
-use std::os::unix::fs::{DirBuilderExt, MetadataExt};
+use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt};
 #[cfg(target_os = "macos")]
 use std::{ffi::CString, os::unix::ffi::OsStrExt, process::Command};
 use std::{
@@ -14,6 +14,8 @@ static NEXT_STAGE: AtomicU64 = AtomicU64::new(0);
 pub(crate) struct BuildArtifacts {
     directory: Option<PathBuf>,
     directory_identity: (u64, u64),
+    // Keep the directory's identity live until cleanup on filesystems with dynamic inodes.
+    _directory_handle: fs::File,
     object: PathBuf,
     executable: PathBuf,
     #[cfg(target_os = "macos")]
@@ -41,7 +43,12 @@ impl BuildArtifacts {
                     let object = directory.join("module.o");
                     #[cfg(target_os = "macos")]
                     let debug_bundle = directory.join("debug.dSYM");
-                    let metadata = fs::symlink_metadata(&directory).map_err(|error| {
+                    let (directory_handle, metadata) = fs::OpenOptions::new()
+                        .read(true)
+                        .custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW)
+                        .open(&directory)
+                        .and_then(|handle| handle.metadata().map(|metadata| (handle, metadata)))
+                        .map_err(|error| {
                         io::Error::new(error.kind(), format!(
                             "cannot confirm private staging ownership: {error}; staging retained at {}",
                             directory.display(),
@@ -52,6 +59,7 @@ impl BuildArtifacts {
                     let mut artifacts = Self {
                         directory: Some(directory),
                         directory_identity,
+                        _directory_handle: directory_handle,
                         object,
                         executable,
                         #[cfg(target_os = "macos")]

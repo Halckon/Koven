@@ -198,7 +198,64 @@ impl BodyChecker<'_> {
             Some(expectation) => expectation.context_for(self, &payload)?,
             None => None,
         };
-        let mut result = match payload {
+        // A grouped operand forwards the same context without keeping another
+        // full payload dispatch frame on the stack.
+        let mut result = if let Expression::Group { expression: inner } = payload {
+            let result = self.check_expression_with_normal_writes(
+                source,
+                inner,
+                expectation,
+                expected_span,
+                return_type,
+                normal_writes,
+            )?;
+            if self.storage_value_is_pending(UnitExpressionId::new(source, inner)) {
+                self.note_pending_storage_value(key, result.ty);
+            }
+            result
+        } else {
+            self.check_expression_payload(
+                key,
+                span,
+                payload,
+                expectation,
+                expected,
+                expected_span,
+                return_type,
+                normal_writes,
+            )?
+        };
+        // A non-completing expression retains its static shape but delivers no value.
+        if result.falls_through
+            && let Some(expectation) = expected.map(ExpressionExpected::Canonical).or(expectation)
+        {
+            result.ty = self.apply_expression_expectation(
+                key,
+                span,
+                result.ty,
+                expectation,
+                expected_span,
+            )?;
+        }
+        self.record_expression_check(key, result);
+        Ok(result)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn check_expression_payload(
+        &mut self,
+        key: UnitExpressionId,
+        span: Span,
+        payload: Expression,
+        expectation: Option<ExpressionExpected<'_>>,
+        expected: Option<UnitTypeId>,
+        expected_span: Option<Span>,
+        return_type: UnitTypeId,
+        normal_writes: Option<&mut Option<operators::LogicalNormalWrites>>,
+    ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
+        let source = key.source_unit();
+        let expression = key.expression();
+        Ok(match payload {
             Expression::Error => ExpressionCheck {
                 ty: self.error_type(),
                 falls_through: true,
@@ -262,20 +319,7 @@ impl BodyChecker<'_> {
                 }
                 self.check_interpolated_string(key, parts, return_type)?
             }
-            Expression::Group { expression } => {
-                let result = self.check_expression_with_normal_writes(
-                    source,
-                    expression,
-                    expectation,
-                    expected_span,
-                    return_type,
-                    normal_writes,
-                )?;
-                if self.storage_value_is_pending(UnitExpressionId::new(source, expression)) {
-                    self.note_pending_storage_value(key, result.ty);
-                }
-                result
-            }
+            Expression::Group { .. } => unreachable!("groups are checked before payload dispatch"),
             Expression::Call {
                 callee,
                 type_arguments,
@@ -432,21 +476,7 @@ impl BodyChecker<'_> {
             Expression::Index { receiver, index } => {
                 self.check_index(key, receiver, index, return_type)?
             }
-        };
-        // A non-completing expression retains its static shape but delivers no value.
-        if result.falls_through
-            && let Some(expectation) = expected.map(ExpressionExpected::Canonical).or(expectation)
-        {
-            result.ty = self.apply_expression_expectation(
-                key,
-                span,
-                result.ty,
-                expectation,
-                expected_span,
-            )?;
-        }
-        self.record_expression_check(key, result);
-        Ok(result)
+        })
     }
 
     pub(super) fn record_expression_check(

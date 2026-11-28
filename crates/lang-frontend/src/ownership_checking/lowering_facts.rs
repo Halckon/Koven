@@ -254,6 +254,10 @@ pub trait UnitLoweringFacts: UnitPreflightFacts + std::fmt::Debug {
     fn class_result_argument_unwinds(&self) -> &[UnitDirectCallLoanEndFact] {
         &[]
     }
+    /// Actual unwind endings for shared owned temporaries of named singleton calls.
+    fn singleton_temporary_argument_unwinds(&self) -> &[UnitDirectCallLoanEndFact] {
+        &[]
+    }
     /// Original drops query.
     fn drops(&self) -> &[UnitDropFact];
     /// Original field replacement query.
@@ -549,6 +553,9 @@ impl UnitLoweringFacts for CompilationUnitOwnership {
     }
     fn class_result_argument_unwinds(&self) -> &[UnitDirectCallLoanEndFact] {
         CompilationUnitOwnership::class_result_argument_unwinds(self)
+    }
+    fn singleton_temporary_argument_unwinds(&self) -> &[UnitDirectCallLoanEndFact] {
+        CompilationUnitOwnership::singleton_temporary_argument_unwinds(self)
     }
     fn drops(&self) -> &[UnitDropFact] {
         CompilationUnitOwnership::drops(self)

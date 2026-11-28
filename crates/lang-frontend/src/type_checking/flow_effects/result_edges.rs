@@ -40,8 +40,57 @@ pub(in crate::type_checking) fn bypassed_result_writes<K: Ord + Copy>(
 /// Conservative writes across all paths and on each structural Boolean result.
 pub(in crate::type_checking) struct BooleanResultWrites<K> {
     all: BTreeSet<K>,
-    yes: BTreeSet<K>,
-    no: BTreeSet<K>,
+    yes: EdgeWrites<K>,
+    no: EdgeWrites<K>,
+}
+
+/// Represent an edge by its writes or by the keys it excludes from `all`.
+/// Selecting all prefix writes thereby needs only an empty exclusion set.
+enum EdgeWrites<K> {
+    Included(BTreeSet<K>),
+    Bypassed(BTreeSet<K>),
+}
+
+impl<K: Ord + Copy> EdgeWrites<K> {
+    fn from_writes(writes: BTreeSet<K>, all: &BTreeSet<K>) -> Self {
+        if writes.len() <= all.len() - writes.len() {
+            Self::Included(writes)
+        } else {
+            Self::Bypassed(all.difference(&writes).copied().collect())
+        }
+    }
+
+    fn includes(&self, key: K) -> bool {
+        match self {
+            Self::Included(keys) => keys.contains(&key),
+            Self::Bypassed(keys) => !keys.contains(&key),
+        }
+    }
+
+    fn extend_rhs(
+        &mut self,
+        prefix_all: &BTreeSet<K>,
+        rhs_all: &BTreeSet<K>,
+        rhs_edge: Option<&Self>,
+    ) {
+        #[cfg(test)]
+        super::super::short_circuit_cost_tests::record_prefix_summary_keys(rhs_all.len());
+        for &key in rhs_all {
+            let writes = rhs_edge.is_some_and(|edge| edge.includes(key));
+            match self {
+                Self::Included(keys) if writes => {
+                    keys.insert(key);
+                }
+                Self::Bypassed(keys) if writes => {
+                    keys.remove(&key);
+                }
+                Self::Bypassed(keys) if !prefix_all.contains(&key) => {
+                    keys.insert(key);
+                }
+                Self::Included(_) | Self::Bypassed(_) => {}
+            }
+        }
+    }
 }
 
 impl<K: Ord + Copy> BooleanResultWrites<K> {
@@ -69,88 +118,137 @@ impl<K: Ord + Copy> BooleanResultWrites<K> {
                 .collect(),
             )
         };
-        let writes = Self {
-            all: targets.iter().copied().filter_map(&flow_key).collect(),
-            yes: on_edge(true)?,
-            no: on_edge(false)?,
-        };
-        Ok(writes)
+        let all = targets.iter().copied().filter_map(&flow_key).collect();
+        Ok(Self {
+            yes: EdgeWrites::from_writes(on_edge(true)?, &all),
+            no: EdgeWrites::from_writes(on_edge(false)?, &all),
+            all,
+        })
+    }
+
+    pub(in crate::type_checking) fn all_keys(&self) -> &BTreeSet<K> {
+        &self.all
+    }
+
+    pub(in crate::type_checking) fn bypasses_key(&self, matched: bool, key: K) -> bool {
+        self.all.contains(&key) && !if matched { &self.yes } else { &self.no }.includes(key)
+    }
+
+    pub(in crate::type_checking) fn has_bypassed_keys(&self, matched: bool) -> bool {
+        match if matched { &self.yes } else { &self.no } {
+            EdgeWrites::Included(keys) => keys.len() < self.all.len(),
+            EdgeWrites::Bypassed(keys) => !keys.is_empty(),
+        }
     }
 
     pub(in crate::type_checking) fn bypassed(&self, matched: bool) -> BTreeSet<K> {
-        let edge = if matched { &self.yes } else { &self.no };
-        self.all.difference(edge).copied().collect()
+        let result: BTreeSet<_> = self.bypassed_keys(matched).copied().collect();
+        #[cfg(test)]
+        super::super::short_circuit_cost_tests::record_bypassed_keys_materialized(result.len());
+        result
+    }
+
+    pub(in crate::type_checking) fn bypassed_keys(
+        &self,
+        matched: bool,
+    ) -> impl Iterator<Item = &K> {
+        let (difference, keys) = match if matched { &self.yes } else { &self.no } {
+            EdgeWrites::Included(keys) => (Some(self.all.difference(keys)), None),
+            EdgeWrites::Bypassed(keys) => (None, Some(keys.iter())),
+        };
+        difference
+            .into_iter()
+            .flatten()
+            .chain(keys.into_iter().flatten())
     }
 
     /// Extend a completed left prefix using the same operand reachability as
-    /// `writes_on_boolean_edge`. When either outcome is requested, use all
-    /// syntactically reachable writes in that operand.
+    /// `writes_on_boolean_edge`. The caller supplies the RHS facts collected before
+    /// checking that operand and omits the summary when execution bypasses it.
     pub(in crate::type_checking) fn extend_prefix(
         self,
-        outcomes: &SyntacticBooleanOutcomes<'_>,
-        left: ExpressionId,
         operator: BinaryOperator,
-        right: ExpressionId,
-        flow_key: impl Fn(ExpressionId) -> Option<K>,
-    ) -> Result<Self, AstError> {
+        (right_yes, right_no): (bool, bool),
+        rhs: Option<Self>,
+    ) -> Self {
         let and = operator == BinaryOperator::LogicalAnd;
-        let (left_yes, left_no) = outcomes.possible_results(left);
-        let (right_yes, right_no) = outcomes.possible_results(right);
-        let runs_rhs = if and { left_yes } else { left_no };
-        let rhs = runs_rhs
-            .then(|| Self::collect(outcomes, right, flow_key))
-            .transpose()?;
-        let on_edge = |matched: bool| {
-            let (want_yes, want_no) = if and {
-                (if matched { right_yes } else { right_no }, !matched)
-            } else {
-                (matched, if matched { right_yes } else { right_no })
-            };
-            let mut writes = match (want_yes, want_no) {
-                (true, true) => self.all.clone(),
-                (true, false) => self.yes.clone(),
-                (false, true) => self.no.clone(),
-                (false, false) => BTreeSet::new(),
-            };
-            if let Some(rhs) = &rhs {
-                if matched && right_yes {
-                    writes.extend(&rhs.yes);
-                } else if !matched && right_no {
-                    writes.extend(&rhs.no);
-                }
-            }
-            writes
+        let Self { mut all, yes, no } = self;
+        let (mut yes, mut no) = if and {
+            (
+                if right_yes {
+                    yes
+                } else {
+                    EdgeWrites::Included(BTreeSet::new())
+                },
+                if right_no {
+                    EdgeWrites::Bypassed(BTreeSet::new())
+                } else {
+                    no
+                },
+            )
+        } else {
+            (
+                if right_yes {
+                    EdgeWrites::Bypassed(BTreeSet::new())
+                } else {
+                    yes
+                },
+                if right_no {
+                    no
+                } else {
+                    EdgeWrites::Included(BTreeSet::new())
+                },
+            )
         };
-        let yes = on_edge(true);
-        let no = on_edge(false);
-        let mut all = self.all;
         if let Some(rhs) = rhs {
+            yes.extend_rhs(&all, &rhs.all, right_yes.then_some(&rhs.yes));
+            no.extend_rhs(&all, &rhs.all, right_no.then_some(&rhs.no));
             all.extend(rhs.all);
         }
-        Ok(Self { all, yes, no })
+        Self { all, yes, no }
     }
 }
 
-pub(in crate::type_checking) fn restore_bypassed_writes<K: Copy + Ord, T: Copy>(
+pub(in crate::type_checking) fn restore_bypassed_writes<'a, K: Copy + Ord + 'a, T: Copy>(
     facts: &mut BTreeMap<K, T>,
     versions: &mut BTreeMap<K, u64>,
     before_facts: &BTreeMap<K, T>,
     before_versions: &BTreeMap<K, u64>,
-    bypassed: &BTreeSet<K>,
+    bypassed: impl IntoIterator<Item = &'a K>,
 ) {
-    for &key in bypassed {
-        let from = before_versions.get(&key).copied().unwrap_or_default();
-        let to = versions.get(&key).copied().unwrap_or_default();
-        if from >= to || to == u64::MAX {
-            continue;
-        }
+    restore_bypassed_versions(versions, before_versions, bypassed, |key| {
         if let Some(&fact) = before_facts.get(&key) {
             facts.entry(key).or_insert(fact);
         }
-        if let Some(&version) = before_versions.get(&key) {
+    });
+}
+
+pub(in crate::type_checking) fn restore_bypassed_versions<'a, K: Copy + Ord + 'a>(
+    versions: &mut BTreeMap<K, u64>,
+    before_versions: &BTreeMap<K, u64>,
+    bypassed: impl IntoIterator<Item = &'a K>,
+    mut restore_fact: impl FnMut(K),
+) {
+    for &key in bypassed {
+        #[cfg(test)]
+        super::super::short_circuit_cost_tests::record_bypassed_restore_key();
+        let previous = before_versions.get(&key).copied();
+        if !can_restore_bypassed_version(previous, versions.get(&key).copied()) {
+            continue;
+        }
+        restore_fact(key);
+        if let Some(version) = previous {
             versions.insert(key, version);
         } else {
             versions.remove(&key);
         }
     }
+}
+
+pub(in crate::type_checking) fn can_restore_bypassed_version(
+    previous: Option<u64>,
+    current: Option<u64>,
+) -> bool {
+    let current = current.unwrap_or_default();
+    current != u64::MAX && previous.unwrap_or_default() < current
 }

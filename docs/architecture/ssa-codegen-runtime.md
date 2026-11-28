@@ -98,7 +98,7 @@ object 字节已有 native 证据；非法 entry、不受支持的插值转换�
 槽并消费 frontend drop；复用传入 loan 不结束，Abort 不展开。Value 前缀在提交前保留具体
 实参/常量 use 对应的 temporary，正常提交后移除，避免提前退出缺 owner 或重复清理。
 专用共享 Borrow receiver 的求值帧包围普通参数帧，记录实际创建的 receiver loan 槽位。Refine 对普通类临时共享接收者核验实参的显式 return 和同一接收者的无条件退出 drop，沿普通调用 pending loan 路径先结束借用再析构。
-参数 return/break/continue 先结束参数 loan，再结束 receiver loan；CFG 后使用重绑定槽，
+无状态具名单例的共享 receiver 经 typed、ownership 和调用计划核验后，在实参提前退出边复用同一清理，正常续边仍按计划派发。支持普通自有结果，以及由同一 String 入口直接或经已验证转发返回的借用结果。单例本身没有析构义务。参数 return/break/continue 先结束参数 loan，再结束 receiver loan；CFG 后使用重绑定槽，
 借用传入对象的既有 loan 不由本次调用结束，Abort 不展开。命名、借用输入和临时 receiver
 均有 SSA/LLVM 覆盖，嵌套调用及循环退出按现有 scope 深度处理。
 

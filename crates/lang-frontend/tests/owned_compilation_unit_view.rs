@@ -9,7 +9,7 @@ use lang_frontend::{
     },
     parser::parse_file,
     source::SourceMap,
-    type_checking::{check_compilation_unit_types, standard_environments},
+    type_checking::{TypeEnvironment, check_compilation_unit_types, standard_environments},
 };
 
 #[test]
@@ -42,6 +42,23 @@ fn owned_view_borrows_the_exact_validated_products() {
     assert!(std::ptr::eq(view.names(), &names));
     assert!(std::ptr::eq(view.types(), typed.types()));
     assert!(std::ptr::eq(view.ownership(), owned.ownership()));
+
+    let clone = environment.clone();
+    assert!(owned_compilation_unit_view(&sources, &inputs, &names, &clone, &typed, &owned).is_ok());
+    let mut changed_environment = clone;
+    changed_environment
+        .authorize_range_source(&sources, source)
+        .unwrap();
+    let fresh_environment = TypeEnvironment::new(&name_environment);
+    for other in [&changed_environment, &fresh_environment] {
+        assert_eq!(
+            owned_compilation_unit_view(&sources, &inputs, &names, other, &typed, &owned).err(),
+            Some(OwnedCompilationUnitViewError::MismatchedAnalysis)
+        );
+        assert!(
+            check_compilation_unit_ownership(&sources, &inputs, &names, other, &typed).is_err()
+        );
+    }
 
     let duplicate = [inputs[0], inputs[0]];
     let changed = [SourceUnitInput::new(

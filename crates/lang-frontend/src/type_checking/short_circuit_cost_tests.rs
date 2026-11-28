@@ -17,6 +17,20 @@ struct Visits {
     condition_write_scans: usize,
     writes: usize,
     write_index: usize,
+    prefix_summary_keys: usize,
+    bypassed_keys_materialized: usize,
+    bypassed_restore_keys: usize,
+    cached_flow_update_keys: usize,
+    pending_scan_keys: usize,
+    pending_snapshot_keys: usize,
+    version_snapshot_copies: usize,
+    flow_fact_copies: usize,
+    write_version_copies: usize,
+    invalidation_fact_copies: usize,
+    version_merge_visits: usize,
+    fact_intersection_visits: usize,
+    logical_publish_version_copies: usize,
+    logical_publish_fact_copies: usize,
     rhs_reused: usize,
     rhs_abrupt: usize,
     rhs_reachability_mismatch: usize,
@@ -40,6 +54,66 @@ pub(super) fn record_write_visit() {
 
 pub(super) fn record_write_index_visit() {
     record(|visits| visits.write_index += 1);
+}
+
+pub(super) fn record_prefix_summary_keys(keys: usize) {
+    record(|visits| visits.prefix_summary_keys += keys);
+}
+
+pub(super) fn record_bypassed_keys_materialized(count: usize) {
+    record(|visits| visits.bypassed_keys_materialized += count);
+}
+
+pub(super) fn record_bypassed_restore_key() {
+    record(|visits| visits.bypassed_restore_keys += 1);
+}
+
+pub(super) fn record_cached_flow_update_keys(count: usize) {
+    record(|visits| visits.cached_flow_update_keys += count);
+}
+
+pub(super) fn record_pending_scan_keys(count: usize) {
+    record(|visits| visits.pending_scan_keys += count);
+}
+
+pub(super) fn record_pending_snapshot_keys(count: usize) {
+    record(|visits| visits.pending_snapshot_keys += count);
+}
+
+pub(super) fn record_flow_version_copies(count: usize) {
+    record(|visits| visits.version_snapshot_copies += count);
+}
+
+pub(super) fn record_flow_fact_copies(count: usize) {
+    record(|visits| visits.flow_fact_copies += count);
+}
+
+pub(super) fn record_invalidation_copies(versions: usize, facts: usize) {
+    record(|visits| {
+        visits.write_version_copies += versions;
+        visits.invalidation_fact_copies += facts;
+    });
+}
+
+pub(super) fn record_flow_merge_visits(versions: usize, facts: usize) {
+    record(|visits| {
+        visits.version_merge_visits += versions;
+        visits.fact_intersection_visits += facts;
+    });
+}
+
+pub(super) fn current_flow_copies() -> (usize, usize) {
+    VISITS.with(|counter| {
+        let visits = counter.get().unwrap_or_default();
+        (visits.version_snapshot_copies, visits.flow_fact_copies)
+    })
+}
+
+pub(super) fn record_logical_publish_copies((versions, facts): (usize, usize)) {
+    record(|visits| {
+        visits.logical_publish_version_copies += visits.version_snapshot_copies - versions;
+        visits.logical_publish_fact_copies += visits.flow_fact_copies - facts;
+    });
 }
 
 pub(super) fn record_rhs_summary(same_reachability: bool, completes: bool) {
@@ -229,5 +303,244 @@ fn short_circuit_write_visits_grow_with_added_operands() {
             0 < short && short < long && long <= 5 * short,
             "{operator}: unexpected write visits: {short} -> {long}"
         );
+    }
+}
+
+#[test]
+fn short_circuit_updates_summary_using_only_rhs_write_keys() {
+    for operator in ["&&", "||"] {
+        for writes_on_true in [false, true] {
+            for distinct in [false, true] {
+                for terms in [16, 32, 64, 128] {
+                    let mut source = String::from(
+                        "fun clear(inout value: Int?): Boolean { value = null; return true }
+                         fun accept(value: Int): Boolean = true
+                         fun probe(input: Int?, flag: Boolean): Boolean {
+",
+                    );
+                    for key in 0..terms {
+                        source.push_str(&format!(
+                            "var x{key} = input; if (x{key} == null) return false; "
+                        ));
+                    }
+                    let chain = (0..terms)
+                        .map(|term| {
+                            let key = if distinct { term } else { 0 };
+                            if writes_on_true {
+                                format!("(flag && (clear(&x{key}) || true))")
+                            } else {
+                                format!("(flag || (clear(&x{key}) && false))")
+                            }
+                        })
+                        .collect::<Vec<_>>()
+                        .join(&format!(" {operator} "));
+                    let bypasses_writes = (operator == "&&") != writes_on_true;
+                    let tail = if bypasses_writes {
+                        format!("accept(x0) {operator} accept(x{})", terms - 1)
+                    } else {
+                        format!("flag {operator} flag")
+                    };
+                    source.push_str(&format!("return {chain} {operator} {tail}; }}"));
+                    let visits = measure_source(source);
+                    eprintln!(
+                        "{operator}, writes_on_true={writes_on_true}, distinct={distinct}, {terms}: {} summary keys, {} restore visits, {} cached updates; pending scans={}, pending snapshots={}, version node copies={}, fact node copies={}",
+                        visits.prefix_summary_keys,
+                        visits.bypassed_restore_keys,
+                        visits.cached_flow_update_keys,
+                        visits.pending_scan_keys,
+                        visits.pending_snapshot_keys,
+                        visits.version_snapshot_copies,
+                        visits.flow_fact_copies,
+                    );
+                    if distinct && !bypasses_writes {
+                        eprintln!(
+                            "actual-write {operator} {terms}: version node copies={}, invalidation fact node copies={}, version merge visits={}, fact intersection visits={}, logical publish node copies={}/{}",
+                            visits.write_version_copies,
+                            visits.invalidation_fact_copies,
+                            visits.version_merge_visits,
+                            visits.fact_intersection_visits,
+                            visits.logical_publish_version_copies,
+                            visits.logical_publish_fact_copies,
+                        );
+                    }
+                    assert_eq!(
+                        visits.bypassed_keys_materialized, 0,
+                        "{operator}, writes_on_true={writes_on_true}, distinct={distinct}, {terms}: {visits:?}"
+                    );
+                    if bypasses_writes && distinct {
+                        assert!(
+                            visits.bypassed_restore_keys <= 2 * terms
+                                && (1..=2 * terms).contains(&visits.cached_flow_update_keys),
+                            "{visits:?}"
+                        );
+                    } else if !bypasses_writes && distinct {
+                        assert_eq!(visits.cached_flow_update_keys, 0, "{visits:?}");
+                        let all_copies = visits.version_snapshot_copies + visits.flow_fact_copies;
+                        let publication_copies = visits.logical_publish_version_copies
+                            + visits.logical_publish_fact_copies;
+                        assert!(
+                            publication_copies <= 16 * terms
+                                && all_copies - publication_copies <= 16 * terms
+                                && all_copies
+                                    + visits.version_merge_visits
+                                    + visits.fact_intersection_visits
+                                    <= 32 * terms,
+                            "{visits:?}"
+                        );
+                    }
+                    assert!(
+                        (1..=2 * terms).contains(&visits.prefix_summary_keys),
+                        "{operator}, writes_on_true={writes_on_true}, distinct={distinct}, {terms}: {visits:?}"
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn literal_suffix_does_not_restore_bypassed_writes() {
+    for (operator, piece, literal) in [
+        ("&&", "(flag || (clear(&x{key}) && false))", "true"),
+        ("||", "(flag && (clear(&x{key}) || true))", "false"),
+    ] {
+        for terms in [16, 32, 64] {
+            let mut source = String::from(
+                "fun clear(inout value: Int?): Boolean { value = null; return true }
+                 fun accept(value: Int): Boolean = true
+                 fun probe(input: Int?, flag: Boolean): Boolean {
+                 ",
+            );
+            for key in 0..terms {
+                source.push_str(&format!(
+                    "var x{key} = input; if (x{key} == null) return false; "
+                ));
+            }
+            let separator = format!(" {operator} ");
+            let chain = (0..terms)
+                .map(|key| piece.replace("{key}", &key.to_string()))
+                .collect::<Vec<_>>()
+                .join(&separator);
+            let tail = separator.clone() + literal;
+            let probe = |literals| {
+                measure_source(format!(
+                    "{source} return {chain}{}{separator}accept(x0){separator}accept(x{}); }}",
+                    tail.repeat(literals),
+                    terms - 1,
+                ))
+            };
+            let bare = probe(0).bypassed_restore_keys;
+            let padded = probe(terms).bypassed_restore_keys;
+            eprintln!("{operator}, {terms} literals: {bare} -> {padded} restore visits");
+            assert!(bare > 0);
+            assert_eq!(bare, padded);
+        }
+    }
+}
+
+#[test]
+fn short_circuit_pending_cost_excludes_resolved_variables() {
+    for operator in ["&&", "||"] {
+        for terms in [16, 32, 64, 128] {
+            let mut source = String::from("fun probe(flag: Boolean): Boolean { ");
+            for key in 0..terms {
+                source.push_str(&format!("var v{key} = flag; "));
+            }
+            let expression = (0..terms)
+                .map(|key| format!("v{key}"))
+                .collect::<Vec<_>>()
+                .join(&format!(" {operator} "));
+            source.push_str(&format!("return {expression}; }}"));
+            let visits = measure_source(source);
+            eprintln!(
+                "{operator}, {terms} resolved variables: {} pending scan keys, {} pending snapshot keys",
+                visits.pending_scan_keys, visits.pending_snapshot_keys,
+            );
+            assert_eq!(
+                (visits.pending_scan_keys, visits.pending_snapshot_keys),
+                (0, 0)
+            );
+        }
+    }
+}
+
+#[test]
+fn short_circuit_reads_share_existing_flow_versions() {
+    for operator in ["&&", "||"] {
+        for terms in [16, 32, 64, 128] {
+            let mut source = String::from("fun probe(flag: Boolean): Boolean { ");
+            for key in 0..terms {
+                source.push_str(&format!("var v{key} = false; v{key} = flag; "));
+            }
+            let expression = (0..terms)
+                .map(|key| format!("v{key}"))
+                .collect::<Vec<_>>()
+                .join(&format!(" {operator} "));
+            source.push_str(&format!("return {expression}; }}"));
+            let visits = measure_source(source);
+            eprintln!(
+                "{operator}, {terms} reads after writes: {} copied version keys",
+                visits.version_snapshot_copies,
+            );
+            assert_eq!(visits.version_snapshot_copies, 0, "{visits:?}");
+        }
+    }
+}
+
+#[test]
+fn literal_rhs_leaves_wide_flow_facts_in_place() {
+    for (operator, literal) in [("&&", "true"), ("||", "false")] {
+        for terms in [16, 32, 64, 128] {
+            let mut source = String::from(
+                "fun accept(value: Int): Boolean = true
+                 fun probe(input: Int?, flag: Boolean): Boolean { ",
+            );
+            for key in 0..terms {
+                source.push_str(&format!(
+                    "var x{key} = input; if (x{key} == null) return false; "
+                ));
+            }
+            let suffix = format!(
+                "{operator} accept(x0) {operator} accept(x{}); }}",
+                terms - 1
+            );
+            let literals = format!(" {operator} {literal} ").repeat(terms);
+            let bare = measure_source(format!("{source} return flag {suffix}"));
+            let padded = measure_source(format!("{source} return flag{literals}{suffix}"));
+            eprintln!(
+                "{operator}, {terms} literal RHS with live facts: {} -> {} copied fact keys",
+                bare.flow_fact_copies, padded.flow_fact_copies,
+            );
+            assert_eq!(bare.flow_fact_copies, padded.flow_fact_copies, "{padded:?}");
+        }
+    }
+}
+
+#[test]
+fn readonly_rhs_shares_wide_flow_facts() {
+    for operator in ["&&", "||"] {
+        for terms in [16, 32, 64, 128] {
+            let mut source = String::from(
+                "fun accept(value: Int): Boolean = true
+                 fun probe(input: Int?): Boolean { ",
+            );
+            for key in 0..terms {
+                source.push_str(&format!(
+                    "var x{key} = input; if (x{key} == null) return false; "
+                ));
+            }
+            let expression = (0..terms)
+                .map(|key| format!("accept(x{key})"))
+                .collect::<Vec<_>>()
+                .join(&format!(" {operator} "));
+            let bare = measure_source(format!("{source} return accept(x0); }}"));
+            let chain = measure_source(format!("{source} return {expression}; }}"));
+            eprintln!(
+                "{operator}, {terms} calls with live facts: {} -> {} copied fact keys",
+                bare.flow_fact_copies, chain.flow_fact_copies,
+            );
+            assert_eq!(bare.flow_fact_copies, 0, "{bare:?}");
+            assert_eq!(bare.flow_fact_copies, chain.flow_fact_copies);
+        }
     }
 }

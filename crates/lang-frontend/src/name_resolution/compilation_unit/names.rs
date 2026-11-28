@@ -176,7 +176,7 @@ impl<'a> UnitResolver<'a> {
             all_diagnostics.extend(filtered.iter().cloned());
             let resolution = NameResolution::new(
                 resolution.source_id(),
-                resolution.environment_owner().clone(),
+                resolution.external_declarations().clone(),
                 resolution.scopes().to_vec(),
                 resolution.symbols().to_vec(),
                 resolution.enum_cases().to_vec(),
