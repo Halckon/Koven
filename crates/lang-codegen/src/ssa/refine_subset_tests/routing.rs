@@ -658,11 +658,11 @@ fn singleton_mixed_abort_keeps_the_existing_receiver_boundary() {
 fn singleton_exit_ignores_an_abort_outside_the_evaluated_prefix() {
     for body in [
         r#"loop { Gate.choose(7, break, error("unreached")) }"#,
-        r#"loop { Gate.choose(7, { break; error("unreached") }, 0) }"#,
+        r#"loop { Gate.choose(7, if (flag) { break; error("unreached") } else break, 0) }"#,
     ] {
         let source = format!(
             "object Gate {{ fun choose(first: Int, second: Int, last: Int): Unit {{}} }}\n\
-             fun f(): Unit {{ {body} }}"
+             fun f(flag: Boolean): Unit {{ {body} }}"
         );
         let (program, routed) = route(&source);
         assert!(routed, "{body}");
