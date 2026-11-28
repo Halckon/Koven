@@ -631,20 +631,44 @@ fun main(): Unit {
 
 #[test]
 fn singleton_mixed_abort_keeps_the_existing_receiver_boundary() {
-    let (result, routed) = route(
-        r#"
-object Gate { fun choose(first: Int, second: Int): Unit {} }
-fun f(stop: Boolean): Unit { Gate.choose(7, if (stop) error("stopped") else 0) }
-"#,
-    );
-    assert!(!routed);
-    assert!(matches!(
-        result,
-        Err(LoweringError {
-            kind: crate::ssa::LoweringErrorKind::UnsupportedNode,
-            ..
-        })
-    ));
+    for body in [
+        r#"Gate.choose(7, if (stop) error("stopped") else 0)"#,
+        r#"loop { Gate.choose(7, if (stop) error("stopped") else break) }"#,
+    ] {
+        let source = format!(
+            "object Gate {{ fun choose(first: Int, second: Int): Unit {{}} }}\n\
+             fun f(stop: Boolean): Unit {{ {body} }}"
+        );
+        let (result, routed) = route(&source);
+        assert!(!routed, "{body}");
+        assert!(
+            matches!(
+                result,
+                Err(LoweringError {
+                    kind: crate::ssa::LoweringErrorKind::UnsupportedNode,
+                    ..
+                })
+            ),
+            "{body}"
+        );
+    }
+}
+
+#[test]
+fn singleton_exit_ignores_an_abort_outside_the_evaluated_prefix() {
+    for body in [
+        r#"loop { Gate.choose(7, break, error("unreached")) }"#,
+        r#"loop { Gate.choose(7, { break; error("unreached") }, 0) }"#,
+    ] {
+        let source = format!(
+            "object Gate {{ fun choose(first: Int, second: Int, last: Int): Unit {{}} }}\n\
+             fun f(): Unit {{ {body} }}"
+        );
+        let (program, routed) = route(&source);
+        assert!(routed, "{body}");
+        crate::ssa::verify::verify_program(&program.expect("the ordinary break must lower"))
+            .expect("the singleton exit's SSA verifies");
+    }
 }
 
 #[test]

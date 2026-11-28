@@ -775,32 +775,26 @@ pub(in crate::ssa::refine::subset) mod receiver {
                 ) && receiver.origin()
                     == UnitCallReceiverOrigin::Expression(*receiver_expr)
                     && receiver_expr.source_unit() == self.inputs.source_unit
-                    && ((dispatch == Some(false)
-                        && self.inputs.borrow_return.is_none()
-                        && object_prefix())
-                        || !self.span_has_unhandled_control_transfer(
-                            call_node.span(),
-                            None,
-                            |exit| {
-                                (self.inputs.parsed.ast().expressions().get(exit).is_ok_and(
-                                    |node| {
-                                        matches!(
-                                            node.payload(),
-                                            Expression::Return { .. }
-                                                | Expression::Break { .. }
-                                                | Expression::Continue { .. }
-                                        )
-                                    },
-                                ) && self.pending_call_loans_end_on(exit)
-                                    && object_prefix())
-                                    || (allow_return
-                                        && self.temporary_receiver_return(
-                                            *receiver_expr,
-                                            exit,
-                                            call,
-                                        ))
-                            },
-                        ))
+                    && !self.span_has_unhandled_control_transfer(call_node.span(), None, |exit| {
+                        if object_prefix() {
+                            return self.inputs.parsed.ast().expressions().get(exit).is_ok_and(
+                                |node| match node.payload() {
+                                    Expression::Return { .. }
+                                    | Expression::Break { .. }
+                                    | Expression::Continue { .. } => {
+                                        self.pending_call_loans_end_on(exit)
+                                    }
+                                    // A syntactic Abort can be in an unreachable suffix or
+                                    // have operands that exit before it is invoked.
+                                    _ => {
+                                        self.inputs.owned.call_may_dispatch(self.id(exit))
+                                            != Some(true)
+                                    }
+                                },
+                            );
+                        }
+                        allow_return && self.temporary_receiver_return(*receiver_expr, exit, call)
+                    })
                     && self.expression(receiver_expr.expression());
                 self.migrated |= temp_ok;
                 return temp_ok;
