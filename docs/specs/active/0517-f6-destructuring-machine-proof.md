@@ -20,14 +20,16 @@
 1. **生产零分配内核抽取与零行为变化**：
    - 在 [destructuring.rs](../../../crates/lang-frontend/src/parser/engine/destructuring.rs) 中提炼纯栈值内核（`DestructuringEvent`、`DestructuringExitKind`、`DestructuringLoopState`、`is_local_destructuring_start_kinds`、`is_const_local_destructuring_start_kinds`、`destructuring_exit_emits_missing_binding`、`step_destructuring_loop`、`#[cfg(any(test, kani))] run_destructuring_loop` 与 `destructuring_initializer_missing_diagnostic`），接入 `local_destructuring_start`、`const_local_destructuring_start`、`parse_local_destructuring` 与 `parse_destructuring_initializer`，严格保留短路求值与零行为变化，并在 [destructuring_tests.rs](../../../crates/lang-frontend/src/parser/engine/destructuring_tests.rs) 补充 3 个单元测试。
    - 在 [engine.rs](../../../crates/lang-frontend/src/parser/engine.rs) 中挂载 `#[cfg(kani)] mod destructuring_kani;` 与 `#[cfg(test)] mod destructuring_tests;`。
-2. **轨道 1（Lean 4 无界模型定理，`proved (model, unbounded)`）**：
-   - [formal/parser/f6_destructuring/F6Destructuring.lean](../../../formal/parser/f6_destructuring/F6Destructuring.lean)（零 Mathlib，固定 `leanprover/lean4:v4.14.0`）证明 6 条无界定理（D1–D6）：
-     - `isLocalDestructuringStart_spec`（D1：`val`/`var` 局部解构前缀充要条件）
-     - `isConstLocalDestructuringStart_spec`（D2：`const val (` 三词法单元前缀充要条件）
-     - `exitEmitsMissingBinding_spec`（D3：`RightParen` 与 `Boundary` 两类退出点缺失绑定诊断充要条件）
-     - `stepDestructuringLoop_preserves_invariant`（D4：单步 `hasBindings` 单调性与 `commaAlreadyReported → needsBinding ∧ hasBindings` 不变式保持）
-     - `runDestructuringLoop_preserves_invariant`（D5：任意长度事件流保持该不变式，保证空逗号后退出 `)` 或其他边界永不重复报告缺失绑定）
-     - `initializerMissingDiagnostic_spec`（D6：边界处 `boundary && !starts_primary` 缺失初始化器诊断的五元守卫充要条件；非边界非法首记号路径如 `val (x) = /` 在 `destructuring.rs:511–515` 另行发报，不在本守卫范围内）
+2. **轨道 1（Lean 4 模型定理：1 条 `unbounded` + 5 条 `complete finite domain`）**：
+   - [formal/parser/f6_destructuring/F6Destructuring.lean](../../../formal/parser/f6_destructuring/F6Destructuring.lean)（零 Mathlib，固定 `leanprover/lean4:v4.14.0`）证明 6 条定理（D1–D6）：
+     - 有限域模型定理（5 条，`proved (model, complete finite domain)`）：
+       - `isLocalDestructuringStart_spec`（D1：仅限 `LocalDestructuringKeyword`（`val`/`var`）的局部解构前缀充要条件）
+       - `isConstLocalDestructuringStart_spec`（D2：`const val (` 三词法单元前缀充要条件）
+       - `exitEmitsMissingBinding_spec`（D3：`RightParen` 与 `Boundary` 两类退出点缺失绑定诊断充要条件）
+       - `stepDestructuringLoop_preserves_invariant`（D4：单步 `hasBindings` 单调性与 `commaAlreadyReported → needsBinding ∧ hasBindings` 不变式保持）
+       - `initializerMissingDiagnostic_spec`（D6：边界处 `boundary && !starts_primary` 缺失初始化器诊断的五元守卫充要条件；非边界非法首记号路径如 `val (x) = /` 在 `destructuring.rs:511–515` 另行发报，不在本守卫范围内）
+     - 无界列表模型定理（1 条，`proved (model, unbounded)`）：
+       - `runDestructuringLoop_preserves_invariant`（D5：任意长度事件流保持该不变式，且任意前缀追加 `.emptyComma` 后必然置位 `commaAlreadyReported` 并使 `)` 与边界两类退出均不重报缺失绑定）
 3. **轨道 2（Kani 零堆分配生产 Rust 符号检验，`validated (bounded Rust)`）**：
    - [destructuring_kani.rs](../../../crates/lang-frontend/src/parser/engine/destructuring_kani.rs)（`#[cfg(kani)]` 隔离，零堆分配）提供 3 条 harness：
      - `verify_destructuring_start_predicates`：直接调用生产 `is_local_destructuring_start_kinds` 与 `is_const_local_destructuring_start_kinds`，通过单源自动计数宏覆盖全部生产 `LexemeKind` / `Keyword` 变体。

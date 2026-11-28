@@ -20,15 +20,17 @@
 1. **生产零分配内核抽取与零行为变化**：
    - 在 [postfix.rs](../../../crates/lang-frontend/src/parser/engine/postfix.rs) 中提炼纯栈值内核（`is_postfix_start_kind`、`is_recovery_callee_ignored_kind`、`is_recovery_callee_terminal_kind`、`has_recovery_callee_end_in`、`typed_call_suffix_continues_kind`、`call_argument_boundary_decision` 与 `trailing_lambda_attaches_after_call`），由 `is_postfix_start`、`has_recovery_callee_end`、`parse_call`、`call_argument_boundary` 与 `typed_call_suffix_continues` 直接调用，严格保留原有短路求值与解析行为零变化，并在 [postfix_tests.rs](../../../crates/lang-frontend/src/parser/engine/postfix_tests.rs) 补充 5 个单元测试。
    - 在 [engine.rs](../../../crates/lang-frontend/src/parser/engine.rs) 中挂载 `#[cfg(kani)] mod postfix_kani;` 与 `#[cfg(test)] mod postfix_tests;`。
-2. **轨道 1（Lean 4 无界模型定理，`proved (model, unbounded)`）**：
-   - [formal/parser/f6_postfix_boundary/F6PostfixBoundary.lean](../../../formal/parser/f6_postfix_boundary/F6PostfixBoundary.lean)（零 Mathlib，固定 `leanprover/lean4:v4.14.0`）证明 7 条无界定理（P1–P7）：
-     - `isPostfixStart_spec`（P1：精确刻画全部 7 个后缀起始符号 `.`/`?.`/`(`/ `[`/`!!`/`?`/`::`）
-     - `typedCallSuffixContinues_spec`（P2：仅当后缀为跨行 `{` 时停止带类型调用延续）
-     - `callArgumentBoundary_spec`（P3：精确刻画调用实参边界的完整充要条件）
-     - `trailingLambdaAttachesAfterCall_spec`（P4：仅当调用已闭合、当前为 `{` 且非后续 `when` 分支时附着尾 lambda）
-     - `recoveryCalleeIgnored_and_terminal_disjoint`（P5：恢复区忽略后缀 `trivia`/`?`/`!!` 与有效 callee 终止记号严格不相交）
-     - `hasRecoveryCalleeEnd_iff_last_non_ignored_terminal`（P6：任意长度前缀流上逆向查找首个非忽略记号并检查终止性精确等价于 `hasRecoveryCalleeEnd`）
-     - `hasRecoveryCalleeEnd_invariant_under_ignored_suffix`（P7：尾部追加任意长度的 `trivia`/`?`/`!!` 序列均不改变 `hasRecoveryCalleeEnd` 结果）
+2. **轨道 1（Lean 4 模型定理：2 条 `unbounded` + 5 条 `complete finite domain`）**：
+   - [formal/parser/f6_postfix_boundary/F6PostfixBoundary.lean](../../../formal/parser/f6_postfix_boundary/F6PostfixBoundary.lean)（零 Mathlib，固定 `leanprover/lean4:v4.14.0`）证明 7 条定理（P1–P7）：
+     - 有限域模型定理（5 条，`proved (model, complete finite domain)`）：
+       - `isPostfixStart_spec`（P1：精确刻画全部 7 个后缀起始符号 `.`/`?.`/`(`/ `[`/`!!`/`?`/`::`）
+       - `typedCallSuffixContinues_spec`（P2：仅当后缀为跨行 `{` 时停止带类型调用延续）
+       - `callArgumentBoundary_spec`（P3：精确刻画调用实参边界的完整充要条件）
+       - `trailingLambdaAttachesAfterCall_spec`（P4：仅当调用已闭合、当前为 `{` 且非后续 `when` 分支时附着尾 lambda）
+       - `recoveryCalleeIgnored_and_terminal_disjoint`（P5：恢复区忽略后缀 `trivia`/`?`/`!!` 与有效 callee 终止记号严格不相交）
+     - 无界列表模型定理（2 条，`proved (model, unbounded)`）：
+       - `hasRecoveryCalleeEnd_iff_last_non_ignored_terminal`（P6：任意长度前缀流上逆向查找首个非忽略记号并检查终止性精确等价于 `hasRecoveryCalleeEnd`）
+       - `hasRecoveryCalleeEnd_invariant_under_ignored_suffix`（P7：尾部追加任意长度的 `trivia`/`?`/`!!` 序列均不改变 `hasRecoveryCalleeEnd` 结果）
 3. **轨道 2（Kani 零堆分配生产 Rust 符号检验，`validated (bounded Rust)`）**：
    - [postfix_kani.rs](../../../crates/lang-frontend/src/parser/engine/postfix_kani.rs)（`#[cfg(kani)]` 隔离，零堆分配）提供 3 条 harness：
      - `verify_postfix_start_typed_call_and_trailing_lambda`：直接调用生产 `is_postfix_start_kind`、`typed_call_suffix_continues_kind` 与 `trailing_lambda_attaches_after_call`，由单源宏（`define_exhaustive_unit_enum_any!` / `define_exhaustive_enum_any!`）从同一份变体清单自动派生采样上界、采样分支与 `#[deny(unreachable_patterns)]` 无通配符穷举 `match`，符号覆盖全部生产 `LexemeKind` / `TokenKind` 变体。

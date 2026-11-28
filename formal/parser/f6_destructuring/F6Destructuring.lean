@@ -31,10 +31,20 @@ structure DestructuringLoopState where
   needsBinding : Bool := true
   deriving DecidableEq, Repr
 
+inductive LocalDestructuringKeyword where
+  | kwVal
+  | kwVar
+  deriving DecidableEq, Repr
+
+def LocalDestructuringKeyword.toLexeme : LocalDestructuringKeyword → DestructuringLexemeKind
+  | .kwVal => .kwVal
+  | .kwVar => .kwVar
+
 def isLocalDestructuringStart
-    (expectedKw first : DestructuringLexemeKind)
+    (expectedKw : LocalDestructuringKeyword)
+    (first : DestructuringLexemeKind)
     (second : Option DestructuringLexemeKind) : Bool :=
-  first == expectedKw && second == some .leftParen
+  first == expectedKw.toLexeme && second == some .leftParen
 
 def isConstLocalDestructuringStart
     (first : DestructuringLexemeKind)
@@ -73,16 +83,17 @@ def initializerMissingDiagnostic
     (hasEquals boundary startsPrimary terminalLexerRoot isPoison : Bool) : Bool :=
   hasEquals && boundary && !startsPrimary && !terminalLexerRoot && !isPoison
 
-/-- D1: Exact characterization of `isLocalDestructuringStart`. -/
+/-- D1: Exact characterization of `isLocalDestructuringStart` for `val`/`var` keywords only. -/
 theorem isLocalDestructuringStart_spec
-    (expectedKw first : DestructuringLexemeKind)
+    (expectedKw : LocalDestructuringKeyword)
+    (first : DestructuringLexemeKind)
     (second : Option DestructuringLexemeKind) :
     isLocalDestructuringStart expectedKw first second = true ↔
-      first = expectedKw ∧ second = some .leftParen := by
+      first = expectedKw.toLexeme ∧ second = some .leftParen := by
   unfold isLocalDestructuringStart
-  cases second with
-  | none => simp
-  | some s => cases s <;> simp
+  cases expectedKw <;> cases second with
+  | none => simp [LocalDestructuringKeyword.toLexeme]
+  | some s => cases s <;> simp [LocalDestructuringKeyword.toLexeme]
 
 /-- D2: Exact characterization of `isConstLocalDestructuringStart`. -/
 theorem isConstLocalDestructuringStart_spec

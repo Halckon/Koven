@@ -20,15 +20,17 @@
 1. **生产零分配内核抽取与零行为变化**：
    - 在 [file.rs](../../../crates/lang-frontend/src/parser/engine/file.rs) 中提炼纯栈值内核（`FileHeaderSeparatorDecision`、`FileRootSeparatorDiagnostic`、`ModifierToken`、`ModifierStepOutcome`、`ModifierScanState`、`file_header_separator_decision`、`file_root_separator_diagnostic`、`step_declaration_modifier` 与 `#[cfg(any(test, kani))] run_declaration_modifiers`），由 `consume_file_header_separator`、`parse_file_roots` 与 `parse_declaration_modifiers` 直接调用，严格保留原有短路求值与解析行为零变化，并在 [file_tests.rs](../../../crates/lang-frontend/src/parser/engine/file_tests.rs) 补充 3 个单元测试。
    - 在 [engine.rs](../../../crates/lang-frontend/src/parser/engine.rs) 中挂载 `#[cfg(kani)] mod file_kani;` 与 `#[cfg(test)] mod file_tests;`。
-2. **轨道 1（Lean 4 无界模型定理，`proved (model, unbounded)`）**：
-   - [formal/parser/f6_file_modifiers/F6FileModifiers.lean](../../../formal/parser/f6_file_modifiers/F6FileModifiers.lean)（零 Mathlib，固定 `leanprover/lean4:v4.14.0`）证明 7 条无界定理（M1–M7）：
-     - `fileHeaderSeparatorDecision_spec`（M1：文件头分隔符三态 `satisfied`/`consumeSemicolon`/`missing` 的完整充要条件）
-     - `fileRootSeparatorDiagnostic_spec`（M2：顶层声明分隔符三态诊断选择的完整充要条件）
-     - `stepModifier_spec`（M3：单步修饰符转移 `stop`/`accept`/`invalid` 的精确充要条件）
-     - `stepModifier_monotone`（M4：单步转移三标志位 `hasVisibility`/`sawOverride`/`sawReceiver` 均单调不回退）
-     - `runModifiers_monotone`（M5：任意长度修饰符流上三标志位均单调不回退）
-     - `stepModifier_accept_increases_rank`（M6：每次 `accept` 严格使状态秩 `stateRank` 增 1 且不超过 3）
-     - `runModifiers_zero_errors_len_le_three`（M7：无 `.notRecognized` 提前停止且零错误的任意修饰符流长度必 `≤ 3`）
+2. **轨道 1（Lean 4 模型定理：2 条 `unbounded` + 5 条 `complete finite domain`）**：
+   - [formal/parser/f6_file_modifiers/F6FileModifiers.lean](../../../formal/parser/f6_file_modifiers/F6FileModifiers.lean)（零 Mathlib，固定 `leanprover/lean4:v4.14.0`）证明 7 条定理（M1–M7）：
+     - 有限域模型定理（5 条，`proved (model, complete finite domain)`）：
+       - `fileHeaderSeparatorDecision_spec`（M1：文件头分隔符三态 `satisfied`/`consumeSemicolon`/`missing` 的完整充要条件）
+       - `fileRootSeparatorDiagnostic_spec`（M2：顶层声明分隔符三态诊断选择的完整充要条件）
+       - `stepModifier_spec`（M3：单步修饰符转移 `stop`/`accept`/`invalid` 的精确充要条件）
+       - `stepModifier_monotone`（M4：单步转移三标志位 `hasVisibility`/`sawOverride`/`sawReceiver` 均单调不回退）
+       - `stepModifier_accept_increases_rank`（M6：每次 `accept` 严格使三位状态秩 `stateRank` 增 1 且不超过 3）
+     - 无界列表模型定理（2 条，`proved (model, unbounded)`）：
+       - `runModifiers_monotone`（M5：任意长度修饰符流上三标志位均单调不回退）
+       - `runModifiers_zero_errors_len_le_three`（M7：无 `.notRecognized` 提前停止且零错误的任意修饰符流长度必 `≤ 3`）
 3. **轨道 2（Kani 零堆分配生产 Rust 符号检验，`validated (bounded Rust)`）**：
    - [file_kani.rs](../../../crates/lang-frontend/src/parser/engine/file_kani.rs)（`#[cfg(kani)]` 隔离，零堆分配）提供 3 条 harness：
      - `verify_file_header_and_root_separator_decisions`：直接调用生产 `file_header_separator_decision` 与 `file_root_separator_diagnostic`，由单源自动计数宏（无手写 `count`，`#[deny(unreachable_patterns)]` 穷举 `match`）覆盖全部生产 `LexemeKind` / `TokenKind` 变体与布尔控制位。

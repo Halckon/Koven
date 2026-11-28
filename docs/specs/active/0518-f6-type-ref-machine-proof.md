@@ -20,14 +20,16 @@
 1. **生产零分配内核抽取与零行为变化**：
    - 在 [type_ref.rs](../../../crates/lang-frontend/src/parser/engine/type_ref.rs) 中提炼纯栈值内核（`is_function_type_start_kinds`、`is_extension_receiver_dot_stop`、`is_function_type_right_paren_closer`、`bounded_proven_parameter_closer`、`step_segmented_string_type_poison_end` 与 `#[cfg(any(test, kani))] run_segmented_string_type_poison_end`），接入 `parse_type_ref_inner`、`consume_segmented_string_type_poison`、`parse_qualified_type` 与 `parse_function_type`，严格保留短路求值与零行为变化，并在 [type_ref_tests.rs](../../../crates/lang-frontend/src/parser/engine/type_ref_tests.rs) 补充 3 个单元测试。
    - 在 [engine.rs](../../../crates/lang-frontend/src/parser/engine.rs) 中挂载 `#[cfg(kani)] mod type_ref_kani;` 与 `#[cfg(test)] mod type_ref_tests;`。
-2. **轨道 1（Lean 4 无界模型定理，`proved (model, unbounded)`）**：
-   - [formal/parser/f6_type_ref/F6TypeRef.lean](../../../formal/parser/f6_type_ref/F6TypeRef.lean)（零 Mathlib，固定 `leanprover/lean4:v4.14.0`）证明 6 条无界定理（R1–R6）：
-     - `isFunctionTypeStart_spec`（R1：函数类型起始当且仅当 `(` 或 `move (`）
-     - `isExtensionReceiverDotStop_spec`（R2：扩展接收者点号停止当且仅当处于扩展名模式且后继为 `Ident (`）
-     - `isFunctionTypeRightParenCloser_spec`（R3：内层函数类型闭合 `)` 永不窃取外层 `provenTypeCloser`）
-     - `boundedProvenParameterCloser_spec`（R4：参数闭合器过滤当且仅当严格小于外层 `provenTypeCloser` 上界）
-     - `runStringTypePoisonEnd_stops_at_eof_and_recovery_end`（R5：任意长度流上一旦达到 `recoveryEnd` 或遇 `eof` 即刻停止并忽略后续所有词法单元）
-     - `runStringTypePoisonEnd_monotone`（R6：单调递增词法端点的任意长度流上扫描结果单调不减）
+2. **轨道 1（Lean 4 模型定理：4 条 `unbounded` + 2 条 `complete finite domain`）**：
+   - [formal/parser/f6_type_ref/F6TypeRef.lean](../../../formal/parser/f6_type_ref/F6TypeRef.lean)（零 Mathlib，固定 `leanprover/lean4:v4.14.0`）证明 6 条定理（R1–R6）：
+     - 有限域模型定理（2 条，`proved (model, complete finite domain)`）：
+       - `isFunctionTypeStart_spec`（R1：函数类型起始当且仅当 `(` 或 `move (`）
+       - `isExtensionReceiverDotStop_spec`（R2：扩展接收者点号停止当且仅当处于扩展名模式且后继为 `Ident (`）
+     - 无界自然数与任意长度流模型定理（4 条，`proved (model, unbounded)`）：
+       - `isFunctionTypeRightParenCloser_spec`（R3：任意 `Nat`/`Option Nat` 上内层函数类型闭合 `)` 永不窃取外层 `provenTypeCloser`）
+       - `boundedProvenParameterCloser_spec`（R4：任意 `Option Nat` 上参数闭合器过滤当且仅当严格小于外层 `provenTypeCloser` 上界）
+       - `runStringTypePoisonEnd_stops_at_eof_and_recovery_end`（R5：任意长度流上一旦达到 `recoveryEnd` 或遇 `eof` 即刻停止并忽略后续所有词法单元）
+       - `runStringTypePoisonEnd_monotone`（R6：单调递增词法端点的任意长度流上扫描结果单调不减）
 3. **轨道 2（Kani 零堆分配生产 Rust 符号检验，`validated (bounded Rust)`）**：
    - [type_ref_kani.rs](../../../crates/lang-frontend/src/parser/engine/type_ref_kani.rs)（`#[cfg(kani)]` 隔离，零堆分配）提供 3 条 harness：
      - `verify_type_ref_start_extension_and_closer_guards`：直接调用生产 `is_function_type_start_kinds`、`is_extension_receiver_dot_stop` 与 `is_function_type_right_paren_closer`，由单源自动计数宏覆盖全部生产 `LexemeKind` / `TokenKind` 变体与任意 `usize` / `Option<usize>`。

@@ -288,13 +288,29 @@ fn verify_destructuring_loop_state_invariant_len_6() {
     let mut i = 0usize;
     while i < len {
         let next = step_destructuring_loop(cur, events[i]);
+        let expected_next = match events[i] {
+            DestructuringEvent::EmptyComma => DestructuringLoopState {
+                has_bindings: true,
+                comma_already_reported_as_empty: true,
+                needs_binding: true,
+            },
+            DestructuringEvent::Binding => DestructuringLoopState {
+                has_bindings: true,
+                comma_already_reported_as_empty: false,
+                needs_binding: false,
+            },
+            DestructuringEvent::SeparatorComma | DestructuringEvent::MissingSeparatorIdent => {
+                DestructuringLoopState {
+                    needs_binding: true,
+                    ..cur
+                }
+            }
+        };
+        assert_eq!(next, expected_next);
         if cur.has_bindings {
             assert!(next.has_bindings);
         }
         if events[i] == DestructuringEvent::EmptyComma {
-            assert!(next.has_bindings);
-            assert!(next.comma_already_reported_as_empty);
-            assert!(next.needs_binding);
             assert!(!destructuring_exit_emits_missing_binding(
                 DestructuringExitKind::RightParen,
                 next
@@ -323,9 +339,14 @@ fn verify_destructuring_loop_state_invariant_len_6() {
             DestructuringEvent::EmptyComma,
         ],
     );
-    assert!(after_empty_comma.has_bindings);
-    assert!(after_empty_comma.comma_already_reported_as_empty);
-    assert!(after_empty_comma.needs_binding);
+    assert_eq!(
+        after_empty_comma,
+        DestructuringLoopState {
+            has_bindings: true,
+            comma_already_reported_as_empty: true,
+            needs_binding: true,
+        }
+    );
     assert!(!destructuring_exit_emits_missing_binding(
         DestructuringExitKind::RightParen,
         after_empty_comma
@@ -333,5 +354,32 @@ fn verify_destructuring_loop_state_invariant_len_6() {
     assert!(!destructuring_exit_emits_missing_binding(
         DestructuringExitKind::Boundary,
         after_empty_comma
+    ));
+
+    // Explicitly check `val (,x, = v` (EmptyComma -> Binding -> SeparatorComma -> Boundary):
+    // Binding must clear comma_already_reported_as_empty so the trailing boundary still reports.
+    let after_binding_sep = run_destructuring_loop(
+        DestructuringLoopState::new(),
+        &[
+            DestructuringEvent::EmptyComma,
+            DestructuringEvent::Binding,
+            DestructuringEvent::SeparatorComma,
+        ],
+    );
+    assert_eq!(
+        after_binding_sep,
+        DestructuringLoopState {
+            has_bindings: true,
+            comma_already_reported_as_empty: false,
+            needs_binding: true,
+        }
+    );
+    assert!(!destructuring_exit_emits_missing_binding(
+        DestructuringExitKind::RightParen,
+        after_binding_sep
+    ));
+    assert!(destructuring_exit_emits_missing_binding(
+        DestructuringExitKind::Boundary,
+        after_binding_sep
     ));
 }
