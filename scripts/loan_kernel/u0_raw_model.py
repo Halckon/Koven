@@ -272,13 +272,19 @@ class U0RawInterpreter:
                 return False
             return self._check_rawcell_write_no_exclusive(ptr, op)
 
-        # Exclusive 派生写：若绑定了派生 loan，则该 loan 必须仍存活，且不得与其他重叠存活 loan 冲突
-        if ptr.derived_loan_id is not None and ptr.derived_loan_id not in self.loans:
-            self._record(
-                "UB1",
-                f"{op}({ptr.place}) uses Exclusive RawPtr after its derived loan #{ptr.derived_loan_id} ended",
-            )
-            return False
+        # Exclusive 派生写：若绑定了派生 loan，整条祖先授权链必须持续存活，且不得与其他重叠存活 loan 冲突
+        if ptr.derived_loan_id is not None:
+            cur: Optional[int] = ptr.derived_loan_id
+            visited: Set[int] = set()
+            while cur is not None and cur not in visited:
+                visited.add(cur)
+                if cur not in self.loans:
+                    self._record(
+                        "UB1",
+                        f"{op}({ptr.place}) uses Exclusive RawPtr after loan #{cur} in derivation chain ended",
+                    )
+                    return False
+                cur = self.loan_history[cur].parent_id
         allowed = self._ancestors(ptr.derived_loan_id)
         for loan in self.loans.values():
             if loan.loan_id in allowed:
@@ -313,17 +319,22 @@ class U0RawInterpreter:
         return True
 
     def _set_slot_state(self, owner: OwnerState, place: str, state: str) -> None:
-        """更新 place 及其全部后代槽位的初始化状态，并维护根槽位的聚合完整性。"""
+        """更新 place 及其全部后代槽位的初始化状态，并沿祖先链自底向上同步聚合完整性。"""
         owner.slots[place] = state
         for slot in list(owner.slots.keys()):
             if is_prefix_or_equal(place, slot):
                 owner.slots[slot] = state
-        if place != owner.root:
-            children = [s for s in owner.slots if s != owner.root]
+        parts = split_place(place)
+        for depth in range(len(parts) - 1, 0, -1):
+            anc = ".".join(parts[:depth])
+            if anc not in owner.slots:
+                continue
             if state == "Uninit":
-                owner.slots[owner.root] = "Uninit"
-            elif children and all(owner.slots[s] == "Init" for s in children):
-                owner.slots[owner.root] = "Init"
+                owner.slots[anc] = "Uninit"
+            else:
+                descendants = [s for s in owner.slots if s != anc and is_prefix_or_equal(anc, s)]
+                if descendants and all(owner.slots[s] == "Init" for s in descendants):
+                    owner.slots[anc] = "Init"
 
     def raw_read(self, ptr_id: int) -> None:
         self.step += 1
@@ -358,6 +369,12 @@ class U0RawInterpreter:
         if not self._is_initialized(owner, ptr.place):
             self._record("UB5", f"ptr_read({ptr.place}) reads uninitialized slot")
             return
+        moved_slots = {into_owner: "Init"} if into_owner is not None else {}
+        if into_owner is not None:
+            prefix = f"{ptr.place}."
+            for slot in owner.slots:
+                if slot.startswith(prefix):
+                    moved_slots[f"{into_owner}.{slot[len(prefix):]}"] = "Init"
         self._set_slot_state(owner, ptr.place, "Uninit")
         moved_handle = owner.handle_id if ptr.place == owner.root else None
         if ptr.place == owner.root:
@@ -366,7 +383,7 @@ class U0RawInterpreter:
             self.owners[into_owner] = OwnerState(
                 root=into_owner,
                 alloc_id=self._new_alloc_id(),
-                slots={into_owner: "Init"},
+                slots=moved_slots,
                 is_resource=moved_handle is not None,
                 handle_id=moved_handle,
             )
@@ -382,10 +399,15 @@ class U0RawInterpreter:
         if not self._is_initialized(owner, ptr.place):
             self._record("UB5", f"ptr_read_duplicate_handle({ptr.place}) reads uninitialized slot")
             return
+        dup_slots = {into_owner: "Init"}
+        prefix = f"{ptr.place}."
+        for slot in owner.slots:
+            if slot.startswith(prefix):
+                dup_slots[f"{into_owner}.{slot[len(prefix):]}"] = "Init"
         self.owners[into_owner] = OwnerState(
             root=into_owner,
             alloc_id=self._new_alloc_id(),
-            slots={into_owner: "Init"},
+            slots=dup_slots,
             is_resource=owner.handle_id is not None,
             handle_id=owner.handle_id,
         )

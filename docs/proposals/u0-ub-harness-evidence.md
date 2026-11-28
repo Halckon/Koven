@@ -6,7 +6,7 @@
 
 ## 1. 硬门槛一：AL1 / AL2 附加前提的独立原型验证（是否满足路线 L 门槛待评审确认）
 
-U0 §9 第一条硬门槛要求“路线 L 的参考检查器能把 AL1、AL2 表述为对其模型的附加前提”。现已在独立模块 `scripts/loan_kernel/u0_raw_model.py` 补齐最小可执行参考解释器原型，并由 `scripts/tests/test_u0_raw_model.py`（12 条单测）验证下列附加前提。**边界说明**：该模块目前独立于主参考检查器 `scripts/loan_kernel/checker.py`，尚未接入 `checker.py` 语法与检查管线；独立原型是否足以满足 U0 §9 第一条门槛，或须先接入 `checker.py`，留待评审确认。
+U0 §9 第一条硬门槛要求“路线 L 的参考检查器能把 AL1、AL2 表述为对其模型的附加前提”。现已在独立模块 `scripts/loan_kernel/u0_raw_model.py` 补齐最小可执行参考解释器原型，并由 `scripts/tests/test_u0_raw_model.py`（15 条单测）验证下列附加前提。**边界说明**：该模块目前独立于主参考检查器 `scripts/loan_kernel/checker.py`，尚未接入 `checker.py` 语法与检查管线；独立原型是否足以满足 U0 §9 第一条门槛，或须先接入 `checker.py`，留待评审确认。
 
 | U0 条款 | 形式化附加前提（表述为参考检查器约束） | 对应原型模块与单测 | 当前状态 |
 |---|---|---|---|
@@ -51,7 +51,7 @@ U0 §9 第一条硬门槛要求“路线 L 的参考检查器能把 AL1、AL2 �
 ## 4. 验证与未运行项
 
 - **已运行**：
-  - `/opt/homebrew/bin/python3 -m unittest scripts.tests.test_u0_raw_model scripts.tests.test_u0_sanitizer_harness scripts.tests.test_f5_od4_grammar_probe`：`Ran 16 tests ... OK`（覆盖 12 条 `u0_raw_model`、10 组 `u0_sanitizer_harness` + FFI5 `exit(1)` 负例与 9 组 Bison 文法 + 21 组 OD4 编译见证）。
-  - `/usr/bin/python3 -m unittest scripts.tests.test_u0_raw_model scripts.tests.test_u0_sanitizer_harness scripts.tests.test_f5_od4_grammar_probe`：`Ran 16 tests ... OK`（Python 3.9 兼容）。
+  - `/opt/homebrew/bin/python3 -m unittest scripts.tests.test_u0_raw_model scripts.tests.test_u0_sanitizer_harness scripts.tests.test_f5_od4_grammar_probe`：`Ran 19 tests ... OK`（覆盖 15 条 `u0_raw_model`、10 组 `u0_sanitizer_harness` + FFI5 `exit(1)` 负例与 9 组 Bison 文法 + 21 组 OD4 编译见证）。
+  - `/usr/bin/python3 -m unittest scripts.tests.test_u0_raw_model scripts.tests.test_u0_sanitizer_harness scripts.tests.test_f5_od4_grammar_probe`：`Ran 19 tests ... OK`（Python 3.9 兼容）。
   - `/opt/homebrew/bin/python3 scripts/check_docs.py && /opt/homebrew/bin/python3 -m unittest scripts.tests.test_check_docs`。
 - **未运行**：未运行 Linux x86_64 MSan、FFI5 跨 C 帧阻断展开测试或弱内存模型检查（Loom/GenMC）；未修改 `crates/` 或 `docs/guide/`；未运行 `cargo test`。

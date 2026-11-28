@@ -212,6 +212,62 @@ class U0RawModelTests(unittest.TestCase):
         interp.exit_scope()
         self.assertEqual([], interp.violations)
 
+    def test_al1_ub1_exclusive_child_ptr_rejected_after_parent_loan_ends(self):
+        """AL1 / UB1：父独占借用结束后，依赖它的子独占指针不得继续写入。"""
+        interp = U0.U0RawInterpreter()
+        interp.alloc_owner("x", initialized=True)
+        parent = interp.borrow("x", "Exclusive")
+        child = interp.borrow("x", "Exclusive", parent_id=parent)
+        child_ptr = interp.address_of("x", derived_mode="Exclusive", derived_loan_id=child)
+        interp.end_loan(parent)
+        interp.raw_write(child_ptr)
+        self.assertEqual(["UB1"], [v.code for v in interp.violations])
+
+    def test_al2_ub5_nested_aggregate_propagates_init_up_ancestors(self):
+        """AL2 / UB5：未初始化的嵌套聚合 r.inner(a, b) 写齐后，r.inner 恢复可读；r 需等兄弟字段也写齐后才可读。"""
+        interp = U0.U0RawInterpreter()
+        interp.alloc_owner("r", fields=("inner", "inner.a", "inner.b", "other"), initialized=False)
+        p_a = interp.address_of("r.inner.a", derived_mode="Exclusive")
+        p_b = interp.address_of("r.inner.b", derived_mode="Exclusive")
+        p_inner = interp.address_of("r.inner", derived_mode="Exclusive")
+        p_other = interp.address_of("r.other", derived_mode="Exclusive")
+        p_root = interp.address_of("r", derived_mode="Exclusive")
+
+        interp.ptr_write(p_a)
+        interp.ptr_write(p_b)
+        interp.raw_read(p_inner)
+        self.assertEqual([], interp.violations)
+
+        # r.other 尚未初始化，读取完整 r 仍报 UB5
+        interp.raw_read(p_root)
+        self.assertEqual(["UB5"], [v.code for v in interp.violations])
+
+        # 补齐 r.other 后读取完整 r 合法
+        interp.violations.clear()
+        interp.ptr_write(p_other)
+        interp.raw_read(p_root)
+        interp.exit_scope()
+        self.assertEqual([], interp.violations)
+
+    def test_al2_ub5_ptr_read_into_owner_preserves_field_layout(self):
+        """AL2 / UB5：ptr_read(..., into_owner=...) 移交聚合时保留字段布局，移出后仅回填 moved.a 读 moved.b 仍报 UB5。"""
+        interp = U0.U0RawInterpreter()
+        interp.alloc_owner("pair", fields=("a", "b"), initialized=True)
+        p_pair = interp.address_of("pair", derived_mode="Exclusive")
+        interp.ptr_read(p_pair, into_owner="moved")
+
+        p_moved = interp.address_of("moved", derived_mode="Exclusive")
+        p_moved_a = interp.address_of("moved.a", derived_mode="Exclusive")
+        p_moved_b = interp.address_of("moved.b", derived_mode="Exclusive")
+
+        interp.ptr_read(p_moved)
+        interp.ptr_write(p_moved_a)
+        interp.raw_read(p_moved_a)
+        self.assertEqual([], interp.violations)
+
+        interp.raw_read(p_moved_b)
+        self.assertEqual(["UB5"], [v.code for v in interp.violations])
+
     def test_al2_ub2_old_ptr_rejected_after_same_name_reallocation(self):
         """AL2 / UB2：旧 owner 析构后重新分配同名存储，旧指针仍须因分配实例不匹配报 UB2。"""
         interp = U0.U0RawInterpreter()
