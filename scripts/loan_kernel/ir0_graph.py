@@ -351,3 +351,63 @@ def verify_ir2_invariants(graph: OwnershipGraph) -> List[str]:
                 stack.append((succ, next_own, next_loans, next_flags))
 
     return sorted(set(violations))
+
+
+# ---- IR0 §2.5 #3：影子差分门槛（生产检查器 vs 图参考检查器）
+
+DIFF_CATEGORIES = frozenset({
+    "ProdBug",
+    "GraphBuilderBug",
+    "SpecAmbiguity",
+    "ApprovedRelaxation",
+})
+
+
+@dataclass(frozen=True)
+class DiagnosticOutcome:
+    case_id: str
+    accepted: bool
+    codes: Tuple[str, ...] = ()
+    primary_span: Optional[Span] = None
+
+
+@dataclass(frozen=True)
+class ShadowDiffReport:
+    total: int
+    matched: int
+    unexplained: Tuple[str, ...]
+    categorized: Tuple[Tuple[str, str], ...]
+
+    @property
+    def ir3_switch_allowed(self) -> bool:
+        return len(self.unexplained) == 0
+
+
+def evaluate_shadow_diff(
+    prod: Dict[str, DiagnosticOutcome],
+    graph: Dict[str, DiagnosticOutcome],
+    classifications: Optional[Dict[str, str]] = None,
+) -> ShadowDiffReport:
+    """对比生产检查器与图参考检查器的接受/拒绝、诊断码与主 Span；存在未归因差异时禁止 IR3 切换权威。"""
+    classifications = classifications or {}
+    all_ids = sorted(set(prod) | set(graph))
+    matched = 0
+    unexplained: List[str] = []
+    categorized: List[Tuple[str, str]] = []
+    for cid in all_ids:
+        p = prod.get(cid)
+        g = graph.get(cid)
+        if p == g and p is not None:
+            matched += 1
+            continue
+        cat = classifications.get(cid)
+        if cat in DIFF_CATEGORIES:
+            categorized.append((cid, cat))
+        else:
+            unexplained.append(cid)
+    return ShadowDiffReport(
+        total=len(all_ids),
+        matched=matched,
+        unexplained=tuple(unexplained),
+        categorized=tuple(categorized),
+    )

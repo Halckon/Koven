@@ -201,6 +201,31 @@ class Ir0GraphTests(unittest.TestCase):
         conflict_errs = IR0.verify_ir2_invariants(build(end_shared_before_activate=False))
         self.assertTrue(any("TWO_PHASE_ACTIVATE_CONFLICT" in e for e in conflict_errs))
 
+    def test_shadow_diff_blocks_ir3_switch_until_all_diffs_categorized(self):
+        """IR0 §2.5 #3：生产检查器与图参考检查器存在未归因差异时禁止 IR3 切换权威，全部归入四类后放行。"""
+        prod = {
+            "ok_case": IR0.DiagnosticOutcome("ok_case", True),
+            "span_diff": IR0.DiagnosticOutcome("span_diff", False, ("E_MOVE",), IR0.Span(10, 15)),
+            "relaxed": IR0.DiagnosticOutcome("relaxed", False, ("E_BORROW",), IR0.Span(20, 25)),
+        }
+        graph = {
+            "ok_case": IR0.DiagnosticOutcome("ok_case", True),
+            "span_diff": IR0.DiagnosticOutcome("span_diff", False, ("E_MOVE",), IR0.Span(10, 18)),
+            "relaxed": IR0.DiagnosticOutcome("relaxed", True),
+        }
+        blocked = IR0.evaluate_shadow_diff(prod, graph, {"relaxed": "ApprovedRelaxation"})
+        self.assertFalse(blocked.ir3_switch_allowed)
+        self.assertEqual(("span_diff",), blocked.unexplained)
+
+        allowed = IR0.evaluate_shadow_diff(
+            prod,
+            graph,
+            {"span_diff": "GraphBuilderBug", "relaxed": "ApprovedRelaxation"},
+        )
+        self.assertTrue(allowed.ir3_switch_allowed)
+        self.assertEqual(1, allowed.matched)
+        self.assertEqual((), allowed.unexplained)
+
 
 if __name__ == "__main__":
     unittest.main()
