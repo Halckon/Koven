@@ -1091,6 +1091,7 @@
   <path d="M 49892 936 C 49892 968, 49892 968, 49892 1000" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 49892 1092 C 49892 1124, 49892 1124, 49892 1156" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 49892 1248 C 49892 1280, 49892 1280, 49892 1312" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 49892 1404 C 49892 1436, 49892 1436, 49892 1468" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <rect x="60" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">SPEC-0001</text>
   <text x="180" y="105" text-anchor="middle" font-size="13">建立可检查的 Cargo w</text>
@@ -3291,4 +3292,9 @@
   <text x="49892" y="1353" text-anchor="middle" font-size="13">F6 第二十二片 opera</text>
   <text x="49892" y="1371" text-anchor="middle" font-size="13">tor 非法相邻运算符、表达</text>
   <text x="49892" y="1389" text-anchor="middle" font-size="13">式/类型起始、毒化层级与中…</text>
+  <rect x="49772" y="1468" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="49892" y="1491" text-anchor="middle" font-size="13" font-weight="600">SPEC-0523</text>
+  <text x="49892" y="1509" text-anchor="middle" font-size="13">F6 第二十三片 expre</text>
+  <text x="49892" y="1527" text-anchor="middle" font-size="13">ssion 前缀运算符、wh</text>
+  <text x="49892" y="1545" text-anchor="middle" font-size="13">en 条件分派、retur…</text>
 </svg>

@@ -1,3 +1,4 @@
+use super::expression_kernel::*;
 use super::*;
 
 impl Parser<'_> {
@@ -29,11 +30,7 @@ impl Parser<'_> {
                 break;
             }
             if stops.when_entry_body.is_some()
-                && matches!(
-                    current.kind(),
-                    LexemeKind::Token(TokenKind::Keyword(Keyword::Is | Keyword::In))
-                        | LexemeKind::Token(TokenKind::Symbol(Symbol::BangIs | Symbol::BangIn))
-                )
+                && is_when_body_line_break_infix_stop_kind(current.kind())
                 && self
                     .gap_has_line_break(self.expression_span(left)?.end(), current.span().start())?
             {
@@ -144,12 +141,7 @@ impl Parser<'_> {
         }
 
         let current = self.current()?;
-        let operator = match current.kind() {
-            LexemeKind::Token(TokenKind::Symbol(Symbol::Bang)) => Some(PrefixOperator::Not),
-            LexemeKind::Token(TokenKind::Symbol(Symbol::Plus)) => Some(PrefixOperator::Plus),
-            LexemeKind::Token(TokenKind::Symbol(Symbol::Minus)) => Some(PrefixOperator::Minus),
-            _ => None,
-        };
+        let operator = prefix_operator_for_kind(current.kind());
         if let Some(operator) = operator {
             let operator_span = self.bump()?.span();
             let operand = self.parse_expression_bp(PREC_PREFIX, stops)?;
@@ -573,50 +565,45 @@ impl Parser<'_> {
                 .with(Stops::ARROW)
                 .with(Stops::RIGHT_BRACE)
         };
-        if self.current_is_keyword(Keyword::Is) || self.current_is_symbol(Symbol::BangIs) {
-            let operator = self.bump()?;
-            let negated = matches!(
-                operator.kind(),
-                LexemeKind::Token(TokenKind::Symbol(Symbol::BangIs))
-            );
-            let type_ref = self.parse_type_ref(TypeStops::from_expression(condition_stops))?;
-            return Ok(WhenCondition::TypeTest {
-                operator_span: operator.span(),
-                negated,
-                type_ref,
-            });
-        }
-        if self.current_is_keyword(Keyword::In) || self.current_is_symbol(Symbol::BangIn) {
-            let operator = self.bump()?;
-            let negated = matches!(
-                operator.kind(),
-                LexemeKind::Token(TokenKind::Symbol(Symbol::BangIn))
-            );
-            let expression = if self.can_start_expression(self.current()?) {
-                self.parse_expression_bp(0, condition_stops)?
-            } else {
-                let span = self.boundary_span(self.current()?, condition_stops)?;
-                self.emit(codes::EXPECTED_CONDITION, "expected condition", span)?;
-                self.add_expression(span, Expression::Error)?
-            };
-            return Ok(WhenCondition::Contains {
-                operator_span: operator.span(),
-                negated,
-                expression,
-            });
-        }
-        if !self.can_start_expression(self.current()?) {
-            let span = self.boundary_span(self.current()?, condition_stops)?;
-            self.emit(codes::EXPECTED_WHEN_ENTRY, "expected when entry", span)?;
-            if !condition_stops.contains(self.current()?) {
-                self.bump()?;
+        let current = self.current()?;
+        match when_condition_dispatch(current.kind(), self.can_start_expression(current)) {
+            WhenConditionDispatch::TypeTest { negated } => {
+                let operator = self.bump()?;
+                let type_ref = self.parse_type_ref(TypeStops::from_expression(condition_stops))?;
+                Ok(WhenCondition::TypeTest {
+                    operator_span: operator.span(),
+                    negated,
+                    type_ref,
+                })
             }
-            let expression = self.add_expression(span, Expression::Error)?;
-            return Ok(WhenCondition::Expression(expression));
+            WhenConditionDispatch::Contains { negated } => {
+                let operator = self.bump()?;
+                let expression = if self.can_start_expression(self.current()?) {
+                    self.parse_expression_bp(0, condition_stops)?
+                } else {
+                    let span = self.boundary_span(self.current()?, condition_stops)?;
+                    self.emit(codes::EXPECTED_CONDITION, "expected condition", span)?;
+                    self.add_expression(span, Expression::Error)?
+                };
+                Ok(WhenCondition::Contains {
+                    operator_span: operator.span(),
+                    negated,
+                    expression,
+                })
+            }
+            WhenConditionDispatch::ExpectedWhenEntry => {
+                let span = self.boundary_span(current, condition_stops)?;
+                self.emit(codes::EXPECTED_WHEN_ENTRY, "expected when entry", span)?;
+                if !condition_stops.contains(current) {
+                    self.bump()?;
+                }
+                let expression = self.add_expression(span, Expression::Error)?;
+                Ok(WhenCondition::Expression(expression))
+            }
+            WhenConditionDispatch::Expression => Ok(WhenCondition::Expression(
+                self.parse_expression_bp(0, condition_stops)?,
+            )),
         }
-        Ok(WhenCondition::Expression(
-            self.parse_expression_bp(0, condition_stops)?,
-        ))
     }
 
     pub(super) fn parse_return(
@@ -625,11 +612,15 @@ impl Parser<'_> {
     ) -> Result<ExpressionId, ParserInternalError> {
         let keyword_span = self.bump()?.span();
         let current = self.current()?;
-        let value = if self.can_start_expression(current)
-            && !self.gap_has_line_break(keyword_span.end(), current.span().start())?
-            // A control primary starts the operand; block soft stops apply only after it.
-            && (!stops.contains(current) || control_expression_start_kind(current.kind()))
-        {
+        let can_start = self.can_start_expression(current);
+        let has_line_break =
+            can_start && self.gap_has_line_break(keyword_span.end(), current.span().start())?;
+        let value = if return_parses_value(
+            can_start,
+            has_line_break,
+            stops.contains(current),
+            control_expression_start_kind(current.kind()),
+        ) {
             Some(self.parse_expression_bp(0, stops)?)
         } else {
             None
@@ -744,10 +735,16 @@ impl Parser<'_> {
             current.kind(),
             LexemeKind::Token(TokenKind::Symbol(Symbol::RightParen))
         );
-        let declaration_tail = matches!(
-            current.kind(),
-            LexemeKind::Token(TokenKind::Symbol(Symbol::Semicolon))
-        ) || (self.file_mode && file_construct_start_kind(current.kind()));
+        let declaration_tail = is_group_declaration_tail_kind(current.kind(), self.file_mode);
+        let non_poison_action = group_non_poison_tail_action(
+            at_right_paren,
+            declaration_tail,
+            matches!(
+                current.kind(),
+                LexemeKind::Token(TokenKind::Symbol(Symbol::Comma))
+            ),
+            outer_stops.contains(current),
+        );
         let skipped = if poisoned {
             let preserve_block_separator =
                 outer_stops.delimiters & Stops::BLOCK_STATEMENT_SEPARATOR != 0;
@@ -771,13 +768,7 @@ impl Parser<'_> {
                     skipped
                 }
             }
-        } else if !at_right_paren
-            && !declaration_tail
-            && (matches!(
-                current.kind(),
-                LexemeKind::Token(TokenKind::Symbol(Symbol::Comma))
-            ) || !outer_stops.contains(current))
-        {
+        } else if non_poison_action == GroupNonPoisonTailAction::TryConfirmedCloser {
             self.skip_to_confirmed_group_closer(opener_raw, outer_stops)?
         } else {
             None
@@ -792,7 +783,8 @@ impl Parser<'_> {
             }
             let start = self.expression_span(inner)?.start();
             inner = self.add_expression(self.span(start, end)?, Expression::Error)?;
-        } else if !poisoned && !at_right_paren && declaration_tail {
+        } else if !poisoned && non_poison_action == GroupNonPoisonTailAction::RecoverDeclarationTail
+        {
             self.emit(
                 codes::UNEXPECTED_TRAILING_TOKEN,
                 "unexpected trailing token",
@@ -882,14 +874,16 @@ impl Parser<'_> {
                         self.bump()?.span().end()
                     } else {
                         let boundary = self.current()?.span();
-                        let lexer_owns_boundary = self
+                        let lexer_owns_owner_recovery = self
                             .lexical_recoveries
                             .unterminated_interpolation_starts
                             .binary_search(&interpolation_start.start())
-                            .is_ok()
-                            || (boundary.end() == self.lexical_recoveries.source_len
-                                && self.lexical_recoveries.terminal_error_at_eof);
-                        if !lexer_owns_boundary {
+                            .is_ok();
+                        if string_missing_closer_emits_diagnostic(
+                            lexer_owns_owner_recovery,
+                            boundary.end() == self.lexical_recoveries.source_len,
+                            self.lexical_recoveries.terminal_error_at_eof,
+                        ) {
                             self.emit_closing(boundary, interpolation_start)?;
                         }
                         expression_span.end().max(interpolation_start.end())
@@ -915,13 +909,15 @@ impl Parser<'_> {
                     }
                 }
                 _ => {
-                    let lexer_owns_boundary = self
+                    let lexer_owns_owner_recovery = self
                         .lexical_recoveries
                         .string_recovery_end(opener.start())
-                        .is_some()
-                        || (current.span().end() == self.lexical_recoveries.source_len
-                            && self.lexical_recoveries.terminal_error_at_eof);
-                    if !lexer_owns_boundary {
+                        .is_some();
+                    if string_missing_closer_emits_diagnostic(
+                        lexer_owns_owner_recovery,
+                        current.span().end() == self.lexical_recoveries.source_len,
+                        self.lexical_recoveries.terminal_error_at_eof,
+                    ) {
                         self.emit_closing(self.boundary_span(current, Stops::ROOT)?, opener)?;
                     }
                     break;

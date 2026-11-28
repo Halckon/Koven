@@ -23,6 +23,11 @@ mod destructuring_kani;
 #[cfg(test)]
 mod destructuring_tests;
 mod expression;
+#[cfg(kani)]
+mod expression_kani;
+mod expression_kernel;
+#[cfg(test)]
+mod expression_tests;
 mod file;
 #[cfg(kani)]
 mod file_kani;
