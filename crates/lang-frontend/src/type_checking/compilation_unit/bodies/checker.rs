@@ -79,7 +79,7 @@ mod while_flow;
 
 use super::super::signatures::collect_signatures_with_files;
 use expression_facts::ExpressionExpected;
-use flow::{FlowKey, FlowVersions};
+use flow::{FlowFacts, FlowKey, FlowVersions};
 pub(super) use type_graph::unit_assignable;
 
 use super::{
@@ -151,7 +151,7 @@ pub(super) struct BodyChecker<'a> {
     references: BTreeMap<(SourceUnitId, usize, usize, u8), UnitReferenceTarget>,
     symbols_by_span: BTreeMap<(SourceUnitId, usize, usize, u8), UnitSymbolId>,
     stable_flow_symbols: BTreeSet<UnitSymbolId>,
-    flow_facts: BTreeMap<FlowKey, UnitTypeId>,
+    flow_facts: FlowFacts,
     flow_versions: FlowVersions,
     inactive_inout_calls: BTreeSet<UnitExpressionId>,
     pending_immutable_bindings: BTreeSet<UnitSymbolId>,
@@ -252,7 +252,7 @@ impl<'a> BodyChecker<'a> {
             references,
             symbols_by_span,
             stable_flow_symbols: BTreeSet::new(),
-            flow_facts: BTreeMap::new(),
+            flow_facts: FlowFacts::default(),
             flow_versions: FlowVersions::default(),
             inactive_inout_calls: BTreeSet::new(),
             pending_immutable_bindings: BTreeSet::new(),

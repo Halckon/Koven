@@ -350,7 +350,7 @@ impl BodyChecker<'_> {
                     self.flow_versions.set_pending_keys(yes.iter().copied());
                 }
                 let (true_facts, _) = self.condition_facts(source, condition)?;
-                self.flow_facts = flow::extend_facts(&self.flow_facts, &true_facts);
+                self.flow_facts = self.flow_facts.with_conditions(&true_facts);
                 let ordinary =
                     self.parts
                         .structural_boolean_outcomes_at(source, self.file(source), condition);

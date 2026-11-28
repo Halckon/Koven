@@ -723,7 +723,7 @@ pub(crate) struct CompilationUnitSignatureFacts {
 pub(crate) struct SignatureProvenance {
     names_are_valid: bool,
     input_index: CompilationUnitIndex,
-    environment_owner: Arc<()>,
+    environment_snapshot_owner: Arc<()>,
     name_analysis_owners: Vec<Arc<()>>,
     analysis_owner: Arc<()>,
 }
@@ -731,13 +731,13 @@ pub(crate) struct SignatureProvenance {
 impl SignatureProvenance {
     pub(crate) fn new(
         input_index: CompilationUnitIndex,
-        environment_owner: Arc<()>,
+        environment_snapshot_owner: Arc<()>,
         name_analysis_owners: Vec<Arc<()>>,
         names_are_valid: bool,
     ) -> Self {
         Self {
             input_index,
-            environment_owner,
+            environment_snapshot_owner,
             name_analysis_owners,
             names_are_valid,
             analysis_owner: Arc::new(()),

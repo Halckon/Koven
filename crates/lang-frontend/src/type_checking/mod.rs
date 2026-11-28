@@ -51,7 +51,7 @@ mod text_primitive;
 pub use text_extension::{TextExtensionBinding, TextExtensionKind};
 pub use text_primitive::TextPrimitiveKind;
 
-use std::{sync::Arc, thread};
+use std::thread;
 
 use crate::{
     name_resolution::{NameEnvironment, NameResolution},
@@ -252,7 +252,7 @@ pub fn check_types(
     if parsed.source_id() != names.source_id() {
         return Err(TypeCheckingError::MismatchedNameSource);
     }
-    if !Arc::ptr_eq(names.environment_owner(), environment.owner()) {
+    if !environment.is_compatible_with_names(names) {
         return Err(TypeCheckingError::MismatchedNameEnvironment);
     }
     thread::scope(|scope| {

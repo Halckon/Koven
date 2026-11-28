@@ -12,6 +12,7 @@ impl TypeEnvironment {
         sources.source_text(source)?;
         if !self.text_sources.contains(&source) {
             self.text_sources.push(source);
+            self.advance_snapshot();
         }
         Ok(())
     }
@@ -31,6 +32,7 @@ impl TypeEnvironment {
         sources.source_text(source)?;
         if !self.range_extension_sources.contains(&source) {
             self.range_extension_sources.push(source);
+            self.advance_snapshot();
         }
         Ok(())
     }
@@ -50,6 +52,7 @@ impl TypeEnvironment {
         sources.source_text(source)?;
         if !self.range_sources.contains(&source) {
             self.range_sources.push(source);
+            self.advance_snapshot();
         }
         Ok(())
     }

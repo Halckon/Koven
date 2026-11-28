@@ -183,13 +183,32 @@ impl<'a, 'b> SyntacticJumps<'a, 'b> {
                         })
                         .collect(),
                 ),
+                Expression::Member { receiver, .. } => {
+                    Rule::Sequence(vec![Node::Expression(*receiver)])
+                }
                 Expression::Call {
                     callee, arguments, ..
-                } if matches!(ast.expressions().get(*callee)?.payload(), Expression::Name) => {
+                } => {
+                    let receiver = match ast.expressions().get(*callee)?.payload() {
+                        Expression::Name => None,
+                        Expression::Member {
+                            receiver,
+                            safe: false,
+                            ..
+                        } => Some(*receiver),
+                        // Only receiver evaluation is unconditional for a safe call.
+                        Expression::Member {
+                            receiver,
+                            safe: true,
+                            ..
+                        } => return Ok(Rule::Sequence(vec![Node::Expression(*receiver)])),
+                        _ => return Ok(Rule::Known(false)),
+                    };
                     Rule::Sequence(
-                        arguments
-                            .iter()
-                            .map(|arg| Node::Expression(arg.value))
+                        receiver
+                            .into_iter()
+                            .chain(arguments.iter().map(|arg| arg.value))
+                            .map(Node::Expression)
                             .collect(),
                     )
                 }
@@ -238,5 +257,39 @@ impl<'a, 'b> SyntacticJumps<'a, 'b> {
                 _ => Rule::Known(false),
             },
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{lexer::lex, parser::parse_file, source::SourceMap};
+
+    #[test]
+    fn a_safe_member_call_may_complete_without_evaluating_its_argument() {
+        let mut sources = SourceMap::new();
+        let source = sources
+            .add_source(
+                "safe-member.ko",
+                "fun run(): Unit { loop { gate?.cond(break); gate(break)?.cond(0) } }",
+            )
+            .unwrap();
+        let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
+        assert!(parsed.diagnostics().is_empty());
+        let ast = parsed.ast();
+        let outcomes = SyntacticBooleanOutcomes::new(ast);
+        let mut jumps = SyntacticJumps::new(&outcomes);
+        for (source_text, stops) in [("gate?.cond(break)", false), ("gate(break)?.cond(0)", true)] {
+            let (call, _) = ast
+                .expressions()
+                .iter()
+                .find(|(_, node)| sources.slice(node.span()) == Ok(source_text))
+                .expect("the original safe member call");
+            assert_eq!(
+                jumps.expression_stops(call).unwrap(),
+                stops,
+                "{source_text}"
+            );
+        }
     }
 }

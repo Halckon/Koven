@@ -578,8 +578,8 @@ pub fn validate_compilation_unit_body_inputs(
         || unit_names.source_units().iter().any(|source| {
             source.resolution().source_id()
                 != unit_names.index().source_units()[source.source_unit().index()].source_id()
-                || !Arc::ptr_eq(source.resolution().environment_owner(), environment.owner())
         })
+        || !environment.is_compatible_with_unit_names(unit_names)
     {
         return Err(CompilationUnitTypeError::MismatchedNameEnvironment);
     }

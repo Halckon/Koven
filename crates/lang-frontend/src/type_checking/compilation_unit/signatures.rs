@@ -162,7 +162,7 @@ impl<'a> SignatureCollector<'a> {
         .cloned()
         .collect();
         let input_index = self.names.index().clone();
-        let environment_owner = self.environment.owner().clone();
+        let environment_snapshot_owner = self.environment.snapshot_owner().clone();
         let name_analysis_owners = self
             .names
             .source_units()
@@ -171,7 +171,7 @@ impl<'a> SignatureCollector<'a> {
             .collect();
         let provenance = SignatureProvenance::new(
             input_index,
-            environment_owner,
+            environment_snapshot_owner,
             name_analysis_owners,
             self.names.is_valid(),
         );

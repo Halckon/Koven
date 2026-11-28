@@ -362,8 +362,8 @@ mod tests {
         assert_eq!(snapshot.names(), &expected);
         assert_eq!(snapshot.environment(), &expected_environment);
         assert!(std::sync::Arc::ptr_eq(
-            &snapshot.environment().owner(),
-            &expected_environment.owner(),
+            snapshot.environment().declarations().owner(),
+            expected_environment.declarations().owner(),
         ));
         assert_eq!(snapshot.validated_names().is_some(), expected_valid);
         let inputs = snapshot.inputs();
