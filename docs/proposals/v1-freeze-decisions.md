@@ -117,7 +117,11 @@ Spec 编号全局唯一且有进行中的分支在使用，为尚未起草的功
 - **非目标**：不要求现在就能对第二个实现运行。
 - **验收**：对现有 `conformance/expectations.json` 做一次核对，列出其中引用了内部产物的条目（若有）及处置。
 
-依据：[之十](evolution-10-coverage-gaps.md) §7.9。本项未检查现有矩阵是否已经满足；核对本身就是验收的第一步。
+依据：[之十](evolution-10-coverage-gaps.md) §7.9。**2026-11-28 首次离线核对结果**（由 `scripts/loan_kernel/v1_freeze_audit.py` + `scripts/tests/test_v1_freeze_audit.py` 只读扫描真实 `conformance/expectations.json`，共 174 条 `probes` + `programs`）：
+- 内嵌 `kind == "known_unimplemented"` 共 **24 条**（待 V2 Spec 将其移出为矩阵外登记，仅在矩阵保留目标可观察期望）；
+- 在 `baseline_marker` / `allowed_markers` 中引用编译器内部错误类别名（如 `BE:UnsupportedNode`、`BE:MissingFact`、`BE:InvalidSsa`、`BE:UnsupportedSource`）共 **49 条**（待 V2 剥离内部标记，只保留公开可观察结果与外部基线记录）；
+- 携带内部枚举符号名（`diagnostic_symbol` / `all_diagnostic_symbols`）共 **18 条**（待 V2 收敛为仅保留公开诊断码与源码位置）。
+- 同脚本亦固化了 Z4 / Z5 / Z6 / Z8 / Z11 的可执行回归单测（6 组）。
 
 ### Z11 目录枚举遇到不可表示的文件名（L6）
 
