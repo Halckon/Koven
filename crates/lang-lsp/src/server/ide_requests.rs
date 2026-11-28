@@ -357,26 +357,32 @@ pub(super) fn rename_response(
 pub(super) fn completion_response(
     params: serde_json::Value,
     state: &SessionState,
+    snippet_support: bool,
 ) -> Result<Option<CompletionResponse>, RequestError> {
     let params: CompletionParams = serde_json::from_value(params)
         .map_err(|error| RequestError::InvalidParams(error.to_string()))?;
     let pos = params.text_document_position;
     let items = match state {
         SessionState::Unit { session, fallback } => {
-            if session.contains_uri(&pos.text_document.uri) {
-                session
-                    .completions(&pos.text_document.uri, pos.position)
-                    .map_err(map_unit_query_error)?
+            if let Some((snap, su, sid)) = session.query_context(&pos.text_document.uri) {
+                let sources = snap.name_snapshot().sources();
+                let Some(offset) =
+                    byte_offset(sources, sid, pos.position).map_err(map_position_error)?
+                else {
+                    return Ok(None);
+                };
+                completion::completions_at_with_options(snap, su, sid, offset, snippet_support)
             } else if let Some(document) = fallback.get(pos.text_document.uri.as_str()) {
                 let Some((source_unit, offset)) = single_document_offset(document, pos.position)?
                 else {
                     return Ok(None);
                 };
-                completion::completions_at(
+                completion::completions_at_with_options(
                     &document.analysis,
                     source_unit,
                     document.source_id,
                     offset,
+                    snippet_support,
                 )
             } else {
                 return Ok(None);
@@ -390,7 +396,13 @@ pub(super) fn completion_response(
             else {
                 return Ok(None);
             };
-            completion::completions_at(&document.analysis, source_unit, document.source_id, offset)
+            completion::completions_at_with_options(
+                &document.analysis,
+                source_unit,
+                document.source_id,
+                offset,
+                snippet_support,
+            )
         }
     };
     Ok(Some(CompletionResponse::Array(items)))

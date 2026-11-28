@@ -12,9 +12,10 @@ use lang_frontend::{
     source::SourceId,
     type_checking::{BuiltinType, CompilationUnitTypes, UnitTypeId, UnitTypeKind},
 };
-use lsp_types::{CompletionItem, CompletionItemKind};
+use lsp_types::{CompletionItem, CompletionItemKind, InsertTextFormat, Range, TextEdit};
 
 use crate::{
+    code_actions::import_insertion_point,
     ide_features::format_unit_type,
     scope_query::{
         collect_qualifier_segments, expression_type_ending_at, find_local_symbol_in_scope,
@@ -65,8 +66,47 @@ const BUILTIN_FUNCTIONS: &[(&str, &str)] = &[
     ),
 ];
 
-/// 计算给定位置的补全候选（支持 `.` / `?.` 成员与多段包补全，以及作用域/导入感知标识符补全）。
+/// 计算给定位置的补全候选（支持 `.` / `?.` 成员与多段包补全、作用域/导入感知标识符补全与可选 Snippet）。
+#[allow(dead_code)]
 pub(crate) fn completions_at(
+    snapshot: &UnitAnalysisSnapshot,
+    source_unit: SourceUnitId,
+    source_id: SourceId,
+    offset: usize,
+) -> Vec<CompletionItem> {
+    completions_at_with_options(snapshot, source_unit, source_id, offset, false)
+}
+
+/// 带客户端 `snippet_support` 选项计算补全候选。
+pub(crate) fn completions_at_with_options(
+    snapshot: &UnitAnalysisSnapshot,
+    source_unit: SourceUnitId,
+    source_id: SourceId,
+    offset: usize,
+    snippet_support: bool,
+) -> Vec<CompletionItem> {
+    let mut items = compute_completions(snapshot, source_unit, source_id, offset);
+    if snippet_support {
+        for item in &mut items {
+            if matches!(
+                item.kind,
+                Some(CompletionItemKind::FUNCTION | CompletionItemKind::METHOD)
+            ) && item.insert_text.is_none()
+            {
+                let empty_params = item.detail.as_deref().is_some_and(|d| d.starts_with("()"));
+                item.insert_text = Some(if empty_params {
+                    format!("{}()", item.label)
+                } else {
+                    format!("{}($1)", item.label)
+                });
+                item.insert_text_format = Some(InsertTextFormat::SNIPPET);
+            }
+        }
+    }
+    items
+}
+
+fn compute_completions(
     snapshot: &UnitAnalysisSnapshot,
     source_unit: SourceUnitId,
     source_id: SourceId,
@@ -785,6 +825,59 @@ fn scope_completions(
             detail,
             rank,
         );
+    }
+
+    // 2b. Cross-package unimported accessible declarations with `additionalTextEdits` auto-import.
+    if !prefix_lower.is_empty()
+        && let Ok(text) = sources.source_text(source_id)
+        && let Ok((insert_pos, insert_prefix, insert_suffix)) =
+            import_insertion_point(sources, source_id, parsed_file, text)
+    {
+        for decl in names.index().declarations() {
+            if Some(decl.package()) == current_pkg
+                || !matches!(
+                    decl.visibility(),
+                    DeclarationVisibility::Public | DeclarationVisibility::Internal
+                )
+                || !matches_prefix(decl.name(), &prefix_lower)
+                || items.contains_key(decl.name())
+            {
+                continue;
+            }
+            let Some(pkg_name) = names
+                .index()
+                .packages()
+                .get(decl.package().index())
+                .and_then(|p| p.name())
+            else {
+                continue;
+            };
+            let fqn = if pkg_name.is_default() {
+                decl.name().to_owned()
+            } else {
+                format!("{}.{}", pkg_name.segments().join("."), decl.name())
+            };
+            let base_detail = typed.and_then(|t| decl_detail(decl.id(), t, names));
+            let detail = match base_detail {
+                Some(d) => Some(format!("{d} (import {fqn})")),
+                None => Some(format!("import {fqn}")),
+            };
+            let edit = TextEdit::new(
+                Range::new(insert_pos, insert_pos),
+                format!("{insert_prefix}import {fqn}{insert_suffix}"),
+            );
+            items.insert(
+                decl.name().to_owned(),
+                CompletionItem {
+                    label: decl.name().to_owned(),
+                    kind: Some(map_completion_kind(decl.kind())),
+                    detail,
+                    sort_text: Some(format!("2z_{}", decl.name())),
+                    additional_text_edits: Some(vec![edit]),
+                    ..CompletionItem::default()
+                },
+            );
+        }
     }
 
     // 3. Builtin functions and types from standard_environments().

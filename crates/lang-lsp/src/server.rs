@@ -2,6 +2,7 @@
 
 mod ide_p3_requests;
 mod ide_requests;
+mod notifications;
 
 use std::{collections::BTreeMap, error::Error, fmt};
 
@@ -11,28 +12,32 @@ use lsp_server::{Connection, ErrorCode, Message, Notification, Request, Response
 use lsp_types::{
     CodeActionKind, CodeActionOptions, CodeActionProviderCapability, CompletionOptions,
     DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
-    FoldingRangeProviderCapability, GotoDefinitionParams, GotoDefinitionResponse,
-    HoverProviderCapability, InitializeParams, InitializeResult, Location, LogMessageParams,
-    MessageType, OneOf, PositionEncodingKind, PublishDiagnosticsParams, RenameOptions,
+    DidSaveTextDocumentParams, FoldingRangeProviderCapability, GotoDefinitionParams,
+    GotoDefinitionResponse, HoverProviderCapability, ImplementationProviderCapability,
+    InitializeParams, InitializeResult, Location, LogMessageParams, MessageType, OneOf,
+    PositionEncodingKind, PublishDiagnosticsParams, RenameOptions, SaveOptions,
     SemanticTokensFullOptions, SemanticTokensOptions, SemanticTokensServerCapabilities,
     ServerCapabilities, ServerInfo, SignatureHelpOptions, TextDocumentSyncCapability,
-    TextDocumentSyncKind, TextDocumentSyncOptions, TypeDefinitionProviderCapability, Uri,
+    TextDocumentSyncKind, TextDocumentSyncOptions, TextDocumentSyncSaveOptions,
+    TypeDefinitionProviderCapability, Uri,
     notification::{
-        DidChangeTextDocument, DidCloseTextDocument, DidOpenTextDocument, LogMessage,
-        Notification as LspNotification, PublishDiagnostics,
+        DidChangeTextDocument, DidChangeWatchedFiles, DidCloseTextDocument, DidOpenTextDocument,
+        DidSaveTextDocument, LogMessage, Notification as LspNotification, PublishDiagnostics,
     },
     request::{
         CodeActionRequest, Completion, DocumentHighlightRequest, DocumentSymbolRequest,
-        FoldingRangeRequest, Formatting, GotoDefinition, GotoTypeDefinition, HoverRequest,
-        InlayHintRequest, PrepareRenameRequest, References, Rename, Request as LspRequest,
-        SemanticTokensFullRequest, SignatureHelpRequest, WorkspaceSymbolRequest,
+        FoldingRangeRequest, Formatting, GotoDefinition, GotoImplementation, GotoTypeDefinition,
+        HoverRequest, InlayHintRequest, PrepareRenameRequest, References, Rename,
+        Request as LspRequest, SemanticTokensFullDeltaRequest, SemanticTokensFullRequest,
+        SignatureHelpRequest, WorkspaceSymbolRequest,
     },
 };
 
 use crate::{
     analysis::{AnalysisError, analyze},
     diagnostic_adapter::{DiagnosticMappingError, convert_unit_diagnostics_with_context},
-    position_adapter::{PositionMappingError, byte_offset, span_range},
+    position_adapter::{PositionMappingError, apply_content_changes, byte_offset, span_range},
+    semantic_tokens::SemanticTokenCache,
     source_set::SourceSetConfig,
     unit_analysis_snapshot::UnitAnalysisSnapshot,
     unit_session::{UnitDefinitionQueryError, UnitPublication, UnitSession, UnitSessionError},
@@ -93,6 +98,15 @@ pub(crate) fn run_with_options(
         .and_then(|t| t.code_action.as_ref())
         .and_then(|ca| ca.code_action_literal_support.as_ref())
         .is_some();
+    let snippet_support = initialize_params
+        .capabilities
+        .text_document
+        .as_ref()
+        .and_then(|t| t.completion.as_ref())
+        .and_then(|c| c.completion_item.as_ref())
+        .and_then(|item| item.snippet_support)
+        .unwrap_or(false);
+    let mut token_cache = SemanticTokenCache::default();
     let source_set = match SourceSetConfig::from_initialization_options(
         initialize_params.initialization_options.as_ref(),
     ) {
@@ -166,7 +180,7 @@ pub(crate) fn run_with_options(
         None => (SessionState::SingleDocument(BTreeMap::new()), None),
     };
     let initialize_result = InitializeResult {
-        capabilities: capabilities(supports_code_action_literals),
+        capabilities: capabilities(supports_code_action_literals, options.workspace_manifest),
         server_info: Some(ServerInfo {
             name: "koven-lsp".to_owned(),
             version: Some(env!("CARGO_PKG_VERSION").to_owned()),
@@ -211,7 +225,11 @@ pub(crate) fn run_with_options(
                         dispatch_json!(ide_requests::inlay_hint_response(params, &state))
                     }
                     Completion::METHOD => {
-                        dispatch_json!(ide_requests::completion_response(params, &state))
+                        dispatch_json!(ide_requests::completion_response(
+                            params,
+                            &state,
+                            snippet_support
+                        ))
                     }
                     SignatureHelpRequest::METHOD => {
                         dispatch_json!(ide_requests::signature_help_response(params, &state))
@@ -237,7 +255,16 @@ pub(crate) fn run_with_options(
                     Formatting::METHOD => dispatch_json!(formatting_response(params, &state)),
                     SemanticTokensFullRequest::METHOD => {
                         dispatch_json!(ide_p3_requests::semantic_tokens_full_response(
-                            params, &state
+                            params,
+                            &state,
+                            &mut token_cache
+                        ))
+                    }
+                    SemanticTokensFullDeltaRequest::METHOD => {
+                        dispatch_json!(ide_p3_requests::semantic_tokens_full_delta_response(
+                            params,
+                            &state,
+                            &mut token_cache
                         ))
                     }
                     DocumentHighlightRequest::METHOD => {
@@ -248,6 +275,9 @@ pub(crate) fn run_with_options(
                     }
                     GotoTypeDefinition::METHOD => {
                         dispatch_json!(ide_p3_requests::type_definition_response(params, &state))
+                    }
+                    GotoImplementation::METHOD => {
+                        dispatch_json!(ide_p3_requests::implementation_response(params, &state))
                     }
                     CodeActionRequest::METHOD => {
                         dispatch_json!(ide_p3_requests::code_action_response(
@@ -270,9 +300,18 @@ pub(crate) fn run_with_options(
                 }
             }
             Message::Notification(notification) => {
-                if let Err(error) =
-                    handle_notification(&connection, notification, &mut state, options)
+                if notification.method.as_str() == DidCloseTextDocument::METHOD
+                    && let Some(uri) = notification_document_uri(&notification)
                 {
+                    token_cache.remove(uri.as_str());
+                }
+                if let Err(error) = handle_notification(
+                    &connection,
+                    notification,
+                    &mut state,
+                    options,
+                    &initialize_params,
+                ) {
                     send_log(&connection, error.to_string())?;
                 }
             }
@@ -282,16 +321,27 @@ pub(crate) fn run_with_options(
     Ok(())
 }
 
-fn capabilities(supports_code_action_literals: bool) -> ServerCapabilities {
+fn capabilities(
+    supports_code_action_literals: bool,
+    workspace_manifest: bool,
+) -> ServerCapabilities {
     ServerCapabilities {
         position_encoding: Some(PositionEncodingKind::UTF16),
         text_document_sync: Some(TextDocumentSyncCapability::Options(
             TextDocumentSyncOptions {
                 open_close: Some(true),
-                change: Some(TextDocumentSyncKind::FULL),
+                change: Some(if workspace_manifest {
+                    TextDocumentSyncKind::INCREMENTAL
+                } else {
+                    TextDocumentSyncKind::FULL
+                }),
                 will_save: None,
                 will_save_wait_until: None,
-                save: None,
+                save: workspace_manifest.then_some(TextDocumentSyncSaveOptions::SaveOptions(
+                    SaveOptions {
+                        include_text: Some(false),
+                    },
+                )),
             },
         )),
         definition_provider: Some(OneOf::Left(true)),
@@ -316,6 +366,7 @@ fn capabilities(supports_code_action_literals: bool) -> ServerCapabilities {
         document_highlight_provider: Some(OneOf::Left(true)),
         folding_range_provider: Some(FoldingRangeProviderCapability::Simple(true)),
         type_definition_provider: Some(TypeDefinitionProviderCapability::Simple(true)),
+        implementation_provider: Some(ImplementationProviderCapability::Simple(true)),
         code_action_provider: supports_code_action_literals.then(|| {
             CodeActionProviderCapability::Options(CodeActionOptions {
                 code_action_kinds: Some(vec![
@@ -328,7 +379,7 @@ fn capabilities(supports_code_action_literals: bool) -> ServerCapabilities {
         semantic_tokens_provider: Some(SemanticTokensServerCapabilities::SemanticTokensOptions(
             SemanticTokensOptions {
                 legend: crate::semantic_tokens::legend(),
-                full: Some(SemanticTokensFullOptions::Bool(true)),
+                full: Some(SemanticTokensFullOptions::Delta { delta: Some(true) }),
                 range: None,
                 ..SemanticTokensOptions::default()
             },
@@ -367,7 +418,20 @@ fn handle_notification(
     notification: Notification,
     state: &mut SessionState,
     options: ServerOptions,
+    initialize_params: &InitializeParams,
 ) -> Result<(), NotificationError> {
+    if notification.method.as_str() == DidChangeWatchedFiles::METHOD {
+        if options.workspace_manifest {
+            notifications::handle_watched_files(
+                connection,
+                notification,
+                state,
+                options,
+                initialize_params,
+            )?;
+        }
+        return Ok(());
+    }
     match state {
         SessionState::SingleDocument(documents) => {
             handle_single_document_notification_with_options(
@@ -375,6 +439,7 @@ fn handle_notification(
                 notification,
                 documents,
                 options.diagnostic_context,
+                options.workspace_manifest,
             )
         }
         SessionState::Unit { session, fallback } => {
@@ -387,9 +452,15 @@ fn handle_notification(
                     notification,
                     fallback,
                     options.diagnostic_context,
+                    options.workspace_manifest,
                 );
             }
-            handle_unit_notification(connection, notification, session)
+            handle_unit_notification_with_options(
+                connection,
+                notification,
+                session,
+                options.workspace_manifest,
+            )
         }
     }
 }
@@ -405,7 +476,13 @@ fn handle_single_document_notification(
     notification: Notification,
     documents: &mut BTreeMap<String, OpenDocument>,
 ) -> Result<(), NotificationError> {
-    handle_single_document_notification_with_options(connection, notification, documents, false)
+    handle_single_document_notification_with_options(
+        connection,
+        notification,
+        documents,
+        false,
+        false,
+    )
 }
 
 fn handle_single_document_notification_with_options(
@@ -413,6 +490,7 @@ fn handle_single_document_notification_with_options(
     notification: Notification,
     documents: &mut BTreeMap<String, OpenDocument>,
     enrich_diagnostics: bool,
+    allow_incremental: bool,
 ) -> Result<(), NotificationError> {
     match notification.method.as_str() {
         DidOpenTextDocument::METHOD => {
@@ -428,19 +506,31 @@ fn handle_single_document_notification_with_options(
         }
         DidChangeTextDocument::METHOD => {
             let params: DidChangeTextDocumentParams = serde_json::from_value(notification.params)?;
-            let Some(_) = documents.get(params.text_document.uri.as_str()) else {
+            let Some(existing) = documents.get(params.text_document.uri.as_str()) else {
                 return Ok(());
             };
-            let [change] = params.content_changes.as_slice() else {
-                return Err(NotificationError::ExpectedSingleFullChange);
+            let new_text = if allow_incremental {
+                let current_text = existing
+                    .analysis
+                    .name_snapshot()
+                    .sources()
+                    .source_text(existing.source_id)
+                    .map_err(|_| NotificationError::ExpectedSingleFullChange)?;
+                apply_content_changes(current_text, &params.content_changes)
+                    .map_err(|_| NotificationError::ExpectedSingleFullChange)?
+            } else {
+                let [change] = params.content_changes.as_slice() else {
+                    return Err(NotificationError::ExpectedSingleFullChange);
+                };
+                if change.range.is_some() || change.range_length.is_some() {
+                    return Err(NotificationError::ExpectedSingleFullChange);
+                }
+                change.text.clone()
             };
-            if change.range.is_some() || change.range_length.is_some() {
-                return Err(NotificationError::ExpectedSingleFullChange);
-            }
             let document = OpenDocument::analyze(
                 &params.text_document.uri,
                 params.text_document.version,
-                &change.text,
+                &new_text,
             )?;
             publish_document(
                 connection,
@@ -460,10 +550,20 @@ fn handle_single_document_notification_with_options(
     Ok(())
 }
 
+#[cfg(test)]
 fn handle_unit_notification(
     connection: &Connection,
     notification: Notification,
     session: &mut UnitSession,
+) -> Result<(), NotificationError> {
+    handle_unit_notification_with_options(connection, notification, session, false)
+}
+
+fn handle_unit_notification_with_options(
+    connection: &Connection,
+    notification: Notification,
+    session: &mut UnitSession,
+    allow_incremental: bool,
 ) -> Result<(), NotificationError> {
     let update = match notification.method.as_str() {
         DidOpenTextDocument::METHOD => {
@@ -476,17 +576,49 @@ fn handle_unit_notification(
         }
         DidChangeTextDocument::METHOD => {
             let params: DidChangeTextDocumentParams = serde_json::from_value(notification.params)?;
-            let [change] = params.content_changes.as_slice() else {
-                return Err(NotificationError::ExpectedSingleFullChange);
+            let new_text = if allow_incremental {
+                let Some(current_text) = session.overlay_text(&params.text_document.uri) else {
+                    return Err(NotificationError::Unit(UnitSessionError::Protocol(
+                        format!(
+                            "source-set didChange references unopened URI {:?}",
+                            params.text_document.uri.as_str()
+                        ),
+                    )));
+                };
+                apply_content_changes(current_text, &params.content_changes)
+                    .map_err(|_| NotificationError::ExpectedSingleFullChange)?
+            } else {
+                let [change] = params.content_changes.as_slice() else {
+                    return Err(NotificationError::ExpectedSingleFullChange);
+                };
+                if change.range.is_some() || change.range_length.is_some() {
+                    return Err(NotificationError::ExpectedSingleFullChange);
+                }
+                change.text.clone()
             };
-            if change.range.is_some() || change.range_length.is_some() {
-                return Err(NotificationError::ExpectedSingleFullChange);
-            }
             session.prepare_change(
                 &params.text_document.uri,
                 params.text_document.version,
-                change.text.clone(),
+                new_text,
             )?
+        }
+        DidSaveTextDocument::METHOD => {
+            let params: DidSaveTextDocumentParams = serde_json::from_value(notification.params)?;
+            let uri = &params.text_document.uri;
+            let saved_text = params
+                .text
+                .or_else(|| session.overlay_text(uri).map(str::to_owned))
+                .or_else(|| {
+                    workspace_manifest::file_uri_to_path(uri)
+                        .and_then(|p| std::fs::read_to_string(p).ok())
+                });
+            let Some(saved_text) = saved_text else {
+                return Ok(());
+            };
+            let Some(update) = session.prepare_base_refresh(uri, saved_text)? else {
+                return Ok(());
+            };
+            update
         }
         DidCloseTextDocument::METHOD => {
             let params: DidCloseTextDocumentParams = serde_json::from_value(notification.params)?;
