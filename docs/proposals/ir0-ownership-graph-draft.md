@@ -102,7 +102,10 @@ projection = ".field(", FieldId, ")"       (* class / value class 字段投影 *
    - 任何差异必须归因到“生产实现缺陷 / 构图器缺陷 / 规格模糊 / 已批准语义放宽”四类之一；存在未解释差异时禁止切换权威（IR3）；
    - 必须包含手工故障注入测试（故意在已检查图中构造悬垂 loan、双析构或错调用目标），确认展开后不变量与跨阶段差分均能稳定拦截。
 
-**离线原型验证（2026-11-28）**：上述两层校验、故障注入与影子差分门槛已在非规范 Python 原型 `scripts/loan_kernel/ir0_graph.py` 与 `scripts/tests/test_ir0_graph.py`（6 组单测）中固化可复跑，覆盖：① 拒绝 `Poisoned` 图、悬空块/局部/loan、非法 `Span`/`DesugarOrigin` 与带后继的 `FatalAbort`；② 校验用户源码二次移动通过第一层结构校验并由第二层报 `USE_AFTER_MOVE`；③ `LexicalRequired` + `Conditional(DropFlagId)` 正交组合与去标志双析构故障注入；④ `Call.failure_bb` 清理漏清（`LEAK_ON_RETURN`）vs `FatalAbort` 跳过待运行析构；⑤ `LoanActivate` 两阶段激活冲突校验；⑥ `evaluate_shadow_diff` 生产检查器与图参考检查器差分归因及未归因差异阻断 IR3 切换权威。
+**离线原型验证（2026-11-28）**：
+- **归因统计与止损门槛（P0-2）**：`scripts/loan_kernel/ir0_attribution_sampler.py` 与 `scripts/tests/test_ir0_attribution_sampler.py`（2 组单测），支持从标准 `git log` 文本自动过滤触及 `ownership_checking` / `ssa` 的 `fix` 提交，互斥归入 C1–C4 并按止损门槛判定 `PROCEED_IR1_ADR` 或 `DOWNGRADE_REFERENCE_ONLY`。
+- **IR0 两层校验、故障注入与影子差分门槛**：`scripts/loan_kernel/ir0_graph.py` 与 `scripts/tests/test_ir0_graph.py`（6 组单测），覆盖 `Poisoned` / 悬空引用 / 非法 `Span` / `FatalAbort`、用户二次移动分层、`LexicalRequired` + `Conditional(DropFlagId)` 正交组合、`Call.failure_bb` vs `FatalAbort`、`LoanActivate` 两阶段激活冲突与 `evaluate_shadow_diff`。
+- **IR1 构图 + IR2 展开 + 真实全语料影子差分（P0-1）**：`scripts/loan_kernel/ir1_ir2_lowering.py` 与 `scripts/tests/test_ir1_ir2_lowering.py`（3 组单测），将 `checker.py` 全部 `cases/*.lk` 整值切片函数（150+ 函数，`early_drop=False/True`）构图为标准 `OwnershipGraph`，与 `DP.Verifier` 跑真实 `evaluate_shadow_diff` 达零未归因差异（`ir3_switch_allowed=True`），并对真实构图产物执行清空 `failure_bb` 与去析构标志的故障注入回归。
 
 ## 3. 多阶段路线图生成脚本扩展设计（之十三 §6）
 
