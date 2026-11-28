@@ -16,9 +16,9 @@
 | Phase 1 Parser | 2 | 0 | 1 | 2 | 0 | 0 | 5 |
 | Phase 2 名称/类型 | 24 | 8 | 3 | 24 | 0 | 0 | 59 |
 | Phase 3 所有权 | 18 | 7 | 3 | 10 | 0 | 0 | 38 |
-| Phase 4 SSA/native | 21 | 8 | 4 | 19 | 0 | 0 | 52 |
+| Phase 4 SSA/native | 22 | 9 | 3 | 18 | 0 | 0 | 52 |
 | Phase 5 标准库 | 2 | 0 | 1 | 9 | 0 | 0 | 12 |
-| Phase 6 工具 | 7 | 1 | 2 | 1 | 0 | 0 | 11 |
+| Phase 6 工具 | 8 | 1 | 1 | 1 | 0 | 0 | 11 |
 
 ## 矩阵
 
@@ -42,7 +42,7 @@
 | ✅ 已交付 | B16 | N1a 连续范围 carrier：take/drop/dropLast 与范围绑定局部控制流 | S0 | 已定义 |  |  | ● | ● | ● |  |  |
 | ✅ 已交付 | B17 | Rc<T> 核心路径与 Koven prelude（error、Pair、Result 源码） | S0 | 已定义 |  |  | ● | ● | ● |  |  |
 | ✅ 已交付 | B18 | kovenc build/run、本地 project、JSON Lines 诊断、LSP、formatter、TextMate 与 Tree-sitter | S0 | 已定义 |  |  |  |  |  |  | ● |
-| ▶ 进行中 | B18d | CLI 最终调试产物与双宿主源码断点 | P0 | 已定义 |  |  |  |  | ● |  | ● |
+| ✅ 已交付 | B18d | CLI 最终调试产物与双宿主源码断点 | P0 | 已定义 |  |  |  |  | ● |  | ● |
 | ✅ 已交付 | B19 | 可执行 tour 与 Guide Litmus 门禁 | S0 | — |  |  |  |  |  |  | ● |
 | ✅ 已交付 | B20 | Linux ASan/LSan 有界接线与资源程序随机生成首片（M4b） | S0 | — |  |  |  |  | ● |  |  |
 | ✅ 已交付 | B21 | 双宿主 preview 包与独立安装验收 | S0 | — |  |  |  |  |  |  | ● |
@@ -62,7 +62,7 @@
 | ◐ 部分 | N02 | when：Int/String/Char/MoveOnly enum subject、enum 方法内 when (this)、project 模式 enum case 条件 | P2 | 已定义 |  |  | ● | ● | ● |  |  |
 | ◐ 部分 | N03 | nullable 全路径：标量 T?、nullable 参数、Elvis、?.、!! | P2 | 已定义 |  |  | ● | ● | ● |  |  |
 | ◐ 部分 | N04 | 闭包：lambda 直接作实参、函数引用 ::f、move 闭包返回与存储 | P2 | 已定义 |  |  | ● | ● | ● |  |  |
-| ☐ 未开始 | N05 | Double/Float 运算与 Char 比较的 native 支持 | P2 | 已定义 |  |  |  |  | ● |  |  |
+| ◐ 部分 | N05 | Double/Float 运算与 Char 比较的 native 支持 | P2 | 已定义 |  |  |  |  | ● |  |  |
 | ◐ 部分 | N06 | interface bound 泛型调用、companion 函数调用、interface 实现与默认方法（单文件） | P2 | 已定义 |  |  | ● | ● | ● |  |  |
 | ◐ 部分 | N07 | Box.value / unbox() 与 Rc.value 字段投影 | P2 | 已定义 |  |  | ● | ● | ● |  |  |
 | ☐ 未开始 | N08 | Result + 后缀 ? 的 Int 与 String payload 全路径 | P2 | 已定义 |  |  | ● | ● | ● |  |  |
@@ -100,9 +100,9 @@
 | ☐ 未开始 | L21 | main 可返回 Result<Unit, E>（E : Display）：Err 时 stderr 输出 `error: …`，退出码 1（D9） | P4 | 已定义 |  |  | ● |  | ● | ● |  |
 | ☐ 未开始 | T1 | 受限线程：thread(move { }) : Thread<T>、join()、channel（多生产者单消费者）；drop 时隐式 join；worker abort 即进程 abort；只转移所有权（D5） | P4 | 需新增 |  |  | ● | ● | ● | ● |  |
 | ☐ 未开始 | L6b | time/sleep/math 基础 API | P4 | 需新增 |  |  | ● |  | ● | ● |  |
-| ☐ 未开始 | V1 | 六个验收程序（词频、配置解析、表达式求值、RAII 状态机、二进制编解码、链表/栈）双宿主运行正确且 ASan/LSan 干净 | P5 | — |  |  |  |  |  |  | ● |
+| ☐ 未开始 | V1 | 十个 V1 验收程序（词频、配置解析、表达式求值、RAII 状态机、二进制编解码、链表/栈、文本日志汇总、泛型查询管道、共享 DAG 析构、受限并发管道）双宿主运行正确且 ASan/LSan 干净 | P5 | — |  |  |  |  |  |  | ● |
 | ◐ 部分 | V2 | Conformance 矩阵：按 Guide 每章正反例，合法 100% 运行、非法 100% 前端诊断、0 ICE | P5 | — |  |  | ● | ● | ● |  |  |
-| ◐ 部分 | V3 | Linux ASan/LSan 覆盖整个矩阵与六个验收程序 | P5 | — |  |  |  |  | ● |  |  |
+| ◐ 部分 | V3 | Linux ASan/LSan 覆盖整个矩阵与十个 V1 验收程序 | P5 | — |  |  |  |  | ● |  |  |
 | ☐ 未开始 | V4 | M4b 随机生成扩展到 E3 之后的通用 lowering | P5 | — |  |  |  |  | ● |  |  |
 | ◐ 部分 | V5 | README、教程、Architecture 按实测能力重写；Guide 不含“当前实现到哪一步”的句子 | P5 | — |  |  |  |  |  |  |  |
 | ◐ 部分 | V6 | v1.0 发行：双宿主安装包、使用材料与已知限制 | P5 | — |  |  |  |  |  |  | ● |

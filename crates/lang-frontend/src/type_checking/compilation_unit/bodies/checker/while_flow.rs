@@ -261,6 +261,15 @@ impl BodyChecker<'_> {
         result
     }
 
+    pub(super) fn normal_flow_expression_completes(
+        &self,
+        source: SourceUnitId,
+        expression: ExpressionId,
+    ) -> Result<bool, crate::ast::AstError> {
+        Ok(self.operand_falls_through(source, expression)
+            && !self.expression_has_pending_abrupt_exit(source, expression)?)
+    }
+
     pub(super) fn expression_flow_writes(
         &self,
         source: SourceUnitId,
@@ -274,10 +283,7 @@ impl BodyChecker<'_> {
                     .inactive_inout_calls
                     .contains(&UnitExpressionId::new(source, call))
             },
-            |rhs| {
-                Ok(self.operand_falls_through(source, rhs)
-                    && !self.expression_has_pending_abrupt_exit(source, rhs)?)
-            },
+            |rhs| self.normal_flow_expression_completes(source, rhs),
             |branch| {
                 Ok(!self
                     .pending_abrupt_sites
@@ -344,7 +350,7 @@ impl BodyChecker<'_> {
                     self.flow_versions.set_pending_keys(yes.iter().copied());
                 }
                 let (true_facts, _) = self.condition_facts(source, condition)?;
-                self.flow_facts = flow::extend_facts(&self.flow_facts, &true_facts);
+                self.flow_facts = self.flow_facts.with_conditions(&true_facts);
                 let ordinary =
                     self.parts
                         .structural_boolean_outcomes_at(source, self.file(source), condition);

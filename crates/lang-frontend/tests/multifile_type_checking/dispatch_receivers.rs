@@ -1,6 +1,128 @@
 use super::*;
 
 #[test]
+fn bounded_member_call_uses_inherited_signature_and_keeps_parameter_receiver() {
+    let mut sources = SourceMap::new();
+    let (source, file) = parsed(
+        &mut sources,
+        "main.ko",
+        "interface Base<V> { fun echo(value: V): V }\n\
+         interface Child<A>: Base<A> {}\n\
+         fun <T: Child<Int>> read(x: T): Int = x.echo(7)",
+    );
+    let inputs = [SourceUnitInput::new("root", "main.ko", source, &file)];
+    let (names_env, types_env) = standard_environments();
+    let names = validated_names(&sources, &inputs, &names_env);
+    let typed = check_compilation_unit_types(&sources, &inputs, &names, &types_env).unwrap();
+    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+
+    let base = typed
+        .signatures()
+        .declaration(declaration(&names, "Base"))
+        .and_then(|signature| signature.nominal())
+        .unwrap();
+    let [call] = typed.calls() else {
+        panic!("expected one member call");
+    };
+    let lang_frontend::type_checking::UnitCallableTarget::Symbol(requirement) =
+        base.members()[0].target()
+    else {
+        panic!("expected a source interface member");
+    };
+    assert_eq!(call.target(), UnitCallTarget::Symbol(requirement));
+    let receiver = call.receiver().unwrap();
+    assert_eq!(receiver.mode(), ParameterMode::Borrow);
+    let read = typed
+        .signatures()
+        .declaration(declaration(&names, "read"))
+        .and_then(|signature| signature.callable())
+        .unwrap();
+    assert_eq!(receiver.ty(), read.parameters()[0].ty());
+    assert!(matches!(
+        typed.types().get(call.arguments()[0].parameter_type()),
+        Some(UnitTypeKind::Builtin(BuiltinType::Int))
+    ));
+    assert!(typed.validate().is_ok());
+}
+
+#[test]
+fn bounded_generic_member_checks_storage_only_in_the_selected_body() {
+    for (default_body, override_body, expected) in [
+        ("1", "{ val items = listOf<Y>(); return 2 }", &["L0125"][..]),
+        ("{ val items = listOf<X>(); return 1 }", "2", &[][..]),
+    ] {
+        let mut sources = SourceMap::new();
+        let text = format!(
+            "interface Action {{ fun <X> apply(): Int {} {default_body} }}\n\
+             class C(): Action {{ override fun <Y> apply(): Int {} {override_body} }}\n\
+             fun <T: Action> invoke(value: T): Int = value.apply<Nothing>()\n\
+             fun main(): Unit {{ val value = invoke(C()) }}",
+            if default_body.starts_with('{') {
+                ""
+            } else {
+                "="
+            },
+            if override_body.starts_with('{') {
+                ""
+            } else {
+                "="
+            },
+        );
+        let (source, file) = parsed(&mut sources, "main.ko", &text);
+        let inputs = [SourceUnitInput::new("root", "main.ko", source, &file)];
+        let (names_env, types_env) = standard_environments();
+        let names = validated_names(&sources, &inputs, &names_env);
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &types_env).unwrap();
+        assert_eq!(
+            typed
+                .diagnostics()
+                .iter()
+                .map(|d| d.code().to_string())
+                .collect::<Vec<_>>(),
+            expected,
+            "{text}"
+        );
+    }
+}
+
+#[test]
+fn default_self_checks_only_the_instantiated_overrides_storage() {
+    for (default_body, override_body, expected) in [
+        (
+            "= 1",
+            "{ val items = listOf<Y>(); return 2 }",
+            &["L0125"][..],
+        ),
+        ("{ val items = listOf<X>(); return 1 }", "= 2", &[][..]),
+    ] {
+        let mut sources = SourceMap::new();
+        let text = format!(
+            "interface Action {{\n\
+                 fun <X> apply(): Int {default_body}\n\
+                 fun through(): Int = this.apply<Nothing>()\n\
+             }}\n\
+             class C(): Action {{ override fun <Y> apply(): Int {override_body} }}\n\
+             fun <T: Action> invoke(value: T): Int = value.through()\n\
+             fun main(): Unit {{ val value = invoke(C()) }}"
+        );
+        let (source, file) = parsed(&mut sources, "main.ko", &text);
+        let inputs = [SourceUnitInput::new("root", "main.ko", source, &file)];
+        let (names_env, types_env) = standard_environments();
+        let names = validated_names(&sources, &inputs, &names_env);
+        let typed = check_compilation_unit_types(&sources, &inputs, &names, &types_env).unwrap();
+        assert_eq!(
+            typed
+                .diagnostics()
+                .iter()
+                .map(|d| d.code().to_string())
+                .collect::<Vec<_>>(),
+            expected,
+            "{text}"
+        );
+    }
+}
+
+#[test]
 fn concrete_override_publishes_static_abstract_requirement_dispatch() {
     let mut sources = SourceMap::new();
     let (source, file) = parsed(
@@ -347,6 +469,7 @@ fn instance_receiver_contracts_and_call_origins_are_source_qualified() {
     ));
     assert_eq!(explicit_receiver.mode(), ParameterMode::Borrow);
     assert_eq!(explicit_receiver.category(), ExpressionCategory::Place);
+    assert!(!explicit_receiver.is_qualified_super());
     assert!(matches!(
         implicit_receiver.origin(),
         UnitCallReceiverOrigin::ImplicitThis(owner) if owner == declaration(&names, "Holder")
@@ -359,6 +482,7 @@ fn instance_receiver_contracts_and_call_origins_are_source_qualified() {
         default_receiver.origin(),
         UnitCallReceiverOrigin::ImplicitThis(owner) if owner == declaration(&names, "Child")
     ));
+    assert!(default_receiver.is_qualified_super());
     assert!(
         typed
             .call(UnitExpressionId::new(unit, object_call))

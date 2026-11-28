@@ -7,6 +7,45 @@ use super::*;
 const RESULT: &str = "Result";
 const OK: &str = "Ok";
 const ERR: &str = "Err";
+const DISPLAY: &str = "Display";
+
+pub(super) fn locate_display(
+    environment: &NameEnvironment,
+    index: &CompilationUnitIndex,
+    files: &[&ParsedFile],
+) -> Result<Option<DeclarationId>, CompilationUnitNameError> {
+    let Some(source) = environment.display_source() else {
+        return Ok(None);
+    };
+    let missing = || CompilationUnitNameError::MissingBuiltinExport(DISPLAY);
+    let unit = index
+        .source_units()
+        .iter()
+        .find(|unit| unit.source_id() == source)
+        .ok_or_else(missing)?
+        .id();
+    let declaration = index
+        .declarations()
+        .iter()
+        .find(|declaration| {
+            declaration.source_unit() == unit
+                && declaration.namespace() == Namespace::Type
+                && declaration.name() == DISPLAY
+        })
+        .ok_or_else(missing)?;
+    let file = files.get(unit.index()).ok_or_else(missing)?;
+    let root = file
+        .ast()
+        .items()
+        .get(declaration.root())
+        .map_err(|_| missing())?;
+    if !matches!(root.payload(), crate::parser::Item::Classifier(item)
+        if matches!(item.kind, crate::parser::ClassifierKind::Interface { .. }))
+    {
+        return Err(missing());
+    }
+    Ok(Some(declaration.id()))
+}
 
 /// 一个内建 enum case 的值与类型身份。
 #[derive(Clone, Copy, Debug)]
@@ -110,6 +149,9 @@ impl UnitResolver<'_> {
         namespace: Namespace,
         name: &str,
     ) -> Option<UnitReferenceTarget> {
+        if namespace == Namespace::Type && name == DISPLAY {
+            return self.builtin_display.map(UnitReferenceTarget::Declaration);
+        }
         self.builtin?.target(namespace, name)
     }
 

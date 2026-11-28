@@ -239,6 +239,15 @@ impl Checker<'_, '_> {
         }
         let receiver = descriptor.receiver().expression();
         let receiver_ty = self.c(descriptor.receiver_type());
+        self.string_clone_receiver(expression, receiver, receiver_ty)
+    }
+
+    pub(super) fn string_clone_receiver(
+        &mut self,
+        expression: ExpressionId,
+        receiver: ExpressionId,
+        receiver_ty: UnitTypeId,
+    ) -> bool {
         if self.borrowed_string_name(receiver)
             || self.borrowed_rc_payload(expression, receiver, receiver_ty)
             || self.borrowed_container_element(expression, receiver, receiver_ty)
@@ -250,7 +259,16 @@ impl Checker<'_, '_> {
             self.migrated |= ok;
             return ok;
         }
-        if self.shared_field_read_type(receiver, None) == Some(receiver_ty) {
+        let temporary_parent = match self
+            .inputs
+            .shared_display_receiver(self.id(expression), self.id(receiver))
+        {
+            Some(lang_frontend::ownership_checking::UnitReceiverOwnershipTarget::Temporary(
+                owner,
+            )) => Some(*owner),
+            _ => None,
+        };
+        if self.shared_field_read_type(receiver, temporary_parent) == Some(receiver_ty) {
             self.migrated = true;
             return true;
         }
@@ -293,28 +311,6 @@ impl Checker<'_, '_> {
                 self.migrated |= admitted;
                 return admitted;
             }
-        }
-        self.expression(expression)
-    }
-
-    pub(super) fn string_equality_operand(
-        &mut self,
-        binary: ExpressionId,
-        expression: ExpressionId,
-    ) -> bool {
-        let Some(ty) = self.expression_type(expression) else {
-            return false;
-        };
-        if !self.inputs.is_nullable_string(ty) {
-            return self.operand(binary, expression, true);
-        }
-        self.note_nullable(ty);
-        let root = self.ungrouped(expression);
-        if let Some(symbol) = self.direct_place_symbol(root)
-            && self.symbol_type(symbol) == Some(ty)
-            && self.borrowed_nullable_presence(symbol, ty) == Some(true)
-        {
-            return self.known.contains(&symbol);
         }
         self.expression(expression)
     }
@@ -395,7 +391,9 @@ impl Checker<'_, '_> {
                     parent
                 } else if allow_rc_parent && let Some(parent) = self.rc_value_owner(receiver_expr) {
                     parent
-                } else if temporary_parent == Some(self.id(self.ungrouped(receiver_expr))) {
+                } else if temporary_parent == Some(receiver)
+                    || temporary_parent == Some(self.id(self.ungrouped(receiver_expr)))
+                {
                     let parent = self.expression_type(receiver_expr)?;
                     if self
                         .inputs
@@ -567,15 +565,19 @@ pub(in crate::ssa::refine) mod control {
         let (accepted, retry) = accepts_with_loop_route(inputs, LoopRoute::Existing);
         accepted
             || retry
-                && has_destructuring_candidate(inputs)
+                && has_loop_route_candidate(inputs)
                 && accepts_with_loop_route(inputs, LoopRoute::Candidate).0
     }
 
-    // Span membership only avoids a retry on unrelated files. The retry itself must
-    // see the descriptor through this callable's normal reachable-body traversal.
-    fn has_destructuring_candidate(inputs: &RefineInputs<'_>) -> bool {
+    // A possible qualifier permits retry. Only the normal body walk can confirm the route.
+    fn has_loop_route_candidate(inputs: &RefineInputs<'_>) -> bool {
         let Some(scope) = inputs.scope_span() else {
             return false;
+        };
+        let inside = |span: Span| {
+            span.source_id() == scope.source_id()
+                && scope.start() <= span.start()
+                && span.end() <= scope.end()
         };
         inputs.typed.destructurings().iter().any(|descriptor| {
             let statement = descriptor.statement();
@@ -586,12 +588,9 @@ pub(in crate::ssa::refine) mod control {
                     .ast()
                     .statements()
                     .get(statement.statement())
-                    .is_ok_and(|node| {
-                        let span = node.span();
-                        span.source_id() == scope.source_id()
-                            && scope.start() <= span.start()
-                            && span.end() <= scope.end()
-                    })
+                    .is_ok_and(|node| inside(node.span()))
+        }) || inputs.parsed.ast().expressions().iter().any(|(_, node)| {
+            matches!(node.payload(), Expression::When { .. }) && inside(node.span())
         })
     }
 
@@ -738,7 +737,8 @@ pub(in crate::ssa::refine) mod control {
                 }
                 let inner_ok = match self.kind(nullable) {
                     Some(UnitTypeKind::Nullable(inner))
-                        if self.scalar(*inner)
+                        if self.nothing(*inner)
+                            || self.nullable_scalar_inner(*inner)
                             || self.range_type(*inner)
                             || self.value_class(*inner) =>
                     {

@@ -68,9 +68,6 @@ impl Checker<'_, '_> {
         seen: &mut BTreeSet<UnitTypeId>,
         ordered: &mut Vec<UnitTypeId>,
     ) {
-        if matches!(self.kind(ty), Some(UnitTypeKind::Nullable(inner)) if self.nothing(*inner)) {
-            return;
-        }
         if !(self.unit(ty) || self.storage_type(ty)) || !seen.insert(ty) {
             return;
         }
@@ -125,11 +122,13 @@ impl Checker<'_, '_> {
         match self.kind(ty) {
             Some(UnitTypeKind::Builtin(
                 lang_frontend::type_checking::BuiltinType::String
-                | lang_frontend::type_checking::BuiltinType::Char,
+                | lang_frontend::type_checking::BuiltinType::Char
+                | lang_frontend::type_checking::BuiltinType::Float
+                | lang_frontend::type_checking::BuiltinType::Double,
             )) => true,
             Some(UnitTypeKind::Nullable(inner)) => {
                 self.nothing(*inner)
-                    || self.scalar(*inner)
+                    || self.nullable_scalar_inner(*inner)
                     || self.range_type(*inner)
                     || self.value_class_seen(*inner, active)
                     || self.view_inner_seen(*inner, active)
@@ -479,12 +478,25 @@ impl Checker<'_, '_> {
         let Some(descriptor) = self.inputs.typed.non_null_assertion(id) else {
             return false;
         };
+        let operand = descriptor.operand();
+        let inner = self.c(descriptor.inner_type());
+        let nullable = self.c(descriptor.nullable_type());
+        self.note_nullable(nullable);
+        if self.nothing(inner) {
+            let source = operand.source_unit() == self.inputs.source_unit
+                && crate::ssa::lowering_support::is_null_only(self.inputs.typed, nullable)
+                && (self.inputs.typed.expression_falls_through(operand) == Some(false)
+                    || self
+                        .inputs
+                        .owned
+                        .non_null_assertion(id)
+                        .is_some_and(|plan| plan.descriptor() == &descriptor));
+            self.migrated |= source;
+            return source && self.expression(operand.expression());
+        }
         let Some(plan) = self.inputs.owned.non_null_assertion(id) else {
             return false;
         };
-        let operand = descriptor.operand();
-        let inner = self.c(descriptor.inner_type());
-        self.note_nullable(self.c(descriptor.nullable_type()));
         let transfer_ok = (plan.non_null_transfer() == NonNullAssertionTransferKind::Consume
             && self.view_inner(inner))
             || (plan.non_null_transfer() == NonNullAssertionTransferKind::Copy

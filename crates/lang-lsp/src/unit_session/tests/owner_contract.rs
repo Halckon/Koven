@@ -2,9 +2,7 @@
 use lang_frontend::{
     analysis::UnitNameAnalysisError,
     lexer::lex,
-    name_resolution::{
-        LogicalPathError, SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names,
-    },
+    name_resolution::{LogicalPathError, index_compilation_unit, resolve_compilation_unit_names},
     parser::parse_file,
 };
 
@@ -27,14 +25,7 @@ fn session_name_owner_matches_complete_same_source_manual_prefix_and_ast_pairing
             .descriptors()
             .iter()
             .zip(&parsed)
-            .map(|(unit, parsed)| {
-                SourceUnitInput::new(
-                    unit.root_identity().expect("rooted source"),
-                    unit.logical_path().expect("rooted source"),
-                    unit.source_id(),
-                    parsed,
-                )
-            })
+            .map(|(unit, parsed)| unit.as_input(parsed))
             .collect::<Vec<_>>();
         let index = index_compilation_unit(owner.sources(), &inputs).unwrap();
         let names =
@@ -47,7 +38,7 @@ fn session_name_owner_matches_complete_same_source_manual_prefix_and_ast_pairing
         let actual_inputs = owner.inputs();
         assert_eq!(actual_inputs.len(), parsed.len());
         assert_eq!(owner.parsed_files().len(), parsed.len());
-        assert_eq!(session.snapshot.source_ids.len(), parsed.len());
+        assert_eq!(session.snapshot.source_ids.len() + 1, parsed.len());
         for (i, ((descriptor, actual), expected)) in owner
             .descriptors()
             .iter()
@@ -55,9 +46,25 @@ fn session_name_owner_matches_complete_same_source_manual_prefix_and_ast_pairing
             .zip(&parsed)
             .enumerate()
         {
-            let source = &session.config.sources()[i];
             let indexed = &owner.names().index().source_units()[i];
-            assert_eq!(session.snapshot.source_ids[i], descriptor.source_id());
+            let source_id = descriptor.source_id();
+            assert_eq!(source_id, indexed.source_id());
+            if Some(source_id) == owner.names().builtin_display_source() {
+                assert_eq!(
+                    descriptor.logical_path(),
+                    Some(lang_frontend::analysis::DISPLAY_PATH)
+                );
+                assert_eq!(actual.roots(), expected.roots());
+                assert!(std::ptr::eq(actual_inputs[i].parsed(), actual));
+                continue;
+            }
+            let user_index = session
+                .snapshot
+                .source_ids
+                .iter()
+                .position(|id| *id == source_id)
+                .expect("configured source");
+            let source = &session.config.sources()[user_index];
             assert_eq!(
                 descriptor.root_identity().expect("rooted source"),
                 source.root()
@@ -66,7 +73,6 @@ fn session_name_owner_matches_complete_same_source_manual_prefix_and_ast_pairing
                 descriptor.logical_path().expect("rooted source"),
                 source.logical_path()
             );
-            assert_eq!(descriptor.source_id(), indexed.source_id());
             assert_eq!(
                 indexed.key().root().expect("rooted source").as_str(),
                 source.root()

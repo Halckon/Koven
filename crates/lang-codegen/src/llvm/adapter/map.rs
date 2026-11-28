@@ -23,7 +23,9 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
         owner: ValueId,
         name: &str,
     ) -> Result<IntValue<'ctx>, LlvmAdapterError> {
-        if let Some(is_null) = self.inline_nullable_is_null(owner, name)? {
+        if self.module.is_null_only(value_type(self.function, owner)?) {
+            Ok(self.context.bool_type().const_int(1, false))
+        } else if let Some(is_null) = self.inline_nullable_is_null(owner, name)? {
             Ok(is_null)
         } else if self
             .module

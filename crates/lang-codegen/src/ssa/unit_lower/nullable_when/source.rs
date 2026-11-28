@@ -1,6 +1,6 @@
 //! Same-analysis descriptor admission, one subject evaluation and exact use identity.
 use super::*;
-use lang_frontend::type_checking::{IntrinsicTypeConstructor, NominalKind};
+use crate::ssa::lowering_support::ordinary_nullable_when_heap_types;
 
 impl UnitExpressionLowerer<'_> {
     /// Type information is already published. Syntax only distinguishes the bounded
@@ -49,23 +49,7 @@ impl UnitExpressionLowerer<'_> {
             |ty| resolve_concrete_type(self.typed, ty, self.substitutions, self.static_self, span);
         let declared = concrete(descriptor.nullable_type())?;
         let narrowed = concrete(descriptor.inner_type())?;
-        let supported = match self.typed.types().get(narrowed) {
-            Some(UnitTypeKind::Nominal { declaration, .. }) => self
-                .typed
-                .signatures()
-                .declaration(*declaration)
-                .and_then(|signature| signature.nominal())
-                .is_some_and(|nominal| nominal.kind() == NominalKind::Class),
-            Some(UnitTypeKind::Intrinsic { constructor, .. }) => matches!(
-                constructor,
-                IntrinsicTypeConstructor::Box | IntrinsicTypeConstructor::Rc
-            ),
-            _ => false,
-        };
-        if !supported
-            || self.typed.copyability(declared) != Copyability::MoveOnly
-            || self.typed.copyability(narrowed) != Copyability::MoveOnly
-        {
+        if !ordinary_nullable_when_heap_types(self.typed, declared, narrowed) {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         let nullable = self

@@ -2,10 +2,14 @@
 
 use crate::{
     ast::ExpressionId,
+    diagnostic::codes,
     name_resolution::SourceUnitId,
     parser::{Expression, LiteralKind, StringPart},
     source::Span,
-    type_checking::{BuiltinType, CompilationUnitTypeError, TypeCheckingError, UnitTypeId},
+    type_checking::{
+        BuiltinType, CompilationUnitTypeError, TypeCheckingError, UnitCallableSignature,
+        UnitDisplayTarget, UnitInterpolationPart, UnitTypeId, UnitTypeKind, display,
+    },
 };
 
 use super::{
@@ -14,6 +18,120 @@ use super::{
 };
 
 impl BodyChecker<'_> {
+    pub(super) fn display_requirement(&self) -> Option<&UnitCallableSignature> {
+        let declaration = self.names.builtin_display_declaration()?;
+        self.signatures
+            .declaration(declaration)?
+            .nominal()?
+            .members()
+            .iter()
+            .find(|member| member.name() == "toString")
+    }
+
+    pub(super) fn is_display_interface(&self, ty: UnitTypeId) -> bool {
+        display::is_interface(
+            self.signatures.types(),
+            ty,
+            self.names.builtin_display_declaration(),
+        )
+    }
+
+    fn display_target(
+        &mut self,
+        ty: UnitTypeId,
+    ) -> Result<Option<UnitDisplayTarget>, CompilationUnitTypeError> {
+        if let Some(UnitTypeKind::Builtin(builtin)) = self.signatures.types().get(ty) {
+            return Ok(
+                display::builtin_witness(*builtin).then_some(UnitDisplayTarget::Builtin(*builtin))
+            );
+        }
+        let Some(signature) = self
+            .names
+            .builtin_display_declaration()
+            .and_then(|id| self.signatures.declaration(id))
+        else {
+            return Ok(None);
+        };
+        let interface = signature.ty();
+        let requirement = self
+            .display_requirement()
+            .map(UnitCallableSignature::target);
+        if !self.satisfies_interface(ty, interface)? {
+            return Ok(None);
+        }
+        Ok(Some(UnitDisplayTarget::Requirement(requirement.ok_or(
+            CompilationUnitTypeError::MissingDeclarationSymbol,
+        )?)))
+    }
+
+    fn check_interpolated_string(
+        &mut self,
+        key: UnitExpressionId,
+        parts: Vec<StringPart>,
+        return_type: UnitTypeId,
+    ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
+        let source = key.source_unit();
+        let mut flow = CallOperandFlow::new(true);
+        let mut plan = Vec::new();
+        let mut resolved = true;
+        let has_interpolation = parts
+            .iter()
+            .any(|part| matches!(part, StringPart::Interpolation { .. }));
+        for part in parts {
+            let reachable = flow.falls_through();
+            match part {
+                StringPart::Error(_) => resolved = false,
+                StringPart::Text(span) => {
+                    if has_interpolation && reachable {
+                        plan.push(UnitInterpolationPart::Text(span));
+                    }
+                }
+                StringPart::Interpolation { expression, .. } => {
+                    let result = flow.check(self, source, expression, None, None, return_type)?;
+                    let operand = UnitExpressionId::new(source, expression);
+                    let step = if self.is_error(result.ty)
+                        || self.contains_unresolved_call_type(result.ty)
+                    {
+                        None
+                    } else if !result.falls_through {
+                        Some(UnitInterpolationPart::Exit(operand))
+                    } else if let Some(target) = self.display_target(result.ty)? {
+                        Some(UnitInterpolationPart::Format { operand, target })
+                    } else {
+                        let span = self
+                            .file(source)
+                            .ast()
+                            .expressions()
+                            .get(expression)
+                            .map_err(TypeCheckingError::from)?
+                            .span();
+                        self.emit(
+                            codes::INVALID_OPERAND_TYPES,
+                            "string interpolation requires a Display value",
+                            span,
+                        )?;
+                        None
+                    };
+                    if reachable {
+                        if let Some(step) = step {
+                            plan.push(step);
+                        } else {
+                            resolved = false;
+                        }
+                    }
+                }
+            }
+        }
+        if has_interpolation && resolved {
+            self.parts.interpolation_plans.insert(key, plan);
+        }
+        self.note_pending_exit(PendingControlSite::Expression(key), flow.has_pending_exit());
+        Ok(ExpressionCheck {
+            ty: self.builtin(BuiltinType::String),
+            falls_through: flow.falls_through(),
+        })
+    }
+
     pub(super) fn check_expression(
         &mut self,
         source: SourceUnitId,
@@ -39,6 +157,25 @@ impl BodyChecker<'_> {
         expected_span: Option<Span>,
         return_type: UnitTypeId,
     ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
+        self.check_expression_with_normal_writes(
+            source,
+            expression,
+            expectation,
+            expected_span,
+            return_type,
+            None,
+        )
+    }
+
+    pub(super) fn check_expression_with_normal_writes(
+        &mut self,
+        source: SourceUnitId,
+        expression: ExpressionId,
+        expectation: Option<ExpressionExpected<'_>>,
+        expected_span: Option<Span>,
+        return_type: UnitTypeId,
+        normal_writes: Option<&mut Option<operators::LogicalNormalWrites>>,
+    ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
         let key = UnitExpressionId::new(source, expression);
         if let Some(ty) = self.parts.expression_types.get(&key).copied() {
             let falls_through = self
@@ -61,7 +198,64 @@ impl BodyChecker<'_> {
             Some(expectation) => expectation.context_for(self, &payload)?,
             None => None,
         };
-        let mut result = match payload {
+        // A grouped operand forwards the same context without keeping another
+        // full payload dispatch frame on the stack.
+        let mut result = if let Expression::Group { expression: inner } = payload {
+            let result = self.check_expression_with_normal_writes(
+                source,
+                inner,
+                expectation,
+                expected_span,
+                return_type,
+                normal_writes,
+            )?;
+            if self.storage_value_is_pending(UnitExpressionId::new(source, inner)) {
+                self.note_pending_storage_value(key, result.ty);
+            }
+            result
+        } else {
+            self.check_expression_payload(
+                key,
+                span,
+                payload,
+                expectation,
+                expected,
+                expected_span,
+                return_type,
+                normal_writes,
+            )?
+        };
+        // A non-completing expression retains its static shape but delivers no value.
+        if result.falls_through
+            && let Some(expectation) = expected.map(ExpressionExpected::Canonical).or(expectation)
+        {
+            result.ty = self.apply_expression_expectation(
+                key,
+                span,
+                result.ty,
+                expectation,
+                expected_span,
+            )?;
+        }
+        self.record_expression_check(key, result);
+        Ok(result)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn check_expression_payload(
+        &mut self,
+        key: UnitExpressionId,
+        span: Span,
+        payload: Expression,
+        expectation: Option<ExpressionExpected<'_>>,
+        expected: Option<UnitTypeId>,
+        expected_span: Option<Span>,
+        return_type: UnitTypeId,
+        normal_writes: Option<&mut Option<operators::LogicalNormalWrites>>,
+    ) -> Result<ExpressionCheck, CompilationUnitTypeError> {
+        let source = key.source_unit();
+        let expression = key.expression();
+        Ok(match payload {
             Expression::Error => ExpressionCheck {
                 ty: self.error_type(),
                 falls_through: true,
@@ -123,34 +317,9 @@ impl BodyChecker<'_> {
                 {
                     self.diagnostics.push(diagnostic);
                 }
-                let mut flow = CallOperandFlow::new(true);
-                for part in parts {
-                    if let StringPart::Interpolation { expression, .. } = part {
-                        flow.check(self, source, expression, None, None, return_type)?;
-                    }
-                }
-                self.note_pending_exit(
-                    PendingControlSite::Expression(key),
-                    flow.has_pending_exit(),
-                );
-                ExpressionCheck {
-                    ty: self.builtin(BuiltinType::String),
-                    falls_through: flow.falls_through(),
-                }
+                self.check_interpolated_string(key, parts, return_type)?
             }
-            Expression::Group { expression } => {
-                let result = self.check_expression_with_expectation(
-                    source,
-                    expression,
-                    expectation,
-                    expected_span,
-                    return_type,
-                )?;
-                if self.storage_value_is_pending(UnitExpressionId::new(source, expression)) {
-                    self.note_pending_storage_value(key, result.ty);
-                }
-                result
-            }
+            Expression::Group { .. } => unreachable!("groups are checked before payload dispatch"),
             Expression::Call {
                 callee,
                 type_arguments,
@@ -213,6 +382,7 @@ impl BodyChecker<'_> {
                 expected,
                 expected_span,
                 return_type,
+                normal_writes,
             )?,
             Expression::If {
                 condition,
@@ -306,21 +476,7 @@ impl BodyChecker<'_> {
             Expression::Index { receiver, index } => {
                 self.check_index(key, receiver, index, return_type)?
             }
-        };
-        // A non-completing expression retains its static shape but delivers no value.
-        if result.falls_through
-            && let Some(expectation) = expected.map(ExpressionExpected::Canonical).or(expectation)
-        {
-            result.ty = self.apply_expression_expectation(
-                key,
-                span,
-                result.ty,
-                expectation,
-                expected_span,
-            )?;
-        }
-        self.record_expression_check(key, result);
-        Ok(result)
+        })
     }
 
     pub(super) fn record_expression_check(

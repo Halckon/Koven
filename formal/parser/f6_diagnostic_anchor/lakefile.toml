@@ -1,0 +1,6 @@
+name = "f6_diagnostic_anchor"
+version = "0.1.0"
+defaultTargets = ["F6DiagnosticAnchor"]
+
+[[lean_lib]]
+name = "F6DiagnosticAnchor"

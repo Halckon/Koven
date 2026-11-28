@@ -204,6 +204,18 @@ def load_manifest(path: Path = DEFAULT_MANIFEST) -> dict[str, Any]:
     return raw
 
 
+def cargo_target_and_feature_args(cfg: dict[str, Any]) -> list[str]:
+    """Build exact Cargo target and optional --features argv in manifest-specified order."""
+    target_args = list(cfg["cargo_target_args"])
+    features_arg = cfg["cargo_features_arg"].strip()
+    if not features_arg:
+        return target_args
+    feature_args = ["--features", features_arg]
+    if cfg.get("features_before_target"):
+        return [*feature_args, *target_args]
+    return [*target_args, *feature_args]
+
+
 def validate_manifest_structure(manifest: dict[str, Any]) -> None:
     if not isinstance(manifest, dict) or manifest.get("schema") != MANIFEST_SCHEMA:
         raise ShadowPilotError("manifest_invalid", f"expected schema {MANIFEST_SCHEMA}")
@@ -224,11 +236,14 @@ def validate_manifest_structure(manifest: dict[str, Any]) -> None:
         for req in ("package", "target_name", "target_kind", "cargo_target_args", "cargo_features_arg", "expected_features", "entries"):
             if req not in cfg:
                 raise ShadowPilotError("manifest_invalid", f"missing {req}", config_id=cid)
+        if "features_before_target" in cfg and not isinstance(cfg["features_before_target"], bool):
+            raise ShadowPilotError("manifest_invalid", "features_before_target must be bool", config_id=cid)
         if not isinstance(cfg["cargo_features_arg"], str) or not isinstance(cfg["expected_features"], list) or any(
             not isinstance(f, str) for f in cfg["expected_features"]
         ):
             raise ShadowPilotError("manifest_invalid", "invalid cargo_features_arg or expected_features", config_id=cid)
-        if sorted(cfg["cargo_features_arg"].split()) != sorted(cfg["expected_features"]):
+        parsed_features = [f for f in re.split(r"[,\s]+", cfg["cargo_features_arg"].strip()) if f]
+        if sorted(parsed_features) != sorted(cfg["expected_features"]):
             raise ShadowPilotError("manifest_invalid", "expected_features disagrees with cargo_features_arg", config_id=cid)
         entries = cfg["entries"]
         if not isinstance(entries, list) or not entries:
@@ -237,6 +252,14 @@ def validate_manifest_structure(manifest: dict[str, Any]) -> None:
         for entry in entries:
             if not isinstance(entry, dict):
                 raise ShadowPilotError("manifest_invalid", f"test entry must be an object, got {type(entry).__name__}", config_id=cid)
+            gidx = entry.get("global_index")
+            if isinstance(gidx, bool) or not isinstance(gidx, int) or gidx != total:
+                raise ShadowPilotError(
+                    "manifest_invalid",
+                    f"entry global_index must be {total}, got {gidx!r}",
+                    config_id=cid,
+                    test_name=entry.get("test_name") if isinstance(entry.get("test_name"), str) else None,
+                )
             tname = entry.get("test_name")
             if not isinstance(tname, str) or not tname:
                 raise ShadowPilotError("manifest_invalid", "empty test_name", config_id=cid)
@@ -314,16 +337,31 @@ def verify_shell_script_execution_branch_static(script_path: Path) -> int:
                 not grep_re.match(grep_ln)
                 or if_ln != 'if [[ "$mode" != --list-only ]]; then'
                 or exec_ln != expected_exec_cmd
-                or fi_ln != "fi"
             ):
                 raise ShadowPilotError(
                     "manifest_drift",
                     f"{script_path.name}: execution branch diverges from --list branch: "
                     f"expected {expected_exec_cmd!r}, got block {[grep_ln, if_ln, exec_ln, fi_ln]!r}",
                 )
-            pairs += 1
-            idx += 5
-            continue
+            if fi_ln == "fi":
+                pairs += 1
+                idx += 5
+                continue
+            if (
+                fi_ln == "else"
+                and idx + 6 < len(code_lines)
+                and code_lines[idx + 5].startswith("echo ")
+                and "cargo" not in code_lines[idx + 5]
+                and code_lines[idx + 6] == "fi"
+            ):
+                pairs += 1
+                idx += 7
+                continue
+            raise ShadowPilotError(
+                "manifest_drift",
+                f"{script_path.name}: execution branch closing block invalid: "
+                f"got {code_lines[idx : idx + 7]!r}",
+            )
         idx += 1
 
     if pairs == 0:
@@ -438,9 +476,7 @@ def verify_manifest_against_shell_script(
                 "-j1",
                 "-p",
                 cfg["package"],
-                *cfg["cargo_target_args"],
-                "--features",
-                cfg["cargo_features_arg"],
+                *cargo_target_and_feature_args(cfg),
                 entry["test_name"],
                 "--",
                 *entry_filter_args(entry),
@@ -1451,9 +1487,7 @@ def run_pilot(
                     *cargo_jobs_args,
                     "-p",
                     pkg_name,
-                    *cfg["cargo_target_args"],
-                    "--features",
-                    cfg["cargo_features_arg"],
+                    *cargo_target_and_feature_args(cfg),
                     "--no-run",
                     "--message-format=json",
                 ]
@@ -1540,9 +1574,7 @@ def run_pilot(
                     f"target.{host_triple}.runner={runner_spec}",
                     "-p",
                     pkg_name,
-                    *cfg["cargo_target_args"],
-                    "--features",
-                    cfg["cargo_features_arg"],
+                    *cargo_target_and_feature_args(cfg),
                     first_entry["test_name"],
                     "--",
                     *entry_filter_args(first_entry),
@@ -1623,9 +1655,7 @@ def run_pilot(
                         "-j1",
                         "-p",
                         pkg_name,
-                        *cfg["cargo_target_args"],
-                        "--features",
-                        cfg["cargo_features_arg"],
+                        *cargo_target_and_feature_args(cfg),
                         tname,
                         "--",
                         *f_args,
@@ -1674,9 +1704,7 @@ def run_pilot(
                             "-j1",
                             "-p",
                             pkg_name,
-                            *cfg["cargo_target_args"],
-                            "--features",
-                            cfg["cargo_features_arg"],
+                            *cargo_target_and_feature_args(cfg),
                             tname,
                             "--",
                             *f_args,

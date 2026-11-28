@@ -13,8 +13,12 @@ use lang_frontend::{
 
 use super::{Builder, Lowered, View, when::PredecessorBranch};
 use crate::ssa::{
+    expression_core::parse_float_literal,
     integer::{bitwise_operator, checked_operator, comparison_operator},
-    lowering_support::{LoweringError, LoweringErrorKind, error, string_literal},
+    lowering_support::{
+        LoweringError, LoweringErrorKind, error, is_float_builtin, parse_char_literal,
+        string_literal,
+    },
     model::{EntityType, ScalarConstant},
     refine::body::{BlockRef, RAbort, ROp, RTerm, Slot},
 };
@@ -69,6 +73,27 @@ impl Builder<'_, '_> {
         }
     }
 
+    /// Materialize zero-sized storage only when a direct use needs a Unit value.
+    pub(super) fn required_unit(
+        &mut self,
+        expression: ExpressionId,
+    ) -> Result<Option<Slot>, LoweringError> {
+        match self.expression(expression)? {
+            Lowered::Value(slot) => Ok(Some(slot)),
+            Lowered::Diverged => Ok(None),
+            Lowered::Unit => {
+                let root = self.ungrouped_expr(expression)?;
+                if let (Expression::Name, span) = self.node(root)?
+                    && let Some(slot) = self.bindings.get(&self.reference(span)?)
+                {
+                    return Ok(Some(*slot));
+                }
+                self.typed_value(ROp::Constant(ScalarConstant::Unit), expression)
+                    .map(Some)
+            }
+        }
+    }
+
     pub(super) fn typed_value(
         &mut self,
         op: ROp,
@@ -113,6 +138,11 @@ impl Builder<'_, '_> {
         }
         if typed.ownership_primitive(id).is_some() {
             return self.ownership_primitive(expression, span).map(Some);
+        }
+        if let Some(descriptor) = self.inputs.abandoned_map_require_value(id) {
+            return self
+                .lower_abandoned_map_require_value(descriptor, span)
+                .map(Some);
         }
         if let Some(value) = self.container_operation(expression, span)? {
             return Ok(Some(value));
@@ -181,6 +211,9 @@ impl Builder<'_, '_> {
             Expression::Group { expression: inner } => self.expression(inner),
             Expression::Literal(literal) => self.literal(literal, expression, span),
             Expression::String { .. } => {
+                if let Some(parts) = self.inputs.typed.interpolation_plan(id) {
+                    return self.interpolation(expression, parts, span);
+                }
                 let source_text = self
                     .inputs
                     .sources
@@ -310,8 +343,12 @@ impl Builder<'_, '_> {
                     .ok_or_else(|| error(LoweringErrorKind::InvalidLiteral, span))?;
                 ROp::Constant(ScalarConstant::Integer(value))
             }
-            LiteralKind::Float(_) | LiteralKind::Char => {
-                return Err(error(LoweringErrorKind::UnsupportedNode, span));
+            LiteralKind::Char => ROp::Constant(ScalarConstant::Char(parse_char_literal(
+                self.inputs.sources,
+                span,
+            )?)),
+            LiteralKind::Float(kind) => {
+                ROp::Constant(parse_float_literal(self.inputs.sources, kind, span)?)
             }
         };
         Ok(Lowered::Value(self.value(
@@ -551,15 +588,24 @@ impl Builder<'_, '_> {
                     .inputs
                     .is_nullable_string_equality(left_type, self.expression_type(right)?);
         if string || nullable_equality {
+            let presence = crate::ssa::lowering_support::nullable_string_presence_on_left(
+                self.inputs.typed,
+                left_type,
+                self.expression_type(right)?,
+            );
             // String operands are read, not consumed; a Borrow binding or non-null use reads its loan.
             let mut operands = Vec::with_capacity(2);
             let mut view_reads = Vec::new();
+            let mut field_presence = None;
             let loan_boundary = self.pending_call_loans.len();
             for operand in [left, right] {
-                if self
-                    .inputs
-                    .has_shared_field_operand_loan(expression, operand)
-                {
+                if matches!(
+                    self.inputs.shared_field_operand_target(expression, operand),
+                    Some(
+                        lang_frontend::ownership_checking::UnitLoanTarget::Place(_)
+                            | lang_frontend::ownership_checking::UnitLoanTarget::Temporary(_)
+                    )
+                ) {
                     let operand_span = self.span(operand);
                     let (loan, created, receivers) = self
                         .borrowed_string_field_loan(
@@ -568,7 +614,18 @@ impl Builder<'_, '_> {
                             operand_span,
                         )?
                         .ok_or_else(|| error(LoweringErrorKind::MissingFact, operand_span))?;
-                    self.pending_call_loans.extend(created);
+                    if presence.is_some() {
+                        // Copy the field's tag while evaluating this operand. The other
+                        // operand may legally write a disjoint field on the same owner.
+                        field_presence = Some(
+                            self.typed_value(ROp::NullableLoanIsNull { source: loan }, expression)?,
+                        );
+                        for loan in created.into_iter().rev() {
+                            self.end_short_call_loan(loan, span)?;
+                        }
+                    } else {
+                        self.pending_call_loans.extend(created);
+                    }
                     operands.push(loan);
                     view_reads.extend(receivers);
                     view_reads.push(operand);
@@ -599,14 +656,28 @@ impl Builder<'_, '_> {
                 operands.push(slot);
             }
             let (left, right) = (operands[0], operands[1]);
-            let op = match operator {
-                BinaryOperator::Add => ROp::StringConcat { left, right },
-                BinaryOperator::Equal | BinaryOperator::NotEqual => {
-                    ROp::StringEqual { left, right }
-                }
-                _ => return Err(error(LoweringErrorKind::UnsupportedNode, span)),
+            let mut result = if let Some(value) = field_presence {
+                value
+            } else if let Some(on_left) = presence {
+                let slot = if on_left { left } else { right };
+                let op = match self.body.slots[slot.0] {
+                    EntityType::Value(_) => ROp::NullableIsNull { owner: slot },
+                    EntityType::Loan { .. } => ROp::NullableLoanIsNull { source: slot },
+                    EntityType::Place(_) => {
+                        return Err(error(LoweringErrorKind::MissingFact, span));
+                    }
+                };
+                self.typed_value(op, expression)?
+            } else {
+                let op = match operator {
+                    BinaryOperator::Add => ROp::StringConcat { left, right },
+                    BinaryOperator::Equal | BinaryOperator::NotEqual => {
+                        ROp::StringEqual { left, right }
+                    }
+                    _ => return Err(error(LoweringErrorKind::UnsupportedNode, span)),
+                };
+                self.typed_value(op, expression)?
             };
-            let mut result = self.typed_value(op, expression)?;
             // Only loans created by this operation end here. Early exits use
             // the same pending-loan cleanup as an unfinished call argument.
             for loan in self
@@ -634,6 +705,20 @@ impl Builder<'_, '_> {
             return Ok(Lowered::Diverged);
         };
         if let Some(operator) = checked_operator(operator) {
+            let ty = self.expression_type(expression)?;
+            if matches!(self.inputs.typed.types().get(ty), Some(UnitTypeKind::Builtin(builtin)) if is_float_builtin(*builtin))
+            {
+                let result = self.typed_value(
+                    ROp::FloatArithmetic {
+                        operator: operator.into(),
+                        left,
+                        right: Some(right),
+                    },
+                    expression,
+                )?;
+                self.drops(UnitDropPoint::AfterBinaryOperands(self.unit(expression)))?;
+                return Ok(Lowered::Value(result));
+            }
             let ty = self.ssa_type(self.expression_type(expression)?, span)?;
             let boolean = self
                 .inputs

@@ -10,6 +10,74 @@ use lang_frontend::{
 use super::*;
 
 const UNUSED_CONSTANT: &str = "\r\nconst val unused: Int = 42";
+
+#[test]
+fn confirmed_display_reports_storage_errors_in_workspace_diagnostics() {
+    let consumer = r#"package app
+interface Action {
+    fun <X> apply(): Int = 1
+    fun toString(): String = "${this.apply<Nothing>()}"
+}
+class Actual(): Display, Action {
+    override fun <Y> apply(): Int { val items = listOf<Y>(); return 2 }
+}
+fun <T: Display> show(value: T): String = "${value}"
+fun main(): Unit { println(show(Actual())) }
+"#;
+    let rejected = UnitSession::new(config(consumer, false)).unwrap();
+    assert_eq!(
+        codes(&publications(rejected.publications().unwrap())),
+        ["L0125"]
+    );
+
+    let valid = consumer.replace("this.apply<Nothing>()", "this.apply<Int>()");
+    let accepted = UnitSession::new(config(&valid, false)).unwrap();
+    assert!(codes(&publications(accepted.publications().unwrap())).is_empty());
+    let typed = accepted
+        .snapshot
+        .analysis
+        .typed()
+        .unwrap()
+        .clone()
+        .validate()
+        .unwrap();
+    assert!(
+        accepted
+            .snapshot
+            .analysis
+            .owned()
+            .unwrap()
+            .is_compatible_with(&typed)
+    );
+
+    let moved = consumer.replace(
+        "fun main(): Unit { println(show(Actual())) }",
+        "fun take(own value: Actual): Unit {}\n\
+         fun main(): Unit { val value = Actual(); take(value); println(show(value)) }",
+    );
+    let moved = UnitSession::new(config(&moved, false)).unwrap();
+    assert_eq!(
+        codes(&publications(moved.publications().unwrap())),
+        ["L0131"]
+    );
+
+    let deferred = format!(
+        "{DEFERRED}\n{}",
+        consumer.strip_prefix("package app\n").unwrap()
+    );
+    let deferred = UnitSession::new(config(&deferred, false)).unwrap();
+    assert!(codes(&publications(deferred.publications().unwrap())).is_empty());
+    assert!(
+        !deferred
+            .snapshot
+            .analysis
+            .owned()
+            .unwrap()
+            .deferred()
+            .is_empty()
+    );
+}
+
 const DEFERRED: &str = "package app\r\n\
     import lib.pick\r\n\
     class Resource {}\r\n\

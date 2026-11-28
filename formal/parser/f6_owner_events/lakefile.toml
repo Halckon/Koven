@@ -1,0 +1,6 @@
+name = "f6_owner_events"
+version = "0.1.0"
+defaultTargets = ["F6OwnerEvents"]
+
+[[lean_lib]]
+name = "F6OwnerEvents"

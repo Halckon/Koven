@@ -7,7 +7,7 @@ use crate::{
     type_checking::{BuiltinType, TypeCheckingError, UnitStatementId, UnitTypeId},
 };
 
-use super::flow::{extend_facts, intersect_facts, merge_flow_versions};
+use super::flow::merge_flow_versions;
 use super::while_flow::PendingControlSite;
 use super::{BodyChecker, CompilationUnitTypeError, ExpressionCheck, UnitExpressionId};
 
@@ -217,8 +217,8 @@ impl BodyChecker<'_> {
             self.parts
                 .structural_boolean_outcomes_at(source, self.file(source), condition);
         let (true_facts, false_facts) = self.condition_facts(source, condition)?;
-        self.flow_facts = extend_facts(&baseline, &true_facts);
-        let mut false_path = extend_facts(&baseline, &false_facts);
+        self.flow_facts = baseline.with_conditions(&true_facts);
+        let mut restored_false_path = None;
         let mut false_versions = baseline_versions.clone();
         if let Some((facts, versions)) = before
             && self.is_builtin(condition_result.ty, BuiltinType::Boolean)
@@ -236,7 +236,11 @@ impl BodyChecker<'_> {
                 &versions,
                 &yes,
             );
-            false_versions.restore_bypassed_writes(&mut false_path, &facts, &versions, &no);
+            if !no.is_empty() {
+                let mut false_path = baseline.with_conditions(&false_facts);
+                false_versions.restore_bypassed_writes(&mut false_path, &facts, &versions, &no);
+                restored_false_path = Some(false_path);
+            }
         }
         if let Some(pending) = &condition_edges.yes {
             self.flow_versions.set_pending_keys(pending.iter().copied());
@@ -257,16 +261,22 @@ impl BodyChecker<'_> {
                 else_branch.is_some().then_some(&mut then_pending),
             )
         })?;
-        let then_facts = self.flow_facts.clone();
         let then_versions = self.flow_versions.clone();
         let then_falls =
             then_reachable && self.has_pending_statement_exit(source, then_branch, then_result);
         let Some(else_branch) = else_branch else {
-            self.flow_facts = if then_result.falls_through {
-                intersect_facts(&then_facts, &false_path)
+            if then_result.falls_through {
+                let false_path =
+                    restored_false_path.unwrap_or_else(|| baseline.with_conditions(&false_facts));
+                self.flow_facts = self.flow_facts.intersect(&false_path);
+            } else if let Some(false_path) = restored_false_path {
+                self.flow_facts = false_path;
             } else {
-                false_path
-            };
+                // Release the then facts before applying the false-edge
+                // conditions to the baseline.
+                self.flow_facts = baseline;
+                self.flow_facts.apply_conditions(&false_facts);
+            }
             self.flow_versions = if then_result.falls_through {
                 merge_flow_versions(&then_versions, &false_versions)
             } else {
@@ -291,7 +301,9 @@ impl BodyChecker<'_> {
                 falls_through: ordinary_else || ordinary_then && then_result.falls_through,
             });
         };
-        self.flow_facts = false_path;
+        let false_path =
+            restored_false_path.unwrap_or_else(|| baseline.with_conditions(&false_facts));
+        let then_facts = std::mem::replace(&mut self.flow_facts, false_path);
         self.flow_versions = false_versions;
         if let Some(pending) = &condition_edges.no {
             self.flow_versions.set_pending_keys(pending.iter().copied());
@@ -341,7 +353,7 @@ impl BodyChecker<'_> {
             )
             .collect();
         self.flow_facts = match (then_result.falls_through, else_result.falls_through) {
-            (true, true) => intersect_facts(&then_facts, &else_facts),
+            (true, true) => then_facts.intersect(&else_facts),
             (true, false) => then_facts,
             (false, true) => else_facts,
             (false, false) => baseline,

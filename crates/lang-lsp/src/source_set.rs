@@ -36,6 +36,11 @@ impl SourceSetConfig {
         Self::parse(source_set).map(Some)
     }
 
+    /// 直接从已构造的 ADR-0021 JSON 对象解析并验证 source-set。
+    pub(crate) fn parse_value(value: &Value) -> Result<Self, SourceSetConfigError> {
+        Self::parse(value)
+    }
+
     fn parse(value: &Value) -> Result<Self, SourceSetConfigError> {
         let source_set = object(value, "koven.sourceSet")?;
         reject_unknown_fields(source_set, &SOURCE_SET_FIELDS, "koven.sourceSet")?;

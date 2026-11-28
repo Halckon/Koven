@@ -218,6 +218,10 @@ pub trait UnitLoweringFacts: UnitPreflightFacts + std::fmt::Debug {
     fn call_may_dispatch(&self, call: UnitExpressionId) -> Option<bool>;
     /// Original call site was entered query.
     fn call_site_was_entered(&self, expression: UnitExpressionId) -> bool;
+    /// Actual operand evaluation facts, including the first definite exit.
+    fn interpolation_evaluations(&self) -> &[UnitInterpolationEvaluation] {
+        &[]
+    }
     /// Original callable origin query.
     fn callable_origin(&self, expression: UnitExpressionId) -> Option<UnitCallableOriginFact>;
     /// Original captures query.
@@ -246,6 +250,14 @@ pub trait UnitLoweringFacts: UnitPreflightFacts + std::fmt::Debug {
     fn delegations(&self) -> &[UnitDelegationOwnershipPlan];
     /// Original direct call loan ends query.
     fn direct_call_loan_ends(&self) -> &[UnitDirectCallLoanEndFact];
+    /// Actual unwind endings for shared arguments holding an owned class result.
+    fn class_result_argument_unwinds(&self) -> &[UnitDirectCallLoanEndFact] {
+        &[]
+    }
+    /// Actual unwind endings for shared owned temporaries of named singleton calls.
+    fn singleton_temporary_argument_unwinds(&self) -> &[UnitDirectCallLoanEndFact] {
+        &[]
+    }
     /// Original drops query.
     fn drops(&self) -> &[UnitDropFact];
     /// Original field replacement query.
@@ -497,6 +509,9 @@ impl UnitLoweringFacts for CompilationUnitOwnership {
     fn call_site_was_entered(&self, expression: UnitExpressionId) -> bool {
         CompilationUnitOwnership::call_site_was_entered(self, expression)
     }
+    fn interpolation_evaluations(&self) -> &[UnitInterpolationEvaluation] {
+        CompilationUnitOwnership::interpolation_evaluations(self)
+    }
     fn callable_origin(&self, expression: UnitExpressionId) -> Option<UnitCallableOriginFact> {
         CompilationUnitOwnership::callable_origin(self, expression)
     }
@@ -535,6 +550,12 @@ impl UnitLoweringFacts for CompilationUnitOwnership {
     }
     fn direct_call_loan_ends(&self) -> &[UnitDirectCallLoanEndFact] {
         CompilationUnitOwnership::direct_call_loan_ends(self)
+    }
+    fn class_result_argument_unwinds(&self) -> &[UnitDirectCallLoanEndFact] {
+        CompilationUnitOwnership::class_result_argument_unwinds(self)
+    }
+    fn singleton_temporary_argument_unwinds(&self) -> &[UnitDirectCallLoanEndFact] {
+        CompilationUnitOwnership::singleton_temporary_argument_unwinds(self)
     }
     fn drops(&self) -> &[UnitDropFact] {
         CompilationUnitOwnership::drops(self)
@@ -594,6 +615,16 @@ impl UnitLoweringFacts for CompilationUnitOwnership {
 
 // Inherent dyn helpers retain the original stable filter order without boxing iterators.
 impl dyn UnitLoweringFacts + '_ {
+    /// A missing evaluation is distinct from an evaluated operand known to exit.
+    #[must_use]
+    pub fn interpolation_operand_completes(&self, operand: UnitExpressionId) -> Option<bool> {
+        let evaluations = self.interpolation_evaluations();
+        evaluations
+            .binary_search_by_key(&operand, |entry| entry.operand())
+            .ok()
+            .map(|index| evaluations[index].completes())
+    }
+
     /// Contracts for one original call, in source argument order.
     pub fn call_argument_contracts_for(
         &self,

@@ -1,6 +1,9 @@
 //! SPEC-0197 compilation-unit type-test 与稳定 place 流事实。
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
 
 use crate::{
     ast::{ExpressionId, TypeRefId},
@@ -19,97 +22,213 @@ use crate::{
 
 use super::{BodyChecker, ExpressionCheck};
 
+mod snapshot;
+use snapshot::Snapshot;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum FlowKey {
     Symbol(UnitSymbolId),
     This,
 }
 
+/// Narrowings in the current body state. Snapshots share an unchanged map.
 #[derive(Clone, Default)]
+pub(super) struct FlowFacts(Snapshot<UnitTypeId>);
+
+impl FlowFacts {
+    fn set(&mut self, key: FlowKey, ty: Option<UnitTypeId>) -> usize {
+        let copies = self.0.set(key, ty);
+        #[cfg(test)]
+        crate::type_checking::short_circuit_cost_tests::record_flow_fact_copies(copies);
+        copies
+    }
+
+    pub(super) fn get(&self, key: &FlowKey) -> Option<&UnitTypeId> {
+        self.0.get(*key)
+    }
+
+    pub(super) fn insert(&mut self, key: FlowKey, ty: UnitTypeId) {
+        self.set(key, Some(ty));
+    }
+
+    pub(super) fn insert_if_absent(&mut self, key: FlowKey, ty: UnitTypeId) {
+        if self.get(&key).is_none() {
+            self.insert(key, ty);
+        }
+    }
+
+    pub(super) fn remove(&mut self, key: &FlowKey) {
+        self.set(*key, None);
+    }
+
+    pub(super) fn clear(&mut self) {
+        *self = Self::default();
+    }
+
+    pub(super) fn extend(&mut self, facts: BTreeMap<FlowKey, UnitTypeId>) {
+        for (key, ty) in facts {
+            self.insert(key, ty);
+        }
+    }
+
+    pub(super) fn with_conditions(&self, conditions: &BTreeMap<FlowKey, UnitTypeId>) -> Self {
+        let mut result = self.clone();
+        result.apply_conditions(conditions);
+        result
+    }
+
+    pub(super) fn apply_conditions(&mut self, conditions: &BTreeMap<FlowKey, UnitTypeId>) {
+        for (&key, &ty) in conditions {
+            if conflicts(self.get(&key).copied(), ty) {
+                self.remove(&key);
+            } else {
+                self.insert(key, ty);
+            }
+        }
+    }
+
+    pub(super) fn intersect(&self, other: &Self) -> Self {
+        let (joined, _visits) = self.0.join(&other.0, false, |a, b| (a == b).then_some(a));
+        #[cfg(test)]
+        crate::type_checking::short_circuit_cost_tests::record_flow_merge_visits(0, _visits);
+        Self(joined)
+    }
+}
+
+#[derive(Default)]
 pub(super) struct FlowVersions {
-    versions: BTreeMap<FlowKey, u64>,
-    mutable_pending: BTreeMap<FlowKey, bool>,
+    versions: Snapshot<u64>,
+    // Snapshots usually differ only in which tracked bindings are pending.
+    tracked_mutables: Arc<BTreeSet<FlowKey>>,
+    pending_mutables: BTreeSet<FlowKey>,
+}
+
+impl Clone for FlowVersions {
+    fn clone(&self) -> Self {
+        #[cfg(test)]
+        crate::type_checking::short_circuit_cost_tests::record_pending_snapshot_keys(
+            self.pending_mutables.len(),
+        );
+        Self {
+            versions: self.versions.clone(),
+            tracked_mutables: Arc::clone(&self.tracked_mutables),
+            pending_mutables: self.pending_mutables.clone(),
+        }
+    }
 }
 
 impl FlowVersions {
+    fn set_version(&mut self, key: FlowKey, version: Option<u64>) -> usize {
+        let copies = self.versions.set(key, version);
+        #[cfg(test)]
+        crate::type_checking::short_circuit_cost_tests::record_flow_version_copies(copies);
+        copies
+    }
+
+    pub(super) fn copy_version_from(&mut self, key: FlowKey, other: &Self) {
+        self.set_version(key, other.versions.get(key).copied());
+    }
+
+    pub(super) fn share_versions_from(&mut self, other: &Self) {
+        self.versions = other.versions.clone();
+    }
+
     pub(super) fn versions_changed(&self, before: &Self) -> bool {
         self.versions != before.versions
     }
 
-    pub(super) fn restore_bypassed_writes(
+    pub(super) fn restore_bypassed_writes<'a>(
         &mut self,
-        facts: &mut BTreeMap<FlowKey, UnitTypeId>,
-        before_facts: &BTreeMap<FlowKey, UnitTypeId>,
+        facts: &mut FlowFacts,
+        before_facts: &FlowFacts,
         before: &Self,
-        bypassed: &BTreeSet<FlowKey>,
+        bypassed: impl IntoIterator<Item = &'a FlowKey>,
     ) {
-        crate::type_checking::flow_effects::result_edges::restore_bypassed_writes(
-            facts,
-            &mut self.versions,
-            before_facts,
-            &before.versions,
-            bypassed,
-        );
+        for &key in bypassed {
+            #[cfg(test)]
+            crate::type_checking::short_circuit_cost_tests::record_bypassed_restore_key();
+            let previous = before.versions.get(key).copied();
+            let current = self.versions.get(key).copied();
+            if crate::type_checking::flow_effects::result_edges::can_restore_bypassed_version(
+                previous, current,
+            ) {
+                if let Some(&fact) = before_facts.get(&key) {
+                    facts.insert_if_absent(key, fact);
+                }
+                self.set_version(key, previous);
+            }
+        }
     }
 
     pub(super) fn clear(&mut self) {
-        self.versions.clear();
-        self.mutable_pending.clear();
+        self.versions = Snapshot::default();
+        self.tracked_mutables = Arc::default();
+        self.pending_mutables.clear();
     }
 
     pub(super) fn declare_mutable(&mut self, symbol: UnitSymbolId, pending: bool) {
-        self.mutable_pending
-            .insert(FlowKey::Symbol(symbol), pending);
+        let key = FlowKey::Symbol(symbol);
+        if !self.tracks_mutable(key) {
+            Arc::make_mut(&mut self.tracked_mutables).insert(key);
+        }
+        self.replace_pending(key, pending);
     }
 
     pub(super) fn replace_pending(&mut self, key: FlowKey, pending: bool) {
-        if let Some(previous) = self.mutable_pending.get_mut(&key) {
-            *previous = pending;
+        if !pending {
+            self.pending_mutables.remove(&key);
+        } else if self.tracks_mutable(key) {
+            self.pending_mutables.insert(key);
         }
     }
 
     pub(super) fn mutable_is_pending(&self, symbol: UnitSymbolId) -> bool {
-        self.mutable_pending
-            .get(&FlowKey::Symbol(symbol))
-            .copied()
-            .unwrap_or_default()
+        self.pending_mutables.contains(&FlowKey::Symbol(symbol))
     }
 
     pub(super) fn merge_pending(&mut self, other: &Self) {
-        for (&key, &pending) in &other.mutable_pending {
-            *self.mutable_pending.entry(key).or_default() |= pending;
+        if !Arc::ptr_eq(&self.tracked_mutables, &other.tracked_mutables) {
+            Arc::make_mut(&mut self.tracked_mutables)
+                .extend(other.tracked_mutables.iter().copied());
         }
+        self.pending_mutables
+            .extend(other.pending_mutables.iter().copied());
     }
 
     pub(super) fn take_pending_from(&mut self, other: Self) {
-        self.mutable_pending = other.mutable_pending;
+        self.tracked_mutables = other.tracked_mutables;
+        self.pending_mutables = other.pending_mutables;
     }
 
     pub(super) fn tracks_mutable(&self, key: FlowKey) -> bool {
-        self.mutable_pending.contains_key(&key)
+        self.tracked_mutables.contains(&key)
     }
 
     pub(super) fn pending_keys(&self) -> impl Iterator<Item = FlowKey> + '_ {
-        self.mutable_pending
-            .iter()
-            .filter_map(|(&key, &pending)| pending.then_some(key))
+        let keys = self.pending_mutables.iter().copied();
+        #[cfg(test)]
+        let keys = keys.inspect(|_| {
+            crate::type_checking::short_circuit_cost_tests::record_pending_scan_keys(1);
+        });
+        keys
     }
 
     pub(super) fn mark_pending(&mut self, keys: impl IntoIterator<Item = FlowKey>) -> bool {
         let mut changed = false;
         for key in keys {
-            if let Some(pending) = self.mutable_pending.get_mut(&key) {
-                changed |= !*pending;
-                *pending = true;
+            if self.tracks_mutable(key) {
+                changed |= self.pending_mutables.insert(key);
             }
         }
         changed
     }
 
     pub(super) fn clear_pending(&mut self) {
-        self.mutable_pending
-            .values_mut()
-            .for_each(|pending| *pending = false);
+        #[cfg(test)]
+        crate::type_checking::short_circuit_cost_tests::record_pending_scan_keys(
+            self.pending_mutables.len(),
+        );
+        self.pending_mutables.clear();
     }
 
     pub(super) fn set_pending_keys(&mut self, keys: impl IntoIterator<Item = FlowKey>) {
@@ -119,12 +238,15 @@ impl FlowVersions {
 }
 
 pub(super) fn merge_flow_versions(left: &FlowVersions, right: &FlowVersions) -> FlowVersions {
+    let (versions, _visits) = left
+        .versions
+        .join(&right.versions, true, |a, b| Some(a.max(b)));
+    #[cfg(test)]
+    crate::type_checking::short_circuit_cost_tests::record_flow_merge_visits(_visits, 0);
     let mut merged = FlowVersions {
-        versions: crate::type_checking::flow_effects::merge_flow_versions(
-            &left.versions,
-            &right.versions,
-        ),
-        mutable_pending: left.mutable_pending.clone(),
+        versions,
+        tracked_mutables: Arc::clone(&left.tracked_mutables),
+        pending_mutables: left.pending_mutables.clone(),
     };
     merged.merge_pending(right);
     merged
@@ -193,16 +315,25 @@ impl BodyChecker<'_> {
     pub(super) fn flow_version(&self, key: FlowKey) -> u64 {
         self.flow_versions
             .versions
-            .get(&key)
+            .get(key)
             .copied()
             .unwrap_or_default()
     }
 
     pub(super) fn invalidate_flow_key(&mut self, key: FlowKey) {
-        self.flow_facts.remove(&key);
-        let version = self.flow_versions.versions.entry(key).or_default();
+        let _fact_copies = self.flow_facts.set(key, None);
         // MAX is a permanent invalid source witness, never a reusable snapshot version.
-        *version = version.saturating_add(1);
+        let version = self.flow_version(key);
+        let _version_copies = if version != u64::MAX {
+            self.flow_versions.set_version(key, Some(version + 1))
+        } else {
+            0
+        };
+        #[cfg(test)]
+        crate::type_checking::short_circuit_cost_tests::record_invalidation_copies(
+            _version_copies,
+            _fact_copies,
+        );
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -246,24 +377,107 @@ impl BodyChecker<'_> {
         source: SourceUnitId,
         id: ExpressionId,
     ) -> Result<ConditionFacts, CompilationUnitTypeError> {
-        let payload = self
-            .file(source)
-            .ast()
-            .expressions()
-            .get(id)
-            .map_err(TypeCheckingError::from)?
-            .payload()
-            .clone();
-        match payload {
-            Expression::Group { expression } => self.condition_facts(source, expression),
-            Expression::Prefix {
-                operator: PrefixOperator::Not,
-                operand,
-                ..
-            } => {
-                let (when_true, when_false) = self.condition_facts(source, operand)?;
-                Ok((when_false, when_true))
+        enum Pending {
+            Negate,
+            Right(BinaryOperator, ExpressionId),
+            Join(BinaryOperator, ExpressionId, ConditionFacts),
+        }
+        let ast = self.file(source).ast();
+        let mut next = id;
+        // Leave each frame on the heap until its children have supplied their facts.
+        let mut pending = Vec::new();
+        loop {
+            #[cfg(test)]
+            crate::type_checking::short_circuit_cost_tests::record_condition_visit();
+            let payload = ast
+                .expressions()
+                .get(next)
+                .map_err(TypeCheckingError::from)?
+                .payload();
+            let mut facts = match *payload {
+                Expression::Group { expression } => {
+                    next = expression;
+                    continue;
+                }
+                Expression::Prefix {
+                    operator: PrefixOperator::Not,
+                    operand,
+                    ..
+                } => {
+                    pending.push(Pending::Negate);
+                    next = operand;
+                    continue;
+                }
+                Expression::Binary {
+                    left,
+                    operator: operator @ (BinaryOperator::LogicalAnd | BinaryOperator::LogicalOr),
+                    right,
+                    ..
+                } => {
+                    pending.push(Pending::Right(operator, right));
+                    next = left;
+                    continue;
+                }
+                _ => self.atomic_condition_facts(source, payload)?,
+            };
+            loop {
+                match pending.pop() {
+                    None => return Ok(facts),
+                    Some(Pending::Negate) => std::mem::swap(&mut facts.0, &mut facts.1),
+                    Some(Pending::Right(operator, right)) => {
+                        pending.push(Pending::Join(operator, right, facts));
+                        next = right;
+                        break;
+                    }
+                    Some(Pending::Join(operator, right, left_facts)) => {
+                        facts = self.join_logical_condition_facts(
+                            source, operator, left_facts, right, facts,
+                        )?;
+                    }
+                }
             }
+        }
+    }
+
+    pub(super) fn join_logical_condition_facts(
+        &self,
+        source: SourceUnitId,
+        operator: BinaryOperator,
+        (mut left_true, mut left_false): ConditionFacts,
+        right: ExpressionId,
+        (right_true, right_false): ConditionFacts,
+    ) -> Result<ConditionFacts, CompilationUnitTypeError> {
+        // Only the facts on the edge reaching the right operand can be invalidated.
+        let carried = if operator == BinaryOperator::LogicalAnd {
+            &mut left_true
+        } else {
+            &mut left_false
+        };
+        if !carried.is_empty() {
+            #[cfg(test)]
+            crate::type_checking::short_circuit_cost_tests::record_condition_write_scan();
+            let writes = self.expression_flow_writes(source, right)?;
+            carried.retain(|key, _| !writes.contains(key));
+        }
+        if operator == BinaryOperator::LogicalAnd {
+            let when_true = extend_facts(&left_true, &right_true);
+            let right_false_path = extend_facts(&left_true, &right_false);
+            let when_false = intersect_facts(&left_false, &right_false_path);
+            Ok((when_true, when_false))
+        } else {
+            let right_true_path = extend_facts(&left_false, &right_true);
+            let when_true = intersect_facts(&left_true, &right_true_path);
+            let when_false = extend_facts(&left_false, &right_false);
+            Ok((when_true, when_false))
+        }
+    }
+
+    fn atomic_condition_facts(
+        &self,
+        source: SourceUnitId,
+        payload: &Expression,
+    ) -> Result<ConditionFacts, CompilationUnitTypeError> {
+        match *payload {
             Expression::TypeTest {
                 expression,
                 negated,
@@ -298,36 +512,6 @@ impl BodyChecker<'_> {
                 } else {
                     Ok((positive, BTreeMap::new()))
                 }
-            }
-            Expression::Binary {
-                left,
-                operator: BinaryOperator::LogicalAnd,
-                right,
-                ..
-            } => {
-                let (mut left_true, left_false) = self.condition_facts(source, left)?;
-                let (right_true, right_false) = self.condition_facts(source, right)?;
-                let writes = self.expression_flow_writes(source, right)?;
-                left_true.retain(|key, _| !writes.contains(key));
-                let when_true = extend_facts(&left_true, &right_true);
-                let right_false_path = extend_facts(&left_true, &right_false);
-                let when_false = intersect_facts(&left_false, &right_false_path);
-                Ok((when_true, when_false))
-            }
-            Expression::Binary {
-                left,
-                operator: BinaryOperator::LogicalOr,
-                right,
-                ..
-            } => {
-                let (left_true, mut left_false) = self.condition_facts(source, left)?;
-                let (right_true, right_false) = self.condition_facts(source, right)?;
-                let writes = self.expression_flow_writes(source, right)?;
-                left_false.retain(|key, _| !writes.contains(key));
-                let right_true_path = extend_facts(&left_false, &right_true);
-                let when_true = intersect_facts(&left_true, &right_true_path);
-                let when_false = extend_facts(&left_false, &right_false);
-                Ok((when_true, when_false))
             }
             Expression::Binary {
                 left,
@@ -413,25 +597,26 @@ impl BodyChecker<'_> {
     }
 }
 
-pub(super) fn extend_facts(
+fn conflicts(existing: Option<UnitTypeId>, addition: UnitTypeId) -> bool {
+    existing.is_some_and(|existing| existing != addition)
+}
+
+fn extend_facts(
     baseline: &BTreeMap<FlowKey, UnitTypeId>,
     additions: &BTreeMap<FlowKey, UnitTypeId>,
 ) -> BTreeMap<FlowKey, UnitTypeId> {
     let mut result = baseline.clone();
     for (&key, &ty) in additions {
-        match result.get(&key).copied() {
-            Some(existing) if existing != ty => {
-                result.remove(&key);
-            }
-            _ => {
-                result.insert(key, ty);
-            }
+        if conflicts(result.get(&key).copied(), ty) {
+            result.remove(&key);
+        } else {
+            result.insert(key, ty);
         }
     }
     result
 }
 
-pub(super) fn intersect_facts(
+fn intersect_facts(
     left: &BTreeMap<FlowKey, UnitTypeId>,
     right: &BTreeMap<FlowKey, UnitTypeId>,
 ) -> BTreeMap<FlowKey, UnitTypeId> {

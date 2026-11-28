@@ -1,0 +1,6 @@
+name = "f6_file_modifiers"
+version = "0.1.0"
+defaultTargets = ["F6FileModifiers"]
+
+[[lean_lib]]
+name = "F6FileModifiers"

@@ -17,6 +17,7 @@ from conformance_catalogs import (
     PROGRAM_PREREQUISITE_PROBES,
     PROGRAM_README_CATALOG,
     PROGRAM_ROADMAP_BLOCKERS,
+    PROGRAM_ALLOWED_MARKERS,
     PROJECT_PACKAGE_HEADER,
     PROJECT_TOML_BYTES,
     SCHEMA_RESULTS,
@@ -108,8 +109,9 @@ def render_evidence_summary_markdown(ledger: dict[str, Any]) -> str:
             ]
         )
         for up_name in summary["unexpected_passes"]:
+            catalog = "PROGRAM_ALLOWED_MARKERS" if up_name in PROGRAM_ALLOWED_MARKERS else "V046_PROBE_OVERRIDES"
             lines.append(
-                f"- `{up_name}`：已在单文件与工程双模式下退出码 0 且精确匹配 `target_stdout`，请更新 `V046_PROBE_OVERRIDES` 并运行 `--init-expectations`。"
+                f"- `{up_name}`：已在单文件与工程双模式下退出码 0 且精确匹配 `target_stdout`，请更新 `{catalog}` 并运行 `--init-expectations`。"
             )
 
     if summary.get("failures"):
@@ -177,7 +179,16 @@ def verify_evidence_bundle(
     baseline = (
         parse_tsv_matrix(
             baseline_path.read_text(encoding="utf-8"),
-            expected_names=set(expectations["probes"].keys()),
+            expected_names={
+                k
+                for k, v in expectations["probes"].items()
+                if v.get("baseline_marker") != "POST_BASELINE"
+            },
+            optional_names={
+                k
+                for k, v in expectations["probes"].items()
+                if v.get("baseline_marker") == "POST_BASELINE"
+            },
         )
         if baseline_path is not None
         else {}
@@ -460,7 +471,16 @@ def compare_tsv_matrix_against_expectations(
     baseline = (
         parse_tsv_matrix(
             baseline_path.read_text(encoding="utf-8"),
-            expected_names=set(expectations["probes"].keys()),
+            expected_names={
+                k
+                for k, v in expectations["probes"].items()
+                if v.get("baseline_marker") != "POST_BASELINE"
+            },
+            optional_names={
+                k
+                for k, v in expectations["probes"].items()
+                if v.get("baseline_marker") == "POST_BASELINE"
+            },
         )
         if baseline_path is not None
         else {}
@@ -610,7 +630,7 @@ V3_SANITIZER_RESOURCE_CATALOG: dict[str, dict[str, Any]] = {
             "q09_inout_class_param",
             "q20_replace_field",
         ],
-        "programs": ["expr_eval", "linked_stack"],
+        "programs": ["dag_refcount", "expr_eval", "linked_stack"],
     },
     "string_and_text_owner": {
         "title": "堆拥有 `String` 克隆、拼接、重赋值、枚举行李与可空返回",
@@ -625,7 +645,7 @@ V3_SANITIZER_RESOURCE_CATALOG: dict[str, dict[str, Any]] = {
             "q10_var_reassign_string",
             "x02_string_nullable_return",
         ],
-        "programs": ["config_parse"],
+        "programs": ["config_parse", "text_log_summary"],
     },
     "collection_list_and_map_provider": {
         "title": "`List` / `MutableList` / `Map` / `MutableMap` 扩容、覆盖、删除与遍历析构",
@@ -659,7 +679,7 @@ V3_SANITIZER_RESOURCE_CATALOG: dict[str, dict[str, Any]] = {
             "q01_lambda_local",
             "q02_lambda_arg_inline",
         ],
-        "programs": [],
+        "programs": ["query_pipeline", "worker_pipeline"],
     },
     "checked_abort_and_overflow": {
         "title": "受检整数溢出、`error(msg)` 与显式数值转换 `SIGABRT` 中止边界",
@@ -823,8 +843,8 @@ def render_readme_chapter_table(expectations: dict[str, Any]) -> str:
 README_PROGRAM_TABLE_RE = re.compile(
     r"(\| 目录 \| 题目 \| 覆盖面(?: \| 归属章节 \| 当前状态 \| 前置 Probe 就绪 \| 路线图阻塞项)? \|\n"
     r"\|---\|---\|---(?:\|---\|---\|---:\|---)?\|\n"
-    r"(?:\| `(?:word_count|config_parse|expr_eval|raii_state_machine|varint_codec|linked_stack)` \|[^\n]+\n)+"
-    r"\| `(?:word_count|config_parse|expr_eval|raii_state_machine|varint_codec|linked_stack)` \|[^\n]+)"
+    r"(?:\| `[a-z0-9_]+` \|[^\n]+\n)+"
+    r"\| `[a-z0-9_]+` \|[^\n]+)"
 )
 
 README_CHAPTER_TABLE_RE = re.compile(

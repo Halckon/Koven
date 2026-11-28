@@ -55,7 +55,10 @@ impl CompilationUnitSignatures {
     ) -> bool {
         index == &self.provenance.input_index
             && unit_names.index() == &self.provenance.input_index
-            && Arc::ptr_eq(&self.provenance.environment_owner, environment.owner())
+            && Arc::ptr_eq(
+                &self.provenance.environment_snapshot_owner,
+                environment.snapshot_owner(),
+            )
             && self.provenance.name_analysis_owners.len() == unit_names.source_units().len()
             && self
                 .provenance

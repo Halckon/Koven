@@ -12,7 +12,7 @@ use crate::{
     type_checking::{
         BuiltinType, Capability, CompilationUnitTypeError, IntrinsicTypeConstructor, NominalKind,
         TypeCheckingError, UnitCallTarget, UnitCallableSignature, UnitCallableTarget,
-        UnitNominalSignature, UnitTypeId, UnitTypeKind,
+        UnitNominalSignature, UnitTypeId, UnitTypeKind, UnitTypeParameterBound, display,
     },
 };
 
@@ -184,12 +184,44 @@ impl BodyChecker<'_> {
         let receiver_type = self
             .check_expression(source, receiver, None, None, return_type)?
             .ty;
+        if matches!(
+            self.signatures.types().get(receiver_type),
+            Some(UnitTypeKind::Builtin(builtin)) if display::builtin_witness(*builtin)
+        ) && let Some(requirement) = self.display_requirement()
+            && self
+                .sources
+                .slice(name_span)
+                .map_err(TypeCheckingError::from)?
+                == requirement.name()
+        {
+            let UnitCallableTarget::Symbol(symbol) = requirement.target() else {
+                return Err(CompilationUnitTypeError::MissingDeclarationSymbol);
+            };
+            let mut candidate =
+                CallCandidate::from_source(UnitCallTarget::Symbol(symbol), requirement);
+            if let Some((mode, _)) = candidate.receiver {
+                candidate.receiver = Some((mode, receiver_type));
+            }
+            return Ok(vec![candidate]);
+        }
         if self.signatures.types().get(receiver_type)
             == Some(&UnitTypeKind::Builtin(BuiltinType::String))
         {
             return self.text_extension_candidates(source, receiver_type, name_span);
         }
-        let Some((owner_declaration, owner_arguments)) = self.nominal_type_parts(receiver_type)
+        // The interface provides signatures; the call still borrows or consumes the actual T.
+        let lookup_type = match self.signatures.types().get(receiver_type) {
+            Some(UnitTypeKind::TypeParameter(symbol)) => match self
+                .signatures
+                .type_parameter(*symbol)
+                .map(|parameter| parameter.bound())
+            {
+                Some(UnitTypeParameterBound::Interface(bound)) => bound,
+                _ => receiver_type,
+            },
+            _ => receiver_type,
+        };
+        let Some((owner_declaration, owner_arguments)) = self.nominal_type_parts(lookup_type)
         else {
             return self.range_extension_candidates(source, receiver_type, name_span);
         };
@@ -217,7 +249,7 @@ impl BodyChecker<'_> {
                 })
                 .collect());
         }
-        let instances = self.member_owners(receiver_type, &owner, owner_arguments);
+        let instances = self.member_owners(lookup_type, &owner, owner_arguments);
         let mut candidates = Vec::new();
         let mut seen_shapes = BTreeSet::new();
         for (declaration, instance) in instances {

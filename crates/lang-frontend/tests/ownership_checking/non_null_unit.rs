@@ -350,3 +350,24 @@ fn non_null_assertion_loop_allows_single_exit_and_replenished_owner() {
         }
     }
 }
+
+#[test]
+fn null_only_assertion_does_not_schedule_scope_drops_on_abort() {
+    for rooted in [false, true] {
+        let (_, _, owned) = super::nullable_unit::checked(
+            "class Resource { deinit() {} }\nfun stop(own resource: Resource, value: Nothing?): Int { value!! }",
+            "ownership.ko",
+            rooted,
+            super::environments(),
+        );
+        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+        let [plan] = owned.non_null_assertions() else {
+            panic!("the reached assertion must still publish its operand plan");
+        };
+        assert_eq!(
+            plan.non_null_transfer(),
+            lang_frontend::ownership_checking::NonNullAssertionTransferKind::Copy
+        );
+        assert!(owned.drops().is_empty(), "{:?}", owned.drops());
+    }
+}

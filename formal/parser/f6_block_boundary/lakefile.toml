@@ -1,0 +1,6 @@
+name = "f6_block_boundary"
+version = "0.1.0"
+defaultTargets = ["F6BlockBoundary"]
+
+[[lean_lib]]
+name = "F6BlockBoundary"

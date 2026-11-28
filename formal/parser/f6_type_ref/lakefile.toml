@@ -1,0 +1,6 @@
+name = "f6_type_ref"
+version = "0.1.0"
+defaultTargets = ["F6TypeRef"]
+
+[[lean_lib]]
+name = "F6TypeRef"

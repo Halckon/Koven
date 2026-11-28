@@ -1,0 +1,6 @@
+value class Pair2(val a: Int, val b: Int)
+
+fun main(): Unit {
+    val (_, b) = Pair2(1, 2)
+    if (b == 2) { println("bad") }
+}

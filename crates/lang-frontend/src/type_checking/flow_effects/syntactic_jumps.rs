@@ -2,9 +2,13 @@
 
 use std::collections::BTreeMap;
 
+use super::{
+    SyntacticBooleanOutcomes,
+    when_prefix::{visit_when_prefix, when_operand},
+};
 use crate::{
     ast::{AstError, ExpressionId, StatementId},
-    parser::{Expression, Item, Statement, StringPart, SyntaxAst},
+    parser::{Expression, Item, PrefixOperator, Statement, StringPart, WhenEntry},
 };
 
 #[derive(Clone, Copy)]
@@ -28,7 +32,7 @@ impl Node {
     }
 }
 
-enum Rule {
+enum Rule<'a> {
     Known(bool),
     Sequence(Vec<Node>),
     If {
@@ -36,22 +40,26 @@ enum Rule {
         then_branch: Node,
         else_branch: Option<Node>,
     },
+    When {
+        subject: Option<ExpressionId>,
+        entries: &'a [WhenEntry],
+    },
 }
 
-enum Work {
+enum Work<'a> {
     Visit(Node),
-    Finish(Node, Rule),
+    Finish(Node, Rule<'a>),
 }
 
-pub(super) struct SyntacticJumps<'a> {
-    ast: &'a SyntaxAst,
+pub(super) struct SyntacticJumps<'a, 'b> {
+    outcomes: &'b SyntacticBooleanOutcomes<'a>,
     stops: BTreeMap<NodeKey, bool>,
 }
 
-impl<'a> SyntacticJumps<'a> {
-    pub(super) fn new(ast: &'a SyntaxAst) -> Self {
+impl<'a, 'b> SyntacticJumps<'a, 'b> {
+    pub(super) fn new(outcomes: &'b SyntacticBooleanOutcomes<'a>) -> Self {
         Self {
-            ast,
+            outcomes,
             stops: BTreeMap::new(),
         }
     }
@@ -91,6 +99,22 @@ impl<'a> SyntacticJumps<'a> {
                             pending.push(Work::Visit(*then_branch));
                             pending.push(Work::Visit(*condition));
                         }
+                        Rule::When { subject, entries } => {
+                            for entry in entries.iter().rev() {
+                                pending.push(Work::Visit(Node::Statement(entry.body)));
+                                pending.extend(
+                                    entry
+                                        .conditions
+                                        .iter()
+                                        .rev()
+                                        .filter_map(when_operand)
+                                        .map(|operand| Work::Visit(Node::Expression(operand))),
+                                );
+                            }
+                            pending.extend(
+                                subject.iter().map(|id| Work::Visit(Node::Expression(*id))),
+                            );
+                        }
                     }
                     // The stack visits children before publishing the parent proof.
                     pending.insert(children, Work::Finish(node, rule));
@@ -109,6 +133,24 @@ impl<'a> SyntacticJumps<'a> {
                             stops(condition)
                                 || (stops(then_branch) && else_branch.is_some_and(stops))
                         }
+                        Rule::When { subject, entries } => {
+                            if subject.is_some_and(|id| stops(Node::Expression(id))) {
+                                true
+                            } else {
+                                let mut may_complete = false;
+                                let may_miss = visit_when_prefix(
+                                    entries,
+                                    subject.is_some(),
+                                    |id| Ok(stops(Node::Expression(id))),
+                                    |id| self.outcomes.possible_results(id),
+                                    |entry, _, may_match| {
+                                        may_complete |=
+                                            may_match && !stops(Node::Statement(entry.body));
+                                    },
+                                )?;
+                                !may_miss && !may_complete
+                            }
+                        }
                     };
                     self.stops.insert(node.key(), result);
                 }
@@ -117,15 +159,19 @@ impl<'a> SyntacticJumps<'a> {
         Ok(self.stops[&root.key()])
     }
 
-    fn rule(&self, node: Node) -> Result<Rule, AstError> {
+    fn rule(&self, node: Node) -> Result<Rule<'a>, AstError> {
+        let ast = self.outcomes.ast;
         Ok(match node {
-            Node::Expression(id) => match self.ast.expressions().get(id)?.payload() {
+            Node::Expression(id) => match ast.expressions().get(id)?.payload() {
                 Expression::Return { .. }
                 | Expression::Break { .. }
                 | Expression::Continue { .. } => Rule::Known(true),
-                Expression::Group { expression } => {
-                    Rule::Sequence(vec![Node::Expression(*expression)])
-                }
+                Expression::Group { expression }
+                | Expression::Prefix {
+                    operator: PrefixOperator::Not,
+                    operand: expression,
+                    ..
+                } => Rule::Sequence(vec![Node::Expression(*expression)]),
                 Expression::String { parts } => Rule::Sequence(
                     parts
                         .iter()
@@ -137,17 +183,32 @@ impl<'a> SyntacticJumps<'a> {
                         })
                         .collect(),
                 ),
+                Expression::Member { receiver, .. } => {
+                    Rule::Sequence(vec![Node::Expression(*receiver)])
+                }
                 Expression::Call {
                     callee, arguments, ..
-                } if matches!(
-                    self.ast.expressions().get(*callee)?.payload(),
-                    Expression::Name
-                ) =>
-                {
+                } => {
+                    let receiver = match ast.expressions().get(*callee)?.payload() {
+                        Expression::Name | Expression::SuperMember { .. } => None,
+                        Expression::Member {
+                            receiver,
+                            safe: false,
+                            ..
+                        } => Some(*receiver),
+                        // Only receiver evaluation is unconditional for a safe call.
+                        Expression::Member {
+                            receiver,
+                            safe: true,
+                            ..
+                        } => return Ok(Rule::Sequence(vec![Node::Expression(*receiver)])),
+                        _ => return Ok(Rule::Known(false)),
+                    };
                     Rule::Sequence(
-                        arguments
-                            .iter()
-                            .map(|arg| Node::Expression(arg.value))
+                        receiver
+                            .into_iter()
+                            .chain(arguments.iter().map(|arg| arg.value))
+                            .map(Node::Expression)
                             .collect(),
                     )
                 }
@@ -161,9 +222,15 @@ impl<'a> SyntacticJumps<'a> {
                     then_branch: Node::Statement(*then_branch),
                     else_branch: else_branch.map(Node::Statement),
                 },
+                Expression::When {
+                    subject, entries, ..
+                } => Rule::When {
+                    subject: *subject,
+                    entries,
+                },
                 _ => Rule::Known(false),
             },
-            Node::Statement(id) => match self.ast.statements().get(id)?.payload() {
+            Node::Statement(id) => match ast.statements().get(id)?.payload() {
                 Statement::Block { elements } | Statement::ControlBody { elements } => {
                     Rule::Sequence(elements.iter().copied().map(Node::Statement).collect())
                 }
@@ -174,7 +241,7 @@ impl<'a> SyntacticJumps<'a> {
                     Rule::Sequence(vec![Node::Expression(*initializer)])
                 }
                 Statement::LocalVariable { declaration } => {
-                    match self.ast.items().get(*declaration)?.payload() {
+                    match ast.items().get(*declaration)?.payload() {
                         Item::Variable { initializer, .. } => {
                             Rule::Sequence(vec![Node::Expression(*initializer)])
                         }
@@ -190,5 +257,39 @@ impl<'a> SyntacticJumps<'a> {
                 _ => Rule::Known(false),
             },
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{lexer::lex, parser::parse_file, source::SourceMap};
+
+    #[test]
+    fn a_safe_member_call_may_complete_without_evaluating_its_argument() {
+        let mut sources = SourceMap::new();
+        let source = sources
+            .add_source(
+                "safe-member.ko",
+                "fun run(): Unit { loop { gate?.cond(break); gate(break)?.cond(0) } }",
+            )
+            .unwrap();
+        let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
+        assert!(parsed.diagnostics().is_empty());
+        let ast = parsed.ast();
+        let outcomes = SyntacticBooleanOutcomes::new(ast);
+        let mut jumps = SyntacticJumps::new(&outcomes);
+        for (source_text, stops) in [("gate?.cond(break)", false), ("gate(break)?.cond(0)", true)] {
+            let (call, _) = ast
+                .expressions()
+                .iter()
+                .find(|(_, node)| sources.slice(node.span()) == Ok(source_text))
+                .expect("the original safe member call");
+            assert_eq!(
+                jumps.expression_stops(call).unwrap(),
+                stops,
+                "{source_text}"
+            );
+        }
     }
 }

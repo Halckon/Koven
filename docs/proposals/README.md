@@ -32,15 +32,26 @@ Proposal 本身不修改现行 v0.46、不批准 Spec，也不代表实现优先
   - [之十二：标准库清单与平台适配](evolution-12-stdlib-platform.md)
   - [之十三：实施路线——从当前到 v1，从 v1 到之后](evolution-13-implementation-roadmap.md)
 - [v1 冻结前的兼容性约束（Z1–Z11）](v1-freeze-decisions.md)：可并入 v1 条目 Spec 的条款，已登记为路线图决策 D16
-- [unsafe 合同提纲（U0）](unsafe-aliasing-contract-outline.md)：章节结构、失败安全条款草案与内存模型取向
+- [unsafe 别名、失败安全与外部边界合同（U0 + FF0）](unsafe-aliasing-contract-outline.md)：完整候选合同（AL1–AL8、FS1–FS8、MM1–MM7、UB1–UB11、TR1–TR4、FFI1–FFI5 与检测矩阵）
+- [U0 迁入前硬门槛证据账本（AL1/AL2 与 UB1–UB11）](u0-ub-harness-evidence.md)：AL1/AL2 向路线 L 参考检查器的附加前提映射、预 U1 ASan/UBSan/TSan 代理反例实测记录与 UB1/UB5/W13 剩余阻塞清单
+- [L3 试金石程序与 Kotlin 风格人机工程评审](l3-litmus-programs.md)：分词器、借用迭代器、区域分配三组只写源码的 L3 试金石及库/应用双侧人机工程评审
+- [FD0：显式监督边界预留与“每连接一线程”服务器试金石](fd0-supervision-boundary-litmus.md)：J48 四项预留核对、每连接一线程监督回显服务器试金石与行为草案第 3–4 条收口建议
+- [编译单元依赖、接口产物与语言版本规则提案（之十一 J45–J47）](compilation-unit-dependency-rules.md)：J45 两层无环依赖、J46 接口产物导出合同、J47 按单元语言版本隔离及与 J37/标准库三分的衔接
+- [数据结构与并发试金石程序集（之五 §5）](data-structure-concurrency-litmus.md)：百万节点链表析构（G3）、迭代式遍历（G4）、`MoveOnly` 堆排序（G5）、有界阻塞队列（C4）与 `AtomicLong` 并发计数（C2/C3/U1）五组候选试金石
+- [L4 独占视图试金石与反例矩阵（之二 L4）](l4-exclusive-view-litmus.md)：原地排序（`MutSlice.splitAt` + `swap`）、二维矩阵行视图、链表可写游标难点对照与六类 L4 必测反例矩阵
+- [IR0 所有权图规格前置草案与多阶段路线图脚本设计（之八 J27–J30）](ir0-ownership-graph-draft.md)：IR0 归因统计模板与降级门槛、所有权图最小语句集/place 文法/失败出口预留边、以及 `gen_roadmap.py` 多阶段扩展设计
+- [路线 S 挂起与生成器试金石（之七 S3/S4）](suspend-generator-litmus.md)：二叉树中序遍历生成器、单线程异步回显服务器与作用域取消（含在途 IO 交接）及五类反例矩阵
+- [路线 X 存在类型试金石与反例矩阵（之三 X2/X3）](existential-visitor-litmus.md)：借用 existential 零分配访问者、事件总线 `MutableList<EventHandler>`、`Result<T, Error>` 单 `?` 转换及五类反例矩阵
 - [借用内核演算（内核 MVP 第 1–3 步）](loan-kernel-calculus.md)：参考检查器原型的语法、规则、用例清单与原型得到的发现
 - [内核原型的覆盖与欠账](kernel-prototype-coverage.md)：各内核基底的原型覆盖状态，未覆盖项按“先做 / 记账后集中做”排期
+- [内核演进两项悬决策略的裁决纪要与 3A 取消接口对比（2026-11）](kernel-open-decisions-2026-11.md)：OD1（A1 / 1A-ext）与 OD2（B1 / 首个已提交的普通失败）三轮讨论收口、Guide 合法位置示例、3A 取消接口两方案调用例对比与待补多任务验收清单
 - [析构义务的原型（内核基底 KB1）](drop-obligation-model.md)：析构规划器与独立检验器、条件移动与失败出口的清理、“消费并解除析构”与必须消费的发现
 - [结构能力推导的原型（内核基底 KB4）](capability-derivation-model.md)：能力引擎的模型、与现行规则和实现的对照用例、析构性质拆分与默认上界的发现
 - [失败出口与清理义务的状态模型（内核 MVP 第 4 步）](failure-cleanup-model.md)：借用型子任务的失败传播与在途 IO 两个状态模型，各候选政策违反的不变量与发现
 - [析构时机：两个方案的对比](drop-timing-comparison.md)：最早析构加屏障，对比词法析构加允许的提前释放；方向已裁决为后者
 - [IO 资源借用、责任交接与清理：设计安全原则](io-resource-handoff-cleanup.md)：在途 IO 的保活、责任交接与清理进度；失败政策与后端证明未决
 - [Parser 文法与验证实施建议：评审与路径分解](parser-grammar-verification-review.md)：恢复先行、机器文法为新语法把关的路线 F
+- [F5 增量门禁演练：OD4（L2/L3 候选语法前三项）](parser-formal-verification/f5-od4-l2-l3-syntax-gate-drill.md)：`flows … into`、`view T`、`p.origins` 的 F5 六项门禁字段、GNU Bison 2.3 冲突实测与 20 组正反例见证（排除 `borrow var`）
 - [顶层状态、静态存储与全局生命周期](global-and-static-state.md)：G1 接纳面收窄已决（v0.46 C），G2–G5 分层候选
 - [String Copyable 候选取舍](string-copyability.md)
 - [显式 clone() 候选设计](explicit-clone.md)

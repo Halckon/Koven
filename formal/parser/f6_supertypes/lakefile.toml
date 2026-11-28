@@ -1,0 +1,6 @@
+name = "f6_supertypes"
+version = "0.1.0"
+defaultTargets = ["F6Supertypes"]
+
+[[lean_lib]]
+name = "F6Supertypes"

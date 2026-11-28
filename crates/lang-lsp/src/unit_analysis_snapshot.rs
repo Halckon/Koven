@@ -67,7 +67,7 @@ impl UnitAnalysisSnapshot {
         &self.definitions
     }
 
-    #[cfg(test)]
+    /// 借用同轮 typed 产物（若名称检查通过）。
     pub(crate) fn typed(&self) -> Option<&CompilationUnitTypes> {
         self._typed.as_ref()
     }

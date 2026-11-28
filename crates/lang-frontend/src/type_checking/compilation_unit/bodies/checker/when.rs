@@ -18,7 +18,7 @@ use crate::type_checking::flow_effects::result_edges::{
     bypassed_result_writes, splits_boolean_writes,
 };
 
-use super::flow::{intersect_facts, merge_flow_versions};
+use super::flow::merge_flow_versions;
 use super::{
     BodyChecker, ExpressionCheck,
     flow::FlowKey,
@@ -257,13 +257,13 @@ impl BodyChecker<'_> {
                             if let (Some(key), Some(inner)) = (subject_key, nullable_inner)
                                 && matched.is_non_null()
                             {
-                                matched_facts.entry(key).or_insert(inner);
+                                matched_facts.insert_if_absent(key, inner);
                             }
                             matched_facts.extend(checked.facts);
                         }
                         entry_facts = Some(match entry_facts {
                             None => matched_facts,
-                            Some(previous) => intersect_facts(&previous, &matched_facts),
+                            Some(previous) => previous.intersect(&matched_facts),
                         });
                         entry_versions = Some(match entry_versions {
                             None => matched_versions,
@@ -291,7 +291,7 @@ impl BodyChecker<'_> {
                         && source_valid
                         && remaining_domain.is_non_null()
                     {
-                        self.flow_facts.entry(key).or_insert(inner);
+                        self.flow_facts.insert_if_absent(key, inner);
                     }
                     if checked.valid && !checked.coverage.is_empty() {
                         let mut first_previous = None;
@@ -327,7 +327,7 @@ impl BodyChecker<'_> {
                 && let (Some(key), Some(inner)) = (subject_key, nullable_inner)
                 && body_domain.is_non_null()
             {
-                self.flow_facts.entry(key).or_insert(inner);
+                self.flow_facts.insert_if_absent(key, inner);
             }
             // A nullable subject can reach one case after earlier alternatives remove null.
             // Keep the existing non-nullable remaining-domain contract unchanged.
@@ -433,7 +433,7 @@ impl BodyChecker<'_> {
             .reduce(
                 |(left_facts, left_versions), (right_facts, right_versions)| {
                     (
-                        intersect_facts(&left_facts, &right_facts),
+                        left_facts.intersect(&right_facts),
                         merge_flow_versions(&left_versions, &right_versions),
                     )
                 },

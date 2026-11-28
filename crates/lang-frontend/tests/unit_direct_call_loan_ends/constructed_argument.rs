@@ -28,7 +28,9 @@ fn checked_construction_temporaries_publish_actual_ends_but_factory_results_do_n
             assert!(matches!(points[0], UnitDropPoint::ControlTransfer(_)));
             assert_eq!(points[1], UnitDropPoint::CallReturn(loan.call()));
             let ends = unit.direct_call_loan_ends();
+            let class_unwinds = unit.class_result_argument_unwinds();
             if observed_construction {
+                assert!(class_unwinds.is_empty());
                 assert_eq!(
                     ends.iter().map(|end| end.point()).collect::<Vec<_>>(),
                     points
@@ -42,6 +44,12 @@ fn checked_construction_temporaries_publish_actual_ends_but_factory_results_do_n
                     ends.is_empty(),
                     "a factory call has no direct construction proof"
                 );
+                let [unwind] = class_unwinds else {
+                    panic!("only the return edge abandons the class-result argument");
+                };
+                assert_eq!(unwind.loan(), loan);
+                assert_eq!(unwind.point(), points[0]);
+                assert_eq!(unwind.preceding_drops(), 0);
             }
         }
     }
@@ -246,5 +254,349 @@ fun unformed(flag: Boolean): Unit = read(n = if (flag) { return } else { 0 }, it
             3,
             "no cleanup for the construction skipped by Return"
         );
+    }
+}
+
+#[test]
+fn singleton_prefix_publishes_only_the_completed_class_argument_unwind() {
+    for (arguments, body, expected_end) in [
+        ("factory(), break", "loop { CALL }", Some("break")),
+        (
+            "(Node()), continue",
+            "while (flag) { CALL }",
+            Some("continue"),
+        ),
+        ("factory(), return", "CALL", Some("return")),
+        ("factory(), 0", "CALL", None),
+        ("factory(), if (flag) { 1 } else { 0 }", "CALL", None),
+        ("item = factory(), stop = return", "CALL", Some("return")),
+        ("stop = return, item = factory()", "CALL", None),
+    ] {
+        let call = format!("Gate.read({arguments})");
+        let body = body.replace("CALL", &call);
+        let observed = observe(&format!(
+            "class Node {{}}\nfun factory(): Node = Node()\nobject Gate {{ fun read(item: Node, stop: Int): Unit {{}} }}\nfun run(flag: Boolean): Unit {{ {body} }}"
+        ));
+        assert_units_admitted(&observed);
+        for unit in &observed.units {
+            assert!(unit.direct_call_loan_ends().is_empty());
+            let ends = unit.class_result_argument_unwinds();
+            let Some(keyword) = expected_end else {
+                assert!(ends.is_empty(), "{arguments}: {ends:?}");
+                continue;
+            };
+            let [end] = ends else {
+                panic!("{arguments}: expected exactly one retired temporary loan");
+            };
+            let loan = end.loan();
+            let UnitDropPoint::ControlTransfer(transfer) = end.point() else {
+                panic!("the call prefix exits before dispatch");
+            };
+            let span = observed
+                .parsed
+                .ast()
+                .expressions()
+                .get(transfer.expression())
+                .unwrap()
+                .span();
+            assert_eq!(observed.sources.slice(span), Ok(keyword));
+            let expressions = observed.parsed.ast().expressions();
+            let call_span = expressions.get(loan.call().expression()).unwrap().span();
+            assert_eq!(observed.sources.slice(call_span), Ok(call.as_str()));
+            let operand = if arguments.starts_with("(Node())") {
+                "(Node())"
+            } else {
+                "factory()"
+            };
+            assert_eq!(observed.sources.slice(loan.begin_span()), Ok(operand));
+            assert_eq!(loan.kind(), LoanKind::Shared);
+            assert_eq!(loan.target(), &UnitLoanTarget::Temporary(loan.argument()));
+            assert_eq!(unit.call_may_dispatch(loan.call()), Some(false));
+            assert_eq!(end.preceding_drops(), 0);
+            assert_eq!(end.preceding_call_loan_ends(), 0);
+            assert_eq!(
+                unit.drops()
+                    .iter()
+                    .filter(|drop| drop.target() == UnitDropTarget::Temporary(loan.argument()))
+                    .map(|drop| drop.point())
+                    .collect::<Vec<_>>(),
+                [end.point()],
+                "{arguments}: the same exit drops the completed owner exactly once"
+            );
+        }
+    }
+
+    for (source, has_temporary) in [
+        (
+            "class Node {}\nfun factory(): Node = Node()\nobject Gate { fun read(item: Node, stop: Int): Unit {} }\nfun receiver(): Gate = Gate\nfun run(): Unit { receiver().read(factory(), return) }",
+            true,
+        ),
+        (
+            "class Node(val n: Int)\nobject Gate { fun read(item: Node, stop: Int): Unit {} }\nfun run(): Unit { Gate.read(Node(return), 0) }",
+            false,
+        ),
+    ] {
+        let observed = observe(source);
+        assert_units_admitted(&observed);
+        for unit in &observed.units {
+            assert!(unit.direct_call_loan_ends().is_empty());
+            assert!(unit.class_result_argument_unwinds().is_empty(), "{source}");
+            assert_eq!(
+                unit.loans().iter().any(|loan| {
+                    loan.kind() == LoanKind::Shared
+                        && loan.target() == &UnitLoanTarget::Temporary(loan.argument())
+                }),
+                has_temporary,
+                "{source}"
+            );
+        }
+    }
+}
+
+#[test]
+fn singleton_prefix_retires_only_the_completed_rc_argument() {
+    for (family, operand, exit, expected) in [
+        ("Rc<Leaf>", "make()", "break", true),
+        ("Rc<Leaf>", "Rc(Leaf(8))", "continue", true),
+        ("Rc<Leaf>", "owner.share()", "return", true),
+        ("Rc<Leaf>?", "maybe(flag)", "break", true),
+        ("Rc<Leaf>?", "make()", "return", true),
+        ("Rc<Leaf>", "nested.value", "return", false),
+        ("Rc<Leaf>", "Rc(Leaf(return))", "0", false),
+        ("Rc<Leaf>", "make()", "if (flag) 1 else 0", false),
+        ("Rc<Leaf>", "make()", "0", false),
+    ] {
+        let call = format!("Gate.inspect({operand}, {exit})");
+        let body = match exit {
+            "break" | "continue" => format!("loop {{ {call} }}"),
+            _ => call.clone(),
+        };
+        let text = format!(
+            "class Leaf(val n: Int)\nfun make(): Rc<Leaf> = Rc(Leaf(7))\nfun maybe(flag: Boolean): Rc<Leaf>? = if (flag) make() else null\nobject Gate {{ fun inspect(value: {family}, stop: Int): Unit {{}} }}\nfun run(owner: Rc<Leaf>, nested: Rc<Rc<Leaf>>, flag: Boolean): Unit {{ {body} }}"
+        );
+        let observed = observe(&text);
+        assert_units_admitted(&observed);
+        for unit in &observed.units {
+            assert!(unit.direct_call_loan_ends().is_empty());
+            assert!(unit.class_result_argument_unwinds().is_empty());
+            let facts = unit.singleton_temporary_argument_unwinds();
+            if !expected {
+                assert!(facts.is_empty(), "{call}: {facts:?}");
+                if operand == "nested.value" {
+                    assert!(unit.loans().iter().any(|loan| {
+                        observed.sources.slice(loan.begin_span()) == Ok(operand)
+                            && loan.target() != &UnitLoanTarget::Temporary(loan.argument())
+                    }));
+                }
+                continue;
+            }
+            let [end] = facts else {
+                panic!("{call}: expected one retired temporary loan");
+            };
+            let loan = end.loan();
+            let ast = observed.parsed.ast().expressions();
+            assert_eq!(
+                observed
+                    .sources
+                    .slice(ast.get(loan.call().expression()).unwrap().span()),
+                Ok(call.as_str())
+            );
+            assert_eq!(observed.sources.slice(loan.begin_span()), Ok(operand));
+            let UnitDropPoint::ControlTransfer(transfer) = end.point() else {
+                panic!("the actual edge must exit before dispatch");
+            };
+            assert_eq!(
+                observed
+                    .sources
+                    .slice(ast.get(transfer.expression()).unwrap().span()),
+                Ok(exit)
+            );
+            assert_eq!(unit.call_may_dispatch(loan.call()), Some(false));
+            assert_eq!(loan.kind(), LoanKind::Shared);
+            assert_eq!(loan.target(), &UnitLoanTarget::Temporary(loan.argument()));
+            assert_eq!(end.preceding_drops(), 0);
+            assert_eq!(
+                unit.drops()
+                    .iter()
+                    .filter(|drop| drop.target() == UnitDropTarget::Temporary(loan.argument()))
+                    .map(|drop| drop.point())
+                    .collect::<Vec<_>>(),
+                [end.point()]
+            );
+        }
+    }
+}
+
+#[test]
+fn singleton_prefix_retires_owned_container_operands_from_the_actual_exit() {
+    for (family, operand, exit, expected) in [
+        ("Box<Packet>", "makeBox()", "break", true),
+        ("Box<Packet>?", "makeOptional(flag)", "return", true),
+        ("Box<Packet>?", "makeBox()", "return", true),
+        ("Array<Leaf>", "arrayOf(Leaf(1))", "continue", true),
+        ("List<Leaf>", "listOf(Leaf(2))", "return", true),
+        ("MutableList<Leaf>", "mutableListOf(Leaf(3))", "break", true),
+        ("Map<Int, Leaf>", "mapOf<Int, Leaf>()", "return", true),
+        ("Map<Int, Leaf>", "makeImmutable()", "return", true),
+        ("MutableMap<Int, Leaf>", "makeMap()", "break", true),
+        ("Map<Int, Leaf>?", "maybeMap(flag)", "return", true),
+        (
+            "MutableMap<Int, Leaf>?",
+            "maybeMutable(flag)",
+            "return",
+            true,
+        ),
+        ("Array<Leaf>", "borrowed", "return", false),
+        (
+            "Array<Leaf>",
+            "Holder(arrayOf(Leaf(5))).values",
+            "return",
+            false,
+        ),
+        ("List<Leaf>", "listOf(Leaf(6))", "0", false),
+        ("Array<Leaf>", "arrayOf(Leaf(return))", "0", false),
+        ("List<Leaf>", "listOf(Leaf(4))", "if (flag) 1 else 0", false),
+    ] {
+        let call = format!("Gate.inspect({operand}, {exit})");
+        let body = match exit {
+            "break" | "continue" => format!("loop {{ {call} }}"),
+            _ => call.clone(),
+        };
+        let observed = observe(&format!(
+            r#"
+class Leaf(val number: Int)
+class Holder(val values: Array<Leaf>)
+enum class Packet {{ Full(value: Leaf), Empty }}
+fun makeBox(): Box<Packet> = Box(Packet.Full(Leaf(7)))
+fun makeOptional(flag: Boolean): Box<Packet>? = if (flag) makeBox() else null
+fun makeMap(): MutableMap<Int, Leaf> {{
+    var values = mutableMapOf<Int, Leaf>()
+    values.put(1, Leaf(8))
+    return values
+}}
+fun makeImmutable(): Map<Int, Leaf> {{
+    var values = makeMap()
+    return values.consume()
+}}
+fun maybeMap(flag: Boolean): Map<Int, Leaf>? = if (flag) makeImmutable() else null
+fun maybeMutable(flag: Boolean): MutableMap<Int, Leaf>? = if (flag) makeMap() else null
+object Gate {{ fun inspect(value: {family}, stop: Int): Unit {{}} }}
+fun run(borrowed: Array<Leaf>, flag: Boolean): Unit {{ {body} }}
+"#
+        ));
+        assert_units_admitted(&observed);
+        for unit in &observed.units {
+            let facts = unit.singleton_temporary_argument_unwinds();
+            assert!(unit.direct_call_loan_ends().is_empty());
+            assert!(unit.class_result_argument_unwinds().is_empty());
+            if !expected {
+                assert!(facts.is_empty(), "{call}: {facts:?}");
+                if operand.ends_with(".values") {
+                    assert!(unit.loans().iter().any(|loan| {
+                        observed.sources.slice(loan.begin_span()) == Ok(operand)
+                            && loan.target() != &UnitLoanTarget::Temporary(loan.argument())
+                    }));
+                }
+                continue;
+            }
+            let [end] = facts else {
+                panic!("{call}: expected one retired temporary loan");
+            };
+            let loan = end.loan();
+            let expressions = observed.parsed.ast().expressions();
+            let UnitDropPoint::ControlTransfer(transfer) = end.point() else {
+                panic!("the actual edge must exit before dispatch");
+            };
+            for (id, spelling) in [
+                (loan.call(), call.as_str()),
+                (loan.argument(), operand),
+                (transfer, exit),
+            ] {
+                assert_eq!(
+                    observed
+                        .sources
+                        .slice(expressions.get(id.expression()).unwrap().span()),
+                    Ok(spelling)
+                );
+            }
+            assert_eq!(unit.call_may_dispatch(loan.call()), Some(false));
+            assert_eq!(loan.target(), &UnitLoanTarget::Temporary(loan.argument()));
+            assert_eq!(loan.kind(), LoanKind::Shared);
+            assert_eq!(end.preceding_drops(), 0);
+            assert_eq!(
+                unit.drops()
+                    .iter()
+                    .filter(|drop| drop.target() == UnitDropTarget::Temporary(loan.argument()))
+                    .map(|drop| drop.point())
+                    .collect::<Vec<_>>(),
+                [end.point()]
+            );
+        }
+    }
+}
+
+#[test]
+fn singleton_mixed_dispatch_publishes_the_actual_exit_and_preserves_call_return_drop() {
+    for (family, expression, class_result) in [
+        ("Leaf", "Leaf(1)", true),
+        ("String", "\"source\".clone()", false),
+        ("Rc<Leaf>", "Rc(Leaf(2))", false),
+        ("Box<Packet>", "Box(Packet.Full(Leaf(3)))", false),
+        ("Array<Leaf>", "arrayOf(Leaf(4))", false),
+        ("Map<Int, Leaf>?", "mapOf<Int, Leaf>()", false),
+    ] {
+        let call = "Gate.inspect(make(), if (flag) return else 0)";
+        let observed = observe(&format!(
+            r#"
+class Leaf(val value: Int)
+enum class Packet {{ Full(value: Leaf), Empty }}
+fun make(): {family} = {expression}
+object Gate {{ fun inspect(value: {family}, stop: Int): Unit {{}} }}
+fun run(flag: Boolean): Unit {{ {call} }}
+"#
+        ));
+        assert_units_admitted(&observed);
+        for unit in &observed.units {
+            assert!(unit.direct_call_loan_ends().is_empty());
+            let class = unit.class_result_argument_unwinds();
+            let other = unit.singleton_temporary_argument_unwinds();
+            let (ends, unrelated) = if class_result {
+                (class, other)
+            } else {
+                (other, class)
+            };
+            assert!(unrelated.is_empty());
+            let [end] = ends else {
+                panic!("{family}: only the real early exit retires this prefix loan");
+            };
+            let loan = end.loan();
+            let UnitDropPoint::ControlTransfer(transfer) = end.point() else {
+                panic!("register the early edge independently of normal dispatch");
+            };
+            let expressions = observed.parsed.ast().expressions();
+            for (id, spelling) in [
+                (loan.call(), call),
+                (loan.argument(), "make()"),
+                (transfer, "return"),
+            ] {
+                assert_eq!(
+                    observed
+                        .sources
+                        .slice(expressions.get(id.expression()).unwrap().span()),
+                    Ok(spelling)
+                );
+            }
+            assert_eq!(unit.call_may_dispatch(loan.call()), Some(true));
+            assert_eq!(loan.target(), &UnitLoanTarget::Temporary(loan.argument()));
+            assert_eq!(loan.kind(), LoanKind::Shared);
+            assert_eq!(end.preceding_drops(), 0);
+            let drops = unit
+                .drops()
+                .iter()
+                .filter(|drop| drop.target() == UnitDropTarget::Temporary(loan.argument()))
+                .map(|drop| drop.point())
+                .collect::<Vec<_>>();
+            assert_eq!(drops, [end.point(), UnitDropPoint::CallReturn(loan.call())]);
+        }
     }
 }

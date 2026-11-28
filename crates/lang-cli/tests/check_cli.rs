@@ -63,6 +63,71 @@ fun main(): Unit {\n\
 }\n";
 
 #[test]
+fn interpolation_checks_the_canonical_display_interface() {
+    let directory = TestDirectory::create();
+    fs::create_dir(directory.join("src")).unwrap();
+    let source = directory.join("src/main.ko");
+    let manifest = directory.join("project.toml");
+    fs::write(
+        &manifest,
+        "schema = \"koven.project\"\nversion = 1\n[project]\nname = \"display\"\nsource-roots = [\"src\"]\n",
+    )
+    .unwrap();
+    for (text, errors) in [
+        (
+            r#"class Example() : Display {
+    override fun toString(): String = "example"
+}
+fun <T : Display> format(value: T): String = "${value}"
+fun main(): Unit { println(format(Example())); println(format(7)) }"#,
+            0,
+        ),
+        (
+            r#"class Plain() { fun toString(): String = "plain" }
+fun <T> unbounded(value: T): String = "${value}"
+fun tick(): Unit {}
+fun main(): Unit {
+    val callback: () -> Int = { 1 }
+    println("${Plain()} ${callback} ${tick()}")
+}"#,
+            4,
+        ),
+        (
+            r#"interface Display { fun toString(): String }
+class Shadow() : Display {
+    override fun toString(): String = "shadow"
+}
+fun main(): Unit { println("${Shadow()}") }"#,
+            1,
+        ),
+        (r#"fun stop(): Int { println("${return 7}") }"#, 0),
+    ] {
+        fs::write(&source, text).unwrap();
+        for output in [
+            kovenc([OsStr::new("check"), source.as_os_str()]),
+            kovenc([
+                OsStr::new("check"),
+                OsStr::new("--project"),
+                manifest.as_os_str(),
+            ]),
+        ] {
+            let stderr = String::from_utf8(output.stderr).unwrap();
+            assert_eq!(
+                output.status.code(),
+                Some(i32::from(errors != 0)),
+                "{text}\n{stderr}"
+            );
+            assert_eq!(
+                stderr.matches("error[L0085]").count(),
+                errors,
+                "{text}\n{stderr}"
+            );
+            assert_eq!(stderr.matches("error[").count(), errors, "{text}\n{stderr}");
+        }
+    }
+}
+
+#[test]
 fn clean_single_file_exits_zero_without_output_or_artifacts() {
     let directory = TestDirectory::create();
     let source = directory.join("clean.ko");
@@ -321,6 +386,19 @@ fn reviewed_frontend_contracts_reach_both_public_check_entries() {
         ("fun reject(value: List<Nothing>): Unit {}", Some("L0125")),
         ("fun reject(value: List<Copyable>): Unit {}", Some("L0125")),
         (
+            r#"interface Action {
+    fun <X> apply(): Int = 1
+    fun toString(): String = "${this.apply<Nothing>()}"
+}
+class Actual(): Display, Action {
+    override fun <Y> apply(): Int { val items = listOf<Y>(); return 2 }
+}
+fun <T: Display> show(value: T): String = "${value}"
+fun main(): Unit { println(show(Actual())) }
+"#,
+            Some("L0125"),
+        ),
+        (
             "fun <T> fail(): List<T> = error(\"never\")\nfun entry(): Unit { fail<Nothing>() }",
             Some("L0125"),
         ),
@@ -362,6 +440,23 @@ fun compare(inout slot: String?): Unit {
         ),
         (
             r#"fun clear(inout slot: String?): String { slot = null; return "text".clone() }
+fun compare(inout slot: String?): Boolean { return (slot) == clear(&slot) }"#,
+            Some("L0135"),
+        ),
+        (
+            r#"class Inner(var text: String?)
+class Outer(val inner: Inner)
+fun view(borrow owner: Outer): borrow Outer from owner = owner
+fun clear(inout owner: Outer): Nothing? { owner.inner.text = null; return null }
+fun compare(): Boolean {
+    var owner = Outer(Inner(null))
+    borrow val alias = view(owner)
+    return alias.inner.text == clear(&owner)
+}"#,
+            Some("L0135"),
+        ),
+        (
+            r#"fun clear(inout slot: String?): Nothing? { slot = null; return null }
 fun compare(inout slot: String?): Boolean { return (slot) == clear(&slot) }"#,
             Some("L0135"),
         ),

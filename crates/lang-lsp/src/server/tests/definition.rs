@@ -285,3 +285,111 @@ fn source_set_definition_rejects_private_and_unresolved_targets() {
         .expect("server thread")
         .expect("server result");
 }
+
+#[test]
+fn embedded_display_publishes_related_notes_without_a_document_uri() {
+    let uri: lsp_types::Uri = "file:///workspace/user.ko".parse().expect("uri");
+    let source = "class Missing() : Display {}";
+    for project in [false, true] {
+        let (server, client) = Connection::memory();
+        let server_thread = thread::spawn(|| run(server));
+        if project {
+            initialize_with_options(
+                &client,
+                Some(serde_json::json!({"koven": {"sourceSet": {
+                    "schema": "koven.lsp.source-set",
+                    "version": 1,
+                    "roots": ["main"],
+                    "sources": [{
+                        "root": "main",
+                        "logicalPath": "User.ko",
+                        "uri": uri,
+                        "text": source
+                    }]
+                }}})),
+            );
+        } else {
+            initialize(&client);
+            send_notification(
+                &client,
+                DidOpenTextDocument::METHOD,
+                serde_json::to_value(DidOpenTextDocumentParams {
+                    text_document: TextDocumentItem::new(
+                        uri.clone(),
+                        "koven".to_owned(),
+                        1,
+                        source.to_owned(),
+                    ),
+                })
+                .expect("open params"),
+            );
+        }
+
+        let publication = receive_diagnostics(&client);
+        assert_eq!(publication.uri, uri);
+        assert!(
+            publication.diagnostics.iter().any(|diagnostic| {
+                diagnostic
+                    .message
+                    .contains("does not implement an abstract interface member")
+                    && diagnostic.message.contains("\nnote: ")
+                    && diagnostic.related_information.is_none()
+            }),
+            "{publication:?}"
+        );
+
+        assert!(
+            request_definition(
+                &client,
+                RequestId::from(31),
+                &uri,
+                position_of(source, "Display", 0),
+            )
+            .is_none()
+        );
+        shutdown(&client);
+        server_thread
+            .join()
+            .expect("server thread")
+            .expect("server");
+    }
+}
+
+#[test]
+fn embedded_display_conflicts_are_reported_on_the_user_document_in_either_root_order() {
+    let uri: lsp_types::Uri = "file:///workspace/koven/core/User.ko".parse().expect("uri");
+    let source = "package koven.core\ninterface Display { fun toString(): String }";
+    for root in ["a", "z"] {
+        let (server, client) = Connection::memory();
+        let server_thread = thread::spawn(|| run(server));
+        initialize_with_options(
+            &client,
+            Some(serde_json::json!({"koven": {"sourceSet": {
+                "schema": "koven.lsp.source-set",
+                "version": 1,
+                "roots": [root],
+                "sources": [{
+                    "root": root,
+                    "logicalPath": "koven/core/User.ko",
+                    "uri": uri,
+                    "text": source
+                }]
+            }}})),
+        );
+        let publication = receive_diagnostics(&client);
+        assert_eq!(publication.uri, uri);
+        assert!(
+            publication.diagnostics.iter().any(|diagnostic| {
+                diagnostic.code == Some(lsp_types::NumberOrString::String("L0147".to_owned()))
+                    && diagnostic.range.start == position_of(source, "Display", 0)
+                    && diagnostic.message.contains("\nnote: ")
+            }),
+            "{publication:?}"
+        );
+        shutdown(&client);
+        server_thread
+            .join()
+            .expect("server thread")
+            .expect("server");
+    }
+}

@@ -422,7 +422,7 @@ fn constant_object_runs_deterministically_and_preserves_output_on_failure() {
     let (consumer_source, consumer) = parsed(
         &mut sources,
         "q/consumer.ko",
-        "package q\nimport p.TEXT\nfun entry(): Unit { println(TEXT + p.TEXT) }\nfun argvEntry(args: Array<String>): Unit { println(TEXT) }\nfun <T> generic(): Unit {}\nfun invalid(): String = TEXT\nfun interpolated(): Unit { println(\"${p.TEXT}\") }",
+        "package q\nimport p.TEXT\nfun entry(): Unit { println(TEXT + p.TEXT) }\nfun argvEntry(args: Array<String>): Unit { println(TEXT) }\nfun <T> generic(): Unit {}\nfun invalid(): String = TEXT\nfun interpolated(): Unit { println(\"${p.TEXT}\") }\nfun booleanInterpolation(): Unit { println(\"${p.FLAG}\") }\nvalue class Unlowered(var item: String) { inout fun update(text: String, own flag: Boolean): Unit {} }\nfun choose(): Boolean = p.FLAG\nfun unsupportedInout(): Unit { var host = Unlowered(TEXT); host.update(TEXT, if (choose()) { return } else { true }) }",
     );
     let inputs = [
         SourceUnitInput::new("root", "p/provider.ko", provider_source, &provider),
@@ -458,6 +458,14 @@ fn constant_object_runs_deterministically_and_preserves_output_on_failure() {
     fs::write(&object, b"previous object").unwrap();
     for (entry, expected) in [
         (NativeUnitEntry::NoArguments(declaration("entry")), "界界\n"),
+        (
+            NativeUnitEntry::NoArguments(declaration("interpolated")),
+            "界\n",
+        ),
+        (
+            NativeUnitEntry::NoArguments(declaration("booleanInterpolation")),
+            "true\n",
+        ),
         (
             NativeUnitEntry::BorrowedArguments(declaration("argvEntry")),
             "界\n",
@@ -500,7 +508,7 @@ fn constant_object_runs_deterministically_and_preserves_output_on_failure() {
     for (name, expected) in [
         ("generic", NativeObjectErrorKind::InvalidEntry),
         ("invalid", NativeObjectErrorKind::InvalidEntry),
-        ("interpolated", NativeObjectErrorKind::UnsupportedSource),
+        ("unsupportedInout", NativeObjectErrorKind::UnsupportedSource),
     ] {
         assert_eq!(
             emit_native_constant_unit_object(

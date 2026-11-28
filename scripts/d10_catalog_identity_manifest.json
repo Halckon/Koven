@@ -1,0 +1,234 @@
+{
+  "schema": "koven.e2-two-source-shadow-manifest.v1",
+  "suite_id": "d10-catalog-identity",
+  "source_script": "scripts/check_d10_catalog_identity_ci.sh",
+  "formal_ci_step_name": "Independent D10 catalog identity controls (CI only)",
+  "cargo_jobs": 1,
+  "total_configs": 9,
+  "total_entries": 15,
+  "configs": [
+    {
+      "config_id": "d10-id-1-frontend-lib-loan",
+      "package": "lang-frontend",
+      "target_name": "lang_frontend",
+      "target_kind": ["lib"],
+      "cargo_target_args": ["--lib"],
+      "cargo_features_arg": "loan-observation-test-support",
+      "expected_features": ["loan-observation-test-support"],
+      "entries": [
+        {
+          "global_index": 0,
+          "test_name": "ownership_checking::compilation_unit::dataflow::drop_planner::owner_transport::tests::origin_probe::ci_only_catalog_authorization_rejects_foreign_inputs",
+          "exact": true,
+          "ignored": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        }
+      ]
+    },
+    {
+      "config_id": "d10-id-2-frontend-handoff",
+      "package": "lang-frontend",
+      "target_name": "d10_catalog_handoff",
+      "target_kind": ["test"],
+      "cargo_target_args": ["--test", "d10_catalog_handoff"],
+      "features_before_target": true,
+      "cargo_features_arg": "d10-catalog-experiment",
+      "expected_features": ["d10-catalog-experiment"],
+      "entries": [
+        {
+          "global_index": 1,
+          "test_name": "ci_only_sidecar_rejects_another_ownership_run",
+          "exact": true,
+          "ignored": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 2,
+          "test_name": "ci_only_loop_sidecar_rejects_another_ownership_run",
+          "exact": true,
+          "ignored": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        }
+      ]
+    },
+    {
+      "config_id": "d10-id-3-codegen-lib-dual-replay",
+      "package": "lang-codegen",
+      "target_name": "lang_codegen",
+      "target_kind": ["lib"],
+      "cargo_target_args": ["--lib"],
+      "cargo_features_arg": "d10-catalog-experiment,loan-observation-test-support",
+      "expected_features": ["d10-catalog-experiment", "loan-observation-test-support"],
+      "entries": [
+        {
+          "global_index": 3,
+          "test_name": "ssa::d10_dual_nested_loop_tests::ci_only_dual_replay_rejects_foreign_owned_identity",
+          "exact": true,
+          "ignored": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        }
+      ]
+    },
+    {
+      "config_id": "d10-id-4-frontend-after-child",
+      "package": "lang-frontend",
+      "target_name": "d10_after_child_handoff",
+      "target_kind": ["test"],
+      "cargo_target_args": ["--test", "d10_after_child_handoff"],
+      "features_before_target": true,
+      "cargo_features_arg": "d10-catalog-experiment",
+      "expected_features": ["d10-catalog-experiment"],
+      "entries": [
+        {
+          "global_index": 4,
+          "test_name": "ci_only_after_child_rejects_other_ownership",
+          "exact": true,
+          "ignored": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        }
+      ]
+    },
+    {
+      "config_id": "d10-id-5-codegen-lib-pub-process",
+      "package": "lang-codegen",
+      "target_name": "lang_codegen",
+      "target_kind": ["lib"],
+      "cargo_target_args": ["--lib"],
+      "cargo_features_arg": "d10-catalog-experiment,loan-observation-test-support",
+      "expected_features": ["d10-catalog-experiment", "loan-observation-test-support"],
+      "entries": [
+        {
+          "global_index": 5,
+          "test_name": "ssa::d10_dual_nested_loop_tests::parent_after_child::bound::ci_only_after_child_publication_rejects_identity_and_graph_mismatch",
+          "exact": true,
+          "ignored": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 6,
+          "test_name": "ssa::d10_dual_nested_loop_tests::ci_only_before_child_graph_rejects_locally_valid_source_mismatch",
+          "exact": true,
+          "ignored": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 7,
+          "test_name": "ssa::d10_named_wrapper_tests::process_object::ci_only_process_object_failure_preserves_target",
+          "exact": true,
+          "ignored": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 8,
+          "test_name": "ssa::d10_named_after_child_tests::process_object::ci_only_process_object_failure_preserves_target",
+          "exact": true,
+          "ignored": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        }
+      ]
+    },
+    {
+      "config_id": "d10-id-6-frontend-prepare-named",
+      "package": "lang-frontend",
+      "target_name": "d10_prepare_named_entry",
+      "target_kind": ["test"],
+      "cargo_target_args": ["--test", "d10_prepare_named_entry"],
+      "features_before_target": true,
+      "cargo_features_arg": "d10-catalog-experiment",
+      "expected_features": ["d10-catalog-experiment"],
+      "entries": [
+        {
+          "global_index": 9,
+          "test_name": "ci_only_selected_entry_rejects_foreign_and_cloned_declarations",
+          "exact": true,
+          "ignored": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        }
+      ]
+    },
+    {
+      "config_id": "d10-id-7-frontend-lib-d10",
+      "package": "lang-frontend",
+      "target_name": "lang_frontend",
+      "target_kind": ["lib"],
+      "cargo_target_args": ["--lib"],
+      "cargo_features_arg": "d10-catalog-experiment",
+      "expected_features": ["d10-catalog-experiment"],
+      "entries": [
+        {
+          "global_index": 10,
+          "test_name": "ownership_checking::compilation_unit::d10_catalog_experiment::run_identity_tests::ci_only_pending_rejects_same_typed_other_owned_run",
+          "exact": true,
+          "ignored": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 11,
+          "test_name": "ownership_checking::compilation_unit::d10_catalog_experiment::split_source::tests::ci_only_split_rejects_same_typed_foreign_run",
+          "exact": true,
+          "ignored": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        }
+      ]
+    },
+    {
+      "config_id": "d10-id-8-frontend-prepare-split",
+      "package": "lang-frontend",
+      "target_name": "d10_prepare_split_named_entry",
+      "target_kind": ["test"],
+      "cargo_target_args": ["--test", "d10_prepare_split_named_entry"],
+      "features_before_target": true,
+      "cargo_features_arg": "d10-catalog-experiment",
+      "expected_features": ["d10-catalog-experiment"],
+      "entries": [
+        {
+          "global_index": 12,
+          "test_name": "ci_only_split_selector_rejects_cloned_and_foreign_declarations",
+          "exact": true,
+          "ignored": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        }
+      ]
+    },
+    {
+      "config_id": "d10-id-9-codegen-lib-split",
+      "package": "lang-codegen",
+      "target_name": "lang_codegen",
+      "target_kind": ["lib"],
+      "cargo_target_args": ["--lib"],
+      "cargo_features_arg": "d10-catalog-experiment,loan-observation-test-support",
+      "expected_features": ["d10-catalog-experiment", "loan-observation-test-support"],
+      "entries": [
+        {
+          "global_index": 13,
+          "test_name": "ssa::d10_split_source_tests::ci_only_split_graph_rejects_source_and_target_mismatch",
+          "exact": true,
+          "ignored": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 14,
+          "test_name": "ssa::d10_split_source_tests::ci_only_split_process_failure_preserves_target",
+          "exact": true,
+          "ignored": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        }
+      ]
+    }
+  ]
+}

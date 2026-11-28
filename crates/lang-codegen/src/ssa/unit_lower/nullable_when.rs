@@ -45,13 +45,15 @@ impl UnitExpressionLowerer<'_> {
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?
             .clone();
         let source = self.prepare_nullable_when_source(&descriptor, span)?;
-        let result_plan = self.control_result(control.expression(), None, span)?;
+        let result_plan = self.control_result(control.expression(), span)?;
         let result_type = self
             .typed
             .expression_type(control)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        if self.typed.copyability(result_type) == Copyability::MoveOnly {
-            // This slice does not turn a When tail into an implicit owned extraction.
+        if self.typed.copyability(result_type) == Copyability::MoveOnly
+            && (result_plan.nullable.is_none()
+                || !self.null_only_when_results(&descriptor, span)?)
+        {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         let checkpoint = self.loop_state();
@@ -62,6 +64,148 @@ impl UnitExpressionLowerer<'_> {
             self.restore_loop_state(&checkpoint);
         }
         result
+    }
+
+    /// A contextually nullable result may materialize null without extracting an owner.
+    fn null_only_when_results(
+        &self,
+        descriptor: &UnitNullableWhenDescriptor,
+        span: Span,
+    ) -> Result<bool, LoweringError> {
+        use crate::ssa::lowering_support::{boolean_literal_when_arms, is_null_only};
+
+        let continuing_bodies = |descriptor: &UnitNullableWhenDescriptor| {
+            descriptor
+                .entries()
+                .iter()
+                .filter(|entry| entry.falls_through())
+                .map(|entry| entry.body().statement())
+                .collect::<Vec<_>>()
+        };
+        let mut pending = continuing_bodies(descriptor);
+        while let Some(body) = pending.pop() {
+            if self.when_result_body_diverges(body)? {
+                continue;
+            }
+            let Some(tail) = self.control_tail_expression(body)? else {
+                return Ok(false);
+            };
+            let operands = self
+                .nullable_when_group_chain(UnitExpressionId::new(self.source_unit, tail), span)?;
+            let terminal = *operands
+                .last()
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            let typed = self.typed;
+            let ty = typed
+                .expression_type(terminal)
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            let ty = resolve_concrete_type(typed, ty, self.substitutions, self.static_self, span)?;
+            if typed.expression_falls_through(terminal) == Some(false) || is_null_only(typed, ty) {
+                continue;
+            }
+            let node = self
+                .parsed
+                .ast()
+                .expressions()
+                .get(terminal.expression())
+                .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            match node.payload() {
+                Expression::Literal(LiteralKind::Null) => {}
+                Expression::If {
+                    condition,
+                    then_branch,
+                    else_branch: Some(else_branch),
+                    ..
+                } => {
+                    let (yes, no) = if self.constant_owned.is_none() {
+                        let (literal_yes, literal_no) = typed.syntactic_if_outcomes(terminal);
+                        let (yes, no) = typed.ordinary_boolean_outcomes(UnitExpressionId::new(
+                            self.source_unit,
+                            *condition,
+                        ));
+                        (yes && literal_yes, no && literal_no)
+                    } else {
+                        (true, true)
+                    };
+                    pending.extend(yes.then_some(*then_branch));
+                    pending.extend(no.then_some(*else_branch));
+                }
+                // The ordinary lowering of the nested When checks its own result.
+                Expression::When { .. }
+                    if typed.nullable_when(terminal).is_some() && self.constant_owned.is_none() => {
+                }
+                Expression::When { entries, .. } => {
+                    if let Some(((yes, _), (no, _))) =
+                        boolean_literal_when_arms(self.parsed, entries)
+                            .map_err(|span| lowering_error(LoweringErrorKind::MissingFact, span))?
+                    {
+                        pending.extend([yes, no]);
+                    } else {
+                        return Ok(false);
+                    }
+                }
+                _ => return Ok(false),
+            }
+        }
+        Ok(true)
+    }
+
+    /// A terminating prefix has no result, regardless of the body's last syntax node.
+    fn when_result_body_diverges(&self, body: StatementId) -> Result<bool, LoweringError> {
+        let mut pending = vec![body];
+        while let Some(statement) = pending.pop() {
+            let node =
+                self.parsed
+                    .ast()
+                    .statements()
+                    .get(statement)
+                    .map_err(|_| LoweringError {
+                        kind: LoweringErrorKind::MissingFact,
+                        span: None,
+                    })?;
+            let expression = match node.payload() {
+                Statement::Block { elements }
+                | Statement::ControlBody { elements }
+                | Statement::LambdaBody { elements } => {
+                    pending.extend(elements.iter().rev().copied());
+                    continue;
+                }
+                Statement::Loop { .. } | Statement::While { .. } => {
+                    if self
+                        .typed
+                        .loop_falls_through(UnitStatementId::new(self.source_unit, statement))
+                        == Some(false)
+                    {
+                        return Ok(true);
+                    }
+                    continue;
+                }
+                Statement::LocalVariable { declaration } => {
+                    let (_, item, _) = unwrap_modified(self.parsed, *declaration)?;
+                    let Item::Variable { initializer, .. } = item else {
+                        return Err(lowering_error(LoweringErrorKind::MissingFact, node.span()));
+                    };
+                    initializer
+                }
+                Statement::Expression { expression }
+                | Statement::LocalDestructuring {
+                    initializer: expression,
+                    ..
+                }
+                | Statement::For {
+                    source: expression, ..
+                } => *expression,
+                _ => continue,
+            };
+            if self
+                .typed
+                .expression_falls_through(UnitExpressionId::new(self.source_unit, expression))
+                == Some(false)
+            {
+                return Ok(true);
+            }
+        }
+        Ok(false)
     }
 
     fn lower_nullable_when_source(

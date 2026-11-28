@@ -40,6 +40,150 @@ fn temporary_sequential_for_does_not_inherit_sibling_local_destructuring() {
 }
 
 #[test]
+fn move_only_enum_when_routes_with_temporary_sequential_iteration() {
+    for constructor in ["arrayOf", "listOf", "mutableListOf"] {
+        let source = format!(
+            r#"
+class Marker(val label: String)
+enum class Choice {{ Yes(payload: Marker), Other }}
+fun f(flag: Boolean): String {{
+    val subject: Choice = if (flag) {{ Choice.Yes(Marker("owned")) }} else {{ Choice.Other }}
+    return when (subject) {{
+        is Choice.Yes -> {{
+            for (_ in {constructor}("item")) {{ println("loop") }}
+            "yes"
+        }}
+        else -> "other"
+    }}
+}}
+"#
+        );
+        let (result, routed) = route(&source);
+        assert!(routed, "{constructor}: {:?}", result.as_ref().err());
+        crate::ssa::verify::verify_program(&result.expect("MoveOnly enum when requires Refine"))
+            .expect("temporary iteration and enum cleanup verify together");
+    }
+}
+
+#[test]
+fn temporary_iteration_does_not_inherit_a_sibling_move_only_enum_when() {
+    let source = r#"
+class Marker(val label: String)
+enum class Choice { Yes(payload: Marker), Other }
+fun choose(subject: Choice): String =
+    when (subject) { is Choice.Yes -> "yes"; else -> "other" }
+fun f(): Unit { for (item in listOf("kept")) { println(item) } }
+"#;
+    let (result, routed) = route(source);
+    assert!(
+        !routed,
+        "the ordinary loop keeps its existing lowering route"
+    );
+    crate::ssa::verify::verify_program(&result.expect("the ordinary loop lowers"))
+        .expect("the existing route verifies");
+}
+
+#[test]
+fn temporary_iteration_preserves_each_when_routing_boundary() {
+    let cases = [
+        ("subject: Boolean", "(subject)", "true", false),
+        ("subject: Boolean, test: Boolean", "(subject)", "test", true),
+        ("subject: Boolean", "", "subject", true),
+        ("subject: Int", "(subject)", "1", true),
+        ("borrow subject: String", "(subject)", "\"yes\"", true),
+    ];
+    for (parameters, head, selector, expected_route) in cases {
+        let source = format!(
+            r#"
+fun f({parameters}): String {{
+    return when {head} {{
+        {selector} -> {{
+            for (_ in listOf("item")) {{ println("loop") }}
+            "matched"
+        }}
+        else -> "other"
+    }}
+}}
+"#
+        );
+        let (result, routed) = route(&source);
+        assert_eq!(
+            routed,
+            expected_route,
+            "{source}: {:?}",
+            result.as_ref().err()
+        );
+        crate::ssa::verify::verify_program(&result.expect("both routes lower"))
+            .expect("the resulting SSA verifies");
+    }
+}
+
+#[test]
+fn nullable_boolean_when_routes_with_temporary_iteration() {
+    for (selector, tail) in [("true", "false -> 2; null -> 3"), ("null", "else -> 2")] {
+        let source = format!(
+            r#"
+fun f(subject: Boolean?): Int = when (subject) {{
+    {selector} -> {{ for (_ in listOf("item")) {{ println("loop") }}; 1 }}
+    {tail}
+}}
+"#
+        );
+        let (result, routed) = route(&source);
+        assert!(routed, "{source}: {:?}", result.as_ref().err());
+        crate::ssa::verify::verify_program(&result.expect("nullable Bool when requires Refine"))
+            .expect("nullable selectors and iteration verify");
+    }
+}
+
+#[test]
+fn function_value_when_routes_with_temporary_iteration() {
+    let source = r#"
+fun f(flag: Boolean): Unit {
+    val callback: (Int) -> Int = when {
+        flag -> {
+            for (_ in listOf("item")) { println("loop") }
+            ({ n -> n })
+        }
+        else -> ({ n -> n })
+    }
+}
+"#;
+    let (result, routed) = route(source);
+    assert!(routed, "{:?}", result.as_ref().err());
+    crate::ssa::verify::verify_program(&result.expect("the callable join requires Refine"))
+        .expect("the callable join and temporary loop verify together");
+}
+
+#[test]
+fn temporary_iteration_and_while_require_a_reached_when_in_the_same_callable() {
+    let prefix = r#"while (false) {}; for (_ in listOf("item")) { println("loop") }"#;
+    let when = r#"when { true -> println("when") }"#;
+    for (body, expected_route) in [
+        (format!("{prefix}; {when}"), true),
+        (format!("{when}; {prefix}"), true),
+        (format!("{prefix}; return; {when}"), false),
+        (
+            format!(
+                "val unrelated = {{ when {{ true -> println(\"nested\"); else -> println(\"other\") }} }}; {prefix}"
+            ),
+            false,
+        ),
+    ] {
+        let source = format!("fun f(): Unit {{ {body} }}");
+        let (result, routed) = route(&source);
+        assert_eq!(
+            routed,
+            expected_route,
+            "{source}: {:?}",
+            result.as_ref().err()
+        );
+        crate::ssa::verify::verify_program(&result.expect("the selected route lowers"))
+            .expect("the selected route verifies");
+    }
+}
+
+#[test]
 fn while_and_temporary_for_route_after_local_destructuring() {
     let pattern = "val (second, first) = Pair(20, 22)";
     for constructor in ["arrayOf", "listOf", "mutableListOf"] {

@@ -13,15 +13,15 @@
 | 阶段 | ✅ 已交付 | ◐ 部分 | ▶ 进行中 | ☐ 未开始 | ❓ 待决策 | ⏸ 延后 | 合计 |
 |---|---:|---:|---:|---:|---:|---:|---:|
 | S0 已交付基线 | 23 | 0 | 0 | 0 | 0 | 0 | 23 |
-| P0 止血 | 6 | 0 | 4 | 0 | 0 | 0 | 10 |
+| P0 止血 | 7 | 0 | 3 | 0 | 0 | 0 | 10 |
 | P1 结构 | 0 | 0 | 3 | 0 | 0 | 0 | 3 |
-| P2 补齐现有 Guide 能力 | 1 | 6 | 0 | 3 | 0 | 0 | 10 |
+| P2 补齐现有 Guide 能力 | 1 | 7 | 0 | 2 | 0 | 0 | 10 |
 | P3 语言增量 | 8 | 1 | 0 | 18 | 0 | 0 | 27 |
 | P4 文本与 IO | 0 | 0 | 0 | 5 | 0 | 0 | 5 |
 | P5 验收与发布 | 0 | 4 | 0 | 2 | 0 | 0 | 6 |
 | X v1 之外 | 0 | 0 | 0 | 0 | 0 | 11 | 11 |
 
-v1 范围内 84 项（必做 75，其中已交付 37）；X 阶段只列边界，不计入 v1。
+v1 范围内 84 项（必做 75，其中已交付 38）；X 阶段只列边界，不计入 v1。
 
 ## 最近一次实测
 
@@ -95,7 +95,7 @@ P0 之前已合入 main 的编译器骨架与有界能力；不表示每项都�
 
 | 状态 | ID | 内容 | 优先级 | 领域 | Guide | Phase | Spec / 依据 | 备注 |
 |---|---|---|---|---|---|---|---|---|
-| ▶ 进行中 | B18d | CLI 最终调试产物与双宿主源码断点 | v1 必做 | 工具链 | 已定义 | 4,6 | [0369](../specs/active/0369-final-debug-artifacts.md) | 发布决定已接受；最终产物、源码路径及 macOS/Linux LLDB 实施验收进行中。 |
+| ✅ 已交付 | B18d | CLI 最终调试产物与双宿主源码断点 | v1 必做 | 工具链 | 已定义 | 4,6 | [0369](../archive/specs/0369-final-debug-artifacts.md) | 生产实现已合入 main（9d9bc3d8），macOS dSYM/LLDB 与 Linux ELF/LLDB 均已验收并归档；部分发布失败例外保留为后续独立议题。 |
 | ✅ 已交付 | E1 | 前端硬门禁：Deferred/Error 不进入所有权与 codegen；未知成员报诊断；内部错误结构化；L0165 用户措辞 | v1 必做 | 编译器结构 | — | 2 | [0319](../archive/specs/0319-final-type-admission-diagnostics.md) [0323](../archive/specs/0323-final-admission-static-recovery.md) [0324](../archive/specs/0324-final-admission-user-messages.md) | 内部错误（ICE/ERR）与 154 probe 中的 InvalidSsa 均已清零（原 10 次观察随 SPEC-0350 与 SPEC-0341 后续切片消除）。 |
 | ▶ 进行中 | E1b | 声明/函数终止性：val 初始化全分支 return 与 L0088 入口一致 | v1 必做 | 控制流 | 已定义 | 2 | [0326](../archive/specs/0326-closed-control-branch-join.md) | 0326 作者已认领，尚未分 Spec。 |
 | ✅ 已交付 | E4 | Result/Ok/Err 注入内建环境（单文件与 project 相同）；kovenc check 与 --help | v1 必做 | 标准库与运行时 | 已定义 | 5,6 | [0349](../archive/specs/0349-builtin-result-and-check.md) | SPEC-0349：koven/core/result.ko 由宿主按 SourceId 授权为内建环境，两模式相同、无需 import；用户任一 package 的顶层 Result/Ok/Err 以 L0150 拒绝；kovenc check（单文件与 --project）与 --help 落地，单文件 build/run 的诊断退出码改为 1。Pair 随 S6（to / mapOf）进入。 |
@@ -126,8 +126,8 @@ E3 推广到 when、闭包、inout/字段赋值、泛型、Result `?`、Double/C
 | ◐ 部分 | N02 | when：Int/String/Char/MoveOnly enum subject、enum 方法内 when (this)、project 模式 enum case 条件 | v1 必做 | 控制流 | 已定义 | 2,3,4 | [0241](../archive/specs/0241-return-control-operands.md) [0320](../archive/specs/0320-enum-case-borrow-categories.md) [0326](../archive/specs/0326-closed-control-branch-join.md) [0356](../archive/specs/0356-refine-when-family.md) [0360](../specs/active/0360-string-when-refinement.md) [0379](../archive/specs/0379-refine-reassignment-and-move-enum-when.md) | SPEC-0356 分步迁入细化层（步 1 无 subject、步 2 有 subject 等值与 in range、步 3 enum is 与 enum 方法内 when (this)）。普通 enum subject 的 when（e01–e04、p49、u01）、enum 方法内 when (this)（p50）、Int subject 与 in range（p08、v16）、语句位置混型（v19）已通过；MoveOnly enum subject 的 is/!is when 与 case 载荷借用由 SPEC-0379 迁入细化层；String subject（p41）的 frontend 清理事实由 SPEC-0357（String when Unit 清理事实）提供，有限literal核由SPEC-0360消费，官方CI待验；复杂候选等边界继续开放。 |
 | ◐ 部分 | N03 | nullable 全路径：标量 T?、nullable 参数、Elvis、?.、!! | v1 必做 | 空安全与错误值 | 已定义 | 2,3,4 | [0220](../archive/specs/0220-compilation-unit-pointer-nullable-storage-lowering.md) [0296](../archive/specs/0296-owned-null-comparison-cleanup.md) | nullable 家族 8 个 probe 中除 Elvis 的 p15 外 7 个已通过（2026-10-24 本地实测，E3 试点 SPEC-0350 承接）；p15 待 Guide 15 解除 Elvis 延后。 |
 | ◐ 部分 | N04 | 闭包：lambda 直接作实参、函数引用 ::f、move 闭包返回与存储 | v1 必做 | 函数类型与闭包 | 已定义 | 2,3,4 | [0278](../archive/specs/0278-borrowed-closure-escape-verification.md) [0363](../archive/specs/0363-closure-scope-escape.md) [0364](../archive/specs/0364-refine-closures.md) [0365](../archive/specs/0365-closure-return-facts.md) [0370](../archive/specs/0370-refine-lambda-bodies.md) [borrowed-closure-escape](../architecture/borrowed-closure-escape.md) [0034-refine-closures-and-callable-views](../adr/accepted/0034-refine-closures-and-callable-views.md) | ADR-0034（2026-10-28 接受）：Borrow 函数参数为 callable view，逃逸分析三层；SPEC-0363 修复 closure 经外层 binding 持有时的 scope 逃逸漏报。SPEC-0364 步 1–3：SSA callable view、规划器取消 Borrow 回调单态化、细化层经 view 调用与直接实参 lambda（p17、p17b、q02），以及工厂返回 move 闭包（p18，frontend 事实由 SPEC-0365 提供），均两模式通过；SPEC-0370 将 lambda thunk 体与局部 callable 绑定迁入细化层并移除旧路径 thunk 捕获清理与参数单态化查询。余 q03（frontend overload 缺口，L0165）、Value 模式函数参数与闭包存储（按 ADR-0034 第 4 节留到 T1 前决定）。 |
-| ☐ 未开始 | N05 | Double/Float 运算与 Char 比较的 native 支持 | v1 必做 | 类型、泛型与声明 | 已定义 | 4 | — | — |
-| ◐ 部分 | N06 | interface bound 泛型调用、companion 函数调用、interface 实现与默认方法（单文件） | v1 必做 | 类、接口与成员 | 已定义 | 2,3,4 | [0323](../archive/specs/0323-final-admission-static-recovery.md) | companion 调用已由 0323 转为正确的静态角色；native 仍报 BE:UnsupportedSource。 |
+| ◐ 部分 | N05 | Double/Float 运算与 Char 比较的 native 支持 | v1 必做 | 类型、泛型与声明 | 已定义 | 4 | [0392](../specs/active/0392-compiler-layered-review.md) | SPEC-0392 §470–471：Char 标量比较与 Float/Double 原生标量运算已接入双入口，p05_double、p06_char 转为 run_ok。浮点聚合边界及发布验收仍待复审。 |
+| ◐ 部分 | N06 | interface bound 泛型调用、companion 函数调用、interface 实现与默认方法（单文件） | v1 必做 | 类、接口与成员 | 已定义 | 2,3,4 | [0323](../archive/specs/0323-final-admission-static-recovery.md) [0392](../specs/active/0392-compiler-layered-review.md) | 0392 接通接口上界调用的名义实例分派，p11_interface_bound 输出 dog。companion 调用已由 0323 转为正确的静态角色，原生生成仍待接入。 |
 | ◐ 部分 | N07 | Box.value / unbox() 与 Rc.value 字段投影 | v1 必做 | 标准库与运行时 | 已定义 | 2,3,4 | [0359](../archive/specs/0359-refine-rc.md) | SPEC-0359 在细化层交付 Rc 构造、share() 与 Rc.value 投影（p22）；Box.value / unbox() 待 L8 的 Guide 措辞确定后另开 Spec（2026-10-27 用户决定）。 |
 | ☐ 未开始 | N08 | Result + 后缀 ? 的 Int 与 String payload 全路径 | v1 必做 | 空安全与错误值 | 已定义 | 2,3,4 | [09-nullability-errors](../guide/09-nullability-errors.md) | 文件 IO（L6）的硬前置。 |
 | ☐ 未开始 | N09 | borrow T from this（泛型类 receiver 来源） | v1 必做 | 所有权、借用与析构 | 已定义 | 2,3,4 | — | 当前报 L0164。 |
@@ -185,9 +185,9 @@ E3 推广到 when、闭包、inout/字段赋值、泛型、Result `?`、Double/C
 
 | 状态 | ID | 内容 | 优先级 | 领域 | Guide | Phase | Spec / 依据 | 备注 |
 |---|---|---|---|---|---|---|---|---|
-| ☐ 未开始 | V1 | 六个验收程序（词频、配置解析、表达式求值、RAII 状态机、二进制编解码、链表/栈）双宿主运行正确且 ASan/LSan 干净 | v1 必做 | 验收、发布与文档 | — | 6 | — | 源码与 expected.txt 已入库并接入 scripts/conformance_gate.py 强 oracle；当前两模式一致均为 known_unimplemented（0 / 6 可运行）。另设第七个线程程序验收 T1，不计入 v1.0 硬门槛。 |
+| ☐ 未开始 | V1 | 十个 V1 验收程序（词频、配置解析、表达式求值、RAII 状态机、二进制编解码、链表/栈、文本日志汇总、泛型查询管道、共享 DAG 析构、受限并发管道）双宿主运行正确且 ASan/LSan 干净 | v1 必做 | 验收、发布与文档 | — | 6 | — | 源码与 expected.txt 已入库并接入 scripts/conformance_gate.py 强 oracle；当前目录登记 2 / 10 为 run_ok，其余 8 项仍为 known_unimplemented，与 conformance/README.md 保持同一 V1 验收范围。 |
 | ◐ 部分 | V2 | Conformance 矩阵：按 Guide 每章正反例，合法 100% 运行、非法 100% 前端诊断、0 ICE | v1 必做 | 验收、发布与文档 | — | 2,3,4 | [v1-freeze-decisions](../proposals/v1-freeze-decisions.md) | 以下 137/154 是 2026-10-27 历史基线；2026-11-07 本机 138/154 与宿主边界见 meta.metrics。V2 前六片已落地：conformance/expectations.json + conformance/ORACLE_AUDIT.md + scripts/conformance_gate.py + scripts/tests/test_conformance_gate.py 已接入 scripts/check_docs.py 结构门禁与 .github/workflows/ci.yml 双宿主（macos-14 / ubuntu-24.04）回归门禁，覆盖 Guide 01–13 全部 13 个规范章节归属映射（guide_chapter）、逐探针语义推导账本（oracle_derivation）、前端错误码目录（diagnostic.rs）交叉核验，以及全部 17 个 known_unimplemented probe 与 6 个验收程序的路线图阻塞项（roadmap_blockers: N01–N08, L1, L2, L7, S6, T1）实测双向对账校验（154 probe 能力通过 137/154，两模式差异 0，内部错误 0）。本轮后续待清零 16 个 known_unimplemented probe 并补齐每章正反例；此前 17 个仅为历史口径。 |
-| ◐ 部分 | V3 | Linux ASan/LSan 覆盖整个矩阵与六个验收程序 | v1 必做 | 安全验证 | — | 4 | [0266](../archive/specs/0266-native-sanitizer-wiring.md) | — |
+| ◐ 部分 | V3 | Linux ASan/LSan 覆盖整个矩阵与十个 V1 验收程序 | v1 必做 | 安全验证 | — | 4 | [0266](../archive/specs/0266-native-sanitizer-wiring.md) | — |
 | ☐ 未开始 | V4 | M4b 随机生成扩展到 E3 之后的通用 lowering | v1 建议 | 安全验证 | — | 4 | [0269](../archive/specs/0269-generated-resource-programs.md) [native-safety-validation](../proposals/native-safety-validation.md) | — |
 | ◐ 部分 | V5 | README、教程、Architecture 按实测能力重写；Guide 不含“当前实现到哪一步”的句子 | v1 必做 | 验收、发布与文档 | — | — | — | README 与 tour 已于 10-15 按实测改写。 |
 | ◐ 部分 | V6 | v1.0 发行：双宿主安装包、使用材料与已知限制 | v1 必做 | 验收、发布与文档 | — | 6 | [0272](../archive/specs/0272-preview-candidate-package.md) [measurement-distribution](../proposals/measurement-distribution.md) [v1-freeze-decisions](../proposals/v1-freeze-decisions.md) | — |

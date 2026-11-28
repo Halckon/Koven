@@ -1,0 +1,38 @@
+{
+  "schema": "koven.e2-two-source-shadow-manifest.v1",
+  "suite_id": "scalar-owner-entry",
+  "source_script": "scripts/check_scalar_owner_entry_ci.sh",
+  "formal_ci_step_name": "Verify scalar owner entry corruption fails independently",
+  "cargo_jobs": 1,
+  "total_configs": 1,
+  "total_entries": 2,
+  "configs": [
+    {
+      "config_id": "scalar-owner-entry-default",
+      "package": "lang-codegen",
+      "target_name": "lang_codegen",
+      "target_kind": ["lib"],
+      "cargo_target_args": ["--lib"],
+      "cargo_features_arg": "",
+      "expected_features": [],
+      "entries": [
+        {
+          "global_index": 0,
+          "test_name": "native_tests::boxed_enum_tests::unit_source::owner_multi_root_header_tests::counter_boundary::scalar_entry::ci_only_scalar_entry_rejects_actual_source_transport_and_escape",
+          "exact": true,
+          "ignored": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 1,
+          "test_name": "native_tests::boxed_enum_tests::unit_source::owner_multi_root_header_tests::counter_boundary::scalar_entry::ci_only_concat_scalar_entry_rejects_cleanup_and_diamond_corruption",
+          "exact": true,
+          "ignored": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        }
+      ]
+    }
+  ]
+}

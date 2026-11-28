@@ -2,59 +2,65 @@
 
 > 本文件由 `python3 scripts/conformance_gate.py --init-expectations` 从 `conformance/expectations.json` 确定性生成，并由 `scripts/check_docs.py`（`DocsChecker.check_conformance_corpus`）与 `scripts/tests/test_conformance_gate.py` 自动校验同步。
 
-## 1. Guide v0.47 章节覆盖与正/负向极性汇总（154 Probes）
+## 1. Guide v0.47 章节覆盖与正/负向极性汇总（164 Probes）
 
 | Guide v0.47 章节 | Probe 总数 | `run_ok` | `compile_fail` | `runtime_abort` | `known_unimplemented` | 能力通过 (`capability_passed`) | 正/负向极性状态 (`polarity_status`) |
 |---|---:|---:|---:|---:|---:|---:|---|
-| [01-lexical.md](../docs/guide/01-lexical.md) | 4 | 1 | 0 | 0 | 3 | 1 / 4 | `positive_only` |
+| [01-lexical.md](../docs/guide/01-lexical.md) | 5 | 4 | 1 | 0 | 0 | 5 / 5 | `both_positive_and_negative` |
 | [02-names-files-packages.md](../docs/guide/02-names-files-packages.md) | 7 | 2 | 3 | 0 | 2 | 5 / 7 | `both_positive_and_negative` |
-| [03-types-generics.md](../docs/guide/03-types-generics.md) | 11 | 6 | 1 | 1 | 3 | 8 / 11 | `both_positive_and_negative` |
+| [03-types-generics.md](../docs/guide/03-types-generics.md) | 11 | 7 | 1 | 1 | 2 | 9 / 11 | `both_positive_and_negative` |
 | [04-expressions-operators.md](../docs/guide/04-expressions-operators.md) | 5 | 3 | 1 | 1 | 0 | 5 / 5 | `both_positive_and_negative` |
 | [05-declarations-callables.md](../docs/guide/05-declarations-callables.md) | 4 | 2 | 2 | 0 | 0 | 4 / 4 | `both_positive_and_negative` |
 | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | 19 | 16 | 2 | 0 | 1 | 18 / 19 | `both_positive_and_negative` |
-| [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | 8 | 6 | 0 | 0 | 2 | 6 / 8 | `positive_only` |
-| [08-class-family-members.md](../docs/guide/08-class-family-members.md) | 16 | 15 | 0 | 0 | 1 | 15 / 16 | `positive_only` |
+| [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | 9 | 6 | 1 | 0 | 2 | 7 / 9 | `both_positive_and_negative` |
+| [08-class-family-members.md](../docs/guide/08-class-family-members.md) | 18 | 16 | 1 | 0 | 1 | 17 / 18 | `both_positive_and_negative` |
 | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | 16 | 12 | 1 | 1 | 2 | 14 / 16 | `both_positive_and_negative` |
 | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | 9 | 6 | 2 | 0 | 1 | 8 / 9 | `both_positive_and_negative` |
-| [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | 3 | 2 | 0 | 0 | 1 | 2 / 3 | `positive_only` |
+| [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | 5 | 3 | 1 | 0 | 1 | 4 / 5 | `both_positive_and_negative` |
 | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | 48 | 47 | 1 | 0 | 0 | 48 / 48 | `both_positive_and_negative` |
-| [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | 4 | 3 | 0 | 0 | 1 | 3 / 4 | `positive_only` |
-| **合计** | **154** | **121** | **13** | **3** | **17** | **137 / 154** | **8 双极性 / 5 仅正向** |
+| [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | 8 | 3 | 1 | 0 | 4 | 4 / 8 | `both_positive_and_negative` |
+| **合计** | **164** | **127** | **18** | **3** | **16** | **148 / 164** | **13 双极性 / 0 仅正向** |
 
-- **正/负向双极性覆盖章节（8 / 13）**：`02-names-files-packages.md`, `03-types-generics.md`, `04-expressions-operators.md`, `05-declarations-callables.md`, `06-blocks-control-flow.md`, `09-nullability-errors.md`, `10-ownership-borrowing-drop.md`, `12-collections-destructuring.md`（同时具备 `run_ok` 正向运行探针与 `compile_fail` / `runtime_abort` 负向拒绝或中止探针）。
-- **仅正向覆盖章节（5 / 13，待后续补充独立负向诊断探针）**：`01-lexical.md`, `07-calls-lambdas-closures.md`, `08-class-family-members.md`, `11-copyability-layout-construction.md`, `13-program-runtime-standard-library.md`（当前语料库内仅有 `run_ok` 与 `known_unimplemented` 探针，尚无独立 `compile_fail` / `runtime_abort` 探针）。
+- **正/负向双极性覆盖章节（13 / 13）**：`01-lexical.md`, `02-names-files-packages.md`, `03-types-generics.md`, `04-expressions-operators.md`, `05-declarations-callables.md`, `06-blocks-control-flow.md`, `07-calls-lambdas-closures.md`, `08-class-family-members.md`, `09-nullability-errors.md`, `10-ownership-borrowing-drop.md`, `11-copyability-layout-construction.md`, `12-collections-destructuring.md`, `13-program-runtime-standard-library.md`（同时具备 `run_ok` 正向运行探针与 `compile_fail` / `runtime_abort` 负向拒绝或中止探针）。
+- **仅正向覆盖章节（0 / 13，待后续补充独立负向诊断探针）**：（当前语料库内仅有 `run_ok` 与 `known_unimplemented` 探针，尚无独立 `compile_fail` / `runtime_abort` 探针）。
 
-### 1.1 负向诊断码与运行时中止契约矩阵（13 `compile_fail` + 3 `runtime_abort`）
+### 1.1 负向诊断码与运行时中止契约矩阵（18 `compile_fail` + 3 `runtime_abort`）
 
 | 负向契约标识 | `diagnostic.rs` 符号常量 / 中止类别 | 覆盖 Guide 章节 | 关联 Probe 数量 | 绑定 Probe 列表 |
 |---|---|---|---:|---|
+| `FE:L0008` | `INVALID_NUMERIC_LITERAL` | [01-lexical.md](../docs/guide/01-lexical.md) | 1 | `z01_neg_invalid_int_suffix` |
+| `FE:L0042` | `UNSUPPORTED_DESTRUCTURING_FORM` | [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | 1 | `z04_neg_destructure_discard` |
 | `FE:L0080` | `UNRESOLVED_NAME` | [02-names-files-packages.md](../docs/guide/02-names-files-packages.md) | 3 | `r01_bogus_member`, `r02_bogus_member_str`, `y02_take_no_import` |
 | `FE:L0084` | `TYPE_MISMATCH` | [05-declarations-callables.md](../docs/guide/05-declarations-callables.md), [04-expressions-operators.md](../docs/guide/04-expressions-operators.md) | 2 | `p01_int_print`, `v02_assign_chain` |
 | `FE:L0085` | `INVALID_OPERAND_TYPES` | [03-types-generics.md](../docs/guide/03-types-generics.md), [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | 2 | `p03b_byte_literal_cmp`, `s04_question_on_nullable` |
 | `FE:L0089` | `NO_COMMON_BRANCH_TYPE` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | 1 | `v04_stmt_if_mixed` |
 | `FE:L0112` | `WHEN_BRANCH_TYPE` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | 1 | `p43_if_join_any` |
+| `FE:L0117` | `INVALID_BOX_ARGUMENT` | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | 1 | `z03_neg_box_ordinary_class` |
 | `FE:L0132` | `PARTIAL_MOVE` | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | 1 | `p25_linked_iter` |
 | `FE:L0133` | `MOVE_FROM_BORROWED_BINDING` | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | 1 | `p25_linked_iter` |
 | `FE:L0135` | `LOAN_CONFLICT` | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | 1 | `w06_map_mutate_in_loop` |
+| `FE:L0138` | `ILLEGAL_OWNED_CAPTURE` | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | 1 | `z02_neg_move_closure_borrow_capture` |
+| `FE:L0150` | `EXACT_IMPORT_BINDING_CONFLICT` | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | 1 | `z05_neg_redeclare_result` |
 | `FE:L0164` | `UNSUPPORTED_BORROW_FLOW` | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | 1 | `q17_generic_class` |
 | `FE:L0167` | `UNSUPPORTED_TOP_LEVEL_RUNTIME_VALUE` | [05-declarations-callables.md](../docs/guide/05-declarations-callables.md) | 1 | `p23_global_var` |
 | `abort:integer overflow in +` | `SIGABRT (exit 134)` | [04-expressions-operators.md](../docs/guide/04-expressions-operators.md) | 1 | `p04_overflow` |
 | `abort:boom` | `SIGABRT (exit 134)` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | 1 | `p45_abort_message` |
 | `abort:value out of range for ULong` | `SIGABRT (exit 134)` | [03-types-generics.md](../docs/guide/03-types-generics.md) | 1 | `v12_convert_abort` |
 
-### 1.2 历史基线 `baseline-aef3f4f8.tsv` 演进与零退化对账汇总（154 Probes）
+### 1.2 历史基线 `baseline-aef3f4f8.tsv` 演进与零退化对账汇总（164 Probes）
 
 | 演进分类 (`baseline_evolution`) | 历史基线状态 (`baseline-aef3f4f8.tsv`) | 当前强 Oracle 状态 (`expectations.json`) | Probe 数量 | 代表性 / 完整 Probe 列表 |
 |---|---|---|---:|---|
 | `baseline_ok_preserved` | `OK` | `run_ok`（精确字节匹配） | 89 | 历史 `OK` 基线 100% 保持通过（含 `q12_companion_const` 匿名 `companion { }` 语法更新） |
-| `promoted_to_run_ok` | `BE:InvalidSsa` / `BE:MissingFact` / `BE:UnsupportedNode` / `FE:L0080` / `FE:L0111` | `run_ok`（新晋能力通过） | 32 | `e01_enum_when_bool_return`, `e02_enum_when_stmt_println`, `e03_enum_when_bool_val`, `p08_when_int`, `p12b_class_field_assign`, `p12c_inout_param`, `p14_nullable`, `p14b_nullable_simple`, `p14c_nullable_int`, `p16b_result_string`, `p17_lambda`, `p17b_lambda_nocapture`, `p18_move_closure`, `p22_rc`, `p37_is_generic_case`, `p41_when_string`, `p49_when_enum_no_payload`, `p50_enum_method`, `q02_lambda_arg_inline`, `q05_nullable_param`, `q09_inout_class_param`, `s01_result_builtin`, `t03_vmethod_generic`, `u01_enum_case_borrow_arg`, `v03_join_nullable`, `v13_while_nullable_int`, `v16_when_in_range`, `v19_stmt_when_mixed`, `x02_string_nullable_return`, `y01_import_take_for_sum`, `y03_method_take_for`, `y04_take_for_println` |
+| `promoted_to_run_ok` | `BE:InvalidSsa` / `BE:MissingFact` / `BE:UnsupportedNode` / `FE:L0080` / `FE:L0111` / `FE:L0165` | `run_ok`（新晋能力通过） | 36 | `e01_enum_when_bool_return`, `e02_enum_when_stmt_println`, `e03_enum_when_bool_val`, `p02_interp`, `p05_double`, `p06_char`, `p08_when_int`, `p11_interface_bound`, `p12b_class_field_assign`, `p12c_inout_param`, `p14_nullable`, `p14b_nullable_simple`, `p14c_nullable_int`, `p16b_result_string`, `p17_lambda`, `p17b_lambda_nocapture`, `p18_move_closure`, `p22_rc`, `p37_is_generic_case`, `p41_when_string`, `p49_when_enum_no_payload`, `p50_enum_method`, `q02_lambda_arg_inline`, `q05_nullable_param`, `q09_inout_class_param`, `s01_result_builtin`, `t03_vmethod_generic`, `u01_enum_case_borrow_arg`, `v03_join_nullable`, `v13_while_nullable_int`, `v16_when_in_range`, `v19_stmt_when_mixed`, `x02_string_nullable_return`, `y01_import_take_for_sum`, `y03_method_take_for`, `y04_take_for_println` |
 | `upgraded_to_structured_abort` | `abort(exit 1,no msg)` | `runtime_abort`（`SIGABRT` + `abort: <msg>`） | 3 | `p04_overflow`, `p45_abort_message`, `v12_convert_abort` |
 | `upgraded_to_compile_fail` | `FE:L0165` | `compile_fail`（`FE:L0167` 规范拒绝） | 1 | `p23_global_var` |
 | `baseline_compile_fail_preserved` | `FE:L0080`..`FE:L0164` | `compile_fail`（精确诊断序列匹配） | 12 | `p01_int_print`, `p03b_byte_literal_cmp`, `p25_linked_iter`, `p43_if_join_any`, `q17_generic_class`, `r01_bogus_member`, `r02_bogus_member_str`, `s04_question_on_nullable`, `v02_assign_chain`, `v04_stmt_if_mixed`, `w06_map_mutate_in_loop`, `y02_take_no_import` |
-| `remaining_known_unimplemented` | `BE:UnsupportedNode` / `FE:L0165` / `FE:L0135` / `FE:L0080` / `ERR` | `known_unimplemented`（100% 绑定 `target_stdout` 与 `roadmap_blockers`） | 17 | `p02_interp`, `p05_double`, `p06_char`, `p11_interface_bound`, `p15_elvis`, `p16_result_q`, `p21_box_enum`, `p25b_linked_recursive`, `p27_thread`, `p28_companion`, `p35_value_eq`, `p40_nested_generic_class`, `p42_lambda_mutate`, `q03_fn_ref`, `q08_enum_string_payload`, `s02_pair_builtin`, `s03_to_pair` |
+| `remaining_known_unimplemented` | `BE:UnsupportedNode` / `FE:L0165` / `FE:L0135` / `FE:L0080` / `ERR` | `known_unimplemented`（100% 绑定 `target_stdout` 与 `roadmap_blockers`） | 13 | `p15_elvis`, `p16_result_q`, `p21_box_enum`, `p25b_linked_recursive`, `p27_thread`, `p28_companion`, `p35_value_eq`, `p40_nested_generic_class`, `p42_lambda_mutate`, `q03_fn_ref`, `q08_enum_string_payload`, `s02_pair_builtin`, `s03_to_pair` |
+| `post_baseline_added` | `POST_BASELINE`（冻结基线后新增） | `run_ok` / `compile_fail` / `known_unimplemented` | 10 | `z01_neg_invalid_int_suffix`, `z02_neg_move_closure_borrow_capture`, `z03_neg_box_ordinary_class`, `z04_neg_destructure_discard`, `z05_neg_redeclare_result`, `z06_text_lines_split`, `z07_io_path_join`, `z08_interface_delegation`, `z09_named_destructure`, `z10_main_result_ok` |
 | `regressed_from_baseline_ok` | `OK` | 非 `run_ok`（基线退化） | 0 | 无（零基线退化） |
 
-### 1.3 `v046_spec_contract` 历史基线豁免项与 Spec 交付合同溯源矩阵（40 Probes）
+### 1.3 `v046_spec_contract` 历史基线豁免项与 Spec 交付合同溯源矩阵（44 Probes）
 
 | Spec 合同编号 | 规范文档路径 | 合同状态 | 关联豁免 Probe 数 | 交付后分布 | 绑定的 Probe 列表 |
 |---|---|---|---:|---|---|
@@ -74,33 +80,34 @@
 | `SPEC-0361` | [0361-refine-generic-value-class.md](../docs/archive/specs/0361-refine-generic-value-class.md) | `archived` | 1 | `run_ok`: 1 | `t03_vmethod_generic` |
 | `SPEC-0364` | [0364-refine-closures.md](../docs/archive/specs/0364-refine-closures.md) | `archived` | 4 | `run_ok`: 4 | `p17_lambda`, `p17b_lambda_nocapture`, `p18_move_closure`, `q02_lambda_arg_inline` |
 | `SPEC-0368` | [0368-text-byte-foundation.md](../docs/specs/active/0368-text-byte-foundation.md) | `active` | 1 | `run_ok`: 1 | `p16b_result_string` |
-| `SPEC-0392` | [0392-compiler-layered-review.md](../docs/specs/active/0392-compiler-layered-review.md) | `active` | 1 | `known_unimplemented`: 1 | `p42_lambda_mutate` |
+| `SPEC-0392` | [0392-compiler-layered-review.md](../docs/specs/active/0392-compiler-layered-review.md) | `active` | 5 | `known_unimplemented`: 1, `run_ok`: 4 | `p02_interp`, `p05_double`, `p06_char`, `p11_interface_bound`, `p42_lambda_mutate` |
 
-### 1.4 强 Oracle 溯源分类矩阵（`oracle_origin` Taxonomy，154 Probes + 6 Programs）
+### 1.4 强 Oracle 溯源分类矩阵（`oracle_origin` Taxonomy，164 Probes + 10 Programs）
 
 | 溯源分类 (`oracle_origin`) | 审计验证契约说明 | Probe 数 | Program 数 | 期望类型分布 (`kind`) |
 |---|---|---:|---:|---|
 | `single_println_literal` | 单条无循环/无插值 `println("...")` 静态字面量精确推导 | 31 | 0 | `run_ok`: 31 |
 | `source_trace_audited` | 控制流、循环、集合或 `deinit` 多语句源码级人工追踪确认（`CONFIRMED_STDOUT_ORACLES`） | 57 | 0 | `run_ok`: 57 |
-| `v046_spec_contract` | Guide v0.46 语法/语义变更或 `baseline-aef3f4f8.tsv` 之后合入的 Spec 合同覆盖（`V046_PROBE_OVERRIDES`） | 40 | 0 | `compile_fail`: 1, `known_unimplemented`: 3, `run_ok`: 33, `runtime_abort`: 3 |
+| `v046_spec_contract` | Guide v0.46 语法/语义变更或 `baseline-aef3f4f8.tsv` 之后合入的 Spec 合同覆盖（`V046_PROBE_OVERRIDES`） | 44 | 0 | `compile_fail`: 1, `known_unimplemented`: 3, `run_ok`: 37, `runtime_abort`: 3 |
 | `baseline_diagnostic_audited` | 前端负向诊断码契约确认（`error[Lxxxx]` + `diagnostic.rs::codes` 符号匹配） | 12 | 0 | `compile_fail`: 12 |
-| `baseline_unimplemented_audited` | 已知未实现特性边界确认（绑定 `target_stdout` 与 `v1.json` 路线图阻塞项） | 14 | 0 | `known_unimplemented`: 14 |
-| `expected_txt_file` | V1 验收程序独立 `expected.txt` 黄金标准输出文件绑定（SHA-256 + 行数/字节数校验） | 0 | 6 | `known_unimplemented`: 6 |
+| `baseline_unimplemented_audited` | 已知未实现特性边界确认（绑定 `target_stdout` 与 `v1.json` 路线图阻塞项） | 10 | 0 | `known_unimplemented`: 10 |
+| `post_baseline_audited` | 后基线新增 Guide v0.46/v0.47 与 V2 负向探针（`z` 批次，不改写冻结 `baseline-aef3f4f8.tsv`） | 10 | 0 | `compile_fail`: 5, `known_unimplemented`: 3, `run_ok`: 2 |
+| `expected_txt_file` | V1 验收程序独立 `expected.txt` 黄金标准输出文件绑定（SHA-256 + 行数/字节数校验） | 0 | 10 | `known_unimplemented`: 8, `run_ok`: 2 |
 
 ### 1.5 标准输出规模与多行形态分布矩阵（`expected_lines` / `expected_bytes`）
 
 | 输出形态分类 | 适用范围 | 条目数量 | 累计期望行数 | 累计期望字节数 | 代表性 / 完整条目明细 |
 |---|---|---:|---:|---:|---|
-| `single_line_stdout` | 1 行输出 Probe (`run_ok` + `known_unimplemented`) | 118 | 118 | 1004 B | 单行精确字节匹配（全部以 `\n` 结尾） |
+| `single_line_stdout` | 1 行输出 Probe (`run_ok` + `known_unimplemented`) | 123 | 123 | 1054 B | 单行精确字节匹配（全部以 `\n` 结尾） |
 | `multi_line_stdout` | ≥2 行输出 Probe (`run_ok` + `known_unimplemented`) | 20 | 42 | 151 B | `p10_generic_fn` (2L/12B), `p14_nullable` (2L/15B), `p32_deinit` (3L/9B), `p38_list_of_strings` (2L/4B), `q05_nullable_param` (2L/14B), `q08_enum_string_payload` (2L/8B), `q19_deep_return_cleanup` (3L/6B), `q20_replace_field` (2L/8B), `u02_list_add_loop_string` (2L/4B), `v15_map_for` (2L/4B), `w08_map_string_values` (2L/8B), `w12` (2L/8B), `w13` (2L/9B), `w15` (2L/9B), `w17` (2L/6B), `w19` (2L/6B), `x03_if_call_borrow_arg` (2L/9B), `y04_take_for_println` (2L/4B), `y05_take_borrow_val_call` (2L/4B), `y06_take_borrow_val_for` (2L/4B) |
-| `zero_stdout_negative` | 零标准输出负向 Probe (`compile_fail` + `runtime_abort`) | 16 | 0 | 0 B | `p01_int_print`, `p03b_byte_literal_cmp`, `p04_overflow`, `p23_global_var`, `p25_linked_iter`, `p43_if_join_any`, `p45_abort_message`, `q17_generic_class`, `r01_bogus_member`, `r02_bogus_member_str`, `s04_question_on_nullable`, `v02_assign_chain`, `v04_stmt_if_mixed`, `v12_convert_abort`, `w06_map_mutate_in_loop`, `y02_take_no_import` |
-| `acceptance_programs` | V1 验收程序 (`expected.txt`) | 6 | 85 | 1537 B | `config_parse` (10L/190B), `expr_eval` (6L/174B), `linked_stack` (8L/242B), `raii_state_machine` (28L/369B), `varint_codec` (17L/375B), `word_count` (16L/187B) |
+| `zero_stdout_negative` | 零标准输出负向 Probe (`compile_fail` + `runtime_abort`) | 21 | 0 | 0 B | `p01_int_print`, `p03b_byte_literal_cmp`, `p04_overflow`, `p23_global_var`, `p25_linked_iter`, `p43_if_join_any`, `p45_abort_message`, `q17_generic_class`, `r01_bogus_member`, `r02_bogus_member_str`, `s04_question_on_nullable`, `v02_assign_chain`, `v04_stmt_if_mixed`, `v12_convert_abort`, `w06_map_mutate_in_loop`, `y02_take_no_import`, `z01_neg_invalid_int_suffix`, `z02_neg_move_closure_borrow_capture`, `z03_neg_box_ordinary_class`, `z04_neg_destructure_discard`, `z05_neg_redeclare_result` |
+| `acceptance_programs` | V1 验收程序 (`expected.txt`) | 10 | 121 | 2174 B | `config_parse` (10L/190B), `dag_refcount` (12L/199B), `expr_eval` (6L/174B), `linked_stack` (8L/242B), `query_pipeline` (8L/149B), `raii_state_machine` (28L/369B), `text_log_summary` (11L/179B), `varint_codec` (17L/375B), `word_count` (16L/187B), `worker_pipeline` (5L/110B) |
 
-### 1.6 Probe 批次前缀与演进关注面分布矩阵（11 Batches，154 Probes）
+### 1.6 Probe 批次前缀与演进关注面分布矩阵（12 Batches，164 Probes）
 
 | 批次前缀 (`probe_batch`) | 关注面与批次说明 | Probe 总数 | `run_ok` | `compile_fail` | `runtime_abort` | `known_unimplemented` | 能力通过 (`capability_passed`) | 批次状态 (`batch_status`) |
 |---|---|---:|---:|---:|---:|---:|---:|---|
-| `p` | 基础能力：标量、控制流、class/enum/value class、nullable、Result、闭包、容器、所有权等 | 59 | 39 | 5 | 2 | 13 | 46 / 59 | `partial` |
+| `p` | 基础能力：标量、控制流、class/enum/value class、nullable、Result、闭包、容器、所有权等 | 59 | 43 | 5 | 2 | 9 | 50 / 59 | `partial` |
 | `q` | 对 `p` 中失败项的变体复测，缩小失败条件 | 20 | 17 | 1 | 0 | 2 | 18 / 20 | `partial` |
 | `r` | 未知成员访问，期望前端诊断 | 2 | 0 | 2 | 0 | 0 | 2 / 2 | `all_passed` |
 | `s` | 标准环境：内建 `Result`、`Pair`/`to` 与 `?` 的边界 | 4 | 1 | 1 | 0 | 2 | 2 / 4 | `partial` |
@@ -110,26 +117,29 @@
 | `w` | Map/MutableMap：遍历顺序、覆盖与删除、遍历中的跳转与借用 | 19 | 18 | 1 | 0 | 0 | 19 / 19 | `all_passed` |
 | `x` | nullable class、String nullable 返回与条件中的借用实参复测 | 3 | 3 | 0 | 0 | 0 | 3 / 3 | `all_passed` |
 | `y` | `koven.algorithms` 的 `take` 与 N1a 范围借用 | 6 | 5 | 1 | 0 | 0 | 6 / 6 | `all_passed` |
+| `z` | Guide v0.46/v0.47 增量与 V2 负向覆盖补齐（后基线新增） | 10 | 2 | 5 | 0 | 3 | 7 / 10 | `partial` |
 | `e` | enum subject `when` 在 compilation-unit 管线中的回退（E2 门槛） | 4 | 4 | 0 | 0 | 0 | 4 / 4 | `all_passed` |
-| **合计** | **11 个演进批次** | **154** | **121** | **13** | **3** | **17** | **137 / 154** | **8 全通过 / 3 部分通过** |
+| **合计** | **12 个演进批次** | **164** | **127** | **18** | **3** | **16** | **148 / 164** | **8 全通过 / 4 部分通过** |
 
-### 1.7 未实现允许记号（`allowed_markers`）与编译阶段分布矩阵（7 Markers）
+### 1.7 未实现允许记号（`allowed_markers`）与编译阶段分布矩阵（9 Markers）
 
 | 允许记号 (`allowed_marker`) | 归属编译阶段 | 记号契约说明 | 基线命中数 (`baseline_marker`) | 授权 Probe 数 | 授权 Program 数 |
 |---|---|---|---:|---:|---:|
-| `FE:L0080` | Phase 2 名称解析 | 前端未解析符号或尚未注入的标准库声明（`UNRESOLVED_NAME`） | 2 | 2 | 1 |
+| `FE:L0080` | Phase 2 名称解析 | 前端未解析符号或尚未注入的标准库声明（`UNRESOLVED_NAME`） | 2 | 3 | 1 |
 | `FE:L0084` | Phase 2 类型检查 | 前端类型不匹配或转换契约尚未接入（`TYPE_MISMATCH`） | 0 | 0 | 0 |
 | `FE:L0085` | Phase 2 运算符类型 | 前端操作数或协议约束尚未接入（`INVALID_OPERAND_TYPES`） | 0 | 0 | 1 |
-| `FE:L0165` | Phase 2 最终类型准入 | 前端最终类型消费准入显式拦截（`FINAL_TYPE_ANALYSIS_INCOMPLETE`） | 5 | 14 | 2 |
-| `BE:UnsupportedNode` | Phase 4 SSA Lowering | 后端 SSA 构建阶段尚未支持的语法或语义节点 | 8 | 17 | 2 |
+| `FE:L0148` | Phase 2 导入解析 | 前端标准库包路径或导入目标尚未实现（`UNRESOLVED_IMPORT_TARGET`） | 0 | 2 | 1 |
+| `FE:L0161` | Phase 2 值语义约束 | 前端自动推导 `Hashable` 等值语义协议约束尚未接入（`HASHABLE_TYPE_ARGUMENT_BOUND`） | 0 | 0 | 1 |
+| `FE:L0165` | Phase 2 最终类型准入 | 前端最终类型消费准入显式拦截（`FINAL_TYPE_ANALYSIS_INCOMPLETE`） | 4 | 10 | 4 |
+| `BE:UnsupportedNode` | Phase 4 SSA Lowering | 后端 SSA 构建阶段尚未支持的语法或语义节点 | 5 | 16 | 0 |
 | `BE:UnsupportedSource` | Phase 4 Native Object | 后端原生目标文件生成阶段尚未支持的调用来源 | 0 | 1 | 0 |
-| `BE:MissingFact` | Phase 3/4 事实交接 | 前端到后端 lowering 所需的所有权或类型事实尚未完备 | 0 | 16 | 0 |
+| `BE:MissingFact` | Phase 3/4 事实交接 | 前端到后端 lowering 所需的所有权或类型事实尚未完备 | 0 | 15 | 0 |
 
 ### 1.8 初始 85 探针（`p`/`q`/`r`/`s` 批次 A/B/C 三组）与 P2 阶段门槛对账矩阵
 
 | 分组 | 分组定义与审计口径 | 总数 | 可运行 (`run_ok` + `runtime_abort`) | `compile_fail` | `known_unimplemented` | 阶段门槛 / 当前状态说明 |
 |---|---|---:|---:|---:|---:|---|
-| **A 组** | A 组：合法基础程序（P2 门槛基数） | 74 | 58 (56 + 2) | 1 (`q17_generic_class`) | 15 | P2 门槛 `≥ 70 / 74`（当前 `58 / 74`，距门槛差 `12` 项） |
+| **A 组** | A 组：合法基础程序（P2 门槛基数） | 74 | 62 (60 + 2) | 1 (`q17_generic_class`) | 11 | P2 门槛 `≥ 70 / 74`（当前 `62 / 74`，距门槛差 `8` 项） |
 | **B 组** | B 组：应拒基础探针（静态/借用/类型拒绝） | 7 | 0 | 7 | 0 | 要求 `7 / 7` 精确命中期望前端诊断码 (`pass_diagnostic`) |
 | **C 组** | C 组：旧版待裁决或现行规范调整项 | 4 | 1 (`p37_is_generic_case`) | 1 (`p23_global_var`) | 2 (`p35_value_eq`, `p42_lambda_mutate`) | `p23` 规范拒绝 (`FE:L0167`)、`p37` 能力通过 (`SPEC-0349`)、`p35` 待 `L1`、`p42` 待 `S1` |
 
@@ -137,19 +147,19 @@
 
 | Guide 章节 | 规范领域 | 正向已通 (`run_ok`) | 负向契约 (`compile_fail` / `abort`) | 剩余 `known_unimplemented` | 路线图阻塞项 | 关联 V1 验收程序 | V2 章节就绪状态 (`v2_status`) |
 |---|---|---:|---|---|---|---|---|
-| [01-lexical.md](../docs/guide/01-lexical.md) | 词法 | 1 | 0（待补反例） | 3 (`p02_interp`, `p05_double`, `p06_char`) | `L1`, `L2`, `N05` | - | `needs_negative_and_roadmap` |
+| [01-lexical.md](../docs/guide/01-lexical.md) | 词法 | 4 | 1 (`FE:L0008`) | 0 | - | - | `v2_probe_ready` |
 | [02-names-files-packages.md](../docs/guide/02-names-files-packages.md) | 名称、文件、Package 与 Import | 2 | 3 (`FE:L0080`) | 2 (`s02_pair_builtin`, `s03_to_pair`) | `S6` | - | `blocked_by_roadmap` |
-| [03-types-generics.md](../docs/guide/03-types-generics.md) | 类型与泛型 | 6 | 2 (`FE:L0085`, `abort:value out of range for ULong`) | 3 (`p11_interface_bound`, `p35_value_eq`, `p40_nested_generic_class`) | `L1`, `N01`, `N06` | `varint_codec` | `blocked_by_roadmap` |
+| [03-types-generics.md](../docs/guide/03-types-generics.md) | 类型与泛型 | 7 | 2 (`FE:L0085`, `abort:value out of range for ULong`) | 2 (`p35_value_eq`, `p40_nested_generic_class`) | `L1`, `N01` | `varint_codec` | `blocked_by_roadmap` |
 | [04-expressions-operators.md](../docs/guide/04-expressions-operators.md) | 表达式与运算符 | 3 | 2 (`abort:integer overflow in +`, `FE:L0084`) | 0 | - | - | `v2_probe_ready` |
 | [05-declarations-callables.md](../docs/guide/05-declarations-callables.md) | 声明与 Callable | 2 | 2 (`FE:L0084`, `FE:L0167`) | 0 | - | - | `v2_probe_ready` |
 | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | Block 与控制流 | 16 | 2 (`FE:L0112`, `FE:L0089`) | 1 (`q08_enum_string_payload`) | `L7`, `N02` | - | `blocked_by_roadmap` |
-| [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | 调用、Lambda 与 Closure | 6 | 0（待补反例） | 2 (`p42_lambda_mutate`, `q03_fn_ref`) | `N04`, `S1` | - | `needs_negative_and_roadmap` |
-| [08-class-family-members.md](../docs/guide/08-class-family-members.md) | Class Family、成员与 Receiver | 15 | 0（待补反例） | 1 (`p28_companion`) | `N06` | `raii_state_machine` | `needs_negative_and_roadmap` |
+| [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | 调用、Lambda 与 Closure | 6 | 1 (`FE:L0138`) | 2 (`p42_lambda_mutate`, `q03_fn_ref`) | `N04`, `S1` | `query_pipeline` | `blocked_by_roadmap` |
+| [08-class-family-members.md](../docs/guide/08-class-family-members.md) | Class Family、成员与 Receiver | 16 | 1 (`FE:L0117`) | 1 (`p28_companion`) | `N06` | `raii_state_machine` | `blocked_by_roadmap` |
 | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | 空安全与错误值 | 12 | 2 (`abort:boom`, `FE:L0085`) | 2 (`p15_elvis`, `p16_result_q`) | `N03`, `N08` | `config_parse` | `blocked_by_roadmap` |
-| [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | 所有权、借用与析构 | 6 | 2 (`FE:L0133`, `FE:L0132`, `FE:L0164`) | 1 (`p25b_linked_recursive`) | `N03` | `linked_stack` | `blocked_by_roadmap` |
-| [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | Copyable、布局、构造与结构移动 | 2 | 0（待补反例） | 1 (`p21_box_enum`) | `L7`, `N07` | `expr_eval` | `needs_negative_and_roadmap` |
+| [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | 所有权、借用与析构 | 6 | 2 (`FE:L0133`, `FE:L0132`, `FE:L0164`) | 1 (`p25b_linked_recursive`) | `N03` | `dag_refcount`, `linked_stack` | `blocked_by_roadmap` |
+| [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | Copyable、布局、构造与结构移动 | 3 | 1 (`FE:L0042`) | 1 (`p21_box_enum`) | `L7`, `N07` | `expr_eval` | `blocked_by_roadmap` |
 | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | 集合、索引与解构 | 47 | 1 (`FE:L0135`) | 0 | - | `word_count` | `v2_probe_ready` |
-| [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | 程序入口、Runtime 与标准库 | 3 | 0（待补反例） | 1 (`p27_thread`) | `N04`, `T1` | - | `needs_negative_and_roadmap` |
+| [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | 程序入口、Runtime 与标准库 | 3 | 1 (`FE:L0150`) | 4 (`p27_thread`, `z06_text_lines_split`, `z07_io_path_join`, `z10_main_result_ok`) | `L21`, `L5`, `L6`, `N04`, `T1` | `text_log_summary`, `worker_pipeline` | `blocked_by_roadmap` |
 
 ### 1.10 Guide 15 规范性 Litmus 1–12 与端到端 Conformance Probe 对齐矩阵
 
@@ -160,7 +170,7 @@
 | **Litmus 3**：控制流与循环结构 | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `p07_while_var`, `p48_nested_loops_break`, `q13_if_expr_value`, `v04_stmt_if_mixed` | 4 / 4 | - | `all_passed` |
 | **Litmus 4**：枚举类型与穷尽 when 匹配 | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `e01_enum_when_bool_return`, `e04_enum_when_int_return`, `p09_enum_payload`, `p49_when_enum_no_payload`, `q08_enum_string_payload` | 4 / 5 | `q08_enum_string_payload` (`L7`, `N02`) | `partial` |
 | **Litmus 5**：类、值类与伴随对象 | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | `p12_class_inout`, `p28_companion`, `p44_method_on_value`, `q12_companion_const` | 3 / 4 | `p28_companion` (`N06`) | `partial` |
-| **Litmus 6**：泛型、接口与单态化 | [03-types-generics.md](../docs/guide/03-types-generics.md) | `p10_generic_fn`, `p11_interface_bound`, `q16_interface_static`, `t03_vmethod_generic` | 3 / 4 | `p11_interface_bound` (`N06`) | `partial` |
+| **Litmus 6**：泛型、接口与单态化 | [03-types-generics.md](../docs/guide/03-types-generics.md) | `p10_generic_fn`, `p11_interface_bound`, `q16_interface_static`, `t03_vmethod_generic` | 4 / 4 | - | `all_passed` |
 | **Litmus 7**：线性所有权与移动语义 | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | `p21_box_enum`, `p25_linked_iter`, `p32_deinit`, `q19_deep_return_cleanup` | 3 / 4 | `p21_box_enum` (`L7`, `N07`) | `partial` |
 | **Litmus 8**：借用检查与在位可变引用 | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | `p12c_inout_param`, `p26_borrow_return`, `q09_inout_class_param`, `q20_replace_field` | 4 / 4 | - | `all_passed` |
 | **Litmus 9**：空安全、流类型与非空断言 | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `p14_nullable`, `p14b_nullable_simple`, `q05_nullable_param`, `q06_nullable_return_bang`, `x02_string_nullable_return` | 5 / 5 | - | `all_passed` |
@@ -174,57 +184,57 @@
 |---|---|---:|---:|---|---|
 | **v0.44 启用边界** | 封闭 if/when join、赋值返回 Unit、while 事实、IntRange/LongRange 与 for、八整数 checked 转换、插入序 Map 遍历 | 14 | 14 / 14 | - | `all_passed` |
 | **v0.45 启用边界** | 单文件与 project 统一 compilation-unit 管线、显式 koven.algorithms.take 导入、enum subject when 两模式零差异 | 10 | 10 / 10 | - | `all_passed` |
-| **v0.46 启用边界** | Abort 输出合同 (SPEC-0355)、Result 内建与无参 is Result.Ok (SPEC-0349)、顶层仅 const val (SPEC-0343)、匿名 companion { } | 12 | 7 / 12 | `p02_interp`, `p16_result_q`, `p27_thread`, `p28_companion`, `p35_value_eq` (`L1`, `L2`, `N04`, `N06`, `N08`, `T1`) | `partial` |
-| **v0.47 启用边界** | Guide 13 文本字节基础、可信标准 String Borrow 扩展与 Result<String, String> 载荷 when 闭环 (SPEC-0368) | 5 | 5 / 5 | - | `all_passed` |
+| **v0.46 启用边界** | Abort 输出合同 (SPEC-0355)、Result 内建与无参 is Result.Ok (SPEC-0349)、顶层仅 const val (SPEC-0343)、匿名 companion { } | 12 | 8 / 12 | `p16_result_q`, `p27_thread`, `p28_companion`, `p35_value_eq` (`L1`, `N04`, `N06`, `N08`, `T1`) | `partial` |
+| **v0.47 启用边界** | Guide 13 文本字节基础、可信标准 String Borrow 扩展、同步 IO 表面与 Result<String, String> 载荷 when 闭环 (SPEC-0368) | 7 | 5 / 7 | `z06_text_lines_split`, `z07_io_path_join` (`L5`, `L6`) | `partial` |
 
 ### 1.12 语料库源码规模、LF 尾换行卫生契约与章节源码分布汇总
 
 | Guide v0.47 章节 | 领域主题 | Probe 数量 | Probe 源码规模 (`lines / bytes`) | 关联验收程序 | Program 源码规模 (`lines / bytes`) | 章节源码合计 |
 |---|---|---:|---:|---|---:|---:|
-| [01-lexical.md](../docs/guide/01-lexical.md) | 词法 | 4 | 10 行 / 398 B | - | 0 行 / 0 B | 10 行 / 398 B |
+| [01-lexical.md](../docs/guide/01-lexical.md) | 词法 | 5 | 14 行 / 454 B | - | 0 行 / 0 B | 14 行 / 454 B |
 | [02-names-files-packages.md](../docs/guide/02-names-files-packages.md) | 名称、文件、Package 与 Import | 7 | 9 行 / 657 B | - | 0 行 / 0 B | 9 行 / 657 B |
 | [03-types-generics.md](../docs/guide/03-types-generics.md) | 类型与泛型 | 11 | 24 行 / 1544 B | `varint_codec` | 90 行 / 2812 B | 114 行 / 4356 B |
 | [04-expressions-operators.md](../docs/guide/04-expressions-operators.md) | 表达式与运算符 | 5 | 5 行 / 399 B | - | 0 行 / 0 B | 5 行 / 399 B |
 | [05-declarations-callables.md](../docs/guide/05-declarations-callables.md) | 声明与 Callable | 4 | 8 行 / 410 B | - | 0 行 / 0 B | 8 行 / 410 B |
 | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | Block 与控制流 | 19 | 40 行 / 2892 B | - | 0 行 / 0 B | 40 行 / 2892 B |
-| [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | 调用、Lambda 与 Closure | 8 | 15 行 / 1037 B | - | 0 行 / 0 B | 15 行 / 1037 B |
-| [08-class-family-members.md](../docs/guide/08-class-family-members.md) | Class Family、成员与 Receiver | 16 | 39 行 / 2490 B | `raii_state_machine` | 90 行 / 2750 B | 129 行 / 5240 B |
+| [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | 调用、Lambda 与 Closure | 9 | 24 行 / 1206 B | `query_pipeline` | 87 行 / 2625 B | 111 行 / 3831 B |
+| [08-class-family-members.md](../docs/guide/08-class-family-members.md) | Class Family、成员与 Receiver | 18 | 59 行 / 2861 B | `raii_state_machine` | 90 行 / 2750 B | 149 行 / 5611 B |
 | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | 空安全与错误值 | 16 | 47 行 / 2561 B | `config_parse` | 116 行 / 3797 B | 163 行 / 6358 B |
-| [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | 所有权、借用与析构 | 9 | 28 行 / 1636 B | `linked_stack` | 89 行 / 2453 B | 117 行 / 4089 B |
-| [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | Copyable、布局、构造与结构移动 | 3 | 7 行 / 542 B | `expr_eval` | 119 行 / 3942 B | 126 行 / 4484 B |
+| [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | 所有权、借用与析构 | 9 | 28 行 / 1636 B | `dag_refcount`, `linked_stack` | 139 行 / 3923 B | 167 行 / 5559 B |
+| [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | Copyable、布局、构造与结构移动 | 5 | 21 行 / 849 B | `expr_eval` | 119 行 / 3942 B | 140 行 / 4791 B |
 | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | 集合、索引与解构 | 48 | 133 行 / 8138 B | `word_count` | 50 行 / 1421 B | 183 行 / 9559 B |
-| [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | 程序入口、Runtime 与标准库 | 4 | 5 行 / 367 B | - | 0 行 / 0 B | 5 行 / 367 B |
-| **合计** | **13 个核心章节** | **154** | **370 行 / 23071 B** | **6 Programs** | **554 行 / 17175 B** | **924 行 / 40246 B** |
+| [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | 程序入口、Runtime 与标准库 | 8 | 42 行 / 1234 B | `text_log_summary`, `worker_pipeline` | 179 行 / 5358 B | 221 行 / 6592 B |
+| **合计** | **13 个核心章节** | **164** | **454 行 / 24841 B** | **10 Programs** | **870 行 / 26628 B** | **1324 行 / 51469 B** |
 
 ### 1.13 V3 原生内存安全（ASan / LSan）资源生命周期与堆所有者 Probe 覆盖矩阵
 
 | V3 资源安全分类 | 覆盖语义与生命周期特征 | `check_native_sanitizers.py` 关注面 | 关联 Probe 就绪率 | 待解封 Probe 与阻塞项 | 关联 V1 验收程序 | 状态 |
 |---|---|---|---:|---|---|---|
 | `deterministic_deinit_drop` | 确定性 `deinit` 析构与提前返回栈展开清理 | ASan `drop` (heap-use-after-free) / LSan 零泄漏 | 2 / 2 | - | `raii_state_machine` | `all_runnable` |
-| `heap_class_rc_and_box` | 堆分配 `class`、`Rc<T>` 共享引用计数、`Box<T>` 递归枚举与 `replace` | ASan `user` / `runtime` 与 LSan `leak` 对照 | 8 / 11 | `p21_box_enum`, `p25b_linked_recursive`, `p40_nested_generic_class` (`L7`, `N01`, `N03`, `N07`) | `expr_eval`, `linked_stack` | `partial` |
-| `string_and_text_owner` | 堆拥有 `String` 克隆、拼接、重赋值、枚举行李与可空返回 | ASan 堆缓冲区边界 / LSan 字符串所有权释放 | 6 / 8 | `p02_interp`, `q08_enum_string_payload` (`L1`, `L2`, `L7`, `N02`) | `config_parse` | `partial` |
+| `heap_class_rc_and_box` | 堆分配 `class`、`Rc<T>` 共享引用计数、`Box<T>` 递归枚举与 `replace` | ASan `user` / `runtime` 与 LSan `leak` 对照 | 8 / 11 | `p21_box_enum`, `p25b_linked_recursive`, `p40_nested_generic_class` (`L7`, `N01`, `N03`, `N07`) | `dag_refcount`, `expr_eval`, `linked_stack` | `partial` |
+| `string_and_text_owner` | 堆拥有 `String` 克隆、拼接、重赋值、枚举行李与可空返回 | ASan 堆缓冲区边界 / LSan 字符串所有权释放 | 7 / 8 | `q08_enum_string_payload` (`L7`, `N02`) | `config_parse`, `text_log_summary` | `partial` |
 | `collection_list_and_map_provider` | `List` / `MutableList` / `Map` / `MutableMap` 扩容、覆盖、删除与遍历析构 | SPEC-0288 `map-fixture` 与 12 组 `provider-fixtures` (`singleton`/`overwrite`/`growth`) | 15 / 15 | - | `word_count` | `all_runnable` |
-| `closure_env_and_thread_spawn` | 捕获闭包环境、`move` 闭包所有权转移与 `thread(move { ... })` | ASan 闭包环境生命周期 / 跨线程 `Send` 所有权传递 | 4 / 5 | `p27_thread` (`N04`, `T1`) | - | `partial` |
+| `closure_env_and_thread_spawn` | 捕获闭包环境、`move` 闭包所有权转移与 `thread(move { ... })` | ASan 闭包环境生命周期 / 跨线程 `Send` 所有权传递 | 4 / 5 | `p27_thread` (`N04`, `T1`) | `query_pipeline`, `worker_pipeline` | `partial` |
 | `checked_abort_and_overflow` | 受检整数溢出、`error(msg)` 与显式数值转换 `SIGABRT` 中止边界 | Guide 09 D12 `abort: <msg>` + 栈帧确定性退出 | 3 / 3 | - | `varint_codec` | `all_runnable` |
 
 ### 1.14 Guide 14 语法索引（36 项语法形式）与 Conformance 章节探针对账矩阵
 
 | 语法索引领域 (`14-syntax-index.md`) | 语法条目数 | 唯一规则归属章节 | 覆盖语法形式说明 | 归属章节 Probe 通过率 | 状态 |
 |---|---:|---|---|---:|---|
-| **词法** | 8 | [01-lexical.md](../docs/guide/01-lexical.md) | 关键字、标识符、trivia/换行、字面量、标点与词法恢复 | 1 / 4 | `partial` |
+| **词法** | 8 | [01-lexical.md](../docs/guide/01-lexical.md) | 关键字、标识符、trivia/换行、字面量、标点与词法恢复 | 5 / 5 | `all_passed` |
 | **文件与名称** | 3 | [02-names-files-packages.md](../docs/guide/02-names-files-packages.md) | 完整文件与声明分隔、`package`/`import` 文件头、跨文件限定名称 | 5 / 7 | `partial` |
-| **类型** | 1 | [03-types-generics.md](../docs/guide/03-types-generics.md) | `type_ref`、泛型实参与函数类型语法 | 8 / 11 | `partial` |
+| **类型** | 1 | [03-types-generics.md](../docs/guide/03-types-generics.md) | `type_ref`、泛型实参与函数类型语法 | 9 / 11 | `partial` |
 | **表达式** | 3 | [04-expressions-operators.md](../docs/guide/04-expressions-operators.md) | primary/bound reference、postfix/调用/索引、运算符优先级与结合性 | 5 / 5 | `all_passed` |
 | **声明** | 3 | [05-declarations-callables.md](../docs/guide/05-declarations-callables.md), [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `val`/`var`/`const val`/`fun`、callable 参数 marker 与函数 body 三形态 | 22 / 23 | `partial` |
 | **控制流** | 2 | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | block/block element 与 `if`/`when`/`while`/`for`/`loop`/jump | 18 / 19 | `partial` |
-| **调用与 Lambda** | 4 | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | lambda literal、尾 lambda、隐式 `it` 与自动 Borrow/`&` 调用实参 | 6 / 8 | `partial` |
-| **类型声明** | 3 | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | class/value/interface/enum/object/companion、receiver marker 与 `by` 委托 | 15 / 16 | `partial` |
+| **调用与 Lambda** | 4 | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | lambda literal、尾 lambda、隐式 `it` 与自动 Borrow/`&` 调用实参 | 7 / 9 | `partial` |
+| **类型声明** | 3 | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | class/value/interface/enum/object/companion、receiver marker 与 `by` 委托 | 17 / 18 | `partial` |
 | **空安全与错误** | 2 | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `?:`/`!!`/nullable/`error()` 与 postfix `?`/`Result<T, E>` | 14 / 16 | `partial` |
 | **所有权** | 1 | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | Value/Borrow/Inout、loan 与调用期借用/ASAP 析构 | 8 / 9 | `partial` |
 | **普通借用结果** | 1 | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | `: borrow T from source` 与 `borrow val` 显式局部绑定 | 8 / 9 | `partial` |
-| **构造** | 1 | [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | class/value/enum 名义值与 Intrinsic `Box` 构造 | 2 / 3 | `partial` |
+| **构造** | 1 | [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | class/value/enum 名义值与 Intrinsic `Box` 构造 | 4 / 5 | `partial` |
 | **集合与解构** | 2 | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | 顺序容器构造/索引/element place 与局部 `val` 解构语法 | 48 / 48 | `all_passed` |
-| **程序入口** | 2 | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | conventional `main` 与 project selector / process entry | 3 / 4 | `partial` |
+| **程序入口** | 2 | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | conventional `main` 与 project selector / process entry | 4 / 8 | `partial` |
 
 ### 1.15 单文件与 Project 双模式变换契约（`package app` + `app.main`）对账矩阵
 
@@ -232,116 +242,132 @@
 
 | 双模式变换分组 (`cohort`) | 分组语义与文件头特征 | 条目数量 | 双模式能力通过 (`capability_passed`) | 关联条目 / 代表性样本 |
 |---|---|---:|---:|---|
-| `probes_default_prelude` | 无显式 `import` 探针（默认内建环境） | 149 | 132 / 149 | `p01_int_print`..`x03_if_call_borrow_arg`, `y02_take_no_import` (FE:L0080) |
-| `probes_explicit_import` | 含显式 `import koven.algorithms.take` 探针 | 5 | 5 / 5 | `y01_import_take_for_sum`, `y03_method_take_for`, `y04_take_for_println`, `y05_take_borrow_val_call`, `y06_take_borrow_val_for` |
-| `acceptance_programs` | V1 多函数/多类型验收程序（`programs/<name>/main.ko`） | 6 | 0 / 6 | `config_parse`, `expr_eval`, `linked_stack`, `raii_state_machine`, `varint_codec`, `word_count` |
+| `probes_default_prelude` | 无显式 `import` 探针（默认内建环境） | 157 | 143 / 157 | `p01_int_print`..`x03_if_call_borrow_arg`, `y02_take_no_import` (FE:L0080) |
+| `probes_explicit_import` | 含显式 `import koven.algorithms.take` 探针 | 7 | 5 / 7 | `y01_import_take_for_sum`, `y03_method_take_for`, `y04_take_for_println`, `y05_take_borrow_val_call`, `y06_take_borrow_val_for`, `z06_text_lines_split`, `z07_io_path_join` |
+| `acceptance_programs` | V1 多函数/多类型验收程序（`programs/<name>/main.ko`） | 10 | 2 / 10 | `config_parse`, `dag_refcount`, `expr_eval`, `linked_stack`, `query_pipeline`, `raii_state_machine`, `text_log_summary`, `varint_codec`, `word_count`, `worker_pipeline` |
 
 ## 2. 六个 V1 验收程序（Acceptance Programs）
 
 | 程序 | 归属章节 | 当前状态 | 路线图阻塞项 | 期望输出文件 | 期望输出规模 | 允许的未实现记号 |
 |---|---|---|---|---|---|---|
-| `config_parse` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `known_unimplemented` | `N02`, `N08`, `L1`, `L2` | [programs/config_parse/expected.txt](programs/config_parse/expected.txt) | 10 行 / 190 B | `FE:L0080` |
-| `expr_eval` | [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | `known_unimplemented` | `N02`, `N05`, `N07`, `N08`, `L7` | [programs/expr_eval/expected.txt](programs/expr_eval/expected.txt) | 6 行 / 174 B | `FE:L0165` |
-| `linked_stack` | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | `known_unimplemented` | `N01`, `N03`, `N07`, `L7` | [programs/linked_stack/expected.txt](programs/linked_stack/expected.txt) | 8 行 / 242 B | `FE:L0085` |
-| `raii_state_machine` | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | `known_unimplemented` | `N01`, `N02` | [programs/raii_state_machine/expected.txt](programs/raii_state_machine/expected.txt) | 28 行 / 369 B | `BE:UnsupportedNode` |
-| `varint_codec` | [03-types-generics.md](../docs/guide/03-types-generics.md) | `known_unimplemented` | `N01`, `N08`, `L3b` | [programs/varint_codec/expected.txt](programs/varint_codec/expected.txt) | 17 行 / 375 B | `BE:UnsupportedNode` |
-| `word_count` | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `known_unimplemented` | `N02`, `N03` | [programs/word_count/expected.txt](programs/word_count/expected.txt) | 16 行 / 187 B | `FE:L0165` |
+| `config_parse` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `known_unimplemented` | `N02`, `N08`, `L1`, `L2` | [programs/config_parse/expected.txt](programs/config_parse/expected.txt) | 10 行 / 190 B | `FE:L0165` |
+| `dag_refcount` | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | `known_unimplemented` | `N02`, `N07`, `L1`, `L2`, `L7` | [programs/dag_refcount/expected.txt](programs/dag_refcount/expected.txt) | 12 行 / 199 B | `FE:L0165` |
+| `expr_eval` | [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | `known_unimplemented` | `N02`, `N05`, `N07`, `N08`, `L1`, `L2`, `L7` | [programs/expr_eval/expected.txt](programs/expr_eval/expected.txt) | 6 行 / 174 B | `FE:L0165` |
+| `linked_stack` | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | `known_unimplemented` | `N01`, `N03`, `N07`, `L1`, `L2`, `L7` | [programs/linked_stack/expected.txt](programs/linked_stack/expected.txt) | 8 行 / 242 B | `FE:L0085` |
+| `query_pipeline` | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | `known_unimplemented` | `N04`, `N05`, `N06`, `L1`, `L2`, `L3b`, `L11`, `S1` | [programs/query_pipeline/expected.txt](programs/query_pipeline/expected.txt) | 8 行 / 149 B | `FE:L0161` |
+| `raii_state_machine` | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | `run_ok` |  | [programs/raii_state_machine/expected.txt](programs/raii_state_machine/expected.txt) | 28 行 / 369 B |  |
+| `text_log_summary` | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | `known_unimplemented` | `L1`, `L2`, `L5`, `L21`, `N08` | [programs/text_log_summary/expected.txt](programs/text_log_summary/expected.txt) | 11 行 / 179 B | `FE:L0148` |
+| `varint_codec` | [03-types-generics.md](../docs/guide/03-types-generics.md) | `run_ok` |  | [programs/varint_codec/expected.txt](programs/varint_codec/expected.txt) | 17 行 / 375 B |  |
+| `word_count` | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `known_unimplemented` | `N02`, `N03`, `L1`, `L2` | [programs/word_count/expected.txt](programs/word_count/expected.txt) | 16 行 / 187 B | `FE:L0165` |
+| `worker_pipeline` | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | `known_unimplemented` | `T1`, `N04`, `L1`, `L2` | [programs/worker_pipeline/expected.txt](programs/worker_pipeline/expected.txt) | 5 行 / 110 B | `FE:L0080` |
 
-### 2.1 六个 V1 验收程序按路线图阻塞项（`v1.json`）归类对账（10 Roadmap Blockers）
+### 2.1 六个 V1 验收程序按路线图阻塞项（`v1.json`）归类对账（17 Roadmap Blockers）
 
 | 路线图条目 ID | 路线图条目标题 | 状态 | 阻塞 Program 数 | 阻塞的验收程序 (`programs`) | 同时阻塞的 Probe 数 |
 |---|---|---|---:|---|---:|
-| `L1` | 值语义协议 Equatable/Hashable/Display（Comparable 只给内建数值、Char、String）；value class/enum 自动推导相等与哈希；Map 键 K : Equatable + Hashable | `todo` | 1 | `config_parse` | 2 |
-| `L2` | 字符串插值降级："${x}" 要求 x : Display | `todo` | 1 | `config_parse` | 1 |
-| `L3b` | 转换族其余部分：OrNull 变体、浮点↔整数 checked、Char 码点 | `todo` | 1 | `varint_codec` | 0 |
-| `L7` | MoveOnly enum 的消费式匹配：owned subject 分支获得 payload owned 绑定 | `todo` | 2 | `expr_eval`, `linked_stack` | 2 |
-| `N01` | 赋值与可变性：字段赋值 obj.f = v、inout 标量参数赋值、inout class 参数、泛型 class 的 inout 方法 | `partial` | 3 | `linked_stack`, `raii_state_machine`, `varint_codec` | 1 |
-| `N02` | when：Int/String/Char/MoveOnly enum subject、enum 方法内 when (this)、project 模式 enum case 条件 | `partial` | 4 | `config_parse`, `expr_eval`, `raii_state_machine`, `word_count` | 1 |
+| `L1` | 值语义协议 Equatable/Hashable/Display（Comparable 只给内建数值、Char、String）；value class/enum 自动推导相等与哈希；Map 键 K : Equatable + Hashable | `todo` | 8 | `config_parse`, `dag_refcount`, `expr_eval`, `linked_stack`, `query_pipeline`, `text_log_summary`, `word_count`, `worker_pipeline` | 1 |
+| `L11` | 泛型体内未约束 T 的析构轨道（按资源轨道词法作用域析构） | `todo` | 1 | `query_pipeline` | 0 |
+| `L2` | 字符串插值降级："${x}" 要求 x : Display | `todo` | 8 | `config_parse`, `dag_refcount`, `expr_eval`, `linked_stack`, `query_pipeline`, `text_log_summary`, `word_count`, `worker_pipeline` | 0 |
+| `L21` | main 可返回 Result<Unit, E>（E : Display）：Err 时 stderr 输出 `error: …`，退出码 1 | `todo` | 1 | `text_log_summary` | 1 |
+| `L3b` | 转换族其余部分：OrNull 变体、浮点↔整数 checked、Char 码点 | `todo` | 1 | `query_pipeline` | 0 |
+| `L5` | 文本 API：已启用字节长度、复制/严格UTF-8、字节切片、split/lines、parseLong与checkedPlus；Char迭代、trim、StringBuilder等仍待后继合同 | `todo` | 1 | `text_log_summary` | 1 |
+| `L7` | MoveOnly enum 的消费式匹配：owned subject 分支获得 payload owned 绑定 | `todo` | 3 | `dag_refcount`, `expr_eval`, `linked_stack` | 2 |
+| `N01` | 赋值与可变性：字段赋值 obj.f = v、inout 标量参数赋值、inout class 参数、泛型 class 的 inout 方法 | `partial` | 1 | `linked_stack` | 1 |
+| `N02` | when：Int/String/Char/MoveOnly enum subject、enum 方法内 when (this)、project 模式 enum case 条件 | `partial` | 4 | `config_parse`, `dag_refcount`, `expr_eval`, `word_count` | 1 |
 | `N03` | nullable 全路径：标量 T?、nullable 参数、Elvis、?.、!! | `partial` | 2 | `linked_stack`, `word_count` | 2 |
-| `N05` | Double/Float 运算与 Char 比较的 native 支持 | `todo` | 1 | `expr_eval` | 2 |
-| `N07` | Box.value / unbox() 与 Rc.value 字段投影 | `partial` | 2 | `expr_eval`, `linked_stack` | 1 |
-| `N08` | Result + 后缀 ? 的 Int 与 String payload 全路径 | `todo` | 3 | `config_parse`, `expr_eval`, `varint_codec` | 1 |
+| `N04` | 闭包：lambda 直接作实参、函数引用 ::f、move 闭包返回与存储 | `partial` | 2 | `query_pipeline`, `worker_pipeline` | 2 |
+| `N05` | Double/Float 运算与 Char 比较的 native 支持 | `partial` | 2 | `expr_eval`, `query_pipeline` | 0 |
+| `N06` | interface bound 泛型调用、companion 函数调用、interface 实现与默认方法（单文件） | `partial` | 1 | `query_pipeline` | 1 |
+| `N07` | Box.value / unbox() 与 Rc.value 字段投影 | `partial` | 3 | `dag_refcount`, `expr_eval`, `linked_stack` | 1 |
+| `N08` | Result + 后缀 ? 的 Int 与 String payload 全路径 | `todo` | 3 | `config_parse`, `expr_eval`, `text_log_summary` | 1 |
+| `S1` | 非逃逸闭包以 exclusive loan 可变捕获 var | `todo` | 1 | `query_pipeline` | 1 |
+| `T1` | 受限线程：thread(move { }) : Thread<T>、join()、channel（多生产者单消费者）；drop 时隐式 join；worker abort 即进程 abort；只转移所有权 | `todo` | 1 | `worker_pipeline` | 1 |
 
 ### 2.2 六个 V1 验收程序与前置核心能力 Probe 对账矩阵
 
 | 验收程序 | 归属章节 | 前置 Probe 通过率 | 已通过前置 Probe (`run_ok` / `compile_fail` / `abort`) | 待解封前置 Probe (`known_unimplemented`) | 路线图阻塞项 |
 |---|---|---:|---|---|---|
-| `config_parse` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | 4 / 7 | `p16b_result_string`, `p31_string_ops`, `s01_result_builtin`, `w08_map_string_values` | `p02_interp`, `p16_result_q`, `q08_enum_string_payload` | `N02`, `N08`, `L1`, `L2` |
-| `expr_eval` | [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | 3 / 8 | `p09_enum_payload`, `p24_recursion`, `s01_result_builtin` | `p05_double`, `p06_char`, `p16_result_q`, `p21_box_enum`, `q08_enum_string_payload` | `N02`, `N05`, `N07`, `N08`, `L7` |
-| `linked_stack` | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | 4 / 7 | `p14_nullable`, `p25_linked_iter`, `q20_replace_field`, `v18_while_nullable_class` | `p21_box_enum`, `p25b_linked_recursive`, `p40_nested_generic_class` | `N01`, `N03`, `N07`, `L7` |
-| `raii_state_machine` | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | 5 / 7 | `p12_class_inout`, `p32_deinit`, `p49_when_enum_no_payload`, `q19_deep_return_cleanup`, `q20_replace_field` | `p40_nested_generic_class`, `q08_enum_string_payload` | `N01`, `N02` |
-| `varint_codec` | [03-types-generics.md](../docs/guide/03-types-generics.md) | 5 / 7 | `p03_long_uint`, `p19_mutablelist`, `s01_result_builtin`, `v11_convert_ok`, `v12_convert_abort` | `p16_result_q`, `p40_nested_generic_class` | `N01`, `N08`, `L3b` |
-| `word_count` | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | 5 / 7 | `p19_mutablelist`, `p31_string_ops`, `w01_map_for_sum`, `w02_map_for_order`, `w11_word_count` | `p15_elvis`, `q08_enum_string_payload` | `N02`, `N03` |
+| `config_parse` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | 5 / 7 | `p02_interp`, `p16b_result_string`, `p31_string_ops`, `s01_result_builtin`, `w08_map_string_values` | `p16_result_q`, `q08_enum_string_payload` | `N02`, `N08`, `L1`, `L2` |
+| `dag_refcount` | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | 4 / 6 | `p02_interp`, `p22_rc`, `p32_deinit`, `q04_rc_simple` | `p21_box_enum`, `q08_enum_string_payload` | `N02`, `N07`, `L1`, `L2`, `L7` |
+| `expr_eval` | [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | 6 / 9 | `p02_interp`, `p05_double`, `p06_char`, `p09_enum_payload`, `p24_recursion`, `s01_result_builtin` | `p16_result_q`, `p21_box_enum`, `q08_enum_string_payload` | `N02`, `N05`, `N07`, `N08`, `L1`, `L2`, `L7` |
+| `linked_stack` | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | 5 / 8 | `p02_interp`, `p14_nullable`, `p25_linked_iter`, `q20_replace_field`, `v18_while_nullable_class` | `p21_box_enum`, `p25b_linked_recursive`, `p40_nested_generic_class` | `N01`, `N03`, `N07`, `L1`, `L2`, `L7` |
+| `query_pipeline` | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | 7 / 10 | `p02_interp`, `p05_double`, `p11_interface_bound`, `p18_move_closure`, `p26_borrow_return`, `z08_interface_delegation`, `z09_named_destructure` | `p35_value_eq`, `p42_lambda_mutate`, `q03_fn_ref` | `N04`, `N05`, `N06`, `L1`, `L2`, `L3b`, `L11`, `S1` |
+| `raii_state_machine` | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | 6 / 8 | `p02_interp`, `p12_class_inout`, `p32_deinit`, `p49_when_enum_no_payload`, `q19_deep_return_cleanup`, `q20_replace_field` | `p40_nested_generic_class`, `q08_enum_string_payload` |  |
+| `text_log_summary` | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | 4 / 7 | `p02_interp`, `p32_deinit`, `q19_deep_return_cleanup`, `s01_result_builtin` | `p16_result_q`, `z06_text_lines_split`, `z10_main_result_ok` | `L1`, `L2`, `L5`, `L21`, `N08` |
+| `varint_codec` | [03-types-generics.md](../docs/guide/03-types-generics.md) | 6 / 8 | `p02_interp`, `p03_long_uint`, `p19_mutablelist`, `s01_result_builtin`, `v11_convert_ok`, `v12_convert_abort` | `p16_result_q`, `p40_nested_generic_class` |  |
+| `word_count` | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | 6 / 8 | `p02_interp`, `p19_mutablelist`, `p31_string_ops`, `w01_map_for_sum`, `w02_map_for_order`, `w11_word_count` | `p15_elvis`, `q08_enum_string_payload` | `N02`, `N03`, `L1`, `L2` |
+| `worker_pipeline` | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | 4 / 5 | `p02_interp`, `p18_move_closure`, `p31_string_ops`, `z09_named_destructure` | `p27_thread` | `T1`, `N04`, `L1`, `L2` |
 
-## 3. 17 个 `known_unimplemented` Probe 按路线图阻塞项（`v1.json`）归类对账
+## 3. 16 个 `known_unimplemented` Probe 按路线图阻塞项（`v1.json`）归类对账
 
 | 路线图条目 ID | 路线图条目标题 | 状态 | 关联 Probe 总数 | 阻塞的 Probe 列表 |
 |---|---|---|---:|---|
-| `L1` | 值语义协议 Equatable/Hashable/Display（Comparable 只给内建数值、Char、String）；value class/enum 自动推导相等与哈希；Map 键 K : Equatable + Hashable | `todo` | 2 | `p02_interp`, `p35_value_eq` |
-| `L2` | 字符串插值降级："${x}" 要求 x : Display | `todo` | 1 | `p02_interp` |
+| `L1` | 值语义协议 Equatable/Hashable/Display（Comparable 只给内建数值、Char、String）；value class/enum 自动推导相等与哈希；Map 键 K : Equatable + Hashable | `todo` | 1 | `p35_value_eq` |
+| `L21` | main 可返回 Result<Unit, E>（E : Display）：Err 时 stderr 输出 `error: …`，退出码 1 | `todo` | 1 | `z10_main_result_ok` |
+| `L5` | 文本 API：已启用字节长度、复制/严格UTF-8、字节切片、split/lines、parseLong与checkedPlus；Char迭代、trim、StringBuilder等仍待后继合同 | `todo` | 1 | `z06_text_lines_split` |
+| `L6` | 同步 IO：显式上限文件读写、目录路径、标准流Result合同；exitProcess与显式流owner另行定义 | `todo` | 1 | `z07_io_path_join` |
 | `L7` | MoveOnly enum 的消费式匹配：owned subject 分支获得 payload owned 绑定 | `todo` | 2 | `p21_box_enum`, `q08_enum_string_payload` |
 | `N01` | 赋值与可变性：字段赋值 obj.f = v、inout 标量参数赋值、inout class 参数、泛型 class 的 inout 方法 | `partial` | 1 | `p40_nested_generic_class` |
 | `N02` | when：Int/String/Char/MoveOnly enum subject、enum 方法内 when (this)、project 模式 enum case 条件 | `partial` | 1 | `q08_enum_string_payload` |
 | `N03` | nullable 全路径：标量 T?、nullable 参数、Elvis、?.、!! | `partial` | 2 | `p15_elvis`, `p25b_linked_recursive` |
 | `N04` | 闭包：lambda 直接作实参、函数引用 ::f、move 闭包返回与存储 | `partial` | 2 | `p27_thread`, `q03_fn_ref` |
-| `N05` | Double/Float 运算与 Char 比较的 native 支持 | `todo` | 2 | `p05_double`, `p06_char` |
-| `N06` | interface bound 泛型调用、companion 函数调用、interface 实现与默认方法（单文件） | `partial` | 2 | `p11_interface_bound`, `p28_companion` |
+| `N06` | interface bound 泛型调用、companion 函数调用、interface 实现与默认方法（单文件） | `partial` | 1 | `p28_companion` |
 | `N07` | Box.value / unbox() 与 Rc.value 字段投影 | `partial` | 1 | `p21_box_enum` |
 | `N08` | Result + 后缀 ? 的 Int 与 String payload 全路径 | `todo` | 1 | `p16_result_q` |
 | `S1` | 非逃逸闭包以 exclusive loan 可变捕获 var | `todo` | 1 | `p42_lambda_mutate` |
 | `S6` | Map 带初值构造 mapOf("a" to 1) | `todo` | 2 | `s02_pair_builtin`, `s03_to_pair` |
 | `T1` | 受限线程：thread(move { }) : Thread<T>、join()、channel（多生产者单消费者）；drop 时隐式 join；worker abort 即进程 abort；只转移所有权 | `todo` | 1 | `p27_thread` |
 
-### 3.1 路线图阻塞项解封收益分析（单阻塞独立解封 vs 联合阻塞与 P2 门槛贡献，15 Blockers）
+### 3.1 路线图阻塞项解封收益分析（单阻塞独立解封 vs 联合阻塞与 P2 门槛贡献，19 Blockers）
 
 | 路线图条目 | 阶段 | 状态 | 独立解封 Probe (`sole_probes`) | 联合阻塞 Probe (`co_probes`) | P2 A 组贡献数 | 关联 V1 验收程序 |
 |---|---|---|---|---|---:|---|
-| `L1` | `P3` | `todo` | 1 (`p35_value_eq`) | 1 (`p02_interp`) | 1 | `config_parse` |
-| `L2` | `P3` | `todo` | 0 | 1 (`p02_interp`) | 1 | `config_parse` |
-| `L3b` | `P3` | `todo` | 0 | 0 | 0 | `varint_codec` |
-| `L7` | `P3` | `todo` | 0 | 2 (`p21_box_enum`, `q08_enum_string_payload`) | 2 | `expr_eval`, `linked_stack` |
-| `N01` | `P2` | `partial` | 1 (`p40_nested_generic_class`) | 0 | 1 | `linked_stack`, `raii_state_machine`, `varint_codec` |
-| `N02` | `P2` | `partial` | 0 | 1 (`q08_enum_string_payload`) | 1 | `config_parse`, `expr_eval`, `raii_state_machine`, `word_count` |
+| `L1` | `P3` | `todo` | 1 (`p35_value_eq`) | 0 | 0 | `config_parse`, `dag_refcount`, `expr_eval`, `linked_stack`, `query_pipeline`, `text_log_summary`, `word_count`, `worker_pipeline` |
+| `L11` | `P3` | `todo` | 0 | 0 | 0 | `query_pipeline` |
+| `L2` | `P3` | `todo` | 0 | 0 | 0 | `config_parse`, `dag_refcount`, `expr_eval`, `linked_stack`, `query_pipeline`, `text_log_summary`, `word_count`, `worker_pipeline` |
+| `L21` | `P4` | `todo` | 1 (`z10_main_result_ok`) | 0 | 0 | `text_log_summary` |
+| `L3b` | `P3` | `todo` | 0 | 0 | 0 | `query_pipeline` |
+| `L5` | `P4` | `todo` | 1 (`z06_text_lines_split`) | 0 | 0 | `text_log_summary` |
+| `L6` | `P4` | `todo` | 1 (`z07_io_path_join`) | 0 | 0 | - |
+| `L7` | `P3` | `todo` | 0 | 2 (`p21_box_enum`, `q08_enum_string_payload`) | 2 | `dag_refcount`, `expr_eval`, `linked_stack` |
+| `N01` | `P2` | `partial` | 1 (`p40_nested_generic_class`) | 0 | 1 | `linked_stack` |
+| `N02` | `P2` | `partial` | 0 | 1 (`q08_enum_string_payload`) | 1 | `config_parse`, `dag_refcount`, `expr_eval`, `word_count` |
 | `N03` | `P2` | `partial` | 2 (`p15_elvis`, `p25b_linked_recursive`) | 0 | 2 | `linked_stack`, `word_count` |
-| `N04` | `P2` | `partial` | 1 (`q03_fn_ref`) | 1 (`p27_thread`) | 2 | - |
-| `N05` | `P2` | `todo` | 2 (`p05_double`, `p06_char`) | 0 | 2 | `expr_eval` |
-| `N06` | `P2` | `partial` | 2 (`p11_interface_bound`, `p28_companion`) | 0 | 2 | - |
-| `N07` | `P2` | `partial` | 0 | 1 (`p21_box_enum`) | 1 | `expr_eval`, `linked_stack` |
-| `N08` | `P2` | `todo` | 1 (`p16_result_q`) | 0 | 1 | `config_parse`, `expr_eval`, `varint_codec` |
-| `S1` | `P3` | `todo` | 1 (`p42_lambda_mutate`) | 0 | 0 | - |
+| `N04` | `P2` | `partial` | 1 (`q03_fn_ref`) | 1 (`p27_thread`) | 2 | `query_pipeline`, `worker_pipeline` |
+| `N05` | `P2` | `partial` | 0 | 0 | 0 | `expr_eval`, `query_pipeline` |
+| `N06` | `P2` | `partial` | 1 (`p28_companion`) | 0 | 1 | `query_pipeline` |
+| `N07` | `P2` | `partial` | 0 | 1 (`p21_box_enum`) | 1 | `dag_refcount`, `expr_eval`, `linked_stack` |
+| `N08` | `P2` | `todo` | 1 (`p16_result_q`) | 0 | 1 | `config_parse`, `expr_eval`, `text_log_summary` |
+| `S1` | `P3` | `todo` | 1 (`p42_lambda_mutate`) | 0 | 0 | `query_pipeline` |
 | `S6` | `P3` | `todo` | 2 (`s02_pair_builtin`, `s03_to_pair`) | 0 | 2 | - |
-| `T1` | `P4` | `todo` | 0 | 1 (`p27_thread`) | 1 | - |
+| `T1` | `P4` | `todo` | 0 | 1 (`p27_thread`) | 1 | `worker_pipeline` |
 
 ### 3.2 路线图阶段（`P2` → `P3` → `P4`）递进解封与里程碑投射矩阵
 
 | 阶段里程碑 | 阶段核心目标 | 本阶段清零阻塞项 | 本阶段新增解封 Probe | 累计能力通过 (`capability_passed`) | P2 A 组可运行 (`≥ 70 / 74`) | V1 验收程序就绪 |
 |---|---|---|---|---:|---:|---:|
-| **P2 完成** | Native 后端能力补齐（泛型、可空/Result `?`、闭包、浮点/字符与接口分派） | `N01`, `N02`, `N03`, `N04`, `N05`, `N06`, `N07`, `N08` | +9 (`p05_double`, `p06_char`, `p11_interface_bound`, `p15_elvis`, `p16_result_q`, `p25b_linked_recursive`, `p28_companion`, `p40_nested_generic_class`, `q03_fn_ref`) | **146 / 154** | **67 / 74** | **2 / 6** |
-| **P3 完成** | 语言糖、协议与标准库收口（闭包可变捕获、Equatable/Display 插值、位运算、多载荷 enum 与 Pair/to） | `L1`, `L2`, `L3b`, `L7`, `S1`, `S6` | +7 (`p02_interp`, `p21_box_enum`, `p35_value_eq`, `p42_lambda_mutate`, `q08_enum_string_payload`, `s02_pair_builtin`, `s03_to_pair`) | **153 / 154** | **72 / 74** | **6 / 6** |
-| **P4 完成** | 并发与扩展（原生线程 thread 与 JoinHandle） | `T1` | +1 (`p27_thread`) | **154 / 154** | **73 / 74** | **6 / 6** |
+| **P2 完成** | Native 后端能力补齐（泛型、可空/Result `?`、闭包、浮点/字符与接口分派） | `N01`, `N02`, `N03`, `N04`, `N05`, `N06`, `N07`, `N08` | +6 (`p15_elvis`, `p16_result_q`, `p25b_linked_recursive`, `p28_companion`, `p40_nested_generic_class`, `q03_fn_ref`) | **154 / 164** | **68 / 74** | **2 / 10** |
+| **P3 完成** | 语言糖、协议与标准库收口（闭包可变捕获、Equatable/Display 插值、位运算、多载荷 enum 与 Pair/to） | `L1`, `L11`, `L2`, `L3b`, `L7`, `S1`, `S6` | +6 (`p21_box_enum`, `p35_value_eq`, `p42_lambda_mutate`, `q08_enum_string_payload`, `s02_pair_builtin`, `s03_to_pair`) | **160 / 164** | **72 / 74** | **8 / 10** |
+| **P4 完成** | 并发与扩展（原生线程 thread 与 JoinHandle） | `L21`, `L5`, `L6`, `T1` | +4 (`p27_thread`, `z06_text_lines_split`, `z07_io_path_join`, `z10_main_result_ok`) | **164 / 164** | **73 / 74** | **10 / 10** |
 
 ### 3.3 路线图领域（`area`）与编译器阶段（`phases`）阻塞分布矩阵（9 Areas）
 
 | 路线图领域 (`area`) | 领域职责说明 | 涉及编译阶段 (`phases`) | 关联阻塞项 | 阻塞 Probe 数 | 阻塞 Program 数 |
 |---|---|---|---|---:|---:|
-| `types` | 类型系统、标量字面量 (`Double`/`Char`)、位运算与 `Equatable`/`Comparable` 协议 (`L1`, `L3b`, `N05`) | `Phase 2`, `Phase 4`, `Phase 5` | `L1`, `L3b`, `N05` | 4 | 3 |
+| `types` | 类型系统、标量字面量 (`Double`/`Char`)、位运算与 `Equatable`/`Comparable` 协议 (`L1`, `L3b`, `N05`) | `Phase 2`, `Phase 4`, `Phase 5` | `L1`, `L3b`, `N05` | 1 | 8 |
 | `control` | 多载荷与递归 enum 构造及 `when` 解构分派 (`L7`, `N02`) | `Phase 2`, `Phase 3`, `Phase 4` | `L7`, `N02` | 2 | 5 |
-| `closures` | 函数引用 `::fn` 与移动闭包调用 (`N04`) | `Phase 2`, `Phase 3`, `Phase 4` | `N04`, `S1` | 3 | 0 |
-| `classes` | 泛型 Interface 上界分派与匿名 `companion` 关联调用 (`N06`) | `Phase 2`, `Phase 3`, `Phase 4` | `N06` | 2 | 0 |
+| `closures` | 函数引用 `::fn` 与移动闭包调用 (`N04`) | `Phase 2`, `Phase 3`, `Phase 4` | `N04`, `S1` | 3 | 2 |
+| `classes` | 泛型 Interface 上界分派与匿名 `companion` 关联调用 (`N06`) | `Phase 2`, `Phase 3`, `Phase 4` | `N06` | 1 | 1 |
 | `errors` | 可空链式访问、Elvis `?:` 与 `Result` `?` 传播 (`N03`, `N08`) | `Phase 2`, `Phase 3`, `Phase 4` | `N03`, `N08` | 3 | 5 |
-| `ownership` | 嵌套泛型 class 字段借用、可变写入与所有权证明 (`N01`) | `Phase 2`, `Phase 3`, `Phase 4` | `N01` | 1 | 3 |
+| `ownership` | 嵌套泛型 class 字段借用、可变写入与所有权证明 (`N01`) | `Phase 2`, `Phase 3`, `Phase 4` | `L11`, `N01` | 1 | 2 |
 | `collections` | 内建 `Pair` 构造与中缀 `to` 糖 (`S6`) | `Phase 2`, `Phase 3`, `Phase 4` | `S6` | 2 | 0 |
-| `text-io` | `Display` 协议与字符串插值求值 (`L2`) | `Phase 2`, `Phase 4` | `L2` | 1 | 1 |
-| `stdlib` | 递归堆分配容器 `Box<T>` 与原生线程 `thread`/`JoinHandle` (`N07`, `T1`) | `Phase 2`, `Phase 3`, `Phase 4`, `Phase 5` | `N07`, `T1` | 2 | 2 |
+| `text-io` | `Display` 协议与字符串插值求值 (`L2`) | `Phase 2`, `Phase 4`, `Phase 5` | `L2`, `L21`, `L5`, `L6` | 3 | 8 |
+| `stdlib` | 递归堆分配容器 `Box<T>` 与原生线程 `thread`/`JoinHandle` (`N07`, `T1`) | `Phase 2`, `Phase 3`, `Phase 4`, `Phase 5` | `N07`, `T1` | 2 | 4 |
 
-### 3.4 17 个 `known_unimplemented` Probe 晋升契约与目标输出（`target_stdout`）对账表
+### 3.4 16 个 `known_unimplemented` Probe 晋升契约与目标输出（`target_stdout`）对账表
 
 | Probe | Guide 章节 | P2 分组 | 基线记号 | 允许记号 (`allowed_markers`) | 路线图阻塞项 | 目标输出 (`target_stdout`) | 规模 |
 |---|---|:---:|---|---|---|---|---:|
-| `p02_interp` | [01-lexical.md](../docs/guide/01-lexical.md) | `A` | `BE:UnsupportedNode` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` | `L1`, `L2` | `hello k\n` | 1L / 8B |
-| `p05_double` | [01-lexical.md](../docs/guide/01-lexical.md) | `A` | `BE:UnsupportedNode` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` | `N05` | `double\n` | 1L / 7B |
-| `p06_char` | [01-lexical.md](../docs/guide/01-lexical.md) | `A` | `BE:UnsupportedNode` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` | `N05` | `char\n` | 1L / 5B |
-| `p11_interface_bound` | [03-types-generics.md](../docs/guide/03-types-generics.md) | `A` | `FE:L0165` | `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` | `N06` | `dog\n` | 1L / 4B |
 | `p15_elvis` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `A` | `BE:UnsupportedNode` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` | `N03` | `elvis\n` | 1L / 6B |
 | `p16_result_q` | [09-nullability-errors.md](../docs/guide/09-nullability-errors.md) | `A` | `FE:L0165` | `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` | `N08` | `question\n` | 1L / 9B |
 | `p21_box_enum` | [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | `A` | `FE:L0165` | `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` | `N07`, `L7` | `box\n` | 1L / 4B |
@@ -355,15 +381,19 @@
 | `q08_enum_string_payload` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `A` | `BE:UnsupportedNode` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` | `N02`, `L7` | `hi\nquit\n` | 2L / 8B |
 | `s02_pair_builtin` | [02-names-files-packages.md](../docs/guide/02-names-files-packages.md) | `A` | `FE:L0080` | `FE:L0080`, `BE:UnsupportedNode`, `BE:MissingFact` | `S6` | `pair\n` | 1L / 5B |
 | `s03_to_pair` | [02-names-files-packages.md](../docs/guide/02-names-files-packages.md) | `A` | `FE:L0165` | `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` | `S6` | `to\n` | 1L / 3B |
+| `z06_text_lines_split` | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | `-` | `POST_BASELINE` | `FE:L0148`, `BE:UnsupportedNode`, `BE:MissingFact` | `L5` | `text-ok\n` | 1L / 8B |
+| `z07_io_path_join` | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | `-` | `POST_BASELINE` | `FE:L0148`, `BE:UnsupportedNode`, `BE:MissingFact` | `L6` | `io-path\n` | 1L / 8B |
+| `z10_main_result_ok` | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | `-` | `POST_BASELINE` | `FE:L0080`, `BE:UnsupportedNode`, `BE:MissingFact` | `L21` | `main-result\n` | 1L / 12B |
 
 ### 3.5 编译器阶段（`Phase 2` – `Phase 5`）负向契约与未实现阻塞全景矩阵
 
 | 编译器阶段 | 阶段职责范围 | 已生效负向 Probe 数 | 覆盖负向契约 (`FE:Lxxxx` / `abort`) | 关联路线图阻塞项 | 阻塞 Probe 数 | 阻塞 Program 数 |
 |---|---|---:|---|---|---:|---:|
-| **Phase 2 前端类型与解析** | 名称解析、类型检查、运算符/协议约束与最终类型准入 (`crates/lang-frontend/src/type_checking`) | 10 | `FE:L0084`, `FE:L0085`, `FE:L0167`, `FE:L0112`, `FE:L0080`, `FE:L0089` | `L1`, `L2`, `L3b`, `L7`, `N01`, `N02`, `N03`, `N04`, `N06`, `N07`, `N08`, `S1`, `S6`, `T1` | 15 | 6 |
-| **Phase 3 所有权与析构** | 借用冲突、部分移动、生命周期证明与逆序 `deinit` 调度 (`crates/lang-frontend/src/ownership`) | 3 | `FE:L0133`, `FE:L0132`, `FE:L0164`, `FE:L0135` | `L7`, `N01`, `N02`, `N03`, `N04`, `N06`, `N07`, `N08`, `S1`, `S6`, `T1` | 13 | 6 |
-| **Phase 4 SSA / LLVM / Runtime** | SSA 构建、所有权校验、LLVM IR 生成、原生链接与 `abort` 合同 (`crates/lang-codegen`) | 3 | `abort:integer overflow in +`, `abort:boom`, `abort:value out of range for ULong` | `L1`, `L2`, `L3b`, `L7`, `N01`, `N02`, `N03`, `N04`, `N05`, `N06`, `N07`, `N08`, `S1`, `S6`, `T1` | 17 | 6 |
-| **Phase 5 标准库与并发** | 内建容器、文本/数值协议、`Box`/`Rc` 与原生线程运行时 (`crates/lang-std`) | 0 | - | `L1`, `T1` | 3 | 1 |
+| **Phase 1 词法与语法解析** | Lexer 词法扫描、Parser AST 构建与恢复契约 (`crates/lang-frontend/src/{lexer,parser}`) | 2 | `FE:L0008`, `FE:L0042` | - | 0 | 0 |
+| **Phase 2 前端名称与类型** | 名称解析、类型检查、运算符/协议约束与最终类型准入 (`crates/lang-frontend/src/type_checking`) | 12 | `FE:L0084`, `FE:L0085`, `FE:L0167`, `FE:L0112`, `FE:L0080`, `FE:L0089`, `FE:L0117`, `FE:L0150` | `L1`, `L11`, `L2`, `L21`, `L3b`, `L5`, `L6`, `L7`, `N01`, `N02`, `N03`, `N04`, `N06`, `N07`, `N08`, `S1`, `S6`, `T1` | 16 | 8 |
+| **Phase 3 所有权与析构** | 借用冲突、部分移动、生命周期证明与逆序 `deinit` 调度 (`crates/lang-frontend/src/ownership`) | 4 | `FE:L0133`, `FE:L0132`, `FE:L0164`, `FE:L0135`, `FE:L0138` | `L11`, `L7`, `N01`, `N02`, `N03`, `N04`, `N06`, `N07`, `N08`, `S1`, `S6`, `T1` | 12 | 8 |
+| **Phase 4 SSA / LLVM / Runtime** | SSA 构建、所有权校验、LLVM IR 生成、原生链接与 `abort` 合同 (`crates/lang-codegen`) | 3 | `abort:integer overflow in +`, `abort:boom`, `abort:value out of range for ULong` | `L1`, `L2`, `L21`, `L3b`, `L5`, `L6`, `L7`, `N01`, `N02`, `N03`, `N04`, `N05`, `N06`, `N07`, `N08`, `S1`, `S6`, `T1` | 16 | 8 |
+| **Phase 5 标准库与并发** | 内建容器、文本/数值协议、`Box`/`Rc` 与原生线程运行时 (`crates/lang-std`) | 0 | - | `L1`, `L21`, `L5`, `L6`, `T1` | 5 | 8 |
 
 ## 4. 154 个 Probe 逐项强 Oracle 与语义推导账本
 
@@ -374,17 +404,17 @@
 | `e03_enum_when_bool_val` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `run_ok` | `v046_spec_contract` | `e5\n` | c = Color.Green yields b = false in when expression; if (!b) prints 'e5' |
 | `e04_enum_when_int_return` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `run_ok` | `single_println_literal` | `e6\n` | single literal println('e6') |
 | `p01_int_print` | [05-declarations-callables.md](../docs/guide/05-declarations-callables.md) | `compile_fail` | `baseline_diagnostic_audited` | `FE:L0084` | println expects String parameter; passing Int (40 + 2) emits TYPE_MISMATCH L0084 |
-| `p02_interp` | [01-lexical.md](../docs/guide/01-lexical.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` → target `hello k\n` | string interpolation 'hello ${n}' with n = 'k' evaluates to 'hello k' (blocked by L1/L2) |
+| `p02_interp` | [01-lexical.md](../docs/guide/01-lexical.md) | `run_ok` | `v046_spec_contract` | `hello k\n` | interpolation borrows the String n = 'k' and creates a new String; println emits 'hello k' followed by a newline |
 | `p03_long_uint` | [01-lexical.md](../docs/guide/01-lexical.md) | `run_ok` | `single_println_literal` | `widths\n` | single literal println('widths') |
 | `p03b_byte_literal_cmp` | [03-types-generics.md](../docs/guide/03-types-generics.md) | `compile_fail` | `baseline_diagnostic_audited` | `FE:L0085` | comparing Byte with untyped Int literal 3 without conversion emits INVALID_OPERAND_TYPES L0085 |
 | `p04_overflow` | [04-expressions-operators.md](../docs/guide/04-expressions-operators.md) | `runtime_abort` | `v046_spec_contract` | `abort:integer overflow in +` | Int.MAX_VALUE (2147483647) + 1 triggers checked signed addition overflow abort per Guide 04/09 |
-| `p05_double` | [01-lexical.md](../docs/guide/01-lexical.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` → target `double\n` | Double multiplication 1.5 * 2.0 == 3.0 holds and prints 'double' (blocked by N05) |
-| `p06_char` | [01-lexical.md](../docs/guide/01-lexical.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `BE:UnsupportedNode`, `BE:MissingFact`, `FE:L0165` → target `char\n` | Char comparison 'a' < 'b' holds and prints 'char' (blocked by N05) |
+| `p05_double` | [01-lexical.md](../docs/guide/01-lexical.md) | `run_ok` | `v046_spec_contract` | `double\n` | Double multiplication 1.5 * 2.0 == 3.0 holds and prints 'double' |
+| `p06_char` | [01-lexical.md](../docs/guide/01-lexical.md) | `run_ok` | `v046_spec_contract` | `char\n` | Char comparison 'a' < 'b' holds in Unicode scalar order and prints 'char' |
 | `p07_while_var` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `run_ok` | `source_trace_audited` | `while\n` | while loop sums i=0..9 into s=45; s == 45 holds and prints 'while' |
 | `p08_when_int` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `run_ok` | `v046_spec_contract` | `two\n` | name(2) matches the subject equality branch 2 -> 'two' and prints 'two' |
 | `p09_enum_payload` | [06-blocks-control-flow.md](../docs/guide/06-blocks-control-flow.md) | `run_ok` | `single_println_literal` | `enum\n` | single literal println('enum') |
 | `p10_generic_fn` | [03-types-generics.md](../docs/guide/03-types-generics.md) | `run_ok` | `source_trace_audited` | `generic\nint\n` | identity('generic') prints 'generic'; identity(3) == 3 holds and prints 'int' |
-| `p11_interface_bound` | [03-types-generics.md](../docs/guide/03-types-generics.md) | `known_unimplemented` | `baseline_unimplemented_audited` | `FE:L0165`, `BE:UnsupportedNode`, `BE:MissingFact` → target `dog\n` | generic greet<T : Named>(Dog()) dispatches Dog.name() and prints 'dog' (blocked by N06) |
+| `p11_interface_bound` | [03-types-generics.md](../docs/guide/03-types-generics.md) | `run_ok` | `v046_spec_contract` | `dog\n` | generic greet<T : Named>(Dog()) dispatches Dog.name() and prints 'dog' |
 | `p12_class_inout` | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | `run_ok` | `single_println_literal` | `counter\n` | single literal println('counter') |
 | `p12b_class_field_assign` | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | `run_ok` | `v046_spec_contract` | `field-assign\n` | single literal println('field-assign') |
 | `p12c_inout_param` | [10-ownership-borrowing-drop.md](../docs/guide/10-ownership-borrowing-drop.md) | `run_ok` | `v046_spec_contract` | `inout-param\n` | single literal println('inout-param') |
@@ -523,3 +553,13 @@
 | `y04_take_for_println` | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `run_ok` | `v046_spec_contract` | `a\nb\n` | take(listOf('a','b','c'), 2) prints first two elements 'a' and 'b' |
 | `y05_take_borrow_val_call` | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `run_ok` | `source_trace_audited` | `a\nb\n` | borrow val v = take(xs, 2) passed to read(v) prints 'a' and 'b' |
 | `y06_take_borrow_val_for` | [12-collections-destructuring.md](../docs/guide/12-collections-destructuring.md) | `run_ok` | `source_trace_audited` | `a\nb\n` | borrow val v = take(xs, 2) iterated directly in for-loop prints 'a' and 'b' |
+| `z01_neg_invalid_int_suffix` | [01-lexical.md](../docs/guide/01-lexical.md) | `compile_fail` | `post_baseline_audited` | `FE:L0008` | Guide 01/03 forbids undefined numeric suffix `d` (`10d`), emitting INVALID_NUMERIC_LITERAL L0008 |
+| `z02_neg_move_closure_borrow_capture` | [07-calls-lambdas-closures.md](../docs/guide/07-calls-lambdas-closures.md) | `compile_fail` | `post_baseline_audited` | `FE:L0138` | Guide 07/10 forbids a `move` closure from capturing a Borrow parameter, emitting ILLEGAL_OWNED_CAPTURE L0138 |
+| `z03_neg_box_ordinary_class` | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | `compile_fail` | `post_baseline_audited` | `FE:L0117` | Guide 08 restricts Box<T> to value class or enum class; Box(Ordinary(1)) emits INVALID_BOX_ARGUMENT L0117 |
+| `z04_neg_destructure_discard` | [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | `compile_fail` | `post_baseline_audited` | `FE:L0042` | Guide 11 forbids `_` discard in local val destructuring (`val (_, b)`), emitting UNSUPPORTED_DESTRUCTURING_FORM L0042 |
+| `z05_neg_redeclare_result` | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | `compile_fail` | `post_baseline_audited` | `FE:L0150` | Guide 13 / SPEC-0349 forbids user top-level redeclaration of builtin Result, emitting EXACT_IMPORT_BINDING_CONFLICT L0150 |
+| `z06_text_lines_split` | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | `known_unimplemented` | `post_baseline_audited` | `FE:L0148`, `BE:UnsupportedNode`, `BE:MissingFact` → target `text-ok\n` | Guide 13 v0.47 koven.text lines()/split()/parseLong('42') yields 42L and prints 'text-ok' (blocked by L5) |
+| `z07_io_path_join` | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | `known_unimplemented` | `post_baseline_audited` | `FE:L0148`, `BE:UnsupportedNode`, `BE:MissingFact` → target `io-path\n` | Guide 13 v0.47 koven.io Path.join('dir', 'file.txt') yields Ok('dir/file.txt') and prints 'io-path' (blocked by L6) |
+| `z08_interface_delegation` | [08-class-family-members.md](../docs/guide/08-class-family-members.md) | `run_ok` | `post_baseline_audited` | `delegated\n` | Guide 08 ordinary class interface delegation `Greeter by inner` forwards label() and prints 'delegated' |
+| `z09_named_destructure` | [11-copyability-layout-construction.md](../docs/guide/11-copyability-layout-construction.md) | `run_ok` | `post_baseline_audited` | `named-destr\n` | Guide 11 value class named destructuring `val (right, left) = Pair2(1, 2)` binds by field name and prints 'named-destr' |
+| `z10_main_result_ok` | [13-program-runtime-standard-library.md](../docs/guide/13-program-runtime-standard-library.md) | `known_unimplemented` | `post_baseline_audited` | `FE:L0080`, `BE:UnsupportedNode`, `BE:MissingFact` → target `main-result\n` | Guide 13 conventional `fun main(): Result<Unit, String>` returning Ok(Unit) prints 'main-result' and exits 0 (blocked by L21) |

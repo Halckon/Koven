@@ -163,9 +163,13 @@ impl SequentialContainerKind {
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum SsaTypeKind {
     Unit,
+    /// Layout of the impossible payload of `Nothing?`, never an SSA entity type.
+    Uninhabited,
     Boolean,
     /// Unicode scalar, distinct from an unsigned 32-bit integer.
     Char,
+    Float32,
+    Float64,
     Integer {
         bits: u16,
         signed: bool,
@@ -239,6 +243,13 @@ pub(crate) enum SsaTypeKind {
         environment: SsaTypeId,
         captures: Vec<ClosureCaptureType>,
     },
+}
+
+impl SsaTypeKind {
+    pub(crate) fn is_null_only(&self, types: &[Self]) -> bool {
+        matches!(self, Self::InlineNullable { inner, niche: false }
+            if types.get(inner.index()) == Some(&Self::Uninhabited))
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -319,6 +330,28 @@ pub(crate) enum IntegerBitwiseOperator {
     Shl,
     Shr,
     Ushr,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum FloatOperator {
+    Negate,
+    Add,
+    Subtract,
+    Multiply,
+    Divide,
+    Remainder,
+}
+
+impl From<CheckedArithmeticOperator> for FloatOperator {
+    fn from(operator: CheckedArithmeticOperator) -> Self {
+        match operator {
+            CheckedArithmeticOperator::Add => Self::Add,
+            CheckedArithmeticOperator::Subtract => Self::Subtract,
+            CheckedArithmeticOperator::Multiply => Self::Multiply,
+            CheckedArithmeticOperator::Divide => Self::Divide,
+            CheckedArithmeticOperator::Remainder => Self::Remainder,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -795,6 +828,11 @@ pub(crate) struct Module {
 }
 
 impl Module {
+    pub(crate) fn is_null_only(&self, ty: SsaTypeId) -> bool {
+        self.type_kind(ty)
+            .is_some_and(|kind| kind.is_null_only(&self.types))
+    }
+
     pub(crate) fn intern_type(&mut self, kind: SsaTypeKind) -> SsaTypeId {
         if let Some(id) = self.type_ids.get(&kind).copied() {
             return id;

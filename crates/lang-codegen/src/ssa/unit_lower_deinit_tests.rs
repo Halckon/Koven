@@ -142,7 +142,8 @@ fn unit_resource_deinit_reachability_reaches_a_fixed_point() {
         "package p\n\
          fun observe(value: Int): Unit {}\n\
          class Inner { deinit() { observe(1) } }\n\
-         class Outer { deinit() { val inner = Inner() } }\n\
+         interface Marker {}\n\
+         class Outer : Marker { deinit() { val inner = Inner() } }\n\
          fun entry(): Unit { val outer = Outer() }",
     );
     let inputs = [SourceUnitInput::new("root", "p/main.ko", source, &parsed)];
@@ -281,7 +282,6 @@ fn unit_resource_deinit_nullable_wrappers_preserve_admission_and_null_rejection_
 fn unit_resource_deinit_rejects_unimplemented_resource_shapes() {
     for text in [
         "class Resource<T>(val value: T) { deinit() {} }\nfun entry(): Unit { val resource = Resource<Int>(7) }",
-        "interface Marker {}\nclass Resource: Marker { deinit() {} }\nfun entry(): Unit { val resource = Resource() }",
         "class Resource { deinit() {} }\nclass Wrapper<T>(val value: T)\nfun entry(): Unit { val wrapper = Wrapper<Resource>(Resource()) }",
         "class Resource { deinit() { val action = { 1 } } }\nfun entry(): Unit { val resource = Resource() }",
         "class Resource(val value: Int) { deinit() {} }\nfun entry(): Unit { val resource = Resource(7); val action: move () -> Int = move { resource.value } }",

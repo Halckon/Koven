@@ -367,7 +367,6 @@ impl Parser<'_> {
                         .file_angle_groups(raw, opener.span().start()),
                 ),
                 boundary: std::cell::Cell::new(None),
-                significant_start: std::cell::Cell::new(None),
             })
         } else {
             None

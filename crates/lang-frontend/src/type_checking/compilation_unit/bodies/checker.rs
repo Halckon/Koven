@@ -79,7 +79,7 @@ mod while_flow;
 
 use super::super::signatures::collect_signatures_with_files;
 use expression_facts::ExpressionExpected;
-use flow::{FlowKey, FlowVersions};
+use flow::{FlowFacts, FlowKey, FlowVersions};
 pub(super) use type_graph::unit_assignable;
 
 use super::{
@@ -113,15 +113,31 @@ pub(crate) fn check_compilation_unit_types_recovering(
     names: &CompilationUnitNames,
     environment: &TypeEnvironment,
 ) -> Result<CompilationUnitTypes, CompilationUnitTypeError> {
+    check_types_with_completed_calls(sources, inputs, names, environment, None)
+}
+
+pub(crate) fn check_types_with_completed_calls(
+    sources: &SourceMap,
+    inputs: &[SourceUnitInput<'_>],
+    names: &CompilationUnitNames,
+    environment: &TypeEnvironment,
+    completed: Option<&super::CompletedUnitCalls>,
+) -> Result<CompilationUnitTypes, CompilationUnitTypeError> {
     let prepared = collect_signatures_with_files(sources, inputs, names, environment)?;
-    BodyChecker::new(
+    let checker = BodyChecker::new(
         sources,
         prepared.files,
         names,
         environment,
         prepared.signatures,
-    )
-    .run()
+    );
+    match completed {
+        Some(completed) => checker.run_with_completed_calls(
+            crate::type_checking::MAX_UNIT_GENERIC_INSTANCES,
+            Some(completed),
+        ),
+        None => checker.run(),
+    }
 }
 
 pub(super) struct BodyChecker<'a> {
@@ -135,7 +151,7 @@ pub(super) struct BodyChecker<'a> {
     references: BTreeMap<(SourceUnitId, usize, usize, u8), UnitReferenceTarget>,
     symbols_by_span: BTreeMap<(SourceUnitId, usize, usize, u8), UnitSymbolId>,
     stable_flow_symbols: BTreeSet<UnitSymbolId>,
-    flow_facts: BTreeMap<FlowKey, UnitTypeId>,
+    flow_facts: FlowFacts,
     flow_versions: FlowVersions,
     inactive_inout_calls: BTreeSet<UnitExpressionId>,
     pending_immutable_bindings: BTreeSet<UnitSymbolId>,
@@ -236,7 +252,7 @@ impl<'a> BodyChecker<'a> {
             references,
             symbols_by_span,
             stable_flow_symbols: BTreeSet::new(),
-            flow_facts: BTreeMap::new(),
+            flow_facts: FlowFacts::default(),
             flow_versions: FlowVersions::default(),
             inactive_inout_calls: BTreeSet::new(),
             pending_immutable_bindings: BTreeSet::new(),
@@ -359,11 +375,22 @@ impl<'a> BodyChecker<'a> {
     }
 
     fn run_with_generic_limit(
+        self,
+        generic_limit: usize,
+    ) -> Result<CompilationUnitTypes, CompilationUnitTypeError> {
+        self.run_with_completed_calls(generic_limit, None)
+    }
+
+    fn run_with_completed_calls(
         mut self,
         generic_limit: usize,
+        completed: Option<&super::CompletedUnitCalls>,
     ) -> Result<CompilationUnitTypes, CompilationUnitTypeError> {
         self = self.check_bodies_to_fixed_point()?;
         self.materialize_generic_body_types_with_limit(generic_limit)?;
+        if let Some(completed) = completed {
+            self.materialize_completed_display_bodies(generic_limit, completed)?;
+        }
         self.materialize_runtime_field_layouts()?;
         self.check_range_types()?;
         self.parts.constants = self.build_constant_facts();

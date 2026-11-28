@@ -125,7 +125,7 @@ F5 ──> 演进路线中带新语法的步骤
 
 ### 5.1 F5 需要把关的近期语法
 
-来自[演进总纲](ownership-references-dyn-evolution.md)各路线，按出现先后：
+来自[演进总纲](ownership-references-dyn-evolution.md)各路线，按出现先后（首批为[演进总纲之十三](evolution-13-implementation-roadmap.md) §4.2 阶段一 Guide 小版本中的多来源 `from` 与静态不可变存储，其后为阶段二及后续新语法）：
 
 | 语法 | 来源步骤 | 主要文法风险 |
 |---|---|---|
@@ -209,4 +209,5 @@ F2 是否值得做、做多大，取决于 F0 的归因结果，所以现在能�
 - F2（序 3–8）改动生产 parser。v1 期间是否启动，取决于两件事：序 1 是否支持 §4，以及 parser 修复是否仍在以近期的速度出现。
   2026-11-11 核对：标题为 `fix(parser)` 的提交仍是 33 个，最后一批在 11-10；但本地 HEAD 的日期是 11-11，只隔一天，据此无法判断修复流是否已经停止。
   若修复已经明显减少，F2 可以推迟到 v1 之后；若没有，推迟只会让 v1 的 P3（其中多项需要新语法）继续承受返工。
-- F3–F5（序 9–17）的时限是[演进总纲之十三](evolution-13-implementation-roadmap.md)的阶段二：第一批新表面语法进入 Guide 之前。
+- F3–F5（序 9–17）的时限是[演进总纲之十三](evolution-13-implementation-roadmap.md) §4.2 的阶段一 Guide 小版本：首批新表面语法（多来源 `from` 与静态不可变存储）进入 Guide 之前完成，同时继续为阶段二及后续新语法把关。
+- **2026-11-27 进度对账**（详见[分阶段形式化验证计划](parser-formal-verification-plan.md) §5、§7 及对应归档 Spec）：F0a/F0b（[归因基线](parser-formal-verification/recovery-baseline.md)与[观察基线](parser-formal-verification/observation-baseline.md)）、F1（[D1–D3 裁决卡](parser-formal-verification/grammar-decisions.md)，其中带括号调用跨行尾 lambda 已随 Guide 07 与 SPEC-0479 启用）、F2（经 SPEC-0489 决定本轮不启动 F2b–f）、F3a–F3e 切片、F4a/F4c 首片、F4b 锁定版 Tree-sitter CLI 本地差分与 PR #461 CI 验收（SPEC-0493）、F5 增量门禁（SPEC-0504，含[清单](parser-formal-verification/syntax-gate-checklist.md)与 D1 演练）及 F6 已归档的 12 片机器证明均已完成或验收；剩余覆盖范围为 D1–D3 其余未启用 [Guide 修订草案](parser-formal-verification/guide-amendment-draft.md) 的最终同步、后续是否重开 F2b–f、F4 差分对新增语法切片的扩展，以及更多离线切片由 advisory 升为 required CI 的单独获批项。

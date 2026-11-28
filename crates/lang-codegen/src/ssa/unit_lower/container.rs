@@ -1,7 +1,7 @@
 //! Field views consume validated projection identity and retain their parent owner loan.
 use lang_frontend::{
     ast::ExpressionId,
-    name_resolution::SymbolKind,
+    name_resolution::{SymbolKind, UnitSymbolId},
     ownership_checking::{
         UnitDropPoint, UnitLoanTarget, UnitOwnershipPlace, UnitValueDeliveryKind,
     },
@@ -11,14 +11,16 @@ use lang_frontend::{
         BuiltinType, ContainerConstructionKind, Copyability, ExpressionCategory,
         IntrinsicTypeConstructor, NominalKind, ParameterMode, SequentialContainerKind,
         UnitAggregateProjectionKind, UnitAggregateProjectionReceiver, UnitElementPlaceDescriptor,
-        UnitExpressionId, UnitTypeKind,
+        UnitExpressionId, UnitTypeId, UnitTypeKind,
     },
 };
 
 use super::{LoweredValue, UnitExpressionLowerer, builtin_type, lowering_error, require_value};
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
-    model::{EntityId, EntityType, LoanId, LoanKind, Operation, Origin, PlaceId, SsaTypeId},
+    model::{
+        EntityId, EntityType, LoanId, LoanKind, Operation, Origin, PlaceId, SsaTypeId, ValueId,
+    },
 };
 
 impl UnitExpressionLowerer<'_> {
@@ -98,37 +100,18 @@ impl UnitExpressionLowerer<'_> {
             .typed
             .expression_type(receiver)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let Some(UnitTypeKind::Nominal {
-            declaration,
-            arguments,
-        }) = self.typed.types().get(owner_type)
-        else {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-        };
-        let nominal = self
-            .typed
-            .signatures()
-            .declaration(*declaration)
-            .and_then(|signature| signature.nominal())
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        if nominal.kind() != NominalKind::Class
-            || !arguments.is_empty()
-            || !nominal.type_parameters().is_empty()
-        {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-        }
-        let field = self
-            .field_indices
-            .get(&(owner_type, *symbol))
-            .copied()
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        if nominal
-            .fields()
-            .get(field)
-            .is_none_or(|field| field.symbol() != *symbol || field.ty() != projection.ty())
-        {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        }
+        let field = self.heap_field_index(owner_type, *symbol, projection.ty(), span)?;
+        self.lower_shared_heap_field_loan(base, field, target, span)
+            .map(Some)
+    }
+
+    pub(super) fn lower_shared_heap_field_loan(
+        &mut self,
+        base: LoanId,
+        field: usize,
+        target: SsaTypeId,
+        span: Span,
+    ) -> Result<LoanId, LoweringError> {
         let (_, values) = self
             .function
             .append_instruction(
@@ -144,7 +127,7 @@ impl UnitExpressionLowerer<'_> {
         let EntityId::Loan(loan) = values[0] else {
             return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
         };
-        Ok(Some(loan))
+        Ok(loan)
     }
 
     fn borrowed_heap_receiver(
@@ -224,28 +207,23 @@ impl UnitExpressionLowerer<'_> {
         if self.typed.expression_type(receiver) != Some(owner_type) {
             return Err(lowering_error(LoweringErrorKind::MissingFact, span));
         }
-        let Some(UnitTypeKind::Nominal {
-            declaration,
-            arguments,
-        }) = self.typed.types().get(owner_type)
-        else {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-        };
-        let nominal = self
-            .typed
-            .signatures()
-            .declaration(*declaration)
-            .and_then(|signature| signature.nominal())
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        if nominal.kind() != NominalKind::Class
-            || !arguments.is_empty()
-            || !nominal.type_parameters().is_empty()
-        {
-            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-        }
         let Some(LoweredValue::Value(owner)) = self.bindings.get(&root).copied() else {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         };
+        self.lower_heap_field_place(owner, owner_type, *symbol, projection.ty(), target, span)
+    }
+
+    /// Prepare an already validated field of an evaluated heap owner.
+    pub(super) fn lower_heap_field_place(
+        &mut self,
+        owner: ValueId,
+        owner_type: UnitTypeId,
+        symbol: UnitSymbolId,
+        field_type: UnitTypeId,
+        target: SsaTypeId,
+        span: Span,
+    ) -> Result<PlaceId, LoweringError> {
+        let field = self.heap_field_index(owner_type, symbol, field_type, span)?;
         let owner_ssa = self
             .type_ids
             .get(&owner_type)
@@ -264,18 +242,6 @@ impl UnitExpressionLowerer<'_> {
             .get(&owner_ssa)
             .copied()
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let field = self
-            .field_indices
-            .get(&(owner_type, *symbol))
-            .copied()
-            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        if nominal
-            .fields()
-            .get(field)
-            .is_none_or(|field| field.symbol() != *symbol || field.ty() != projection.ty())
-        {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        }
         let (_, roots) = self
             .function
             .append_instruction(
@@ -300,6 +266,47 @@ impl UnitExpressionLowerer<'_> {
         let EntityId::Place(field) = fields[0] else {
             return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
         };
+        Ok(field)
+    }
+
+    pub(super) fn heap_field_index(
+        &self,
+        owner_type: UnitTypeId,
+        symbol: UnitSymbolId,
+        field_type: UnitTypeId,
+        span: Span,
+    ) -> Result<usize, LoweringError> {
+        let Some(UnitTypeKind::Nominal {
+            declaration,
+            arguments,
+        }) = self.typed.types().get(owner_type)
+        else {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        };
+        let nominal = self
+            .typed
+            .signatures()
+            .declaration(*declaration)
+            .and_then(|signature| signature.nominal())
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        if nominal.kind() != NominalKind::Class
+            || !arguments.is_empty()
+            || !nominal.type_parameters().is_empty()
+        {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        let field = self
+            .field_indices
+            .get(&(owner_type, symbol))
+            .copied()
+            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+        if nominal
+            .fields()
+            .get(field)
+            .is_none_or(|field| field.symbol() != symbol || field.ty() != field_type)
+        {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
         Ok(field)
     }
 

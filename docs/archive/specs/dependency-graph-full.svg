@@ -1,18 +1,18 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="51312" height="9538" viewBox="0 0 51312 9538" font-family="PingFang SC, Microsoft YaHei, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="54216" height="9538" viewBox="0 0 54216 9538" font-family="PingFang SC, Microsoft YaHei, sans-serif">
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
     </marker>
   </defs>
-  <rect width="51312" height="9538" fill="#ffffff"/>
-  <rect x="40" y="30" width="42520" height="9436" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="21300" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，454 份）</text>
-  <rect x="42624" y="30" width="6352" height="6856" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="45800" y="50" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
-  <rect x="49040" y="7992" width="280" height="124" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="49180" y="8012" text-anchor="middle" font-size="13" fill="#64748b">v0.43（draft）</text>
-  <rect x="49384" y="342" width="1864" height="142" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="50316" y="362" text-anchor="middle" font-size="13" fill="#64748b">v0.44（draft）</text>
+  <rect width="54216" height="9538" fill="#ffffff"/>
+  <rect x="40" y="30" width="49648" height="9436" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="24864" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，482 份）</text>
+  <rect x="49752" y="30" width="2128" height="6856" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="50816" y="50" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
+  <rect x="51944" y="7992" width="280" height="124" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="52084" y="8012" text-anchor="middle" font-size="13" fill="#64748b">v0.43（draft）</text>
+  <rect x="52288" y="342" width="1864" height="142" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="53220" y="362" text-anchor="middle" font-size="13" fill="#64748b">v0.44（draft）</text>
   <path d="M 180 138 C 180 170, 180 188, 180 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 138 C 180 170, 444 344, 444 376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 138 C 180 170, 180 500, 180 532" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -975,7 +975,7 @@
   <path d="M 444 6366 C 444 6398, 972 6434, 972 6466" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 444 6366 C 444 6398, 1500 6434, 1500 6466" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 972 6540 C 972 6572, 1764 6590, 1764 6622" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 1884 6668 C 22264 6668, 22264 6824, 42644 6824" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 1884 6668 C 25828 6668, 25828 6824, 49772 6824" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 6252 120 C 6252 152, 708 5966, 708 5998" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 6252 120 C 6252 152, 2292 188, 2292 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 6252 120 C 6252 152, 2556 188, 2556 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -1029,10 +1029,10 @@
   <path d="M 180 7962 C 180 7994, 180 8288, 180 8320" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 7962 C 180 7994, 180 8426, 180 8458" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 7962 C 180 7994, 708 7994, 708 8026" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 564 7907 C 24812 7907, 24812 8063, 49060 8063" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 564 7907 C 26264 7907, 26264 8063, 51964 8063" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 444 7944 C 444 7976, 444 7994, 444 8026" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 8100 C 180 8132, 180 8132, 180 8164" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 42644 101 C 22132 101, 22132 257, 1620 257" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 49772 101 C 25696 101, 25696 257, 1620 257" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 7044 138 C 7044 170, 1236 188, 1236 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 8256 C 180 8288, 180 8288, 180 8320" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 180 8256 C 180 8288, 444 8288, 444 8320" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -1062,25 +1062,31 @@
   <path d="M 2292 6696 C 2292 6728, 972 6746, 972 6778" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1500 6228 C 1500 6260, 972 6278, 972 6310" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 9684 138 C 9684 170, 1764 188, 1764 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 1620 257 C 22132 257, 22132 413, 42644 413" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 1620 257 C 25512 257, 25512 422, 49404 422" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 1620 257 C 25644 257, 25644 422, 49668 422" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 1620 257 C 25776 257, 25776 413, 49932 413" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 1620 257 C 25908 257, 25908 413, 50196 413" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 1620 257 C 26040 257, 26040 413, 50460 413" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 1620 257 C 26172 257, 26172 413, 50724 413" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 1620 257 C 26304 257, 26304 422, 50988 422" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 1620 257 C 22132 257, 22132 6824, 42644 6824" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 1620 257 C 25696 257, 25696 413, 49772 413" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 1620 257 C 26964 257, 26964 422, 52308 422" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 1620 257 C 27096 257, 27096 422, 52572 422" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 1620 257 C 27228 257, 27228 413, 52836 413" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 1620 257 C 27360 257, 27360 413, 53100 413" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 1620 257 C 27492 257, 27492 413, 53364 413" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 1620 257 C 27624 257, 27624 413, 53628 413" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 1620 257 C 27756 257, 27756 422, 53892 422" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 1620 257 C 25696 257, 25696 6824, 49772 6824" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 9948 120 C 9948 152, 2028 188, 2028 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 2028 276 C 2028 308, 1236 344, 1236 376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 2028 276 C 2028 308, 1500 344, 1500 376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1236 450 C 1236 482, 972 500, 972 532" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 13644 120 C 13644 152, 2820 188, 2820 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 34500 138 C 34500 170, 3084 188, 3084 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 34764 138 C 34764 170, 3084 188, 3084 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 3084 294 C 3084 326, 1764 344, 1764 376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 42420 156 C 42420 188, 3348 188, 3348 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 45852 156 C 45852 188, 3348 188, 3348 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 3348 312 C 3348 344, 2028 344, 2028 376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 3348 312 C 3348 344, 708 656, 708 688" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 2028 468 C 2028 500, 1236 500, 1236 532" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 1236 624 C 1236 656, 708 656, 708 688" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 49668 110 C 49720 110, 49720 266, 49772 266" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 49892 312 C 49892 344, 50156 344, 50156 376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 50156 468 C 50156 500, 49892 500, 49892 532" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 49892 624 C 49892 656, 49892 656, 49892 688" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <rect x="60" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">SPEC-0001</text>
   <text x="180" y="105" text-anchor="middle" font-size="13">建立可检查的 Cargo w</text>
@@ -2244,14 +2250,14 @@
   <text x="180" y="8049" text-anchor="middle" font-size="13">SPEC-0290</text>
   <text x="180" y="8067" text-anchor="middle" font-size="13">PR69 交付回归修复与验收</text>
   <text x="180" y="8085" text-anchor="middle" font-size="13">边界一致</text>
-  <rect x="42644" y="64" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="42764" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0291</text>
-  <text x="42764" y="105" text-anchor="middle" font-size="13">非空只读 Map 构造与插入</text>
-  <text x="42764" y="123" text-anchor="middle" font-size="13">序共享存储</text>
-  <rect x="49060" y="8026" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="49180" y="8049" text-anchor="middle" font-size="13" font-weight="600">SPEC-0292</text>
-  <text x="49180" y="8067" text-anchor="middle" font-size="13">链内立即消费序列与 owne</text>
-  <text x="49180" y="8085" text-anchor="middle" font-size="13">d 结果</text>
+  <rect x="49772" y="64" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="49892" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0291</text>
+  <text x="49892" y="105" text-anchor="middle" font-size="13">非空只读 Map 构造与插入</text>
+  <text x="49892" y="123" text-anchor="middle" font-size="13">序共享存储</text>
+  <rect x="51964" y="8026" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="52084" y="8049" text-anchor="middle" font-size="13" font-weight="600">SPEC-0292</text>
+  <text x="52084" y="8067" text-anchor="middle" font-size="13">链内立即消费序列与 owne</text>
+  <text x="52084" y="8085" text-anchor="middle" font-size="13">d 结果</text>
   <rect x="6924" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="7044" y="87" text-anchor="middle" font-size="13">SPEC-0293</text>
   <text x="7044" y="105" text-anchor="middle" font-size="13">PR 普通文档追加提交复用真</text>
@@ -2412,46 +2418,46 @@
   <text x="1764" y="243" text-anchor="middle" font-size="13">SPEC-0332</text>
   <text x="1764" y="261" text-anchor="middle" font-size="13">Rc nullable wh</text>
   <text x="1764" y="279" text-anchor="middle" font-size="13">ile 既有路径回归修复</text>
-  <rect x="42644" y="376" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="42764" y="399" text-anchor="middle" font-size="13" font-weight="600">SPEC-0333</text>
-  <text x="42764" y="417" text-anchor="middle" font-size="13">静态 Map 返回调用的双入</text>
-  <text x="42764" y="435" text-anchor="middle" font-size="13">口闭合</text>
-  <rect x="49404" y="376" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="49524" y="399" text-anchor="middle" font-size="13" font-weight="600">SPEC-0334</text>
-  <text x="49524" y="417" text-anchor="middle" font-size="13">String nullabl</text>
-  <text x="49524" y="435" text-anchor="middle" font-size="13">e 表示与 Map 组合 A</text>
-  <text x="49524" y="453" text-anchor="middle" font-size="13">BI 前置</text>
-  <rect x="49668" y="376" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="49788" y="399" text-anchor="middle" font-size="13" font-weight="600">SPEC-0335</text>
-  <text x="49788" y="417" text-anchor="middle" font-size="13">Map Borrow 结果的</text>
-  <text x="49788" y="435" text-anchor="middle" font-size="13"> caller contin</text>
-  <text x="49788" y="453" text-anchor="middle" font-size="13">uation 证明</text>
-  <rect x="49932" y="376" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="50052" y="399" text-anchor="middle" font-size="13" font-weight="600">SPEC-0336</text>
-  <text x="50052" y="417" text-anchor="middle" font-size="13">Single 函数值的 ow</text>
-  <text x="50052" y="435" text-anchor="middle" font-size="13">ned Map 结果交付</text>
-  <rect x="50196" y="376" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="50316" y="399" text-anchor="middle" font-size="13" font-weight="600">SPEC-0337</text>
-  <text x="50316" y="417" text-anchor="middle" font-size="13">Single Map 条件结</text>
-  <text x="50316" y="435" text-anchor="middle" font-size="13">果与重绑 owner 运输</text>
-  <rect x="50460" y="376" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="50580" y="399" text-anchor="middle" font-size="13" font-weight="600">SPEC-0338</text>
-  <text x="50580" y="417" text-anchor="middle" font-size="13">Never 条件的普通求值与</text>
-  <text x="50580" y="435" text-anchor="middle" font-size="13"> provider 不获取</text>
-  <rect x="50724" y="376" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="50844" y="399" text-anchor="middle" font-size="13" font-weight="600">SPEC-0339</text>
-  <text x="50844" y="417" text-anchor="middle" font-size="13">Unit 值实参与待决调用求</text>
-  <text x="50844" y="435" text-anchor="middle" font-size="13">值</text>
-  <rect x="50988" y="376" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="51108" y="399" text-anchor="middle" font-size="13" font-weight="600">SPEC-0340</text>
-  <text x="51108" y="417" text-anchor="middle" font-size="13">名义类型 nullable </text>
-  <text x="51108" y="435" text-anchor="middle" font-size="13">retest view 的普</text>
-  <text x="51108" y="453" text-anchor="middle" font-size="13">通读取</text>
-  <rect x="42644" y="6778" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="42764" y="6801" text-anchor="middle" font-size="13" font-weight="600">SPEC-0341</text>
-  <text x="42764" y="6819" text-anchor="middle" font-size="13">D10 统一 compila</text>
-  <text x="42764" y="6837" text-anchor="middle" font-size="13">tion-unit 检查与代</text>
-  <text x="42764" y="6855" text-anchor="middle" font-size="13">码生成管线</text>
+  <rect x="49772" y="376" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="49892" y="399" text-anchor="middle" font-size="13" font-weight="600">SPEC-0333</text>
+  <text x="49892" y="417" text-anchor="middle" font-size="13">静态 Map 返回调用的双入</text>
+  <text x="49892" y="435" text-anchor="middle" font-size="13">口闭合</text>
+  <rect x="52308" y="376" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="52428" y="399" text-anchor="middle" font-size="13" font-weight="600">SPEC-0334</text>
+  <text x="52428" y="417" text-anchor="middle" font-size="13">String nullabl</text>
+  <text x="52428" y="435" text-anchor="middle" font-size="13">e 表示与 Map 组合 A</text>
+  <text x="52428" y="453" text-anchor="middle" font-size="13">BI 前置</text>
+  <rect x="52572" y="376" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="52692" y="399" text-anchor="middle" font-size="13" font-weight="600">SPEC-0335</text>
+  <text x="52692" y="417" text-anchor="middle" font-size="13">Map Borrow 结果的</text>
+  <text x="52692" y="435" text-anchor="middle" font-size="13"> caller contin</text>
+  <text x="52692" y="453" text-anchor="middle" font-size="13">uation 证明</text>
+  <rect x="52836" y="376" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="52956" y="399" text-anchor="middle" font-size="13" font-weight="600">SPEC-0336</text>
+  <text x="52956" y="417" text-anchor="middle" font-size="13">Single 函数值的 ow</text>
+  <text x="52956" y="435" text-anchor="middle" font-size="13">ned Map 结果交付</text>
+  <rect x="53100" y="376" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="53220" y="399" text-anchor="middle" font-size="13" font-weight="600">SPEC-0337</text>
+  <text x="53220" y="417" text-anchor="middle" font-size="13">Single Map 条件结</text>
+  <text x="53220" y="435" text-anchor="middle" font-size="13">果与重绑 owner 运输</text>
+  <rect x="53364" y="376" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="53484" y="399" text-anchor="middle" font-size="13" font-weight="600">SPEC-0338</text>
+  <text x="53484" y="417" text-anchor="middle" font-size="13">Never 条件的普通求值与</text>
+  <text x="53484" y="435" text-anchor="middle" font-size="13"> provider 不获取</text>
+  <rect x="53628" y="376" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="53748" y="399" text-anchor="middle" font-size="13" font-weight="600">SPEC-0339</text>
+  <text x="53748" y="417" text-anchor="middle" font-size="13">Unit 值实参与待决调用求</text>
+  <text x="53748" y="435" text-anchor="middle" font-size="13">值</text>
+  <rect x="53892" y="376" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="54012" y="399" text-anchor="middle" font-size="13" font-weight="600">SPEC-0340</text>
+  <text x="54012" y="417" text-anchor="middle" font-size="13">名义类型 nullable </text>
+  <text x="54012" y="435" text-anchor="middle" font-size="13">retest view 的普</text>
+  <text x="54012" y="453" text-anchor="middle" font-size="13">通读取</text>
+  <rect x="49772" y="6778" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="49892" y="6801" text-anchor="middle" font-size="13" font-weight="600">SPEC-0341</text>
+  <text x="49892" y="6819" text-anchor="middle" font-size="13">D10 统一 compila</text>
+  <text x="49892" y="6837" text-anchor="middle" font-size="13">tion-unit 检查与代</text>
+  <text x="49892" y="6855" text-anchor="middle" font-size="13">码生成管线</text>
   <rect x="9828" y="64" width="240" height="56" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="9948" y="87" text-anchor="middle" font-size="13">SPEC-0342</text>
   <text x="9948" y="105" text-anchor="middle" font-size="13">companion 块语法</text>
@@ -2508,11 +2514,11 @@
   <text x="11532" y="87" text-anchor="middle" font-size="13">SPEC-0356</text>
   <text x="11532" y="105" text-anchor="middle" font-size="13">E3 when 家族迁入所有</text>
   <text x="11532" y="123" text-anchor="middle" font-size="13">权细化层</text>
-  <rect x="42908" y="64" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="43028" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0357</text>
-  <text x="43028" y="105" text-anchor="middle" font-size="13">String subject</text>
-  <text x="43028" y="123" text-anchor="middle" font-size="13"> when 的 Unit 清</text>
-  <text x="43028" y="141" text-anchor="middle" font-size="13">理事实</text>
+  <rect x="50036" y="64" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="50156" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0357</text>
+  <text x="50156" y="105" text-anchor="middle" font-size="13">String subject</text>
+  <text x="50156" y="123" text-anchor="middle" font-size="13"> when 的 Unit 清</text>
+  <text x="50156" y="141" text-anchor="middle" font-size="13">理事实</text>
   <rect x="11676" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="11796" y="87" text-anchor="middle" font-size="13">SPEC-0358</text>
   <text x="11796" y="105" text-anchor="middle" font-size="13">E3 赋值与 inout 家</text>
@@ -2522,11 +2528,11 @@
   <text x="12060" y="105" text-anchor="middle" font-size="13">E3 Rc 构造、share</text>
   <text x="12060" y="123" text-anchor="middle" font-size="13">() 与 Rc.value </text>
   <text x="12060" y="141" text-anchor="middle" font-size="13">投影迁入所有权细化层</text>
-  <rect x="43172" y="64" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="43292" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0360</text>
-  <text x="43292" y="105" text-anchor="middle" font-size="13">String when 清理</text>
-  <text x="43292" y="123" text-anchor="middle" font-size="13">事实的 refinement</text>
-  <text x="43292" y="141" text-anchor="middle" font-size="13"> 消费</text>
+  <rect x="50300" y="64" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="50420" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0360</text>
+  <text x="50420" y="105" text-anchor="middle" font-size="13">String when 清理</text>
+  <text x="50420" y="123" text-anchor="middle" font-size="13">事实的 refinement</text>
+  <text x="50420" y="141" text-anchor="middle" font-size="13"> 消费</text>
   <rect x="12204" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="12324" y="87" text-anchor="middle" font-size="13">SPEC-0361</text>
   <text x="12324" y="105" text-anchor="middle" font-size="13">E3 泛型实例与 value</text>
@@ -2555,425 +2561,425 @@
   <text x="2820" y="243" text-anchor="middle" font-size="13">SPEC-0367</text>
   <text x="2820" y="261" text-anchor="middle" font-size="13">String 创建入口的 I</text>
   <text x="2820" y="279" text-anchor="middle" font-size="13">nt 字节长度不变量</text>
-  <rect x="43436" y="64" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="43556" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0368</text>
-  <text x="43556" y="105" text-anchor="middle" font-size="13">可信文本扩展与 UTF-8 </text>
-  <text x="43556" y="123" text-anchor="middle" font-size="13">字节往返</text>
-  <rect x="43700" y="64" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="43820" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0369</text>
-  <text x="43820" y="105" text-anchor="middle" font-size="13">CLI 最终调试产物与源码断</text>
-  <text x="43820" y="123" text-anchor="middle" font-size="13">点</text>
-  <rect x="13788" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="13908" y="87" text-anchor="middle" font-size="13">SPEC-0370</text>
-  <text x="13908" y="105" text-anchor="middle" font-size="13">lambda 体（thunk</text>
-  <text x="13908" y="123" text-anchor="middle" font-size="13">）与局部 callable </text>
-  <text x="13908" y="141" text-anchor="middle" font-size="13">绑定迁入所有权细化层</text>
+  <rect x="50564" y="64" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="50684" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0368</text>
+  <text x="50684" y="105" text-anchor="middle" font-size="13">可信文本扩展与 UTF-8 </text>
+  <text x="50684" y="123" text-anchor="middle" font-size="13">字节往返</text>
+  <rect x="13788" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="13908" y="87" text-anchor="middle" font-size="13">SPEC-0369</text>
+  <text x="13908" y="105" text-anchor="middle" font-size="13">CLI 最终调试产物与源码断</text>
+  <text x="13908" y="123" text-anchor="middle" font-size="13">点</text>
   <rect x="14052" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="14172" y="87" text-anchor="middle" font-size="13">SPEC-0371</text>
-  <text x="14172" y="105" text-anchor="middle" font-size="13">整数内建、整数区间、Stri</text>
-  <text x="14172" y="123" text-anchor="middle" font-size="13">ng.clone() 与文本</text>
-  <text x="14172" y="141" text-anchor="middle" font-size="13">原语迁入所有权细化层</text>
+  <text x="14172" y="87" text-anchor="middle" font-size="13">SPEC-0370</text>
+  <text x="14172" y="105" text-anchor="middle" font-size="13">lambda 体（thunk</text>
+  <text x="14172" y="123" text-anchor="middle" font-size="13">）与局部 callable </text>
+  <text x="14172" y="141" text-anchor="middle" font-size="13">绑定迁入所有权细化层</text>
   <rect x="14316" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="14436" y="87" text-anchor="middle" font-size="13">SPEC-0372</text>
-  <text x="14436" y="105" text-anchor="middle" font-size="13">泛型 class 与泛型 C</text>
-  <text x="14436" y="123" text-anchor="middle" font-size="13">opyable enum c</text>
-  <text x="14436" y="141" text-anchor="middle" font-size="13">lass 迁入所有权细化层</text>
-  <rect x="14580" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="14700" y="87" text-anchor="middle" font-size="13">SPEC-0373</text>
-  <text x="14700" y="105" text-anchor="middle" font-size="13">局部解构与整数区间 for </text>
-  <text x="14700" y="123" text-anchor="middle" font-size="13">循环迁入所有权细化层</text>
+  <text x="14436" y="87" text-anchor="middle" font-size="13">SPEC-0371</text>
+  <text x="14436" y="105" text-anchor="middle" font-size="13">整数内建、整数区间、Stri</text>
+  <text x="14436" y="123" text-anchor="middle" font-size="13">ng.clone() 与文本</text>
+  <text x="14436" y="141" text-anchor="middle" font-size="13">原语迁入所有权细化层</text>
+  <rect x="14580" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="14700" y="87" text-anchor="middle" font-size="13">SPEC-0372</text>
+  <text x="14700" y="105" text-anchor="middle" font-size="13">泛型 class 与泛型 C</text>
+  <text x="14700" y="123" text-anchor="middle" font-size="13">opyable enum c</text>
+  <text x="14700" y="141" text-anchor="middle" font-size="13">lass 迁入所有权细化层</text>
   <rect x="14844" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="14964" y="87" text-anchor="middle" font-size="13">SPEC-0374</text>
-  <text x="14964" y="105" text-anchor="middle" font-size="13">所有权原语与 const v</text>
-  <text x="14964" y="123" text-anchor="middle" font-size="13">al 物化迁入所有权细化层</text>
-  <rect x="15108" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="15228" y="87" text-anchor="middle" font-size="13">SPEC-0375</text>
-  <text x="15228" y="105" text-anchor="middle" font-size="13">顺序容器（Array/Lis</text>
-  <text x="15228" y="123" text-anchor="middle" font-size="13">t/MutableList）</text>
-  <text x="15228" y="141" text-anchor="middle" font-size="13">迁入所有权细化层</text>
-  <rect x="15372" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="15492" y="87" text-anchor="middle" font-size="13">SPEC-0376</text>
-  <text x="15492" y="105" text-anchor="middle" font-size="13">顺序容器 for 遍历与运行</text>
-  <text x="15492" y="123" text-anchor="middle" font-size="13">时长度构造迁入所有权细化层</text>
+  <text x="14964" y="87" text-anchor="middle" font-size="13">SPEC-0373</text>
+  <text x="14964" y="105" text-anchor="middle" font-size="13">局部解构与整数区间 for </text>
+  <text x="14964" y="123" text-anchor="middle" font-size="13">循环迁入所有权细化层</text>
+  <rect x="15108" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="15228" y="87" text-anchor="middle" font-size="13">SPEC-0374</text>
+  <text x="15228" y="105" text-anchor="middle" font-size="13">所有权原语与 const v</text>
+  <text x="15228" y="123" text-anchor="middle" font-size="13">al 物化迁入所有权细化层</text>
+  <rect x="15372" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="15492" y="87" text-anchor="middle" font-size="13">SPEC-0375</text>
+  <text x="15492" y="105" text-anchor="middle" font-size="13">顺序容器（Array/Lis</text>
+  <text x="15492" y="123" text-anchor="middle" font-size="13">t/MutableList）</text>
+  <text x="15492" y="141" text-anchor="middle" font-size="13">迁入所有权细化层</text>
   <rect x="15636" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="15756" y="87" text-anchor="middle" font-size="13">SPEC-0377</text>
-  <text x="15756" y="105" text-anchor="middle" font-size="13">Box、递归装箱枚举与 Ma</text>
-  <text x="15756" y="123" text-anchor="middle" font-size="13">p 核心操作迁入所有权细化层</text>
-  <rect x="15900" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="16020" y="87" text-anchor="middle" font-size="13">SPEC-0378</text>
-  <text x="16020" y="105" text-anchor="middle" font-size="13">复合 class 字段、通用</text>
-  <text x="16020" y="123" text-anchor="middle" font-size="13"> Rc 负载与智能窄化接收者</text>
-  <text x="16020" y="141" text-anchor="middle" font-size="13">迁入所有权细化层</text>
+  <text x="15756" y="87" text-anchor="middle" font-size="13">SPEC-0376</text>
+  <text x="15756" y="105" text-anchor="middle" font-size="13">顺序容器 for 遍历与运行</text>
+  <text x="15756" y="123" text-anchor="middle" font-size="13">时长度构造迁入所有权细化层</text>
+  <rect x="15900" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="16020" y="87" text-anchor="middle" font-size="13">SPEC-0377</text>
+  <text x="16020" y="105" text-anchor="middle" font-size="13">Box、递归装箱枚举与 Ma</text>
+  <text x="16020" y="123" text-anchor="middle" font-size="13">p 核心操作迁入所有权细化层</text>
   <rect x="16164" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="16284" y="87" text-anchor="middle" font-size="13">SPEC-0379</text>
-  <text x="16284" y="105" text-anchor="middle" font-size="13">MoveOnly 局部可变重</text>
-  <text x="16284" y="123" text-anchor="middle" font-size="13">赋值与 MoveOnly 枚</text>
-  <text x="16284" y="141" text-anchor="middle" font-size="13">举 when 迁入所有权细…</text>
+  <text x="16284" y="87" text-anchor="middle" font-size="13">SPEC-0378</text>
+  <text x="16284" y="105" text-anchor="middle" font-size="13">复合 class 字段、通用</text>
+  <text x="16284" y="123" text-anchor="middle" font-size="13"> Rc 负载与智能窄化接收者</text>
+  <text x="16284" y="141" text-anchor="middle" font-size="13">迁入所有权细化层</text>
   <rect x="16428" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="16548" y="87" text-anchor="middle" font-size="13">SPEC-0380</text>
-  <text x="16548" y="105" text-anchor="middle" font-size="13">deinit 析构体、多层字</text>
-  <text x="16548" y="123" text-anchor="middle" font-size="13">段借用、接口委托、无状态 o</text>
-  <text x="16548" y="141" text-anchor="middle" font-size="13">bject 与 Map.w…</text>
-  <rect x="16692" y="64" width="240" height="56" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="16812" y="87" text-anchor="middle" font-size="13">SPEC-0381</text>
-  <text x="16812" y="105" text-anchor="middle" font-size="13">默认分流边界修复与旧路径退休</text>
-  <rect x="16956" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="17076" y="87" text-anchor="middle" font-size="13">SPEC-0382</text>
-  <text x="17076" y="105" text-anchor="middle" font-size="13">Map 剩余单步操作、通用值</text>
-  <text x="17076" y="123" text-anchor="middle" font-size="13">类型与 Unit 根原语迁入</text>
-  <text x="17076" y="141" text-anchor="middle" font-size="13">细化层及旧路径退休</text>
-  <rect x="17220" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="17340" y="87" text-anchor="middle" font-size="13">SPEC-0383</text>
-  <text x="17340" y="105" text-anchor="middle" font-size="13">最终默认路由收敛与旧路径退休</text>
-  <text x="17340" y="123" text-anchor="middle" font-size="13">收尾</text>
+  <text x="16548" y="87" text-anchor="middle" font-size="13">SPEC-0379</text>
+  <text x="16548" y="105" text-anchor="middle" font-size="13">MoveOnly 局部可变重</text>
+  <text x="16548" y="123" text-anchor="middle" font-size="13">赋值与 MoveOnly 枚</text>
+  <text x="16548" y="141" text-anchor="middle" font-size="13">举 when 迁入所有权细…</text>
+  <rect x="16692" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="16812" y="87" text-anchor="middle" font-size="13">SPEC-0380</text>
+  <text x="16812" y="105" text-anchor="middle" font-size="13">deinit 析构体、多层字</text>
+  <text x="16812" y="123" text-anchor="middle" font-size="13">段借用、接口委托、无状态 o</text>
+  <text x="16812" y="141" text-anchor="middle" font-size="13">bject 与 Map.w…</text>
+  <rect x="16956" y="64" width="240" height="56" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="17076" y="87" text-anchor="middle" font-size="13">SPEC-0381</text>
+  <text x="17076" y="105" text-anchor="middle" font-size="13">默认分流边界修复与旧路径退休</text>
+  <rect x="17220" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="17340" y="87" text-anchor="middle" font-size="13">SPEC-0382</text>
+  <text x="17340" y="105" text-anchor="middle" font-size="13">Map 剩余单步操作、通用值</text>
+  <text x="17340" y="123" text-anchor="middle" font-size="13">类型与 Unit 根原语迁入</text>
+  <text x="17340" y="141" text-anchor="middle" font-size="13">细化层及旧路径退休</text>
   <rect x="17484" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="17604" y="87" text-anchor="middle" font-size="13">SPEC-0384</text>
-  <text x="17604" y="105" text-anchor="middle" font-size="13">枚举、非空断言与可变列表变更</text>
-  <text x="17604" y="123" text-anchor="middle" font-size="13">旧路径退役及细化层准入补齐</text>
-  <rect x="17748" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="17868" y="87" text-anchor="middle" font-size="13">SPEC-0385</text>
-  <text x="17868" y="105" text-anchor="middle" font-size="13">deinit 字段借用、独立</text>
-  <text x="17868" y="123" text-anchor="middle" font-size="13">堆对象可空 if 与字符串字</text>
-  <text x="17868" y="141" text-anchor="middle" font-size="13">段接收者旧路径退役</text>
+  <text x="17604" y="87" text-anchor="middle" font-size="13">SPEC-0383</text>
+  <text x="17604" y="105" text-anchor="middle" font-size="13">最终默认路由收敛与旧路径退休</text>
+  <text x="17604" y="123" text-anchor="middle" font-size="13">收尾</text>
+  <rect x="17748" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="17868" y="87" text-anchor="middle" font-size="13">SPEC-0384</text>
+  <text x="17868" y="105" text-anchor="middle" font-size="13">枚举、非空断言与可变列表变更</text>
+  <text x="17868" y="123" text-anchor="middle" font-size="13">旧路径退役及细化层准入补齐</text>
   <rect x="18012" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="18132" y="87" text-anchor="middle" font-size="13">SPEC-0386</text>
-  <text x="18132" y="105" text-anchor="middle" font-size="13">Inout 接收者、接口委托</text>
-  <text x="18132" y="123" text-anchor="middle" font-size="13">、无状态 object 与局</text>
-  <text x="18132" y="141" text-anchor="middle" font-size="13">部解构旧路径退役</text>
+  <text x="18132" y="87" text-anchor="middle" font-size="13">SPEC-0385</text>
+  <text x="18132" y="105" text-anchor="middle" font-size="13">deinit 字段借用、独立</text>
+  <text x="18132" y="123" text-anchor="middle" font-size="13">堆对象可空 if 与字符串字</text>
+  <text x="18132" y="141" text-anchor="middle" font-size="13">段接收者旧路径退役</text>
   <rect x="18276" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="18396" y="87" text-anchor="middle" font-size="13">SPEC-0387</text>
-  <text x="18396" y="105" text-anchor="middle" font-size="13">String.clone()</text>
-  <text x="18396" y="123" text-anchor="middle" font-size="13">、装箱构造、value cl</text>
-  <text x="18396" y="141" text-anchor="middle" font-size="13">ass 字段借用与通用 w…</text>
+  <text x="18396" y="87" text-anchor="middle" font-size="13">SPEC-0386</text>
+  <text x="18396" y="105" text-anchor="middle" font-size="13">Inout 接收者、接口委托</text>
+  <text x="18396" y="123" text-anchor="middle" font-size="13">、无状态 object 与局</text>
+  <text x="18396" y="141" text-anchor="middle" font-size="13">部解构旧路径退役</text>
   <rect x="18540" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="18660" y="87" text-anchor="middle" font-size="13">SPEC-0388</text>
-  <text x="18660" y="105" text-anchor="middle" font-size="13">数值区间 for、运行时长度</text>
-  <text x="18660" y="123" text-anchor="middle" font-size="13">容器构造、Map.get、非</text>
-  <text x="18660" y="141" text-anchor="middle" font-size="13">可空 Map.consum…</text>
+  <text x="18660" y="87" text-anchor="middle" font-size="13">SPEC-0387</text>
+  <text x="18660" y="105" text-anchor="middle" font-size="13">String.clone()</text>
+  <text x="18660" y="123" text-anchor="middle" font-size="13">、装箱构造、value cl</text>
+  <text x="18660" y="141" text-anchor="middle" font-size="13">ass 字段借用与通用 w…</text>
   <rect x="18804" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="18924" y="87" text-anchor="middle" font-size="13">SPEC-0389</text>
-  <text x="18924" y="105" text-anchor="middle" font-size="13">具名函数引用、共享闭包捕获、</text>
-  <text x="18924" y="123" text-anchor="middle" font-size="13">可调用视图借用与顺序容器元素</text>
-  <text x="18924" y="141" text-anchor="middle" font-size="13">操作旧路径退役</text>
-  <rect x="43964" y="64" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="44084" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0390</text>
-  <text x="44084" y="105" text-anchor="middle" font-size="13">预置 Linux CI 工具</text>
-  <text x="44084" y="123" text-anchor="middle" font-size="13">链镜像</text>
-  <rect x="44228" y="64" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="44348" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0391</text>
-  <text x="44348" y="105" text-anchor="middle" font-size="13">Codegen 测试诊断落盘</text>
-  <text x="44348" y="123" text-anchor="middle" font-size="13">与有界失败摘要</text>
-  <rect x="44492" y="64" width="240" height="56" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="44612" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0392</text>
-  <text x="44612" y="105" text-anchor="middle" font-size="13">编译器分层复审与前端合同修复</text>
+  <text x="18924" y="87" text-anchor="middle" font-size="13">SPEC-0388</text>
+  <text x="18924" y="105" text-anchor="middle" font-size="13">数值区间 for、运行时长度</text>
+  <text x="18924" y="123" text-anchor="middle" font-size="13">容器构造、Map.get、非</text>
+  <text x="18924" y="141" text-anchor="middle" font-size="13">可空 Map.consum…</text>
   <rect x="19068" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="19188" y="87" text-anchor="middle" font-size="13">SPEC-0393</text>
-  <text x="19188" y="105" text-anchor="middle" font-size="13">RangeView、借用结果</text>
-  <text x="19188" y="123" text-anchor="middle" font-size="13">函数与绑定、Rc 操作及带捕</text>
-  <text x="19188" y="141" text-anchor="middle" font-size="13">获闭包旧路径退役</text>
-  <rect x="19332" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="19452" y="87" text-anchor="middle" font-size="13">SPEC-0394</text>
-  <text x="19452" y="105" text-anchor="middle" font-size="13">直接 String.clon</text>
-  <text x="19452" y="123" text-anchor="middle" font-size="13">e() 旧路径退役</text>
+  <text x="19188" y="87" text-anchor="middle" font-size="13">SPEC-0389</text>
+  <text x="19188" y="105" text-anchor="middle" font-size="13">具名函数引用、共享闭包捕获、</text>
+  <text x="19188" y="123" text-anchor="middle" font-size="13">可调用视图借用与顺序容器元素</text>
+  <text x="19188" y="141" text-anchor="middle" font-size="13">操作旧路径退役</text>
+  <rect x="50828" y="64" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="50948" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0390</text>
+  <text x="50948" y="105" text-anchor="middle" font-size="13">预置 Linux CI 工具</text>
+  <text x="50948" y="123" text-anchor="middle" font-size="13">链镜像</text>
+  <rect x="51092" y="64" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="51212" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0391</text>
+  <text x="51212" y="105" text-anchor="middle" font-size="13">Codegen 测试诊断落盘</text>
+  <text x="51212" y="123" text-anchor="middle" font-size="13">与有界失败摘要</text>
+  <rect x="51356" y="64" width="240" height="56" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="51476" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0392</text>
+  <text x="51476" y="105" text-anchor="middle" font-size="13">编译器分层复审与前端合同修复</text>
+  <rect x="19332" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="19452" y="87" text-anchor="middle" font-size="13">SPEC-0393</text>
+  <text x="19452" y="105" text-anchor="middle" font-size="13">RangeView、借用结果</text>
+  <text x="19452" y="123" text-anchor="middle" font-size="13">函数与绑定、Rc 操作及带捕</text>
+  <text x="19452" y="141" text-anchor="middle" font-size="13">获闭包旧路径退役</text>
   <rect x="19596" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="19716" y="87" text-anchor="middle" font-size="13">SPEC-0395</text>
-  <text x="19716" y="105" text-anchor="middle" font-size="13">可空 while 证明视图与</text>
-  <text x="19716" y="123" text-anchor="middle" font-size="13">借用子项旧路径退役</text>
-  <rect x="19860" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="19980" y="87" text-anchor="middle" font-size="13">SPEC-0396</text>
-  <text x="19980" y="105" text-anchor="middle" font-size="13">Map / MutableM</text>
-  <text x="19980" y="123" text-anchor="middle" font-size="13">ap 迭代与关联延续旧路径退</text>
-  <text x="19980" y="141" text-anchor="middle" font-size="13">役</text>
+  <text x="19716" y="87" text-anchor="middle" font-size="13">SPEC-0394</text>
+  <text x="19716" y="105" text-anchor="middle" font-size="13">直接 String.clon</text>
+  <text x="19716" y="123" text-anchor="middle" font-size="13">e() 旧路径退役</text>
+  <rect x="19860" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="19980" y="87" text-anchor="middle" font-size="13">SPEC-0395</text>
+  <text x="19980" y="105" text-anchor="middle" font-size="13">可空 while 证明视图与</text>
+  <text x="19980" y="123" text-anchor="middle" font-size="13">借用子项旧路径退役</text>
   <rect x="20124" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="20244" y="87" text-anchor="middle" font-size="13">SPEC-0397</text>
-  <text x="20244" y="105" text-anchor="middle" font-size="13">可空 Map 分支/消费、M</text>
-  <text x="20244" y="123" text-anchor="middle" font-size="13">ap.remove 借用与闭</text>
-  <text x="20244" y="141" text-anchor="middle" font-size="13">包回退旧路径退役</text>
+  <text x="20244" y="87" text-anchor="middle" font-size="13">SPEC-0396</text>
+  <text x="20244" y="105" text-anchor="middle" font-size="13">Map / MutableM</text>
+  <text x="20244" y="123" text-anchor="middle" font-size="13">ap 迭代与关联延续旧路径退</text>
+  <text x="20244" y="141" text-anchor="middle" font-size="13">役</text>
   <rect x="20388" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="20508" y="87" text-anchor="middle" font-size="13">SPEC-0398</text>
-  <text x="20508" y="105" text-anchor="middle" font-size="13">可空 String if 与</text>
-  <text x="20508" y="123" text-anchor="middle" font-size="13">同根可空堆对象字段 if 旧</text>
-  <text x="20508" y="141" text-anchor="middle" font-size="13">路径退役</text>
-  <rect x="20652" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="20772" y="87" text-anchor="middle" font-size="13">SPEC-0399</text>
-  <text x="20772" y="105" text-anchor="middle" font-size="13">同根堆对象可空 if、接口委</text>
-  <text x="20772" y="123" text-anchor="middle" font-size="13">托与混合兼容回退旧路径退役</text>
-  <rect x="20916" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="21036" y="87" text-anchor="middle" font-size="13">SPEC-0400</text>
-  <text x="21036" y="105" text-anchor="middle" font-size="13">unit_lower 区间/</text>
-  <text x="21036" y="123" text-anchor="middle" font-size="13">捕获/闭包来源死 Carri</text>
-  <text x="21036" y="141" text-anchor="middle" font-size="13">er、调用帧冗余槽与守卫测…</text>
+  <text x="20508" y="87" text-anchor="middle" font-size="13">SPEC-0397</text>
+  <text x="20508" y="105" text-anchor="middle" font-size="13">可空 Map 分支/消费、M</text>
+  <text x="20508" y="123" text-anchor="middle" font-size="13">ap.remove 借用与闭</text>
+  <text x="20508" y="141" text-anchor="middle" font-size="13">包回退旧路径退役</text>
+  <rect x="20652" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="20772" y="87" text-anchor="middle" font-size="13">SPEC-0398</text>
+  <text x="20772" y="105" text-anchor="middle" font-size="13">可空 String if 与</text>
+  <text x="20772" y="123" text-anchor="middle" font-size="13">同根可空堆对象字段 if 旧</text>
+  <text x="20772" y="141" text-anchor="middle" font-size="13">路径退役</text>
+  <rect x="20916" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="21036" y="87" text-anchor="middle" font-size="13">SPEC-0399</text>
+  <text x="21036" y="105" text-anchor="middle" font-size="13">同根堆对象可空 if、接口委</text>
+  <text x="21036" y="123" text-anchor="middle" font-size="13">托与混合兼容回退旧路径退役</text>
   <rect x="21180" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="21300" y="87" text-anchor="middle" font-size="13">SPEC-0401</text>
-  <text x="21300" y="105" text-anchor="middle" font-size="13">unit_lower 可空 </text>
-  <text x="21300" y="123" text-anchor="middle" font-size="13">Rc if 证明入口、val</text>
-  <text x="21300" y="141" text-anchor="middle" font-size="13">idated_rc_ope…</text>
+  <text x="21300" y="87" text-anchor="middle" font-size="13">SPEC-0400</text>
+  <text x="21300" y="105" text-anchor="middle" font-size="13">unit_lower 区间/</text>
+  <text x="21300" y="123" text-anchor="middle" font-size="13">捕获/闭包来源死 Carri</text>
+  <text x="21300" y="141" text-anchor="middle" font-size="13">er、调用帧冗余槽与守卫测…</text>
   <rect x="21444" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="21564" y="87" text-anchor="middle" font-size="13">SPEC-0402</text>
-  <text x="21564" y="105" text-anchor="middle" font-size="13">unit_lower 遗留壳</text>
-  <text x="21564" y="123" text-anchor="middle" font-size="13">模块、单变体 Iterati</text>
-  <text x="21564" y="141" text-anchor="middle" font-size="13">onState 与死辅助入…</text>
+  <text x="21564" y="87" text-anchor="middle" font-size="13">SPEC-0401</text>
+  <text x="21564" y="105" text-anchor="middle" font-size="13">unit_lower 可空 </text>
+  <text x="21564" y="123" text-anchor="middle" font-size="13">Rc if 证明入口、val</text>
+  <text x="21564" y="141" text-anchor="middle" font-size="13">idated_rc_ope…</text>
   <rect x="21708" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="21828" y="87" text-anchor="middle" font-size="13">SPEC-0403</text>
-  <text x="21828" y="105" text-anchor="middle" font-size="13">unit_lower 死字段</text>
-  <text x="21828" y="123" text-anchor="middle" font-size="13">、provider 死辅助入</text>
-  <text x="21828" y="141" text-anchor="middle" font-size="13">口与测试专用 ssa 支持…</text>
+  <text x="21828" y="87" text-anchor="middle" font-size="13">SPEC-0402</text>
+  <text x="21828" y="105" text-anchor="middle" font-size="13">unit_lower 遗留壳</text>
+  <text x="21828" y="123" text-anchor="middle" font-size="13">模块、单变体 Iterati</text>
+  <text x="21828" y="141" text-anchor="middle" font-size="13">onState 与死辅助入…</text>
   <rect x="21972" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="22092" y="87" text-anchor="middle" font-size="13">SPEC-0404</text>
-  <text x="22092" y="105" text-anchor="middle" font-size="13">unit_lower 剩余单</text>
-  <text x="22092" y="123" text-anchor="middle" font-size="13">入口壳模块、重复辅助函数与测</text>
-  <text x="22092" y="141" text-anchor="middle" font-size="13">试专用 unit_plan…</text>
+  <text x="22092" y="87" text-anchor="middle" font-size="13">SPEC-0403</text>
+  <text x="22092" y="105" text-anchor="middle" font-size="13">unit_lower 死字段</text>
+  <text x="22092" y="123" text-anchor="middle" font-size="13">、provider 死辅助入</text>
+  <text x="22092" y="141" text-anchor="middle" font-size="13">口与测试专用 ssa 支持…</text>
   <rect x="22236" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="22356" y="87" text-anchor="middle" font-size="13">SPEC-0405</text>
-  <text x="22356" y="105" text-anchor="middle" font-size="13">ssa 死辅助入口、测试专用</text>
-  <text x="22356" y="123" text-anchor="middle" font-size="13">入口门控与跨模块 Span </text>
-  <text x="22356" y="141" text-anchor="middle" font-size="13">辅助去重</text>
+  <text x="22356" y="87" text-anchor="middle" font-size="13">SPEC-0404</text>
+  <text x="22356" y="105" text-anchor="middle" font-size="13">unit_lower 剩余单</text>
+  <text x="22356" y="123" text-anchor="middle" font-size="13">入口壳模块、重复辅助函数与测</text>
+  <text x="22356" y="141" text-anchor="middle" font-size="13">试专用 unit_plan…</text>
   <rect x="22500" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="22620" y="87" text-anchor="middle" font-size="13">SPEC-0406</text>
-  <text x="22620" y="105" text-anchor="middle" font-size="13">unit_lower 入口交</text>
-  <text x="22620" y="123" text-anchor="middle" font-size="13">接与可空 when 清理壳模</text>
-  <text x="22620" y="141" text-anchor="middle" font-size="13">块收敛及整数算子映射去重</text>
+  <text x="22620" y="87" text-anchor="middle" font-size="13">SPEC-0405</text>
+  <text x="22620" y="105" text-anchor="middle" font-size="13">ssa 死辅助入口、测试专用</text>
+  <text x="22620" y="123" text-anchor="middle" font-size="13">入口门控与跨模块 Span </text>
+  <text x="22620" y="141" text-anchor="middle" font-size="13">辅助去重</text>
   <rect x="22764" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="22884" y="87" text-anchor="middle" font-size="13">SPEC-0407</text>
-  <text x="22884" y="105" text-anchor="middle" font-size="13">unit_lower 析构/</text>
-  <text x="22884" y="123" text-anchor="middle" font-size="13">CFG 壳模块收敛、expr</text>
-  <text x="22884" y="141" text-anchor="middle" font-size="13">ession_core 测…</text>
+  <text x="22884" y="87" text-anchor="middle" font-size="13">SPEC-0406</text>
+  <text x="22884" y="105" text-anchor="middle" font-size="13">unit_lower 入口交</text>
+  <text x="22884" y="123" text-anchor="middle" font-size="13">接与可空 when 清理壳模</text>
+  <text x="22884" y="141" text-anchor="middle" font-size="13">块收敛及整数算子映射去重</text>
   <rect x="23028" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="23148" y="87" text-anchor="middle" font-size="13">SPEC-0408</text>
-  <text x="23148" y="105" text-anchor="middle" font-size="13">ssa 类型与源查询壳模块收</text>
-  <text x="23148" y="123" text-anchor="middle" font-size="13">敛及 null 字面量判定辅</text>
-  <text x="23148" y="141" text-anchor="middle" font-size="13">助去重</text>
+  <text x="23148" y="87" text-anchor="middle" font-size="13">SPEC-0407</text>
+  <text x="23148" y="105" text-anchor="middle" font-size="13">unit_lower 析构/</text>
+  <text x="23148" y="123" text-anchor="middle" font-size="13">CFG 壳模块收敛、expr</text>
+  <text x="23148" y="141" text-anchor="middle" font-size="13">ession_core 测…</text>
   <rect x="23292" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="23412" y="87" text-anchor="middle" font-size="13">SPEC-0409</text>
-  <text x="23412" y="105" text-anchor="middle" font-size="13">ssa/deinit、ref</text>
-  <text x="23412" y="123" text-anchor="middle" font-size="13">ine/build 凭证壳模</text>
-  <text x="23412" y="141" text-anchor="middle" font-size="13">块收敛及冗余路由/作用域状…</text>
+  <text x="23412" y="87" text-anchor="middle" font-size="13">SPEC-0408</text>
+  <text x="23412" y="105" text-anchor="middle" font-size="13">ssa 类型与源查询壳模块收</text>
+  <text x="23412" y="123" text-anchor="middle" font-size="13">敛及 null 字面量判定辅</text>
+  <text x="23412" y="141" text-anchor="middle" font-size="13">助去重</text>
   <rect x="23556" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="23676" y="87" text-anchor="middle" font-size="13">SPEC-0410</text>
-  <text x="23676" y="105" text-anchor="middle" font-size="13">unit_lower 接口委</text>
-  <text x="23676" y="123" text-anchor="middle" font-size="13">托兼容死分支退役、refin</text>
-  <text x="23676" y="141" text-anchor="middle" font-size="13">e 构建/准入/凭证壳模块…</text>
+  <text x="23676" y="87" text-anchor="middle" font-size="13">SPEC-0409</text>
+  <text x="23676" y="105" text-anchor="middle" font-size="13">ssa/deinit、ref</text>
+  <text x="23676" y="123" text-anchor="middle" font-size="13">ine/build 凭证壳模</text>
+  <text x="23676" y="141" text-anchor="middle" font-size="13">块收敛及冗余路由/作用域状…</text>
   <rect x="23820" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="23940" y="87" text-anchor="middle" font-size="13">SPEC-0411</text>
-  <text x="23940" y="105" text-anchor="middle" font-size="13">ssa/integer_ra</text>
-  <text x="23940" y="123" text-anchor="middle" font-size="13">nge、unit_lower</text>
-  <text x="23940" y="141" text-anchor="middle" font-size="13"> 迭代清理与空值比较壳模块…</text>
+  <text x="23940" y="87" text-anchor="middle" font-size="13">SPEC-0410</text>
+  <text x="23940" y="105" text-anchor="middle" font-size="13">unit_lower 接口委</text>
+  <text x="23940" y="123" text-anchor="middle" font-size="13">托兼容死分支退役、refin</text>
+  <text x="23940" y="141" text-anchor="middle" font-size="13">e 构建/准入/凭证壳模块…</text>
   <rect x="24084" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="24204" y="87" text-anchor="middle" font-size="13">SPEC-0412</text>
-  <text x="24204" y="105" text-anchor="middle" font-size="13">render、verify </text>
-  <text x="24204" y="123" text-anchor="middle" font-size="13">及 lower_fronte</text>
-  <text x="24204" y="141" text-anchor="middle" font-size="13">nd Map 壳模块退役</text>
+  <text x="24204" y="87" text-anchor="middle" font-size="13">SPEC-0411</text>
+  <text x="24204" y="105" text-anchor="middle" font-size="13">ssa/integer_ra</text>
+  <text x="24204" y="123" text-anchor="middle" font-size="13">nge、unit_lower</text>
+  <text x="24204" y="141" text-anchor="middle" font-size="13"> 迭代清理与空值比较壳模块…</text>
   <rect x="24348" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="24468" y="87" text-anchor="middle" font-size="13">SPEC-0413</text>
-  <text x="24468" y="105" text-anchor="middle" font-size="13">verify_operati</text>
-  <text x="24468" y="123" text-anchor="middle" font-size="13">on、verify_owne</text>
-  <text x="24468" y="141" text-anchor="middle" font-size="13">rship 及 verif…</text>
+  <text x="24468" y="87" text-anchor="middle" font-size="13">SPEC-0412</text>
+  <text x="24468" y="105" text-anchor="middle" font-size="13">render、verify </text>
+  <text x="24468" y="123" text-anchor="middle" font-size="13">及 lower_fronte</text>
+  <text x="24468" y="141" text-anchor="middle" font-size="13">nd Map 壳模块退役</text>
   <rect x="24612" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="24732" y="87" text-anchor="middle" font-size="13">SPEC-0414</text>
-  <text x="24732" y="105" text-anchor="middle" font-size="13">lower_frontend</text>
-  <text x="24732" y="123" text-anchor="middle" font-size="13"> 标量、枚举、闭包 ABI </text>
-  <text x="24732" y="141" text-anchor="middle" font-size="13">与 Map 消费/守卫壳模…</text>
+  <text x="24732" y="87" text-anchor="middle" font-size="13">SPEC-0413</text>
+  <text x="24732" y="105" text-anchor="middle" font-size="13">verify_operati</text>
+  <text x="24732" y="123" text-anchor="middle" font-size="13">on、verify_owne</text>
+  <text x="24732" y="141" text-anchor="middle" font-size="13">rship 及 verif…</text>
   <rect x="24876" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="24996" y="87" text-anchor="middle" font-size="13">SPEC-0415</text>
+  <text x="24996" y="87" text-anchor="middle" font-size="13">SPEC-0414</text>
   <text x="24996" y="105" text-anchor="middle" font-size="13">lower_frontend</text>
-  <text x="24996" y="123" text-anchor="middle" font-size="13"> 下 map_iterati</text>
-  <text x="24996" y="141" text-anchor="middle" font-size="13">on 与 borrow_a…</text>
+  <text x="24996" y="123" text-anchor="middle" font-size="13"> 标量、枚举、闭包 ABI </text>
+  <text x="24996" y="141" text-anchor="middle" font-size="13">与 Map 消费/守卫壳模…</text>
   <rect x="25140" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="25260" y="87" text-anchor="middle" font-size="13">SPEC-0416</text>
-  <text x="25260" y="105" text-anchor="middle" font-size="13">lowering_suppo</text>
-  <text x="25260" y="123" text-anchor="middle" font-size="13">rt、map_source、</text>
-  <text x="25260" y="141" text-anchor="middle" font-size="13">borrow_result…</text>
+  <text x="25260" y="87" text-anchor="middle" font-size="13">SPEC-0415</text>
+  <text x="25260" y="105" text-anchor="middle" font-size="13">lower_frontend</text>
+  <text x="25260" y="123" text-anchor="middle" font-size="13"> 下 map_iterati</text>
+  <text x="25260" y="141" text-anchor="middle" font-size="13">on 与 borrow_a…</text>
   <rect x="25404" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="25524" y="87" text-anchor="middle" font-size="13">SPEC-0417</text>
-  <text x="25524" y="105" text-anchor="middle" font-size="13">verify、render、</text>
-  <text x="25524" y="123" text-anchor="middle" font-size="13">verify_operati</text>
-  <text x="25524" y="141" text-anchor="middle" font-size="13">on、verify_own…</text>
+  <text x="25524" y="87" text-anchor="middle" font-size="13">SPEC-0416</text>
+  <text x="25524" y="105" text-anchor="middle" font-size="13">lowering_suppo</text>
+  <text x="25524" y="123" text-anchor="middle" font-size="13">rt、map_source、</text>
+  <text x="25524" y="141" text-anchor="middle" font-size="13">borrow_result…</text>
   <rect x="25668" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="25788" y="87" text-anchor="middle" font-size="13">SPEC-0418</text>
-  <text x="25788" y="105" text-anchor="middle" font-size="13">refine 借用凭证/准入</text>
-  <text x="25788" y="123" text-anchor="middle" font-size="13">壳模块及 lower_fro</text>
-  <text x="25788" y="141" text-anchor="middle" font-size="13">ntend 守卫/容器/闭…</text>
+  <text x="25788" y="87" text-anchor="middle" font-size="13">SPEC-0417</text>
+  <text x="25788" y="105" text-anchor="middle" font-size="13">verify、render、</text>
+  <text x="25788" y="123" text-anchor="middle" font-size="13">verify_operati</text>
+  <text x="25788" y="141" text-anchor="middle" font-size="13">on、verify_own…</text>
   <rect x="25932" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="26052" y="87" text-anchor="middle" font-size="13">SPEC-0419</text>
-  <text x="26052" y="105" text-anchor="middle" font-size="13">lower_frontend</text>
-  <text x="26052" y="123" text-anchor="middle" font-size="13"> 绑定、非空断言、Map 结</text>
-  <text x="26052" y="141" text-anchor="middle" font-size="13">果/资源析构与 map_i…</text>
+  <text x="26052" y="87" text-anchor="middle" font-size="13">SPEC-0418</text>
+  <text x="26052" y="105" text-anchor="middle" font-size="13">refine 借用凭证/准入</text>
+  <text x="26052" y="123" text-anchor="middle" font-size="13">壳模块及 lower_fro</text>
+  <text x="26052" y="141" text-anchor="middle" font-size="13">ntend 守卫/容器/闭…</text>
   <rect x="26196" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="26316" y="87" text-anchor="middle" font-size="13">SPEC-0420</text>
-  <text x="26316" y="105" text-anchor="middle" font-size="13">lowering_suppo</text>
-  <text x="26316" y="123" text-anchor="middle" font-size="13">rt、integer、ver</text>
-  <text x="26316" y="141" text-anchor="middle" font-size="13">ify_ownership…</text>
+  <text x="26316" y="87" text-anchor="middle" font-size="13">SPEC-0419</text>
+  <text x="26316" y="105" text-anchor="middle" font-size="13">lower_frontend</text>
+  <text x="26316" y="123" text-anchor="middle" font-size="13"> 绑定、非空断言、Map 结</text>
+  <text x="26316" y="141" text-anchor="middle" font-size="13">果/资源析构与 map_i…</text>
   <rect x="26460" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="26580" y="87" text-anchor="middle" font-size="13">SPEC-0421</text>
-  <text x="26580" y="105" text-anchor="middle" font-size="13">unit_lower 可空证</text>
-  <text x="26580" y="123" text-anchor="middle" font-size="13">明/分支、map_sourc</text>
-  <text x="26580" y="141" text-anchor="middle" font-size="13">e 交接、verify/m…</text>
+  <text x="26580" y="87" text-anchor="middle" font-size="13">SPEC-0420</text>
+  <text x="26580" y="105" text-anchor="middle" font-size="13">lowering_suppo</text>
+  <text x="26580" y="123" text-anchor="middle" font-size="13">rt、integer、ver</text>
+  <text x="26580" y="141" text-anchor="middle" font-size="13">ify_ownership…</text>
   <rect x="26724" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="26844" y="87" text-anchor="middle" font-size="13">SPEC-0422</text>
-  <text x="26844" y="105" text-anchor="middle" font-size="13">refine/emit/st</text>
-  <text x="26844" y="123" text-anchor="middle" font-size="13">atements、verif</text>
-  <text x="26844" y="141" text-anchor="middle" font-size="13">y_operation、v…</text>
+  <text x="26844" y="87" text-anchor="middle" font-size="13">SPEC-0421</text>
+  <text x="26844" y="105" text-anchor="middle" font-size="13">unit_lower 可空证</text>
+  <text x="26844" y="123" text-anchor="middle" font-size="13">明/分支、map_sourc</text>
+  <text x="26844" y="141" text-anchor="middle" font-size="13">e 交接、verify/m…</text>
   <rect x="26988" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="27108" y="87" text-anchor="middle" font-size="13">SPEC-0423</text>
-  <text x="27108" y="105" text-anchor="middle" font-size="13">map_iteration、</text>
-  <text x="27108" y="123" text-anchor="middle" font-size="13">refine/build、u</text>
-  <text x="27108" y="141" text-anchor="middle" font-size="13">nit_plan、unit…</text>
+  <text x="27108" y="87" text-anchor="middle" font-size="13">SPEC-0422</text>
+  <text x="27108" y="105" text-anchor="middle" font-size="13">refine/emit/st</text>
+  <text x="27108" y="123" text-anchor="middle" font-size="13">atements、verif</text>
+  <text x="27108" y="141" text-anchor="middle" font-size="13">y_operation、v…</text>
   <rect x="27252" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="27372" y="87" text-anchor="middle" font-size="13">SPEC-0424</text>
-  <text x="27372" y="105" text-anchor="middle" font-size="13">borrow_result_</text>
-  <text x="27372" y="123" text-anchor="middle" font-size="13">support、orches</text>
-  <text x="27372" y="141" text-anchor="middle" font-size="13">trate、可空清理及 l…</text>
+  <text x="27372" y="87" text-anchor="middle" font-size="13">SPEC-0423</text>
+  <text x="27372" y="105" text-anchor="middle" font-size="13">map_iteration、</text>
+  <text x="27372" y="123" text-anchor="middle" font-size="13">refine/build、u</text>
+  <text x="27372" y="141" text-anchor="middle" font-size="13">nit_plan、unit…</text>
   <rect x="27516" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="27636" y="87" text-anchor="middle" font-size="13">SPEC-0425</text>
-  <text x="27636" y="105" text-anchor="middle" font-size="13">nullable_if_cl</text>
-  <text x="27636" y="123" text-anchor="middle" font-size="13">eanup、map_iter</text>
-  <text x="27636" y="141" text-anchor="middle" font-size="13">ation、outer_b…</text>
+  <text x="27636" y="87" text-anchor="middle" font-size="13">SPEC-0424</text>
+  <text x="27636" y="105" text-anchor="middle" font-size="13">borrow_result_</text>
+  <text x="27636" y="123" text-anchor="middle" font-size="13">support、orches</text>
+  <text x="27636" y="141" text-anchor="middle" font-size="13">trate、可空清理及 l…</text>
   <rect x="27780" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="27900" y="87" text-anchor="middle" font-size="13">SPEC-0426</text>
-  <text x="27900" y="105" text-anchor="middle" font-size="13">unit_lower、map</text>
-  <text x="27900" y="123" text-anchor="middle" font-size="13">_iteration、map</text>
-  <text x="27900" y="141" text-anchor="middle" font-size="13">_consume 及 un…</text>
+  <text x="27900" y="87" text-anchor="middle" font-size="13">SPEC-0425</text>
+  <text x="27900" y="105" text-anchor="middle" font-size="13">nullable_if_cl</text>
+  <text x="27900" y="123" text-anchor="middle" font-size="13">eanup、map_iter</text>
+  <text x="27900" y="141" text-anchor="middle" font-size="13">ation、outer_b…</text>
   <rect x="28044" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="28164" y="87" text-anchor="middle" font-size="13">SPEC-0427</text>
-  <text x="28164" y="105" text-anchor="middle" font-size="13">map_iteration、</text>
-  <text x="28164" y="123" text-anchor="middle" font-size="13">nullable_borro</text>
-  <text x="28164" y="141" text-anchor="middle" font-size="13">wed_cleanup、r…</text>
+  <text x="28164" y="87" text-anchor="middle" font-size="13">SPEC-0426</text>
+  <text x="28164" y="105" text-anchor="middle" font-size="13">unit_lower、map</text>
+  <text x="28164" y="123" text-anchor="middle" font-size="13">_iteration、map</text>
+  <text x="28164" y="141" text-anchor="middle" font-size="13">_consume 及 un…</text>
   <rect x="28308" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="28428" y="87" text-anchor="middle" font-size="13">SPEC-0428</text>
-  <text x="28428" y="105" text-anchor="middle" font-size="13">model/constant</text>
-  <text x="28428" y="123" text-anchor="middle" font-size="13">、render/types、</text>
-  <text x="28428" y="141" text-anchor="middle" font-size="13">verify_owners…</text>
+  <text x="28428" y="87" text-anchor="middle" font-size="13">SPEC-0427</text>
+  <text x="28428" y="105" text-anchor="middle" font-size="13">map_iteration、</text>
+  <text x="28428" y="123" text-anchor="middle" font-size="13">nullable_borro</text>
+  <text x="28428" y="141" text-anchor="middle" font-size="13">wed_cleanup、r…</text>
   <rect x="28572" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="28692" y="87" text-anchor="middle" font-size="13">SPEC-0429</text>
-  <text x="28692" y="105" text-anchor="middle" font-size="13">map_iteration、</text>
-  <text x="28692" y="123" text-anchor="middle" font-size="13">closure、verify</text>
-  <text x="28692" y="141" text-anchor="middle" font-size="13">_ownership/bo…</text>
+  <text x="28692" y="87" text-anchor="middle" font-size="13">SPEC-0428</text>
+  <text x="28692" y="105" text-anchor="middle" font-size="13">model/constant</text>
+  <text x="28692" y="123" text-anchor="middle" font-size="13">、render/types、</text>
+  <text x="28692" y="141" text-anchor="middle" font-size="13">verify_owners…</text>
   <rect x="28836" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="28956" y="87" text-anchor="middle" font-size="13">SPEC-0430</text>
-  <text x="28956" y="105" text-anchor="middle" font-size="13">outer_borrowed</text>
-  <text x="28956" y="123" text-anchor="middle" font-size="13">_while、verify/</text>
-  <text x="28956" y="141" text-anchor="middle" font-size="13">closure_escap…</text>
+  <text x="28956" y="87" text-anchor="middle" font-size="13">SPEC-0429</text>
+  <text x="28956" y="105" text-anchor="middle" font-size="13">map_iteration、</text>
+  <text x="28956" y="123" text-anchor="middle" font-size="13">closure、verify</text>
+  <text x="28956" y="141" text-anchor="middle" font-size="13">_ownership/bo…</text>
   <rect x="29100" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="29220" y="87" text-anchor="middle" font-size="13">SPEC-0431</text>
-  <text x="29220" y="105" text-anchor="middle" font-size="13">map_source_uni</text>
-  <text x="29220" y="123" text-anchor="middle" font-size="13">t_contract、ran</text>
-  <text x="29220" y="141" text-anchor="middle" font-size="13">ge、map_iterat…</text>
+  <text x="29220" y="87" text-anchor="middle" font-size="13">SPEC-0430</text>
+  <text x="29220" y="105" text-anchor="middle" font-size="13">outer_borrowed</text>
+  <text x="29220" y="123" text-anchor="middle" font-size="13">_while、verify/</text>
+  <text x="29220" y="141" text-anchor="middle" font-size="13">closure_escap…</text>
   <rect x="29364" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="29484" y="87" text-anchor="middle" font-size="13">SPEC-0432</text>
-  <text x="29484" y="105" text-anchor="middle" font-size="13">source_owner、l</text>
-  <text x="29484" y="123" text-anchor="middle" font-size="13">ocal_storage、s</text>
-  <text x="29484" y="141" text-anchor="middle" font-size="13">tring_clone、c…</text>
+  <text x="29484" y="87" text-anchor="middle" font-size="13">SPEC-0431</text>
+  <text x="29484" y="105" text-anchor="middle" font-size="13">map_source_uni</text>
+  <text x="29484" y="123" text-anchor="middle" font-size="13">t_contract、ran</text>
+  <text x="29484" y="141" text-anchor="middle" font-size="13">ge、map_iterat…</text>
   <rect x="29628" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="29748" y="87" text-anchor="middle" font-size="13">SPEC-0433</text>
-  <text x="29748" y="105" text-anchor="middle" font-size="13">refine 五类借用凭证 </text>
-  <text x="29748" y="123" text-anchor="middle" font-size="13">ci_tests、verif</text>
-  <text x="29748" y="141" text-anchor="middle" font-size="13">y/closure_esc…</text>
+  <text x="29748" y="87" text-anchor="middle" font-size="13">SPEC-0432</text>
+  <text x="29748" y="105" text-anchor="middle" font-size="13">source_owner、l</text>
+  <text x="29748" y="123" text-anchor="middle" font-size="13">ocal_storage、s</text>
+  <text x="29748" y="141" text-anchor="middle" font-size="13">tring_clone、c…</text>
   <rect x="29892" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="30012" y="87" text-anchor="middle" font-size="13">SPEC-0434</text>
-  <text x="30012" y="105" text-anchor="middle" font-size="13">verify_operati</text>
-  <text x="30012" y="123" text-anchor="middle" font-size="13">on/map/tests、v</text>
-  <text x="30012" y="141" text-anchor="middle" font-size="13">erify_ownersh…</text>
+  <text x="30012" y="87" text-anchor="middle" font-size="13">SPEC-0433</text>
+  <text x="30012" y="105" text-anchor="middle" font-size="13">refine 五类借用凭证 </text>
+  <text x="30012" y="123" text-anchor="middle" font-size="13">ci_tests、verif</text>
+  <text x="30012" y="141" text-anchor="middle" font-size="13">y/closure_esc…</text>
   <rect x="30156" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="30276" y="87" text-anchor="middle" font-size="13">SPEC-0435</text>
-  <text x="30276" y="105" text-anchor="middle" font-size="13">unit_lower/con</text>
-  <text x="30276" y="123" text-anchor="middle" font-size="13">trol/result_te</text>
-  <text x="30276" y="141" text-anchor="middle" font-size="13">sts、item_oper…</text>
+  <text x="30276" y="87" text-anchor="middle" font-size="13">SPEC-0434</text>
+  <text x="30276" y="105" text-anchor="middle" font-size="13">verify_operati</text>
+  <text x="30276" y="123" text-anchor="middle" font-size="13">on/map/tests、v</text>
+  <text x="30276" y="141" text-anchor="middle" font-size="13">erify_ownersh…</text>
   <rect x="30420" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="30540" y="87" text-anchor="middle" font-size="13">SPEC-0436</text>
-  <text x="30540" y="105" text-anchor="middle" font-size="13">unit_lower 借用/</text>
-  <text x="30540" y="123" text-anchor="middle" font-size="13">编排/字段可空测试、veri</text>
-  <text x="30540" y="141" text-anchor="middle" font-size="13">fy_ownership/…</text>
+  <text x="30540" y="87" text-anchor="middle" font-size="13">SPEC-0435</text>
+  <text x="30540" y="105" text-anchor="middle" font-size="13">unit_lower/con</text>
+  <text x="30540" y="123" text-anchor="middle" font-size="13">trol/result_te</text>
+  <text x="30540" y="141" text-anchor="middle" font-size="13">sts、item_oper…</text>
   <rect x="30684" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="30804" y="87" text-anchor="middle" font-size="13">SPEC-0437</text>
-  <text x="30804" y="105" text-anchor="middle" font-size="13">lambda_preflig</text>
-  <text x="30804" y="123" text-anchor="middle" font-size="13">ht_tests、outer</text>
-  <text x="30804" y="141" text-anchor="middle" font-size="13">_borrowed_whi…</text>
+  <text x="30804" y="87" text-anchor="middle" font-size="13">SPEC-0436</text>
+  <text x="30804" y="105" text-anchor="middle" font-size="13">unit_lower 借用/</text>
+  <text x="30804" y="123" text-anchor="middle" font-size="13">编排/字段可空测试、veri</text>
+  <text x="30804" y="141" text-anchor="middle" font-size="13">fy_ownership/…</text>
   <rect x="30948" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="31068" y="87" text-anchor="middle" font-size="13">SPEC-0438</text>
-  <text x="31068" y="105" text-anchor="middle" font-size="13">outer_borrowed</text>
-  <text x="31068" y="123" text-anchor="middle" font-size="13">_while、source_</text>
-  <text x="31068" y="141" text-anchor="middle" font-size="13">owner/handoff…</text>
+  <text x="31068" y="87" text-anchor="middle" font-size="13">SPEC-0437</text>
+  <text x="31068" y="105" text-anchor="middle" font-size="13">lambda_preflig</text>
+  <text x="31068" y="123" text-anchor="middle" font-size="13">ht_tests、outer</text>
+  <text x="31068" y="141" text-anchor="middle" font-size="13">_borrowed_whi…</text>
   <rect x="31212" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="31332" y="87" text-anchor="middle" font-size="13">SPEC-0439</text>
-  <text x="31332" y="105" text-anchor="middle" font-size="13">numeric_iterat</text>
-  <text x="31332" y="123" text-anchor="middle" font-size="13">ion、map_consum</text>
-  <text x="31332" y="141" text-anchor="middle" font-size="13">e、map_iterati…</text>
+  <text x="31332" y="87" text-anchor="middle" font-size="13">SPEC-0438</text>
+  <text x="31332" y="105" text-anchor="middle" font-size="13">outer_borrowed</text>
+  <text x="31332" y="123" text-anchor="middle" font-size="13">_while、source_</text>
+  <text x="31332" y="141" text-anchor="middle" font-size="13">owner/handoff…</text>
   <rect x="31476" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="31596" y="87" text-anchor="middle" font-size="13">SPEC-0440</text>
-  <text x="31596" y="105" text-anchor="middle" font-size="13">rc_nullable_wh</text>
-  <text x="31596" y="123" text-anchor="middle" font-size="13">ile_identity_q</text>
-  <text x="31596" y="141" text-anchor="middle" font-size="13">ueries、same_g…</text>
+  <text x="31596" y="87" text-anchor="middle" font-size="13">SPEC-0439</text>
+  <text x="31596" y="105" text-anchor="middle" font-size="13">numeric_iterat</text>
+  <text x="31596" y="123" text-anchor="middle" font-size="13">ion、map_consum</text>
+  <text x="31596" y="141" text-anchor="middle" font-size="13">e、map_iterati…</text>
   <rect x="31740" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="31860" y="87" text-anchor="middle" font-size="13">SPEC-0441</text>
-  <text x="31860" y="105" text-anchor="middle" font-size="13">container_lowe</text>
-  <text x="31860" y="123" text-anchor="middle" font-size="13">ring_tests 三子壳</text>
-  <text x="31860" y="141" text-anchor="middle" font-size="13">及剩余 lower_fro…</text>
+  <text x="31860" y="87" text-anchor="middle" font-size="13">SPEC-0440</text>
+  <text x="31860" y="105" text-anchor="middle" font-size="13">rc_nullable_wh</text>
+  <text x="31860" y="123" text-anchor="middle" font-size="13">ile_identity_q</text>
+  <text x="31860" y="141" text-anchor="middle" font-size="13">ueries、same_g…</text>
   <rect x="32004" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="32124" y="87" text-anchor="middle" font-size="13">SPEC-0442</text>
-  <text x="32124" y="105" text-anchor="middle" font-size="13">range_lowering</text>
-  <text x="32124" y="123" text-anchor="middle" font-size="13">_tests、unit_lo</text>
-  <text x="32124" y="141" text-anchor="middle" font-size="13">wer_container…</text>
+  <text x="32124" y="87" text-anchor="middle" font-size="13">SPEC-0441</text>
+  <text x="32124" y="105" text-anchor="middle" font-size="13">container_lowe</text>
+  <text x="32124" y="123" text-anchor="middle" font-size="13">ring_tests 三子壳</text>
+  <text x="32124" y="141" text-anchor="middle" font-size="13">及剩余 lower_fro…</text>
   <rect x="32268" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="32388" y="87" text-anchor="middle" font-size="13">SPEC-0443</text>
-  <text x="32388" y="105" text-anchor="middle" font-size="13">owned_source_r</text>
-  <text x="32388" y="123" text-anchor="middle" font-size="13">eturn、range_lo</text>
-  <text x="32388" y="141" text-anchor="middle" font-size="13">wering_tests、…</text>
+  <text x="32388" y="87" text-anchor="middle" font-size="13">SPEC-0442</text>
+  <text x="32388" y="105" text-anchor="middle" font-size="13">range_lowering</text>
+  <text x="32388" y="123" text-anchor="middle" font-size="13">_tests、unit_lo</text>
+  <text x="32388" y="141" text-anchor="middle" font-size="13">wer_container…</text>
   <rect x="32532" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="32652" y="87" text-anchor="middle" font-size="13">SPEC-0444</text>
-  <text x="32652" y="105" text-anchor="middle" font-size="13">loan_region_ss</text>
-  <text x="32652" y="123" text-anchor="middle" font-size="13">a_tests 下观察器、接</text>
-  <text x="32652" y="141" text-anchor="middle" font-size="13">收者、具名借用、临时借用兄…</text>
+  <text x="32652" y="87" text-anchor="middle" font-size="13">SPEC-0443</text>
+  <text x="32652" y="105" text-anchor="middle" font-size="13">owned_source_r</text>
+  <text x="32652" y="123" text-anchor="middle" font-size="13">eturn、range_lo</text>
+  <text x="32652" y="141" text-anchor="middle" font-size="13">wering_tests、…</text>
   <rect x="32796" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="32916" y="87" text-anchor="middle" font-size="13">SPEC-0445</text>
+  <text x="32916" y="87" text-anchor="middle" font-size="13">SPEC-0444</text>
   <text x="32916" y="105" text-anchor="middle" font-size="13">loan_region_ss</text>
-  <text x="32916" y="123" text-anchor="middle" font-size="13">a_tests 下临时借用、</text>
-  <text x="32916" y="141" text-anchor="middle" font-size="13">绑定凭证、父子探针、多临时…</text>
+  <text x="32916" y="123" text-anchor="middle" font-size="13">a_tests 下观察器、接</text>
+  <text x="32916" y="141" text-anchor="middle" font-size="13">收者、具名借用、临时借用兄…</text>
   <rect x="33060" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="33180" y="87" text-anchor="middle" font-size="13">SPEC-0446</text>
-  <text x="33180" y="105" text-anchor="middle" font-size="13">range_lowering</text>
-  <text x="33180" y="123" text-anchor="middle" font-size="13">_tests 下局部控制流、</text>
-  <text x="33180" y="141" text-anchor="middle" font-size="13">断言、支撑、比较边界及接收…</text>
+  <text x="33180" y="87" text-anchor="middle" font-size="13">SPEC-0445</text>
+  <text x="33180" y="105" text-anchor="middle" font-size="13">loan_region_ss</text>
+  <text x="33180" y="123" text-anchor="middle" font-size="13">a_tests 下临时借用、</text>
+  <text x="33180" y="141" text-anchor="middle" font-size="13">绑定凭证、父子探针、多临时…</text>
   <rect x="33324" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="33444" y="87" text-anchor="middle" font-size="13">SPEC-0447</text>
-  <text x="33444" y="105" text-anchor="middle" font-size="13">unit_lower_rec</text>
-  <text x="33444" y="123" text-anchor="middle" font-size="13">eiver_tests、se</text>
-  <text x="33444" y="141" text-anchor="middle" font-size="13">quential_for_…</text>
+  <text x="33444" y="87" text-anchor="middle" font-size="13">SPEC-0446</text>
+  <text x="33444" y="105" text-anchor="middle" font-size="13">range_lowering</text>
+  <text x="33444" y="123" text-anchor="middle" font-size="13">_tests 下局部控制流、</text>
+  <text x="33444" y="141" text-anchor="middle" font-size="13">断言、支撑、比较边界及接收…</text>
   <rect x="33588" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="33708" y="87" text-anchor="middle" font-size="13">SPEC-0448</text>
-  <text x="33708" y="105" text-anchor="middle" font-size="13">map_provider_e</text>
-  <text x="33708" y="123" text-anchor="middle" font-size="13">xits_pipeline_</text>
-  <text x="33708" y="141" text-anchor="middle" font-size="13">tests 测试域叶子薄壳…</text>
-  <rect x="33852" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="33972" y="87" text-anchor="middle" font-size="13">SPEC-0449</text>
-  <text x="33972" y="105" text-anchor="middle" font-size="13">其余测试域叶子薄壳子模块批量</text>
-  <text x="33972" y="123" text-anchor="middle" font-size="13">退役（42 个）</text>
+  <text x="33708" y="87" text-anchor="middle" font-size="13">SPEC-0447</text>
+  <text x="33708" y="105" text-anchor="middle" font-size="13">unit_lower_rec</text>
+  <text x="33708" y="123" text-anchor="middle" font-size="13">eiver_tests、se</text>
+  <text x="33708" y="141" text-anchor="middle" font-size="13">quential_for_…</text>
+  <rect x="33852" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="33972" y="87" text-anchor="middle" font-size="13">SPEC-0448</text>
+  <text x="33972" y="105" text-anchor="middle" font-size="13">map_provider_e</text>
+  <text x="33972" y="123" text-anchor="middle" font-size="13">xits_pipeline_</text>
+  <text x="33972" y="141" text-anchor="middle" font-size="13">tests 测试域叶子薄壳…</text>
   <rect x="34116" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="34236" y="87" text-anchor="middle" font-size="13">SPEC-0450</text>
-  <text x="34236" y="105" text-anchor="middle" font-size="13">下一层叶子薄壳与同级测试小文</text>
-  <text x="34236" y="123" text-anchor="middle" font-size="13">件批量收敛（62 个）</text>
+  <text x="34236" y="87" text-anchor="middle" font-size="13">SPEC-0449</text>
+  <text x="34236" y="105" text-anchor="middle" font-size="13">其余测试域叶子薄壳子模块批量</text>
+  <text x="34236" y="123" text-anchor="middle" font-size="13">退役（42 个）</text>
   <rect x="34380" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="34500" y="87" text-anchor="middle" font-size="13">SPEC-0451</text>
-  <text x="34500" y="105" text-anchor="middle" font-size="13">跨父模块测试薄壳批量打包收敛</text>
-  <text x="34500" y="123" text-anchor="middle" font-size="13">（22 个）</text>
-  <rect x="34644" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="34764" y="87" text-anchor="middle" font-size="13">SPEC-0452</text>
-  <text x="34764" y="105" text-anchor="middle" font-size="13">lang-codegen 非</text>
-  <text x="34764" y="123" text-anchor="middle" font-size="13"> ssa 子树叶子薄壳与同级</text>
-  <text x="34764" y="141" text-anchor="middle" font-size="13">测试小文件批量收敛（129…</text>
+  <text x="34500" y="87" text-anchor="middle" font-size="13">SPEC-0450</text>
+  <text x="34500" y="105" text-anchor="middle" font-size="13">下一层叶子薄壳与同级测试小文</text>
+  <text x="34500" y="123" text-anchor="middle" font-size="13">件批量收敛（62 个）</text>
+  <rect x="34644" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="34764" y="87" text-anchor="middle" font-size="13">SPEC-0451</text>
+  <text x="34764" y="105" text-anchor="middle" font-size="13">跨父模块测试薄壳批量打包收敛</text>
+  <text x="34764" y="123" text-anchor="middle" font-size="13">（22 个）</text>
   <rect x="34908" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="35028" y="87" text-anchor="middle" font-size="13">SPEC-0453</text>
-  <text x="35028" y="105" text-anchor="middle" font-size="13">lang-codegen 剩</text>
-  <text x="35028" y="123" text-anchor="middle" font-size="13">余同目录 include_s</text>
-  <text x="35028" y="141" text-anchor="middle" font-size="13">tr! 薄壳、llvm 子…</text>
-  <rect x="35172" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="35292" y="87" text-anchor="middle" font-size="13">SPEC-0454</text>
-  <text x="35292" y="105" text-anchor="middle" font-size="13">无家族触发的直线标量函数进入</text>
-  <text x="35292" y="123" text-anchor="middle" font-size="13">细化层</text>
-  <rect x="35436" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="35556" y="87" text-anchor="middle" font-size="13">SPEC-0455</text>
-  <text x="35556" y="105" text-anchor="middle" font-size="13">owned pointer-</text>
-  <text x="35556" y="123" text-anchor="middle" font-size="13">like nullable </text>
-  <text x="35556" y="141" text-anchor="middle" font-size="13">when 迁入细化层</text>
+  <text x="35028" y="87" text-anchor="middle" font-size="13">SPEC-0452</text>
+  <text x="35028" y="105" text-anchor="middle" font-size="13">lang-codegen 非</text>
+  <text x="35028" y="123" text-anchor="middle" font-size="13"> ssa 子树叶子薄壳与同级</text>
+  <text x="35028" y="141" text-anchor="middle" font-size="13">测试小文件批量收敛（129…</text>
+  <rect x="35172" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="35292" y="87" text-anchor="middle" font-size="13">SPEC-0453</text>
+  <text x="35292" y="105" text-anchor="middle" font-size="13">lang-codegen 剩</text>
+  <text x="35292" y="123" text-anchor="middle" font-size="13">余同目录 include_s</text>
+  <text x="35292" y="141" text-anchor="middle" font-size="13">tr! 薄壳、llvm 子…</text>
+  <rect x="35436" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="35556" y="87" text-anchor="middle" font-size="13">SPEC-0454</text>
+  <text x="35556" y="105" text-anchor="middle" font-size="13">无家族触发的直线标量函数进入</text>
+  <text x="35556" y="123" text-anchor="middle" font-size="13">细化层</text>
+  <rect x="35700" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="35820" y="87" text-anchor="middle" font-size="13">SPEC-0455</text>
+  <text x="35820" y="105" text-anchor="middle" font-size="13">owned pointer-</text>
+  <text x="35820" y="123" text-anchor="middle" font-size="13">like nullable </text>
+  <text x="35820" y="141" text-anchor="middle" font-size="13">when 迁入细化层</text>
   <rect x="2964" y="220" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="3084" y="243" text-anchor="middle" font-size="13">SPEC-0456</text>
   <text x="3084" y="261" text-anchor="middle" font-size="13">Runtime buffer</text>
@@ -2982,171 +2988,171 @@
   <text x="1764" y="399" text-anchor="middle" font-size="13">SPEC-0457</text>
   <text x="1764" y="417" text-anchor="middle" font-size="13">Native 入口测试职责与</text>
   <text x="1764" y="435" text-anchor="middle" font-size="13">根文件尺寸欠账</text>
-  <rect x="35700" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="35820" y="87" text-anchor="middle" font-size="13">SPEC-0458</text>
-  <text x="35820" y="105" text-anchor="middle" font-size="13">SSA verifier 职</text>
-  <text x="35820" y="123" text-anchor="middle" font-size="13">责与历史尺寸欠账</text>
-  <rect x="35964" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="36084" y="87" text-anchor="middle" font-size="13">SPEC-0459</text>
-  <text x="36084" y="105" text-anchor="middle" font-size="13">SSA tagged/pro</text>
-  <text x="36084" y="123" text-anchor="middle" font-size="13">vider 测试职责与尺寸欠</text>
-  <text x="36084" y="141" text-anchor="middle" font-size="13">账</text>
-  <rect x="36228" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="36348" y="87" text-anchor="middle" font-size="13">SPEC-0460</text>
-  <text x="36348" y="105" text-anchor="middle" font-size="13">Verifier 借用调用与</text>
-  <text x="36348" y="123" text-anchor="middle" font-size="13"> place 测试职责归位</text>
-  <rect x="36492" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="36612" y="87" text-anchor="middle" font-size="13">SPEC-0461</text>
-  <text x="36612" y="105" text-anchor="middle" font-size="13">SSA model 错误与 </text>
-  <text x="36612" y="123" text-anchor="middle" font-size="13">numeric proof </text>
-  <text x="36612" y="141" text-anchor="middle" font-size="13">来源职责归位</text>
-  <rect x="36756" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="36876" y="87" text-anchor="middle" font-size="13">SPEC-0462</text>
-  <text x="36876" y="105" text-anchor="middle" font-size="13">Refine 调用与 CFG</text>
-  <text x="36876" y="123" text-anchor="middle" font-size="13"> 汇合职责归位</text>
-  <rect x="37020" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="37140" y="87" text-anchor="middle" font-size="13">SPEC-0463</text>
-  <text x="37140" y="105" text-anchor="middle" font-size="13">Ownership oper</text>
-  <text x="37140" y="123" text-anchor="middle" font-size="13">ation 与 loweri</text>
-  <text x="37140" y="141" text-anchor="middle" font-size="13">ng 领域职责归位</text>
-  <rect x="37284" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="37404" y="87" text-anchor="middle" font-size="13">SPEC-0464</text>
-  <text x="37404" y="105" text-anchor="middle" font-size="13">Native 接口/委托与接</text>
-  <text x="37404" y="123" text-anchor="middle" font-size="13">收者测试领域归位</text>
-  <rect x="37548" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="37668" y="87" text-anchor="middle" font-size="13">SPEC-0465</text>
-  <text x="37668" y="105" text-anchor="middle" font-size="13">LLVM instructi</text>
-  <text x="37668" y="123" text-anchor="middle" font-size="13">on 分发按 operati</text>
-  <text x="37668" y="141" text-anchor="middle" font-size="13">on 家族归位</text>
-  <rect x="37812" y="64" width="240" height="56" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="37932" y="87" text-anchor="middle" font-size="13">SPEC-0466</text>
-  <text x="37932" y="105" text-anchor="middle" font-size="13">名称解析表达式遍历职责归位</text>
-  <rect x="38076" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="38196" y="87" text-anchor="middle" font-size="13">SPEC-0467</text>
-  <text x="38196" y="105" text-anchor="middle" font-size="13">类型检查容器与 lambda</text>
-  <text x="38196" y="123" text-anchor="middle" font-size="13"> 领域归位</text>
+  <rect x="35964" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="36084" y="87" text-anchor="middle" font-size="13">SPEC-0458</text>
+  <text x="36084" y="105" text-anchor="middle" font-size="13">SSA verifier 职</text>
+  <text x="36084" y="123" text-anchor="middle" font-size="13">责与历史尺寸欠账</text>
+  <rect x="36228" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="36348" y="87" text-anchor="middle" font-size="13">SPEC-0459</text>
+  <text x="36348" y="105" text-anchor="middle" font-size="13">SSA tagged/pro</text>
+  <text x="36348" y="123" text-anchor="middle" font-size="13">vider 测试职责与尺寸欠</text>
+  <text x="36348" y="141" text-anchor="middle" font-size="13">账</text>
+  <rect x="36492" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="36612" y="87" text-anchor="middle" font-size="13">SPEC-0460</text>
+  <text x="36612" y="105" text-anchor="middle" font-size="13">Verifier 借用调用与</text>
+  <text x="36612" y="123" text-anchor="middle" font-size="13"> place 测试职责归位</text>
+  <rect x="36756" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="36876" y="87" text-anchor="middle" font-size="13">SPEC-0461</text>
+  <text x="36876" y="105" text-anchor="middle" font-size="13">SSA model 错误与 </text>
+  <text x="36876" y="123" text-anchor="middle" font-size="13">numeric proof </text>
+  <text x="36876" y="141" text-anchor="middle" font-size="13">来源职责归位</text>
+  <rect x="37020" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="37140" y="87" text-anchor="middle" font-size="13">SPEC-0462</text>
+  <text x="37140" y="105" text-anchor="middle" font-size="13">Refine 调用与 CFG</text>
+  <text x="37140" y="123" text-anchor="middle" font-size="13"> 汇合职责归位</text>
+  <rect x="37284" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="37404" y="87" text-anchor="middle" font-size="13">SPEC-0463</text>
+  <text x="37404" y="105" text-anchor="middle" font-size="13">Ownership oper</text>
+  <text x="37404" y="123" text-anchor="middle" font-size="13">ation 与 loweri</text>
+  <text x="37404" y="141" text-anchor="middle" font-size="13">ng 领域职责归位</text>
+  <rect x="37548" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="37668" y="87" text-anchor="middle" font-size="13">SPEC-0464</text>
+  <text x="37668" y="105" text-anchor="middle" font-size="13">Native 接口/委托与接</text>
+  <text x="37668" y="123" text-anchor="middle" font-size="13">收者测试领域归位</text>
+  <rect x="37812" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="37932" y="87" text-anchor="middle" font-size="13">SPEC-0465</text>
+  <text x="37932" y="105" text-anchor="middle" font-size="13">LLVM instructi</text>
+  <text x="37932" y="123" text-anchor="middle" font-size="13">on 分发按 operati</text>
+  <text x="37932" y="141" text-anchor="middle" font-size="13">on 家族归位</text>
+  <rect x="38076" y="64" width="240" height="56" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="38196" y="87" text-anchor="middle" font-size="13">SPEC-0466</text>
+  <text x="38196" y="105" text-anchor="middle" font-size="13">名称解析表达式遍历职责归位</text>
   <rect x="38340" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="38460" y="87" text-anchor="middle" font-size="13">SPEC-0468</text>
-  <text x="38460" y="105" text-anchor="middle" font-size="13">Lexer 与调用恢复测试领</text>
-  <text x="38460" y="123" text-anchor="middle" font-size="13">域归位</text>
-  <rect x="38604" y="64" width="240" height="56" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="38724" y="87" text-anchor="middle" font-size="13">SPEC-0469</text>
-  <text x="38724" y="105" text-anchor="middle" font-size="13">表达式与资源交换测试领域归位</text>
-  <rect x="38868" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="38988" y="87" text-anchor="middle" font-size="13">SPEC-0470</text>
-  <text x="38988" y="105" text-anchor="middle" font-size="13">类型表、typed产物实现与</text>
-  <text x="38988" y="123" text-anchor="middle" font-size="13">短路测试归位</text>
+  <text x="38460" y="87" text-anchor="middle" font-size="13">SPEC-0467</text>
+  <text x="38460" y="105" text-anchor="middle" font-size="13">类型检查容器与 lambda</text>
+  <text x="38460" y="123" text-anchor="middle" font-size="13"> 领域归位</text>
+  <rect x="38604" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="38724" y="87" text-anchor="middle" font-size="13">SPEC-0468</text>
+  <text x="38724" y="105" text-anchor="middle" font-size="13">Lexer 与调用恢复测试领</text>
+  <text x="38724" y="123" text-anchor="middle" font-size="13">域归位</text>
+  <rect x="38868" y="64" width="240" height="56" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="38988" y="87" text-anchor="middle" font-size="13">SPEC-0469</text>
+  <text x="38988" y="105" text-anchor="middle" font-size="13">表达式与资源交换测试领域归位</text>
   <rect x="39132" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="39252" y="87" text-anchor="middle" font-size="13">SPEC-0471</text>
-  <text x="39252" y="105" text-anchor="middle" font-size="13">Unit签名类型解析与bod</text>
-  <text x="39252" y="123" text-anchor="middle" font-size="13">y产物实现归位</text>
-  <rect x="39396" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="39516" y="87" text-anchor="middle" font-size="13">SPEC-0472</text>
-  <text x="39516" y="105" text-anchor="middle" font-size="13">Unit canonical</text>
-  <text x="39516" y="123" text-anchor="middle" font-size="13">、委托与ownership产</text>
-  <text x="39516" y="141" text-anchor="middle" font-size="13">物归位</text>
-  <rect x="39660" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="39780" y="87" text-anchor="middle" font-size="13">SPEC-0473</text>
-  <text x="39780" y="105" text-anchor="middle" font-size="13">Drop表达式遍历与Unit</text>
-  <text x="39780" y="123" text-anchor="middle" font-size="13"> place访问检查归位</text>
+  <text x="39252" y="87" text-anchor="middle" font-size="13">SPEC-0470</text>
+  <text x="39252" y="105" text-anchor="middle" font-size="13">类型表、typed产物实现与</text>
+  <text x="39252" y="123" text-anchor="middle" font-size="13">短路测试归位</text>
+  <rect x="39396" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="39516" y="87" text-anchor="middle" font-size="13">SPEC-0471</text>
+  <text x="39516" y="105" text-anchor="middle" font-size="13">Unit签名类型解析与bod</text>
+  <text x="39516" y="123" text-anchor="middle" font-size="13">y产物实现归位</text>
+  <rect x="39660" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="39780" y="87" text-anchor="middle" font-size="13">SPEC-0472</text>
+  <text x="39780" y="105" text-anchor="middle" font-size="13">Unit canonical</text>
+  <text x="39780" y="123" text-anchor="middle" font-size="13">、委托与ownership产</text>
+  <text x="39780" y="141" text-anchor="middle" font-size="13">物归位</text>
   <rect x="39924" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="40044" y="87" text-anchor="middle" font-size="13">SPEC-0474</text>
-  <text x="40044" y="105" text-anchor="middle" font-size="13">Single ownersh</text>
-  <text x="40044" y="123" text-anchor="middle" font-size="13">ip运行与声明职责归位</text>
+  <text x="40044" y="87" text-anchor="middle" font-size="13">SPEC-0473</text>
+  <text x="40044" y="105" text-anchor="middle" font-size="13">Drop表达式遍历与Unit</text>
+  <text x="40044" y="123" text-anchor="middle" font-size="13"> place访问检查归位</text>
   <rect x="40188" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="40308" y="87" text-anchor="middle" font-size="13">SPEC-0475</text>
-  <text x="40308" y="105" text-anchor="middle" font-size="13">Fixture发现、执行与合</text>
-  <text x="40308" y="123" text-anchor="middle" font-size="13">同测试归位</text>
+  <text x="40308" y="87" text-anchor="middle" font-size="13">SPEC-0474</text>
+  <text x="40308" y="105" text-anchor="middle" font-size="13">Single ownersh</text>
+  <text x="40308" y="123" text-anchor="middle" font-size="13">ip运行与声明职责归位</text>
   <rect x="40452" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="40572" y="87" text-anchor="middle" font-size="13">SPEC-0476</text>
-  <text x="40572" y="105" text-anchor="middle" font-size="13">Conditional le</text>
-  <text x="40572" y="123" text-anchor="middle" font-size="13">af实例回放器归位</text>
-  <rect x="44756" y="64" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="44876" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0477</text>
-  <text x="44876" y="105" text-anchor="middle" font-size="13">Parser 与 Forma</text>
-  <text x="44876" y="123" text-anchor="middle" font-size="13">tter 往返差分首片</text>
-  <rect x="45020" y="64" width="240" height="56" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="45140" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0478</text>
-  <text x="45140" y="105" text-anchor="middle" font-size="13">普通块表达式离线差分</text>
-  <rect x="40716" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="40836" y="87" text-anchor="middle" font-size="13">SPEC-0479</text>
-  <text x="40836" y="105" text-anchor="middle" font-size="13">显式词法块 block { </text>
-  <text x="40836" y="123" text-anchor="middle" font-size="13">... } 与带括号调用跨行</text>
-  <text x="40836" y="141" text-anchor="middle" font-size="13">尾 lambda 附着</text>
-  <rect x="45284" y="64" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="45404" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0480</text>
-  <text x="45404" y="105" text-anchor="middle" font-size="13">新表面语法增量门禁接入提案与</text>
-  <text x="45404" y="123" text-anchor="middle" font-size="13"> Spec 模板（F5）</text>
-  <rect x="45548" y="64" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="45668" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0481</text>
-  <text x="45668" y="105" text-anchor="middle" font-size="13">Tree-sitter 与 </text>
-  <text x="45668" y="123" text-anchor="middle" font-size="13">parse_file 完整文</text>
-  <text x="45668" y="141" text-anchor="middle" font-size="13">件差分首片（F4b）</text>
-  <rect x="45812" y="64" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="45932" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0482</text>
-  <text x="45932" y="105" text-anchor="middle" font-size="13">独立参考词法机差分验证（F3</text>
-  <text x="45932" y="123" text-anchor="middle" font-size="13">b）</text>
-  <rect x="40980" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="41100" y="87" text-anchor="middle" font-size="13">SPEC-0483</text>
-  <text x="41100" y="105" text-anchor="middle" font-size="13">F3d 泛型调用、Lambd</text>
-  <text x="41100" y="123" text-anchor="middle" font-size="13">a 与 SPEC-0479 </text>
-  <text x="41100" y="141" text-anchor="middle" font-size="13">独立参考解析差分（F3d→…</text>
-  <rect x="46076" y="64" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="46196" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0484</text>
-  <text x="46196" y="105" text-anchor="middle" font-size="13">F3e 声明、类族与完整文件</text>
-  <text x="46196" y="123" text-anchor="middle" font-size="13">独立参考解析差分（F3e→F</text>
-  <text x="46196" y="141" text-anchor="middle" font-size="13">4a）</text>
-  <rect x="46340" y="64" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="46460" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0485</text>
-  <text x="46460" y="105" text-anchor="middle" font-size="13">F3c 18 级表达式运算符</text>
-  <text x="46460" y="123" text-anchor="middle" font-size="13">层级独立参考解析差分（F3c</text>
-  <text x="46460" y="141" text-anchor="middle" font-size="13">→F4a）</text>
-  <rect x="46604" y="64" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="46724" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0486</text>
-  <text x="46724" y="105" text-anchor="middle" font-size="13">四入口统一观察适配器与恢复/</text>
-  <text x="46724" y="123" text-anchor="middle" font-size="13">边界契约矩阵（F0b）</text>
-  <rect x="46868" y="64" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="46988" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0487</text>
-  <text x="46988" y="105" text-anchor="middle" font-size="13">F4c Formatter </text>
-  <text x="46988" y="123" text-anchor="middle" font-size="13">全 AST 往返差分扩展</text>
-  <rect x="47132" y="64" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="47252" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0488</text>
-  <text x="47252" y="105" text-anchor="middle" font-size="13">收口 editors/tre</text>
-  <text x="47252" y="123" text-anchor="middle" font-size="13">e-sitter 已知文法漂</text>
-  <text x="47252" y="141" text-anchor="middle" font-size="13">移（TS-03 / TS-…</text>
-  <rect x="47396" y="64" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="47516" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0489</text>
-  <text x="47516" y="105" text-anchor="middle" font-size="13">F2a 窄普通括号恢复原型评</text>
-  <text x="47516" y="123" text-anchor="middle" font-size="13">估与停止/反例契约见证</text>
-  <rect x="47660" y="64" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="47780" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0490</text>
-  <text x="47780" y="105" text-anchor="middle" font-size="13">F6 首片 angle_gr</text>
-  <text x="47780" y="123" text-anchor="middle" font-size="13">oup_closers 双轨</text>
-  <text x="47780" y="141" text-anchor="middle" font-size="13">机器证明（Lean 4 +…</text>
-  <rect x="41244" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="41364" y="87" text-anchor="middle" font-size="13">SPEC-0491</text>
-  <text x="41364" y="105" text-anchor="middle" font-size="13">收口 editors/tre</text>
-  <text x="41364" y="123" text-anchor="middle" font-size="13">e-sitter 剩余已知文</text>
-  <text x="41364" y="141" text-anchor="middle" font-size="13">法漂移（TS-01 / T…</text>
+  <text x="40572" y="87" text-anchor="middle" font-size="13">SPEC-0475</text>
+  <text x="40572" y="105" text-anchor="middle" font-size="13">Fixture发现、执行与合</text>
+  <text x="40572" y="123" text-anchor="middle" font-size="13">同测试归位</text>
+  <rect x="40716" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="40836" y="87" text-anchor="middle" font-size="13">SPEC-0476</text>
+  <text x="40836" y="105" text-anchor="middle" font-size="13">Conditional le</text>
+  <text x="40836" y="123" text-anchor="middle" font-size="13">af实例回放器归位</text>
+  <rect x="40980" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="41100" y="87" text-anchor="middle" font-size="13">SPEC-0477</text>
+  <text x="41100" y="105" text-anchor="middle" font-size="13">Parser 与 Forma</text>
+  <text x="41100" y="123" text-anchor="middle" font-size="13">tter 往返差分首片</text>
+  <rect x="41244" y="64" width="240" height="56" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="41364" y="87" text-anchor="middle" font-size="13">SPEC-0478</text>
+  <text x="41364" y="105" text-anchor="middle" font-size="13">普通块表达式离线差分</text>
   <rect x="41508" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="41628" y="87" text-anchor="middle" font-size="13">SPEC-0492</text>
-  <text x="41628" y="105" text-anchor="middle" font-size="13">F6 第二片 Ordinar</text>
-  <text x="41628" y="123" text-anchor="middle" font-size="13">yGroups 栈计数不变量</text>
-  <text x="41628" y="141" text-anchor="middle" font-size="13">与 GroupCloser…</text>
-  <rect x="41772" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="41892" y="87" text-anchor="middle" font-size="13">SPEC-0493</text>
-  <text x="41892" y="105" text-anchor="middle" font-size="13">F4b 完整文件 Tree-</text>
-  <text x="41892" y="123" text-anchor="middle" font-size="13">sitter 差分路径触发轻</text>
-  <text x="41892" y="141" text-anchor="middle" font-size="13">量 CI 接入</text>
-  <rect x="42036" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="42156" y="87" text-anchor="middle" font-size="13">SPEC-0494</text>
-  <text x="42156" y="105" text-anchor="middle" font-size="13">F5 表面语法增量门禁脚本化</text>
-  <text x="42156" y="123" text-anchor="middle" font-size="13">校验与单测</text>
-  <rect x="42300" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
-  <text x="42420" y="87" text-anchor="middle" font-size="13">SPEC-0495</text>
-  <text x="42420" y="105" text-anchor="middle" font-size="13">E2 两源 Unit CI </text>
-  <text x="42420" y="123" text-anchor="middle" font-size="13">门禁的可撤回影子试点与双宿主</text>
-  <text x="42420" y="141" text-anchor="middle" font-size="13"> A/B 对账</text>
+  <text x="41628" y="87" text-anchor="middle" font-size="13">SPEC-0479</text>
+  <text x="41628" y="105" text-anchor="middle" font-size="13">显式词法块 block { </text>
+  <text x="41628" y="123" text-anchor="middle" font-size="13">... } 与带括号调用跨行</text>
+  <text x="41628" y="141" text-anchor="middle" font-size="13">尾 lambda 附着</text>
+  <rect x="41772" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="41892" y="87" text-anchor="middle" font-size="13">SPEC-0480</text>
+  <text x="41892" y="105" text-anchor="middle" font-size="13">新表面语法增量门禁接入提案与</text>
+  <text x="41892" y="123" text-anchor="middle" font-size="13"> Spec 模板（F5）</text>
+  <rect x="42036" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="42156" y="87" text-anchor="middle" font-size="13">SPEC-0481</text>
+  <text x="42156" y="105" text-anchor="middle" font-size="13">Tree-sitter 与 </text>
+  <text x="42156" y="123" text-anchor="middle" font-size="13">parse_file 完整文</text>
+  <text x="42156" y="141" text-anchor="middle" font-size="13">件差分首片（F4b）</text>
+  <rect x="42300" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="42420" y="87" text-anchor="middle" font-size="13">SPEC-0482</text>
+  <text x="42420" y="105" text-anchor="middle" font-size="13">独立参考词法机差分验证（F3</text>
+  <text x="42420" y="123" text-anchor="middle" font-size="13">b）</text>
+  <rect x="42564" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="42684" y="87" text-anchor="middle" font-size="13">SPEC-0483</text>
+  <text x="42684" y="105" text-anchor="middle" font-size="13">F3d 泛型调用、Lambd</text>
+  <text x="42684" y="123" text-anchor="middle" font-size="13">a 与 SPEC-0479 </text>
+  <text x="42684" y="141" text-anchor="middle" font-size="13">独立参考解析差分（F3d→…</text>
+  <rect x="42828" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="42948" y="87" text-anchor="middle" font-size="13">SPEC-0484</text>
+  <text x="42948" y="105" text-anchor="middle" font-size="13">F3e 声明、类族与完整文件</text>
+  <text x="42948" y="123" text-anchor="middle" font-size="13">独立参考解析差分（F3e→F</text>
+  <text x="42948" y="141" text-anchor="middle" font-size="13">4a）</text>
+  <rect x="43092" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="43212" y="87" text-anchor="middle" font-size="13">SPEC-0485</text>
+  <text x="43212" y="105" text-anchor="middle" font-size="13">F3c 18 级表达式运算符</text>
+  <text x="43212" y="123" text-anchor="middle" font-size="13">层级独立参考解析差分（F3c</text>
+  <text x="43212" y="141" text-anchor="middle" font-size="13">→F4a）</text>
+  <rect x="43356" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="43476" y="87" text-anchor="middle" font-size="13">SPEC-0486</text>
+  <text x="43476" y="105" text-anchor="middle" font-size="13">四入口统一观察适配器与恢复/</text>
+  <text x="43476" y="123" text-anchor="middle" font-size="13">边界契约矩阵（F0b）</text>
+  <rect x="43620" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="43740" y="87" text-anchor="middle" font-size="13">SPEC-0487</text>
+  <text x="43740" y="105" text-anchor="middle" font-size="13">F4c Formatter </text>
+  <text x="43740" y="123" text-anchor="middle" font-size="13">全 AST 往返差分扩展</text>
+  <rect x="43884" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="44004" y="87" text-anchor="middle" font-size="13">SPEC-0488</text>
+  <text x="44004" y="105" text-anchor="middle" font-size="13">收口 editors/tre</text>
+  <text x="44004" y="123" text-anchor="middle" font-size="13">e-sitter 已知文法漂</text>
+  <text x="44004" y="141" text-anchor="middle" font-size="13">移（TS-03 / TS-…</text>
+  <rect x="44148" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="44268" y="87" text-anchor="middle" font-size="13">SPEC-0489</text>
+  <text x="44268" y="105" text-anchor="middle" font-size="13">F2a 窄普通括号恢复原型评</text>
+  <text x="44268" y="123" text-anchor="middle" font-size="13">估与停止/反例契约见证</text>
+  <rect x="44412" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="44532" y="87" text-anchor="middle" font-size="13">SPEC-0490</text>
+  <text x="44532" y="105" text-anchor="middle" font-size="13">F6 首片 angle_gr</text>
+  <text x="44532" y="123" text-anchor="middle" font-size="13">oup_closers 双轨</text>
+  <text x="44532" y="141" text-anchor="middle" font-size="13">机器证明（Lean 4 +…</text>
+  <rect x="44676" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="44796" y="87" text-anchor="middle" font-size="13">SPEC-0491</text>
+  <text x="44796" y="105" text-anchor="middle" font-size="13">收口 editors/tre</text>
+  <text x="44796" y="123" text-anchor="middle" font-size="13">e-sitter 剩余已知文</text>
+  <text x="44796" y="141" text-anchor="middle" font-size="13">法漂移（TS-01 / T…</text>
+  <rect x="44940" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="45060" y="87" text-anchor="middle" font-size="13">SPEC-0492</text>
+  <text x="45060" y="105" text-anchor="middle" font-size="13">F6 第二片 Ordinar</text>
+  <text x="45060" y="123" text-anchor="middle" font-size="13">yGroups 栈计数不变量</text>
+  <text x="45060" y="141" text-anchor="middle" font-size="13">与 GroupCloser…</text>
+  <rect x="45204" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="45324" y="87" text-anchor="middle" font-size="13">SPEC-0493</text>
+  <text x="45324" y="105" text-anchor="middle" font-size="13">F4b 完整文件 Tree-</text>
+  <text x="45324" y="123" text-anchor="middle" font-size="13">sitter 差分路径触发轻</text>
+  <text x="45324" y="141" text-anchor="middle" font-size="13">量 CI 接入</text>
+  <rect x="45468" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="45588" y="87" text-anchor="middle" font-size="13">SPEC-0494</text>
+  <text x="45588" y="105" text-anchor="middle" font-size="13">F5 表面语法增量门禁脚本化</text>
+  <text x="45588" y="123" text-anchor="middle" font-size="13">校验与单测</text>
+  <rect x="45732" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="45852" y="87" text-anchor="middle" font-size="13">SPEC-0495</text>
+  <text x="45852" y="105" text-anchor="middle" font-size="13">E2 两源 Unit CI </text>
+  <text x="45852" y="123" text-anchor="middle" font-size="13">门禁的可撤回影子试点与双宿主</text>
+  <text x="45852" y="141" text-anchor="middle" font-size="13"> A/B 对账</text>
   <rect x="3228" y="220" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="3348" y="243" text-anchor="middle" font-size="13">SPEC-0496</text>
   <text x="3348" y="261" text-anchor="middle" font-size="13">正式 CI 切换 E2 Re</text>
@@ -3157,29 +3163,108 @@
   <text x="2028" y="417" text-anchor="middle" font-size="13">正式 CI Targeted</text>
   <text x="2028" y="435" text-anchor="middle" font-size="13"> Tests 按独立套件拆分</text>
   <text x="2028" y="453" text-anchor="middle" font-size="13">为并行矩阵作业</text>
-  <rect x="47924" y="64" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="48044" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0498</text>
-  <text x="48044" y="105" text-anchor="middle" font-size="13">F6 第三片 GroupOw</text>
-  <text x="48044" y="123" text-anchor="middle" font-size="13">ners 词法深度与 ter</text>
-  <text x="48044" y="141" text-anchor="middle" font-size="13">minal_owner_e…</text>
-  <rect x="48188" y="64" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="48308" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0499</text>
-  <text x="48308" y="105" text-anchor="middle" font-size="13">F6 第四片 ElsePoi</text>
-  <text x="48308" y="123" text-anchor="middle" font-size="13">sonTail 缓存可靠与同</text>
-  <text x="48308" y="141" text-anchor="middle" font-size="13">行花括号保留双轨证明</text>
-  <rect x="48452" y="64" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="48572" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0500</text>
-  <text x="48572" y="105" text-anchor="middle" font-size="13">F6 第五片 Pratt 运</text>
-  <text x="48572" y="123" text-anchor="middle" font-size="13">算符优先级、结合律与非结合链</text>
-  <text x="48572" y="141" text-anchor="middle" font-size="13">检出双轨证明</text>
-  <rect x="48716" y="64" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="48836" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0501</text>
-  <text x="48836" y="105" text-anchor="middle" font-size="13">收口 editors/tre</text>
-  <text x="48836" y="123" text-anchor="middle" font-size="13">e-sitter 块与 La</text>
-  <text x="48836" y="141" text-anchor="middle" font-size="13">mbda 同行无分隔符语句…</text>
+  <rect x="45996" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="46116" y="87" text-anchor="middle" font-size="13">SPEC-0498</text>
+  <text x="46116" y="105" text-anchor="middle" font-size="13">F6 第三片 GroupOw</text>
+  <text x="46116" y="123" text-anchor="middle" font-size="13">ners 词法深度与 ter</text>
+  <text x="46116" y="141" text-anchor="middle" font-size="13">minal_owner_e…</text>
+  <rect x="46260" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="46380" y="87" text-anchor="middle" font-size="13">SPEC-0499</text>
+  <text x="46380" y="105" text-anchor="middle" font-size="13">F6 第四片 ElsePoi</text>
+  <text x="46380" y="123" text-anchor="middle" font-size="13">sonTail 缓存可靠与同</text>
+  <text x="46380" y="141" text-anchor="middle" font-size="13">行花括号保留双轨证明</text>
+  <rect x="46524" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="46644" y="87" text-anchor="middle" font-size="13">SPEC-0500</text>
+  <text x="46644" y="105" text-anchor="middle" font-size="13">F6 第五片 Pratt 运</text>
+  <text x="46644" y="123" text-anchor="middle" font-size="13">算符优先级、结合律与非结合链</text>
+  <text x="46644" y="141" text-anchor="middle" font-size="13">检出双轨证明</text>
+  <rect x="46788" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="46908" y="87" text-anchor="middle" font-size="13">SPEC-0501</text>
+  <text x="46908" y="105" text-anchor="middle" font-size="13">收口 editors/tre</text>
+  <text x="46908" y="123" text-anchor="middle" font-size="13">e-sitter 块与 La</text>
+  <text x="46908" y="141" text-anchor="middle" font-size="13">mbda 同行无分隔符语句…</text>
   <rect x="1116" y="532" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="1236" y="555" text-anchor="middle" font-size="13">SPEC-0502</text>
   <text x="1236" y="573" text-anchor="middle" font-size="13">双宿主 Targeted T</text>
   <text x="1236" y="591" text-anchor="middle" font-size="13">ests 统一启用有限调试符</text>
   <text x="1236" y="609" text-anchor="middle" font-size="13">号（debug=1）与独立…</text>
+  <rect x="588" y="688" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="708" y="711" text-anchor="middle" font-size="13">SPEC-0503</text>
+  <text x="708" y="729" text-anchor="middle" font-size="13">正式 CI 切换 D10 目</text>
+  <text x="708" y="747" text-anchor="middle" font-size="13">录身份与 Scalar Ow</text>
+  <text x="708" y="765" text-anchor="middle" font-size="13">ner 门禁为唯一产物锁多…</text>
+  <rect x="47052" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="47172" y="87" text-anchor="middle" font-size="13">SPEC-0504</text>
+  <text x="47172" y="105" text-anchor="middle" font-size="13">F5 表面语法增量门禁路径触</text>
+  <text x="47172" y="123" text-anchor="middle" font-size="13">发轻量 CI 接入</text>
+  <rect x="47316" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="47436" y="87" text-anchor="middle" font-size="13">SPEC-0505</text>
+  <text x="47436" y="105" text-anchor="middle" font-size="13">F6 第八片 validat</text>
+  <text x="47436" y="123" text-anchor="middle" font-size="13">e_lexemes 词法流连</text>
+  <text x="47436" y="141" text-anchor="middle" font-size="13">续划分、严格单调与唯一 E…</text>
+  <rect x="47580" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="47700" y="87" text-anchor="middle" font-size="13">SPEC-0506</text>
+  <text x="47700" y="105" text-anchor="middle" font-size="13">F6 第九片 diagnos</text>
+  <text x="47700" y="123" text-anchor="middle" font-size="13">tic_anchor_pre</text>
+  <text x="47700" y="141" text-anchor="middle" font-size="13">fix 前缀和单调性与区间…</text>
+  <rect x="47844" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="47964" y="87" text-anchor="middle" font-size="13">SPEC-0507</text>
+  <text x="47964" y="105" text-anchor="middle" font-size="13">F6 第十片 StrictC</text>
+  <text x="47964" y="123" text-anchor="middle" font-size="13">allTrialIndex </text>
+  <text x="47964" y="141" text-anchor="middle" font-size="13">索引单调性、反向 DP 路…</text>
+  <rect x="48108" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="48228" y="87" text-anchor="middle" font-size="13">SPEC-0508</text>
+  <text x="48228" y="105" text-anchor="middle" font-size="13">F6 第六片 Stops /</text>
+  <text x="48228" y="123" text-anchor="middle" font-size="13"> TypeStops / D</text>
+  <text x="48228" y="141" text-anchor="middle" font-size="13">eclarationSto…</text>
+  <rect x="48372" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="48492" y="87" text-anchor="middle" font-size="13">SPEC-0509</text>
+  <text x="48492" y="105" text-anchor="middle" font-size="13">F6 第七片 LambdaH</text>
+  <text x="48492" y="123" text-anchor="middle" font-size="13">eaderIndex 单遍流</text>
+  <text x="48492" y="141" text-anchor="middle" font-size="13">式 DFA 等价性与线性步…</text>
+  <rect x="48636" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="48756" y="87" text-anchor="middle" font-size="13">SPEC-0510</text>
+  <text x="48756" y="105" text-anchor="middle" font-size="13">F6 第十一片 Lexica</text>
+  <text x="48756" y="123" text-anchor="middle" font-size="13">lRecoveryIndex</text>
+  <text x="48756" y="141" text-anchor="middle" font-size="13"> 词法 owner 栈健全…</text>
+  <rect x="51620" y="64" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="51740" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0511</text>
+  <text x="51740" y="105" text-anchor="middle" font-size="13">lang-lsp 显式工作区</text>
+  <text x="51740" y="123" text-anchor="middle" font-size="13"> manifest 加载与诊</text>
+  <text x="51740" y="141" text-anchor="middle" font-size="13">断源码片段上下文</text>
+  <rect x="48900" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="49020" y="87" text-anchor="middle" font-size="13">SPEC-0512</text>
+  <text x="49020" y="105" text-anchor="middle" font-size="13">F6 第十二片 WhenEn</text>
+  <text x="49020" y="123" text-anchor="middle" font-size="13">tryBody / Sele</text>
+  <text x="49020" y="141" text-anchor="middle" font-size="13">ctorScanState…</text>
+  <rect x="49164" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="49284" y="87" text-anchor="middle" font-size="13">SPEC-0513</text>
+  <text x="49284" y="105" text-anchor="middle" font-size="13">F6 第十三片 supert</text>
+  <text x="49284" y="123" text-anchor="middle" font-size="13">ypes 委托边界、dein</text>
+  <text x="49284" y="141" text-anchor="middle" font-size="13">it 后缀决策与 Lamb…</text>
+  <rect x="49428" y="64" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="49548" y="87" text-anchor="middle" font-size="13">SPEC-0514</text>
+  <text x="49548" y="105" text-anchor="middle" font-size="13">F6 第十四片 block </text>
+  <text x="49548" y="123" text-anchor="middle" font-size="13">块语句分隔符、换行边界、显式</text>
+  <text x="49548" y="141" text-anchor="middle" font-size="13"> block { 与缺失块…</text>
+  <rect x="49772" y="220" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="49892" y="243" text-anchor="middle" font-size="13" font-weight="600">SPEC-0515</text>
+  <text x="49892" y="261" text-anchor="middle" font-size="13">F6 第十五片 postfi</text>
+  <text x="49892" y="279" text-anchor="middle" font-size="13">x 后缀起始、带类型调用延续</text>
+  <text x="49892" y="297" text-anchor="middle" font-size="13">、实参边界与 callee…</text>
+  <rect x="50036" y="376" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="50156" y="399" text-anchor="middle" font-size="13" font-weight="600">SPEC-0516</text>
+  <text x="50156" y="417" text-anchor="middle" font-size="13">F6 第十六片 file 声</text>
+  <text x="50156" y="435" text-anchor="middle" font-size="13">明修饰符顺序状态机与文件头/</text>
+  <text x="50156" y="453" text-anchor="middle" font-size="13">顶层分隔符双轨证明</text>
+  <rect x="49772" y="532" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="49892" y="555" text-anchor="middle" font-size="13" font-weight="600">SPEC-0517</text>
+  <text x="49892" y="573" text-anchor="middle" font-size="13">F6 第十七片 destru</text>
+  <text x="49892" y="591" text-anchor="middle" font-size="13">cturing 局部解构起始</text>
+  <text x="49892" y="609" text-anchor="middle" font-size="13">、绑定循环防重报状态机与初…</text>
+  <rect x="49772" y="688" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="49892" y="711" text-anchor="middle" font-size="13" font-weight="600">SPEC-0518</text>
+  <text x="49892" y="729" text-anchor="middle" font-size="13">F6 第十八片 type_r</text>
+  <text x="49892" y="747" text-anchor="middle" font-size="13">ef 函数类型起始、扩展接收</text>
+  <text x="49892" y="765" text-anchor="middle" font-size="13">者点号停止、proven_…</text>
 </svg>

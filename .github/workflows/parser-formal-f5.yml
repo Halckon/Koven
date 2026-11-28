@@ -1,0 +1,94 @@
+name: Parser Formal F5 (Surface Syntax Gate)
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'docs/proposals/**'
+      - 'docs/specs/TEMPLATE.md'
+      - 'docs/specs/active/**'
+      - 'scripts/check_syntax_gate.py'
+      - 'scripts/tests/test_check_syntax_gate.py'
+      - '.github/workflows/parser-formal-f5.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'docs/proposals/**'
+      - 'docs/specs/TEMPLATE.md'
+      - 'docs/specs/active/**'
+      - 'scripts/check_syntax_gate.py'
+      - 'scripts/tests/test_check_syntax_gate.py'
+      - '.github/workflows/parser-formal-f5.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  f5-syntax-gate:
+    name: F5 Surface Syntax Gate (Template, Unit Tests & Changed Proposals/Specs)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Verify F5 template integrity and unit tests
+        run: |
+          python3 scripts/check_syntax_gate.py --self-check-template
+          python3 -m unittest discover -s scripts/tests -p 'test_check_syntax_gate.py' -v
+      - name: Check changed proposals and active specs on pull request
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          import subprocess
+          import sys
+
+          base_sha = os.environ["BASE_SHA"]
+          head_sha = os.environ["HEAD_SHA"]
+          merge_base = subprocess.check_output(
+              ["git", "merge-base", base_sha, head_sha],
+              text=True,
+          ).strip()
+          diff_out = subprocess.check_output(
+              [
+                  "git",
+                  "diff",
+                  "-z",
+                  "--name-only",
+                  "--diff-filter=ACMR",
+                  merge_base,
+                  head_sha,
+                  "--",
+                  "docs/proposals/*.md",
+                  "docs/proposals/**/*.md",
+                  "docs/specs/active/*.md",
+              ]
+          )
+          changed_docs = [
+              os.fsdecode(raw) for raw in diff_out.split(b"\0") if raw
+          ]
+          if not changed_docs:
+              print("no changed proposal or active spec Markdown files to check")
+              sys.exit(0)
+          args = []
+          for path in changed_docs:
+              if os.path.isfile(path):
+                  args.extend(["--check-file", path])
+          if args:
+              subprocess.run(
+                  [sys.executable, "scripts/check_syntax_gate.py", *args],
+                  check=True,
+              )
+          PY

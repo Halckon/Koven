@@ -12,6 +12,7 @@ pub struct UnitCallDescriptor {
     pub(super) range_construction:
         Option<crate::type_checking::RangeConstructionDescriptor<UnitExpressionId, UnitTypeId>>,
     pub(super) text_primitive: Option<crate::type_checking::TextPrimitiveKind>,
+    pub(super) display_requirement: bool,
     pub(super) receiver: Option<UnitCallReceiverDescriptor>,
     pub(super) arguments: Vec<UnitCallArgumentDescriptor>,
     pub(super) aborts: bool,
@@ -19,6 +20,12 @@ pub struct UnitCallDescriptor {
 }
 
 impl UnitCallDescriptor {
+    /// Whether the selected callable is the compiler-authorized Display requirement.
+    #[must_use]
+    pub const fn is_display_requirement(&self) -> bool {
+        self.display_requirement
+    }
+
     /// 返回本次成功调用所绑定的可信文本存储操作。
     pub const fn text_primitive(&self) -> Option<crate::type_checking::TextPrimitiveKind> {
         self.text_primitive

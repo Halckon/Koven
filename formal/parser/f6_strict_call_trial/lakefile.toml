@@ -1,0 +1,6 @@
+name = "f6_strict_call_trial"
+version = "0.1.0"
+defaultTargets = ["F6StrictCallTrial"]
+
+[[lean_lib]]
+name = "F6StrictCallTrial"

@@ -149,11 +149,13 @@ struct LayoutCalculator<'a, 'ctx> {
 impl LayoutCalculator<'_, '_> {
     fn layout(&mut self, ty: SsaTypeId) -> Result<RawLayout, LlvmAdapterError> {
         let layout = match self.module.type_kind(ty) {
-            Some(SsaTypeKind::Unit) => {
+            Some(SsaTypeKind::Unit | SsaTypeKind::Uninhabited) => {
                 self.llvm_layout(self.context.struct_type(&[], false).into())
             }
             Some(SsaTypeKind::Boolean) => self.llvm_layout(self.context.bool_type().into()),
             Some(SsaTypeKind::Char) => self.llvm_layout(self.context.i32_type().into()),
+            Some(SsaTypeKind::Float32) => self.llvm_layout(self.context.f32_type().into()),
+            Some(SsaTypeKind::Float64) => self.llvm_layout(self.context.f64_type().into()),
             Some(SsaTypeKind::Integer { bits, .. }) => {
                 let integer = match bits {
                     8 => self.context.i8_type(),
@@ -509,6 +511,8 @@ pub(crate) mod type_map {
                 let ty = match kind {
                     SsaTypeKind::Boolean => Some(context.bool_type().into()),
                     SsaTypeKind::Char => Some(context.i32_type().into()),
+                    SsaTypeKind::Float32 => Some(context.f32_type().into()),
+                    SsaTypeKind::Float64 => Some(context.f64_type().into()),
                     SsaTypeKind::Integer { bits, .. } => Some(integer_type(context, *bits)?.into()),
                     SsaTypeKind::Aggregate { .. } => {
                         let aggregate = context.opaque_struct_type(&format!("koven.t{index}"));
@@ -608,6 +612,7 @@ pub(crate) mod type_map {
                         container_unit_storage.insert(id, context.struct_type(&[], false).into());
                         None
                     }
+                    SsaTypeKind::Uninhabited => Some(context.struct_type(&[], false).into()),
                     SsaTypeKind::Opaque { .. } => None,
                 };
                 if let Some(ty) = ty {

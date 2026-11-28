@@ -11,7 +11,7 @@
 | 领域（仅 v1 范围） | ✅ 已交付 | ◐ 部分 | ▶ 进行中 | ☐ 未开始 | ❓ 待决策 | ⏸ 延后 | 合计 |
 |---|---:|---:|---:|---:|---:|---:|---:|
 | 词法与语法 | 1 | 0 | 0 | 0 | 0 | 0 | 1 |
-| 类型、泛型与声明 | 5 | 1 | 0 | 6 | 0 | 0 | 12 |
+| 类型、泛型与声明 | 5 | 2 | 0 | 5 | 0 | 0 | 12 |
 | 控制流 | 2 | 1 | 1 | 2 | 0 | 0 | 6 |
 | 类、接口与成员 | 2 | 1 | 0 | 0 | 0 | 0 | 3 |
 | 空安全与错误值 | 1 | 1 | 0 | 3 | 0 | 0 | 5 |
@@ -21,7 +21,7 @@
 | 文本与 IO | 2 | 0 | 0 | 4 | 0 | 0 | 6 |
 | 标准库与运行时 | 3 | 1 | 0 | 3 | 0 | 0 | 7 |
 | 编译器结构 | 4 | 0 | 3 | 0 | 0 | 0 | 7 |
-| 工具链 | 1 | 0 | 3 | 0 | 0 | 0 | 4 |
+| 工具链 | 2 | 0 | 2 | 0 | 0 | 0 | 4 |
 | 安全验证 | 1 | 1 | 0 | 1 | 0 | 0 | 3 |
 | 验收、发布与文档 | 5 | 3 | 0 | 2 | 0 | 0 | 10 |
 
@@ -38,7 +38,7 @@
 | ✅ 已交付 | B03 | 名称与类型事实：单文件与 compilation-unit、package/import、名义/泛型/interface、单态化 | S0 已交付基线 | v1 必做 | 已定义 | 2 | [0197](../archive/specs/0197-multifile-type-checking.md) [0247](../archive/specs/0247-multifile-baseline.md) [names-and-types](../architecture/names-and-types.md) |
 | ✅ 已交付 | B06 | const val 封闭求值、数值字面量（radix/下划线）与整数具名位运算 | S0 已交付基线 | v1 必做 | 已定义 | 2,3,4 | [0226](../archive/specs/0226-unit-constant-materialization-ownership.md) [0227](../archive/specs/0227-unit-constant-native-lowering.md) [0229](../archive/specs/0229-extended-numeric-literal-values.md) [0240](../archive/specs/0240-integer-bitwise-execution.md) |
 | ✅ 已交付 | L10 | 顶层声明收窄：只允许 const val；顶层运行时 val/var 结构化拒绝（D4） | P0 止血 | v1 必做 | 需新增 | 2 | [0343](../archive/specs/0343-top-level-const-only.md) [global-and-static-state](../proposals/global-and-static-state.md) |
-| ☐ 未开始 | N05 | Double/Float 运算与 Char 比较的 native 支持 | P2 补齐现有 Guide 能力 | v1 必做 | 已定义 | 4 | — |
+| ◐ 部分 | N05 | Double/Float 运算与 Char 比较的 native 支持 | P2 补齐现有 Guide 能力 | v1 必做 | 已定义 | 4 | [0392](../specs/active/0392-compiler-layered-review.md) |
 | ☐ 未开始 | L1 | 值语义协议 Equatable/Hashable/Display（Comparable 只给内建数值、Char、String）；value class/enum 自动推导相等与哈希；Map 键 K : Equatable + Hashable（D1） | P3 语言增量 | v1 必做 | 已定义 | 2,4,5 | [v1-freeze-decisions](../proposals/v1-freeze-decisions.md) |
 | ✅ 已交付 | L3 | 八种整数之间的 checked 转换（越界 Abort） | P3 语言增量 | v1 必做 | 已定义 | 2,3,4 | [0327](../archive/specs/0327-checked-integer-conversions.md) |
 | ☐ 未开始 | L3b | 转换族其余部分：OrNull 变体、浮点↔整数 checked、Char 码点 | P3 语言增量 | v1 必做 | 需新增 | 2,4 | — |
@@ -65,7 +65,7 @@
 
 | 状态 | ID | 内容 | 阶段 | 优先级 | Guide | Phase | Spec / 依据 |
 |---|---|---|---|---|---|---|---|
-| ◐ 部分 | N06 | interface bound 泛型调用、companion 函数调用、interface 实现与默认方法（单文件） | P2 补齐现有 Guide 能力 | v1 必做 | 已定义 | 2,3,4 | [0323](../archive/specs/0323-final-admission-static-recovery.md) |
+| ◐ 部分 | N06 | interface bound 泛型调用、companion 函数调用、interface 实现与默认方法（单文件） | P2 补齐现有 Guide 能力 | v1 必做 | 已定义 | 2,3,4 | [0323](../archive/specs/0323-final-admission-static-recovery.md) [0392](../specs/active/0392-compiler-layered-review.md) |
 | ✅ 已交付 | N10 | 单文件独有缺口：普通 class 方法、泛型 value class 方法、class inout 方法、if 作值 | P2 补齐现有 Guide 能力 | v1 必做 | 已定义 | 4 | [0316](../archive/specs/0316-single-readonly-value-methods.md) |
 | ✅ 已交付 | L19 | companion 语法改为 `companion { }`，语义不变（不产生对象）（D13） | P3 语言增量 | v1 必做 | 需新增 | 1,2 | [0342](../archive/specs/0342-companion-block-syntax.md) |
 | ⏸ 延后 | X07 | dyn/interface 值、匿名对象 | X v1 之外 | v2 | 需新增 | 2,3,4 | [v2-interface-values-and-dynamic-dispatch](../proposals/v2-interface-values-and-dynamic-dispatch.md) |
@@ -161,7 +161,7 @@
 | 状态 | ID | 内容 | 阶段 | 优先级 | Guide | Phase | Spec / 依据 |
 |---|---|---|---|---|---|---|---|
 | ✅ 已交付 | B18 | kovenc build/run、本地 project、JSON Lines 诊断、LSP、formatter、TextMate 与 Tree-sitter | S0 已交付基线 | v1 必做 | 已定义 | 6 | [0187](../archive/specs/0187-multifile-lsp-diagnostics-definition.md) [0251](../archive/specs/0251-lsp-unit-name-snapshot.md) [0267](../archive/specs/0267-editor-corpus-gate.md) [tooling](../architecture/tooling.md) |
-| ▶ 进行中 | B18d | CLI 最终调试产物与双宿主源码断点 | P0 止血 | v1 必做 | 已定义 | 4,6 | [0369](../specs/active/0369-final-debug-artifacts.md) |
+| ✅ 已交付 | B18d | CLI 最终调试产物与双宿主源码断点 | P0 止血 | v1 必做 | 已定义 | 4,6 | [0369](../archive/specs/0369-final-debug-artifacts.md) |
 | ▶ 进行中 | CI390 | 预置 Linux CI 工具链镜像与分阶段切换 | P0 止血 | v1 必做 | — | 0 | [0390](../specs/active/0390-prebuilt-ci-toolchain.md) |
 | ▶ 进行中 | TEST391 | Codegen 测试诊断落盘与有界失败摘要 | P0 止血 | v1 必做 | — | 0 | [0391](../specs/active/0391-codegen-test-diagnostics.md) |
 
@@ -170,7 +170,7 @@
 | 状态 | ID | 内容 | 阶段 | 优先级 | Guide | Phase | Spec / 依据 |
 |---|---|---|---|---|---|---|---|
 | ✅ 已交付 | B20 | Linux ASan/LSan 有界接线与资源程序随机生成首片（M4b） | S0 已交付基线 | v1 必做 | — | 4 | [0266](../archive/specs/0266-native-sanitizer-wiring.md) [0269](../archive/specs/0269-generated-resource-programs.md) |
-| ◐ 部分 | V3 | Linux ASan/LSan 覆盖整个矩阵与六个验收程序 | P5 验收与发布 | v1 必做 | — | 4 | [0266](../archive/specs/0266-native-sanitizer-wiring.md) |
+| ◐ 部分 | V3 | Linux ASan/LSan 覆盖整个矩阵与十个 V1 验收程序 | P5 验收与发布 | v1 必做 | — | 4 | [0266](../archive/specs/0266-native-sanitizer-wiring.md) |
 | ☐ 未开始 | V4 | M4b 随机生成扩展到 E3 之后的通用 lowering | P5 验收与发布 | v1 建议 | — | 4 | [0269](../archive/specs/0269-generated-resource-programs.md) [native-safety-validation](../proposals/native-safety-validation.md) |
 | ⏸ 延后 | X02 | macOS 动态检测、UBSan、外部审计（M4 其余） | X v1 之外 | v1.x | — | 4 | — |
 
@@ -184,7 +184,7 @@
 | ✅ 已交付 | V0 | 154 个 probe 与六个验收程序源码入库，作为 conformance 种子与切换门槛的固定集合 | P0 止血 | v1 必做 | — | 6 | [0354](../archive/specs/0354-conformance-corpus.md) |
 | ✅ 已交付 | G46 | Guide v0.46 决策批：E4、D1、D2、D4、D7、D9、D12–D15、L14 与错误模型 | P0 止血 | v1 必做 | 需新增 | — | [v0.46-language-decisions](../proposals/v0.46-language-decisions.md) |
 | ☐ 未开始 | L14 | 把 v1 不做的内容移出 Guide：unsafe/extern/RawPtr、线程/channel 预声明 API（D6） | P3 语言增量 | v1 必做 | 需新增 | — | — |
-| ☐ 未开始 | V1 | 六个验收程序（词频、配置解析、表达式求值、RAII 状态机、二进制编解码、链表/栈）双宿主运行正确且 ASan/LSan 干净 | P5 验收与发布 | v1 必做 | — | 6 | — |
+| ☐ 未开始 | V1 | 十个 V1 验收程序（词频、配置解析、表达式求值、RAII 状态机、二进制编解码、链表/栈、文本日志汇总、泛型查询管道、共享 DAG 析构、受限并发管道）双宿主运行正确且 ASan/LSan 干净 | P5 验收与发布 | v1 必做 | — | 6 | — |
 | ◐ 部分 | V2 | Conformance 矩阵：按 Guide 每章正反例，合法 100% 运行、非法 100% 前端诊断、0 ICE | P5 验收与发布 | v1 必做 | — | 2,3,4 | [v1-freeze-decisions](../proposals/v1-freeze-decisions.md) |
 | ◐ 部分 | V5 | README、教程、Architecture 按实测能力重写；Guide 不含“当前实现到哪一步”的句子 | P5 验收与发布 | v1 必做 | — | — | — |
 | ◐ 部分 | V6 | v1.0 发行：双宿主安装包、使用材料与已知限制 | P5 验收与发布 | v1 必做 | — | 6 | [0272](../archive/specs/0272-preview-candidate-package.md) [measurement-distribution](../proposals/measurement-distribution.md) [v1-freeze-decisions](../proposals/v1-freeze-decisions.md) |

@@ -17,6 +17,7 @@ from conformance_catalogs import (
     GUIDE_SYNTAX_INDEX_DOMAINS,
     MAIN_ENTRY_RE,
     PACKAGE_DIRECTIVE_RE,
+    POST_BASELINE_PROBES,
     PROBE_BATCH_CATALOG,
     PROBE_GUIDE_CHAPTERS,
     PROGRAM_ALLOWED_MARKERS,
@@ -182,13 +183,15 @@ GUIDE_VERSION_BOUNDARY_CATALOG: dict[str, dict[str, Any]] = {
         ],
     },
     "v0.47": {
-        "summary": "Guide 13 文本字节基础、可信标准 String Borrow 扩展与 Result<String, String> 载荷 when 闭环 (SPEC-0368)",
+        "summary": "Guide 13 文本字节基础、可信标准 String Borrow 扩展、同步 IO 表面与 Result<String, String> 载荷 when 闭环 (SPEC-0368)",
         "probes": [
             "p16b_result_string",
             "p31_string_ops",
             "p46_string_field_class",
             "q10_var_reassign_string",
             "x02_string_nullable_return",
+            "z06_text_lines_split",
+            "z07_io_path_join",
         ],
     },
 }
@@ -572,6 +575,11 @@ def verify_static_catalog_invariants(expectations: dict[str, Any]) -> None:
     ):
         if set(catalog.keys()) != prog_keys:
             raise ValueError(f"{label} keys do not match programs inventory")
+    for name, markers in PROGRAM_ALLOWED_MARKERS.items():
+        spec = programs[name]
+        kind = "known_unimplemented" if markers else "run_ok"
+        if spec["kind"] != kind or spec.get("allowed_markers", []) != markers:
+            raise ValueError(f"programs.{name} expectation drifted from PROGRAM_ALLOWED_MARKERS")
     if list(GUIDE_LITMUS_CATALOG.keys()) != list(range(1, 13)):
         raise ValueError("GUIDE_LITMUS_CATALOG must define Litmus 1..12 in order")
     for lit_id, lit_spec in GUIDE_LITMUS_CATALOG.items():
@@ -670,7 +678,9 @@ def verify_static_catalog_invariants(expectations: dict[str, Any]) -> None:
 
 
 def parse_tsv_matrix(
-    text: str, expected_names: set[str] | None = None
+    text: str,
+    expected_names: set[str] | None = None,
+    optional_names: set[str] | None = None,
 ) -> dict[str, tuple[str, str]]:
     """Parse a 3-column TSV matrix and reject duplicate, malformed, or missing probe rows."""
     rows: dict[str, tuple[str, str]] = {}
@@ -689,7 +699,8 @@ def parse_tsv_matrix(
 
     if expected_names is not None:
         missing = sorted(expected_names - set(rows.keys()))
-        extra = sorted(set(rows.keys()) - expected_names)
+        allowed = expected_names | (optional_names or set())
+        extra = sorted(set(rows.keys()) - allowed)
         if missing:
             raise ValueError(f"missing probe rows in matrix: {missing}")
         if extra:
@@ -713,11 +724,6 @@ def derive_static_expectations(
         name = path.stem
         # 命名违规与 baseline 缺项都要给出可读诊断，不能落到 baseline[name] 的 KeyError
         classify_probe_batch(name)
-        if name not in baseline:
-            raise ValueError(
-                f"probes.{name} is missing from baseline matrix {baseline_path.name}; "
-                f"add a baseline row for the probe or rename the source file"
-            )
         raw_bytes = path.read_bytes()
         if not raw_bytes or not raw_bytes.endswith(b"\n") or b"\r" in raw_bytes:
             raise ValueError(
@@ -726,6 +732,41 @@ def derive_static_expectations(
         src_text = raw_bytes.decode("utf-8")
         probe_src_metrics[name] = (len(src_text.splitlines()), len(raw_bytes))
         src_sha = sha256_bytes(raw_bytes)
+        if name in POST_BASELINE_PROBES:
+            if name in V046_PROBE_OVERRIDES:
+                pb_entry = dict(V046_PROBE_OVERRIDES[name])
+                pb_entry["guide_chapter"] = POST_BASELINE_PROBES[name]["guide_chapter"]
+                pb_entry["oracle_origin"] = "v046_spec_contract"
+                spec_refs = list(
+                    dict.fromkeys(re.findall(r"SPEC-[0-9]{4}", pb_entry.get("note", "")))
+                )
+                if spec_refs:
+                    pb_entry["spec_refs"] = spec_refs
+                if pb_entry.get("kind") == "known_unimplemented":
+                    pb_entry["roadmap_blockers"] = list(
+                        UNIMPLEMENTED_ROADMAP_BLOCKERS.get(name, ["N02"])
+                    )
+                if name in SEMANTIC_ORACLE_DERIVATIONS:
+                    pb_entry["oracle_derivation"] = SEMANTIC_ORACLE_DERIVATIONS[name]
+            else:
+                pb_entry = dict(POST_BASELINE_PROBES[name])
+                pb_entry["oracle_origin"] = "post_baseline_audited"
+            pb_entry["source_sha256"] = src_sha
+            pb_entry["baseline_marker"] = "POST_BASELINE"
+            if (
+                pb_entry.get("kind") == "compile_fail"
+                and pb_entry.get("diagnostic") in DIAGNOSTIC_SYMBOL_CATALOG
+            ):
+                pb_entry["diagnostic_symbol"] = DIAGNOSTIC_SYMBOL_CATALOG[
+                    pb_entry["diagnostic"]
+                ]
+            probes_out[name] = pb_entry
+            continue
+        if name not in baseline:
+            raise ValueError(
+                f"probes.{name} is missing from baseline matrix {baseline_path.name}; "
+                f"add a baseline row for the probe or rename the source file"
+            )
         base_single, base_project = baseline[name]
         if base_single != base_project:
             raise ValueError(
@@ -890,12 +931,12 @@ def derive_static_expectations(
         exp_bytes = expected_txt.read_bytes()
         exp_text = exp_bytes.decode("utf-8")
         program_markers = PROGRAM_ALLOWED_MARKERS.get(prog_dir.name)
-        if not program_markers:
+        if program_markers is None:
             raise ValueError(
                 f"programs.{prog_dir.name} is missing a PROGRAM_ALLOWED_MARKERS entry"
             )
         prog_entry: dict[str, Any] = {
-            "kind": "known_unimplemented",
+            "kind": "known_unimplemented" if program_markers else "run_ok",
             "source_sha256": sha256_bytes(main_bytes),
             "source_lines": len(main_text.splitlines()),
             "source_bytes": len(main_bytes),
@@ -906,10 +947,11 @@ def derive_static_expectations(
             "expected_sha256": sha256_bytes(exp_bytes),
             "expected_lines": len(exp_text.splitlines()),
             "expected_bytes": len(exp_bytes),
-            "allowed_markers": list(program_markers),
             "oracle_origin": "expected_txt_file",
-            "roadmap_blockers": list(PROGRAM_ROADMAP_BLOCKERS.get(prog_dir.name, ["N02"])),
         }
+        if program_markers:
+            prog_entry["allowed_markers"] = list(program_markers)
+            prog_entry["roadmap_blockers"] = list(PROGRAM_ROADMAP_BLOCKERS[prog_dir.name])
         if prog_dir.name in PROGRAM_ORACLE_DERIVATIONS:
             prog_entry["oracle_derivation"] = PROGRAM_ORACLE_DERIVATIONS[prog_dir.name]
         programs_out[prog_dir.name] = prog_entry

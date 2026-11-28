@@ -577,12 +577,12 @@ class Checker:
     sub_stmt_liveness = True  # 语句级之下的活性精度；置为 False 仅用于对照
 
     def __init__(self, classes, funs, sigs, early_drop=False, frames_movable=False,
-                 local_borrow_ref_policy="undecided"):
+                 local_borrow_ref_policy="forbid"):
         if local_borrow_ref_policy not in ("undecided", "forbid", "second_order"):
             raise ValueError(f"未知的 local_borrow_ref_policy: {local_borrow_ref_policy}")
         self.classes, self.funs, self.sigs = classes, funs, sigs
         self.frames_movable = frames_movable  # 对照用：假设开始执行后的帧仍可移动
-        self.local_borrow_ref_policy = local_borrow_ref_policy  # 对照用：局部借用变量显式取址策略
+        self.local_borrow_ref_policy = local_borrow_ref_policy  # OD1 A1 默认 forbid（1A-ext）；undecided/second_order 仅作对照
         self.frames = {}  # (函数名, 行号) -> (跨这个挂起点留在帧里的变量, 其中被帧内借用指向的变量)
         self.errors = set()
         self.early_drop = early_drop  # 析构不可观察的局部值在不再需要时提前析构（统一析构规则的“许可”）
@@ -2412,13 +2412,13 @@ class Checker:
 
 
 def check(text, early_drop=False, drops=None, frames_movable=False, frames=None, lowered=None, dispatches=None,
-          local_borrow_ref_policy="undecided"):
+          local_borrow_ref_policy="forbid"):
     """检查一段演算程序，返回按行排序的 (规则, 行号, 说明)。空列表表示接受。
 
     early_drop 打开提前析构；drops 若给出，收到各处提前析构的 (函数名, 变量名, 行号)。
     lowered 若给出，收到各函数的 (类型表, 带显式析构的程序, 是否被接受)，可交给 DP.Verifier。
     dispatches 若给出，收到存在类型进入泛型时的分流记录 ("open" | "mono", 实参类型名)。
-    local_borrow_ref_policy 用于 §84 局部借用变量显式取址策略对照："undecided" | "forbid" | "second_order"。
+    local_borrow_ref_policy 默认 "forbid"（OD1 A1 / 1A-ext 收口）；"undecided" 与 "second_order" 保留作 §84 对照。
     """
     classes, funs, sigs = parse(text)
     checker = Checker(classes, funs, sigs, early_drop, frames_movable, local_borrow_ref_policy)

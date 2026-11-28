@@ -76,9 +76,9 @@ fn write() -> Mark {
     }
 }
 
-struct Case {
+struct Case<'a> {
     name: &'static str,
-    text: &'static str,
+    text: &'a str,
     marks: Vec<Mark>,
     // 非法 Int 消费必须只在此 marker 的真实读取 Span 上报 L0084。
     rejected: Option<&'static str>,
@@ -162,7 +162,7 @@ fn marker_range(text: &str, mark: &Mark) -> Option<(usize, usize)> {
 }
 
 fn observe_marks(
-    case: &Case,
+    case: &Case<'_>,
     sources: &SourceMap,
     file: &ParsedFile,
     shape: impl Fn(ExpressionId) -> Option<Shape>,
@@ -210,12 +210,12 @@ fn primary_text(sources: &SourceMap, diagnostics: &[Diagnostic]) -> Vec<String> 
 }
 
 // 此处不作成功断言。基础设施错误也作为 observation 返回，避免第一例失败遮住后续证据。
-fn observe(case: &Case, mode: SourceMode) -> Result<Observation, String> {
+fn observe(case: &Case<'_>, mode: SourceMode) -> Result<Observation, String> {
     observe_with_comparisons(case, mode, false)
 }
 
 fn observe_with_comparisons(
-    case: &Case,
+    case: &Case<'_>,
     mode: SourceMode,
     collect_comparisons: bool,
 ) -> Result<Observation, String> {
@@ -285,7 +285,7 @@ fn observe_with_comparisons(
     })
 }
 
-fn assert_cases(cases: &[Case]) {
+fn assert_cases(cases: &[Case<'_>]) {
     let observations = cases
         .iter()
         .flat_map(|case| {

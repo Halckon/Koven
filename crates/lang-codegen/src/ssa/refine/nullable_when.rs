@@ -152,7 +152,9 @@ pub(super) fn source<'i, 'a>(
         .concrete(descriptor.inner_type())
         .is_some_and(|inner| {
             matches!(inputs.typed.types().get(inner), Some(UnitTypeKind::Builtin(builtin))
-            if *builtin == BuiltinType::Boolean || super::subset::integer(*builtin))
+            if *builtin == BuiltinType::Boolean
+                || super::subset::integer(*builtin)
+                || crate::ssa::lowering_support::is_float_builtin(*builtin))
         });
     let mut operands = Vec::new();
     let mut current = descriptor.subject();

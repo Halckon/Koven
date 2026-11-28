@@ -78,26 +78,43 @@ pub(crate) enum ExternalBinding {
     Functions(Vec<ExternalSymbolId>),
 }
 
-/// 显式传给名称解析器的不可变预声明集合。
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct NameEnvironment {
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct ExternalDeclarations {
     owner: Arc<()>,
-    symbols: Vec<ExternalSymbol>,
+    symbols: Arc<Vec<ExternalSymbol>>,
+}
+
+impl ExternalDeclarations {
+    pub(crate) fn owner(&self) -> &Arc<()> {
+        &self.owner
+    }
+
+    pub(crate) fn symbol(&self, id: ExternalSymbolId) -> Option<&ExternalSymbol> {
+        self.symbols.get(id.index())
+    }
+
+    pub(crate) fn has_compatible_ids(&self, other: &Self) -> bool {
+        if !Arc::ptr_eq(&self.owner, &other.owner) {
+            return false;
+        }
+        if Arc::ptr_eq(&self.symbols, &other.symbols) {
+            return true;
+        }
+        // An append on either side is safe while every shared ID still denotes
+        // the same declaration.
+        let shared = self.symbols.len().min(other.symbols.len());
+        self.symbols[..shared] == other.symbols[..shared]
+    }
+}
+
+/// 显式传给名称解析器的不可变预声明集合。
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct NameEnvironment {
+    declarations: ExternalDeclarations,
     types: BTreeMap<String, ExternalBinding>,
     values: BTreeMap<String, ExternalBinding>,
     builtin_source: Option<SourceId>,
-}
-
-impl Default for NameEnvironment {
-    fn default() -> Self {
-        Self {
-            owner: Arc::new(()),
-            symbols: Vec::new(),
-            types: BTreeMap::new(),
-            values: BTreeMap::new(),
-            builtin_source: None,
-        }
-    }
+    display_source: Option<SourceId>,
 }
 
 /// 外部环境声明冲突。
@@ -149,17 +166,17 @@ impl NameEnvironment {
     /// 返回按声明顺序排列的外部 symbol。
     #[must_use]
     pub fn symbols(&self) -> &[ExternalSymbol] {
-        &self.symbols
+        &self.declarations.symbols
     }
 
     /// 按环境内身份读取外部 symbol。
     #[must_use]
     pub fn symbol(&self, id: ExternalSymbolId) -> Option<&ExternalSymbol> {
-        self.symbols.get(id.index())
+        self.declarations.symbol(id)
     }
 
-    pub(crate) fn owner(&self) -> Arc<()> {
-        Arc::clone(&self.owner)
+    pub(crate) fn declarations(&self) -> &ExternalDeclarations {
+        &self.declarations
     }
 
     /// 授权宿主加载的标准来源提供内建环境 `Result`/`Ok`/`Err`（Guide 02）。
@@ -178,6 +195,21 @@ impl NameEnvironment {
     #[must_use]
     pub const fn builtin_source(&self) -> Option<SourceId> {
         self.builtin_source
+    }
+
+    /// Authorizes the standard source providing the predeclared Display interface.
+    pub(crate) fn authorize_display_source(
+        &mut self,
+        sources: &SourceMap,
+        source: SourceId,
+    ) -> Result<(), SourceError> {
+        sources.source_text(source)?;
+        self.display_source = Some(source);
+        Ok(())
+    }
+
+    pub(super) const fn display_source(&self) -> Option<SourceId> {
+        self.display_source
     }
 
     fn declare(
@@ -199,15 +231,17 @@ impl NameEnvironment {
             if kind == ExternalSymbolKind::Function
                 && let ExternalBinding::Functions(ids) = existing
             {
-                let id = ExternalSymbolId(self.symbols.len());
-                self.symbols.push(ExternalSymbol { id, name, kind });
+                let symbols = Arc::make_mut(&mut self.declarations.symbols);
+                let id = ExternalSymbolId(symbols.len());
+                symbols.push(ExternalSymbol { id, name, kind });
                 ids.push(id);
                 return Ok(id);
             }
             return Err(NameEnvironmentError { name, namespace });
         }
-        let id = ExternalSymbolId(self.symbols.len());
-        self.symbols.push(ExternalSymbol {
+        let symbols = Arc::make_mut(&mut self.declarations.symbols);
+        let id = ExternalSymbolId(symbols.len());
+        symbols.push(ExternalSymbol {
             id,
             name: name.clone(),
             kind,
@@ -553,7 +587,7 @@ impl NameReference {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NameResolution {
     source_id: SourceId,
-    environment_owner: Arc<()>,
+    external_declarations: ExternalDeclarations,
     analysis_owner: Arc<()>,
     scopes: Vec<Scope>,
     symbols: Vec<Symbol>,
@@ -566,7 +600,7 @@ pub struct NameResolution {
 impl NameResolution {
     pub(crate) fn new(
         source_id: SourceId,
-        environment_owner: Arc<()>,
+        external_declarations: ExternalDeclarations,
         scopes: Vec<Scope>,
         symbols: Vec<Symbol>,
         enum_cases: Vec<EnumCase>,
@@ -575,7 +609,7 @@ impl NameResolution {
     ) -> Self {
         Self {
             source_id,
-            environment_owner,
+            external_declarations,
             analysis_owner: Arc::new(()),
             scopes,
             symbols,
@@ -647,7 +681,11 @@ impl NameResolution {
     }
 
     pub(crate) fn environment_owner(&self) -> &Arc<()> {
-        &self.environment_owner
+        self.external_declarations.owner()
+    }
+
+    pub(crate) fn external_declarations(&self) -> &ExternalDeclarations {
+        &self.external_declarations
     }
 
     pub(crate) fn analysis_owner(&self) -> &Arc<()> {

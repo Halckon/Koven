@@ -29,6 +29,7 @@ impl Drop for Directory {
 }
 #[test]
 fn real_project_keeps_standard_facts_outside_the_split_envelope() {
+    const PROJECT_SOURCE_COUNT: usize = 6;
     for body in [
         "val parentOld = replace(&a, \"parent\"); var inner = childCount; while(inner > 0) { val old = replace(&a, \"next\"); inner -= 1 }; outer -= 1",
         "var inner = childCount; while(inner > 0) { val old = replace(&a, \"next\"); inner -= 1 }; val parentOld = replace(&a, \"parent\"); outer -= 1",
@@ -46,7 +47,7 @@ fn real_project_keeps_standard_facts_outside_the_split_envelope() {
         let (snapshot, types) =
             crate::project_build::prepare_project_unit(&manifest, &[&object]).unwrap();
         let inputs = snapshot.inputs();
-        assert_eq!(inputs.len(), 5);
+        assert_eq!(inputs.len(), PROJECT_SOURCE_COUNT);
         let checked = check_unit_frontend(&snapshot, &types).unwrap();
         let CheckedProducts::Basic { typed, owned } = &checked.products else {
             panic!("record real admission mode; no const coercion")
@@ -214,7 +215,7 @@ fn real_project_keeps_standard_facts_outside_the_split_envelope() {
             // production authorization inferred from a path/name or a per-callable ledger.
             let expected = match source.key().logical_path().unwrap().as_str() {
                 "koven/algorithms/ranges.ko" => (12, 42, 36, 0, 24),
-                "koven/core/result.ko" => (1, 0, 0, 0, 0),
+                "koven/core/result.ko" | "koven/core/display.ko" => (1, 0, 0, 0, 0),
                 "koven/text/text.ko" => (8, 23, 23, 1, 13),
                 "app/a.ko" => (1, 4, 6, 4, 2),
                 "app/z.ko" => (1, 2, 2, 0, 0),
@@ -257,7 +258,7 @@ fn real_project_keeps_standard_facts_outside_the_split_envelope() {
         emission.unwrap();
         assert_eq!(audits.len(), 1, "one original lowering, no second planner");
         let audit = &audits[0];
-        assert_eq!(audit.source_count, 5);
+        assert_eq!(audit.source_count, PROJECT_SOURCE_COUNT);
         assert!(audit.unsupported.is_empty(), "{audit:?}");
         assert_eq!(
             audit.sources,
@@ -351,7 +352,7 @@ fn real_project_keeps_standard_facts_outside_the_split_envelope() {
         );
         assert_eq!(
             unit.inputs().len(),
-            5,
+            PROJECT_SOURCE_COUNT,
             "object emission never crops the source view"
         );
         // A separate analysis is only a scope-refusal observation; never combine its facts or
