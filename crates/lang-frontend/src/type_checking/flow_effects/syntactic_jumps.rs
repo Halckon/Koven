@@ -188,30 +188,21 @@ impl<'a, 'b> SyntacticJumps<'a, 'b> {
                 }
                 Expression::Call {
                     callee, arguments, ..
-                } => {
-                    let receiver = match ast.expressions().get(*callee)?.payload() {
-                        Expression::Name | Expression::SuperMember { .. } => None,
-                        Expression::Member {
-                            receiver,
-                            safe: false,
-                            ..
-                        } => Some(*receiver),
-                        // Only receiver evaluation is unconditional for a safe call.
-                        Expression::Member {
-                            receiver,
-                            safe: true,
-                            ..
-                        } => return Ok(Rule::Sequence(vec![Node::Expression(*receiver)])),
-                        _ => return Ok(Rule::Known(false)),
-                    };
-                    Rule::Sequence(
-                        receiver
-                            .into_iter()
+                } => match ast.expressions().get(*callee)?.payload() {
+                    // Only receiver evaluation is unconditional for a safe call.
+                    Expression::Member {
+                        receiver,
+                        safe: true,
+                        ..
+                    } => Rule::Sequence(vec![Node::Expression(*receiver)]),
+                    // Every other call evaluates its callee expression and then all arguments.
+                    _ => Rule::Sequence(
+                        std::iter::once(*callee)
                             .chain(arguments.iter().map(|arg| arg.value))
                             .map(Node::Expression)
                             .collect(),
-                    )
-                }
+                    ),
+                },
                 Expression::If {
                     condition,
                     then_branch,
@@ -289,6 +280,64 @@ mod tests {
                 jumps.expression_stops(call).unwrap(),
                 stops,
                 "{source_text}"
+            );
+        }
+    }
+
+    #[test]
+    fn parenthesized_function_value_call_matches_direct_call_in_while_condition() {
+        use crate::{
+            name_resolution::resolve_names,
+            type_checking::{check_types, standard_environments},
+        };
+
+        let bare = "\
+fun run(cond: (Int, Int) -> Boolean, seed: Int?): Int {
+    var x: Int? = seed
+    if (x == null) { return 0 }
+    loop {
+        while (cond(x, break)) {
+            x = null
+        }
+        return x
+    }
+    return x
+}
+";
+        let parenthesized = "\
+fun run(cond: (Int, Int) -> Boolean, seed: Int?): Int {
+    var x: Int? = seed
+    if (x == null) { return 0 }
+    loop {
+        while ((cond)(x, break)) {
+            x = null
+        }
+        return x
+    }
+    return x
+}
+";
+        for (name, text) in [("bare.ko", bare), ("parenthesized.ko", parenthesized)] {
+            let mut sources = SourceMap::new();
+            let source = sources.add_source(name, text).unwrap();
+            let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
+            assert!(
+                parsed.diagnostics().is_empty(),
+                "{name}: {:?}",
+                parsed.diagnostics()
+            );
+            let (name_env, type_env) = standard_environments();
+            let names = resolve_names(&sources, &parsed, &name_env).unwrap();
+            assert!(
+                names.diagnostics().is_empty(),
+                "{name}: {:?}",
+                names.diagnostics()
+            );
+            let typed = check_types(&sources, &parsed, &names, &type_env).unwrap();
+            assert!(
+                typed.diagnostics().is_empty(),
+                "{name} should preserve non-null narrowing across unreachable while body: {:?}",
+                typed.diagnostics()
             );
         }
     }
