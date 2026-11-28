@@ -1,18 +1,23 @@
-//! IDE 语义请求分发：references、hover、inlayHint、prepareRename 与 rename。
+//! IDE 语义请求分发：references、hover、inlayHint、completion、signatureHelp、symbols 与 rename。
+
+use std::collections::BTreeMap;
 
 use lsp_types::{
-    Hover, HoverParams, InlayHint, InlayHintParams, Location, PrepareRenameResponse,
-    ReferenceParams, RenameParams, TextDocumentPositionParams, Uri, WorkspaceEdit,
+    CompletionParams, CompletionResponse, DocumentSymbolParams, DocumentSymbolResponse, Hover,
+    HoverParams, InlayHint, InlayHintParams, Location, PrepareRenameResponse, ReferenceParams,
+    RenameParams, SignatureHelp, SignatureHelpParams, TextDocumentPositionParams, Uri,
+    WorkspaceEdit, WorkspaceSymbolParams, WorkspaceSymbolResponse,
 };
 
 use super::{OpenDocument, RequestError, SessionState, map_position_error, map_unit_query_error};
 use crate::{
-    ide_features,
+    completion, ide_features,
     position_adapter::{byte_offset, span_range},
     rename::{
         RenameError, RenameSourceInput, build_workspace_edit, is_valid_rename_identifier,
         verify_rename_preserves_bindings,
     },
+    symbols,
 };
 
 fn single_document_source_unit(
@@ -347,4 +352,181 @@ pub(super) fn rename_response(
             )
         }
     }
+}
+
+pub(super) fn completion_response(
+    params: serde_json::Value,
+    state: &SessionState,
+) -> Result<Option<CompletionResponse>, RequestError> {
+    let params: CompletionParams = serde_json::from_value(params)
+        .map_err(|error| RequestError::InvalidParams(error.to_string()))?;
+    let pos = params.text_document_position;
+    let items = match state {
+        SessionState::Unit { session, fallback } => {
+            if session.contains_uri(&pos.text_document.uri) {
+                session
+                    .completions(&pos.text_document.uri, pos.position)
+                    .map_err(map_unit_query_error)?
+            } else if let Some(document) = fallback.get(pos.text_document.uri.as_str()) {
+                let Some((source_unit, offset)) = single_document_offset(document, pos.position)?
+                else {
+                    return Ok(None);
+                };
+                completion::completions_at(
+                    &document.analysis,
+                    source_unit,
+                    document.source_id,
+                    offset,
+                )
+            } else {
+                return Ok(None);
+            }
+        }
+        SessionState::SingleDocument(documents) => {
+            let Some(document) = documents.get(pos.text_document.uri.as_str()) else {
+                return Ok(None);
+            };
+            let Some((source_unit, offset)) = single_document_offset(document, pos.position)?
+            else {
+                return Ok(None);
+            };
+            completion::completions_at(&document.analysis, source_unit, document.source_id, offset)
+        }
+    };
+    Ok(Some(CompletionResponse::Array(items)))
+}
+
+pub(super) fn signature_help_response(
+    params: serde_json::Value,
+    state: &SessionState,
+) -> Result<Option<SignatureHelp>, RequestError> {
+    let params: SignatureHelpParams = serde_json::from_value(params)
+        .map_err(|error| RequestError::InvalidParams(error.to_string()))?;
+    let pos = params.text_document_position_params;
+    match state {
+        SessionState::Unit { session, fallback } => {
+            if session.contains_uri(&pos.text_document.uri) {
+                session
+                    .signature_help(&pos.text_document.uri, pos.position)
+                    .map_err(map_unit_query_error)
+            } else if let Some(document) = fallback.get(pos.text_document.uri.as_str()) {
+                let Some((source_unit, offset)) = single_document_offset(document, pos.position)?
+                else {
+                    return Ok(None);
+                };
+                Ok(completion::signature_help_at(
+                    &document.analysis,
+                    source_unit,
+                    document.source_id,
+                    offset,
+                ))
+            } else {
+                Ok(None)
+            }
+        }
+        SessionState::SingleDocument(documents) => {
+            let Some(document) = documents.get(pos.text_document.uri.as_str()) else {
+                return Ok(None);
+            };
+            let Some((source_unit, offset)) = single_document_offset(document, pos.position)?
+            else {
+                return Ok(None);
+            };
+            Ok(completion::signature_help_at(
+                &document.analysis,
+                source_unit,
+                document.source_id,
+                offset,
+            ))
+        }
+    }
+}
+
+pub(super) fn document_symbol_response(
+    params: serde_json::Value,
+    state: &SessionState,
+) -> Result<Option<DocumentSymbolResponse>, RequestError> {
+    let params: DocumentSymbolParams = serde_json::from_value(params)
+        .map_err(|error| RequestError::InvalidParams(error.to_string()))?;
+    let syms = match state {
+        SessionState::Unit { session, fallback } => {
+            if session.contains_uri(&params.text_document.uri) {
+                session
+                    .document_symbols(&params.text_document.uri)
+                    .map_err(map_unit_query_error)?
+            } else if let Some(document) = fallback.get(params.text_document.uri.as_str()) {
+                let source_unit = single_document_source_unit(document)?;
+                symbols::document_symbols(&document.analysis, source_unit, document.source_id)
+                    .map_err(map_position_error)?
+            } else {
+                return Ok(None);
+            }
+        }
+        SessionState::SingleDocument(documents) => {
+            let Some(document) = documents.get(params.text_document.uri.as_str()) else {
+                return Ok(None);
+            };
+            let source_unit = single_document_source_unit(document)?;
+            symbols::document_symbols(&document.analysis, source_unit, document.source_id)
+                .map_err(map_position_error)?
+        }
+    };
+    Ok(Some(DocumentSymbolResponse::Nested(syms)))
+}
+
+pub(super) fn workspace_symbol_response(
+    params: serde_json::Value,
+    state: &SessionState,
+) -> Result<Option<WorkspaceSymbolResponse>, RequestError> {
+    let params: WorkspaceSymbolParams = serde_json::from_value(params)
+        .map_err(|error| RequestError::InvalidParams(error.to_string()))?;
+    let mut syms = match state {
+        SessionState::Unit { session, fallback } => {
+            let mut list = session
+                .workspace_symbols(&params.query)
+                .map_err(map_unit_query_error)?;
+            for (uri_str, document) in fallback {
+                if let Ok(uri) = uri_str.parse::<Uri>() {
+                    let su = single_document_source_unit(document)?;
+                    let mut uris = BTreeMap::new();
+                    uris.insert(su, uri);
+                    list.extend(
+                        symbols::workspace_symbols(&document.analysis, &uris, &params.query)
+                            .map_err(map_position_error)?,
+                    );
+                }
+            }
+            list
+        }
+        SessionState::SingleDocument(documents) => {
+            let mut list = Vec::new();
+            for (uri_str, document) in documents {
+                if let Ok(uri) = uri_str.parse::<Uri>() {
+                    let su = single_document_source_unit(document)?;
+                    let mut uris = BTreeMap::new();
+                    uris.insert(su, uri);
+                    list.extend(
+                        symbols::workspace_symbols(&document.analysis, &uris, &params.query)
+                            .map_err(map_position_error)?,
+                    );
+                }
+            }
+            list
+        }
+    };
+    syms.sort_by(|a, b| {
+        (
+            a.name.as_str(),
+            a.location.uri.as_str(),
+            a.location.range.start.line,
+            a.location.range.start.character,
+        )
+            .cmp(&(
+                b.name.as_str(),
+                b.location.uri.as_str(),
+                b.location.range.start.line,
+                b.location.range.start.character,
+            ))
+    });
+    Ok(Some(WorkspaceSymbolResponse::Flat(syms)))
 }

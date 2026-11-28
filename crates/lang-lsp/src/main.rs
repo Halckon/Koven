@@ -1,6 +1,7 @@
 //! Koven 语言服务器入口。
 
 mod analysis;
+mod completion;
 mod definition;
 mod diagnostic_adapter;
 mod formatting;
@@ -9,6 +10,7 @@ mod position_adapter;
 mod rename;
 mod server;
 mod source_set;
+mod symbols;
 mod unit_analysis_snapshot;
 mod unit_session;
 mod workspace_manifest;
