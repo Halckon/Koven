@@ -514,6 +514,7 @@ subgraph Gactive["现行 active"]
   S0523["S0523<br/>F6 第二十三片 expression 前缀运算符、when 条件分派、return 守卫、括号分组尾与字符串闭合双轨证明"]
   S0524["S0524<br/>F6 第二十四片 class 分类器策略、成员上下文规则、名称/枚举边界与非法前缀双轨证明"]
   S0525["S0525<br/>F6 第二十五片 core 递归守卫、逆向有效词法扫描与上下文传播双轨证明"]
+  S0526["S0526<br/>F6 第二十六片 boundary 起始集层级、NameContext 停止一致性与修饰符/恢复映射双轨证明"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -1608,6 +1609,7 @@ S0521 --> S0522
 S0522 --> S0523
 S0523 --> S0524
 S0524 --> S0525
+S0525 --> S0526
 ```
 
 ## 节点链接
@@ -2117,6 +2119,7 @@ S0524 --> S0525
 | SPEC-0523 | active | [0523-f6-expression-machine-proof.md](../../specs/active/0523-f6-expression-machine-proof.md) |
 | SPEC-0524 | active | [0524-f6-class-machine-proof.md](../../specs/active/0524-f6-class-machine-proof.md) |
 | SPEC-0525 | active | [0525-f6-core-machine-proof.md](../../specs/active/0525-f6-core-machine-proof.md) |
+| SPEC-0526 | active | [0526-f6-boundary-machine-proof.md](../../specs/active/0526-f6-boundary-machine-proof.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](../../specs/drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](../../specs/drafts/v0.44/0335-map-borrow-caller-proof.md) |

@@ -9,6 +9,10 @@ mod borrow_result_kani;
 #[cfg(test)]
 mod borrow_result_tests;
 mod boundary;
+#[cfg(kani)]
+mod boundary_kani;
+#[cfg(test)]
+mod boundary_tests;
 mod class;
 mod core;
 #[cfg(kani)]

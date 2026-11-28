@@ -1,13 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="4848" height="1336" viewBox="0 0 4848 1336" font-family="PingFang SC, Microsoft YaHei, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="4848" height="1492" viewBox="0 0 4848 1492" font-family="PingFang SC, Microsoft YaHei, sans-serif">
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
     </marker>
   </defs>
-  <rect width="4848" height="1336" fill="#ffffff"/>
+  <rect width="4848" height="1492" fill="#ffffff"/>
   <rect x="40" y="30" width="280" height="106" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="180" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，486 份）</text>
-  <rect x="384" y="30" width="2128" height="1234" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+  <rect x="384" y="30" width="2128" height="1390" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="1448" y="50" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
   <rect x="2576" y="186" width="280" height="124" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="2716" y="206" text-anchor="middle" font-size="13" fill="#64748b">v0.43（draft）</text>
@@ -19,6 +19,7 @@
   <path d="M 524 780 C 524 812, 524 812, 524 844" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 524 936 C 524 968, 524 968, 524 1000" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 524 1092 C 524 1124, 524 1124, 524 1156" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 524 1248 C 524 1280, 524 1280, 524 1312" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 300 92 C 1448 92, 1448 257, 2596 257" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 300 92 C 352 92, 352 257, 404 257" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 300 92 C 1620 92, 1620 266, 2940 266" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -143,6 +144,11 @@
   <text x="524" y="1197" text-anchor="middle" font-size="13">F6 第二十五片 core </text>
   <text x="524" y="1215" text-anchor="middle" font-size="13">递归守卫、逆向有效词法扫描与</text>
   <text x="524" y="1233" text-anchor="middle" font-size="13">上下文传播双轨证明</text>
+  <rect x="404" y="1312" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="524" y="1335" text-anchor="middle" font-size="13" font-weight="600">SPEC-0526</text>
+  <text x="524" y="1353" text-anchor="middle" font-size="13">F6 第二十六片 bound</text>
+  <text x="524" y="1371" text-anchor="middle" font-size="13">ary 起始集层级、Name</text>
+  <text x="524" y="1389" text-anchor="middle" font-size="13">Context 停止一致性…</text>
   <rect x="60" y="64" width="240" height="56" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">已完成 Spec</text>
   <text x="180" y="105" text-anchor="middle" font-size="13">archive，486 份</text>
