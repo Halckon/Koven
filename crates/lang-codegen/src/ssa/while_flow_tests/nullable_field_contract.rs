@@ -570,26 +570,9 @@ pub(in crate::ssa) mod direct_contract {
     };
 
     pub(in crate::ssa) fn assert_unit_direct_proof(program: &Program, case: usize) {
-        assert_proof(program, case);
-    }
-
-    pub(in crate::ssa) fn assert_memory_unit_direct_proof(
-        program: &Program,
-        entry: FunctionId,
-        case: usize,
-    ) {
-        let module = only(program.modules.iter());
-        let function = module
-            .function(entry)
-            .expect("same-analysis returned entry");
-        assert_function_proof(module, function, case);
-    }
-
-    fn assert_proof(program: &Program, case: usize) {
         let module = only(program.modules.iter());
         let function = only(module.functions.iter().filter(|function| {
             // Unit names include source-qualified declaration identities.
-            // This fixture has exactly one function with a nullable guard.
             function
                 .name
                 .strip_prefix("koven.p.entry.d")
@@ -603,6 +586,18 @@ pub(in crate::ssa) mod direct_contract {
                     )
                 })
         }));
+        assert_function_proof(module, function, case);
+    }
+
+    pub(in crate::ssa) fn assert_memory_unit_direct_proof(
+        program: &Program,
+        entry: FunctionId,
+        case: usize,
+    ) {
+        let module = only(program.modules.iter());
+        let function = module
+            .function(entry)
+            .expect("same-analysis returned entry");
         assert_function_proof(module, function, case);
     }
 

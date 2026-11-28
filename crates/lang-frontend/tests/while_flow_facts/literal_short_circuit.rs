@@ -400,10 +400,29 @@ fn while_condition_without_backedge_preserves_the_entry_proof() {
             rejected: None,
         },
         Case {
+            name: "body_write_is_unreachable_from_the_negated_condition",
+            text: "fun cond(value: Int, stop: Boolean): Boolean = stop\n\
+                   fun test(initial: Int?): Unit { var x = initial; if (x != null) {\
+                       loop { while (!cond(/*condition*/x, break)) { x = null } };\
+                       val after: Int = /*after*/x\
+                   } }",
+            marks: vec![read("condition", Shape::Int), read("after", Shape::Int)],
+            rejected: None,
+        },
+        Case {
             name: "body_write_can_reach_the_next_condition",
             text: "fun cond(value: Int, stop: Boolean): Boolean = stop\n\
                    fun test(initial: Int?, flag: Boolean): Unit { var x = initial; if (x != null) {\
                        while (cond(/*condition*/x, flag)) { x = null }\
+                   } }",
+            marks: vec![read("condition", Shape::Error)],
+            rejected: Some("condition"),
+        },
+        Case {
+            name: "body_write_can_reach_the_next_negated_condition",
+            text: "fun cond(value: Int, stop: Boolean): Boolean = stop\n\
+                   fun test(initial: Int?, flag: Boolean): Unit { var x = initial; if (x != null) {\
+                       while (!cond(/*condition*/x, flag)) { x = null }\
                    } }",
             marks: vec![read("condition", Shape::Error)],
             rejected: Some("condition"),
@@ -424,4 +443,114 @@ fn while_condition_without_backedge_preserves_the_entry_proof() {
             rejected: Some("later"),
         },
     ]);
+}
+
+#[test]
+fn loop_prescan_follows_the_evaluated_when_prefix() {
+    for (name, body, rejects) in [
+        (
+            "subject_stops_before_arms",
+            "when (break) { else -> { x = null } }",
+            false,
+        ),
+        (
+            "subject_stops_before_tail",
+            "when ((break)) { else -> {} }; x = null",
+            false,
+        ),
+        (
+            "subject_continue_bypasses_writes",
+            "when (continue) { else -> { x = null } }; x = null",
+            false,
+        ),
+        (
+            "selector_stops_before_arms",
+            "when { keep(quiet(), break) -> { x = null }; else -> { x = null } }",
+            false,
+        ),
+        (
+            "known_miss_reaches_jump",
+            "when { false, keep(quiet(), break) -> { x = null }; else -> { x = null } }",
+            false,
+        ),
+        (
+            "subjectful_selector_stops",
+            "when (flag) { keep(quiet(), break) -> { x = null }; else -> { x = null } }",
+            false,
+        ),
+        (
+            "all_arms_stop_before_tail",
+            "when { flag -> { break }; else -> { break } }; x = null",
+            false,
+        ),
+        (
+            "earlier_alternative_can_match",
+            "when { flag, keep(quiet(), break) -> { x = null }; else -> {} }",
+            true,
+        ),
+        (
+            "known_match_bypasses_jump",
+            "when { true, keep(quiet(), break) -> { x = null }; else -> {} }",
+            true,
+        ),
+        (
+            "one_arm_reaches_tail",
+            "when { flag -> { break }; else -> {} }; x = null",
+            true,
+        ),
+        (
+            "nested_body_break_keeps_the_outer_tail_reachable",
+            "when (flag) { else -> { loop { break } } }; x = null",
+            true,
+        ),
+        (
+            "nested_header_break_leaves_the_outer_loop",
+            "when (flag) { else -> { while (break) {}; x = null } }; x = null",
+            false,
+        ),
+        (
+            "subject_writes_before_jump",
+            "when (keep(clear(&x), break)) { else -> {} }",
+            true,
+        ),
+        (
+            "selector_writes_before_jump",
+            "when { keep(clear(&x), break) -> {}; else -> {} }",
+            true,
+        ),
+    ] {
+        let text = format!(
+            "fun cond(value: Int, flag: Boolean): Boolean = flag
+             fun quiet(): Unit {{}}
+             fun clear(inout target: Int?): Unit {{ target = null }}
+             fun keep(value: Unit, flag: Boolean): Boolean = flag
+             fun inspect(input: Int?, flag: Boolean): Int {{
+                 var x = input
+                 if (x == null) {{ return 0 }}
+                 while (cond(/*head*/x, flag)) {{ {body} }}
+                 return 7
+             }}"
+        );
+        assert_cases(&[Case {
+            name,
+            text: &text,
+            marks: vec![read(
+                "head",
+                if rejects { Shape::Error } else { Shape::Int },
+            )],
+            rejected: rejects.then_some("head"),
+        }]);
+    }
+
+    assert_cases(&[Case {
+        name: "subject_break_does_not_kill_the_existing_exit_proof",
+        text: "fun inspect(input: Int?): Int {
+            var x = input
+            if (x == null) { return 0 }
+            loop { when (break) { else -> { x = null } } }
+            return /*after*/x
+        }",
+        marks: vec![read("after", Shape::Int)],
+        rejected: None,
+    }]);
 }

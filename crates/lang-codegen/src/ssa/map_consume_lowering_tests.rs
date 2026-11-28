@@ -679,7 +679,7 @@ pub(in crate::ssa) mod unit_lower_straight_line_tests {
     const SOURCE: &str = "fun compute(input: Int): Int {\n\
              val doubled: Int = input + input\n\
              var total: Int = doubled\n\
-             { total += 1 }\n\
+             block { total += 1 }\n\
              return total\n\
          }\n\
          fun observe(input: Int): Unit {\n\

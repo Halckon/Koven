@@ -4,8 +4,8 @@ use lang_frontend::{
     ast::ExpressionId,
     diagnostic::Diagnostic,
     name_resolution::{
-        NameResolution, SourceUnitId, SourceUnitInput, SymbolId, SymbolKind, UnitSymbolId,
-        index_compilation_unit, resolve_compilation_unit_names, resolve_names,
+        NameResolution, SourceUnitId, SourceUnitInput, SourceUnitKey, SymbolId, SymbolKind,
+        UnitSymbolId, index_compilation_unit, resolve_compilation_unit_names, resolve_names,
     },
     ownership_checking::{
         CompilationUnitOwnership, DropTarget, NullableWhenExtractionKind, OwnershipCheckedFile,
@@ -26,6 +26,9 @@ mod parser_test_assertions;
 
 #[path = "consume/field_roots.rs"]
 mod field_roots;
+
+#[path = "consume/exact_rejections.rs"]
+mod exact_rejections;
 
 #[derive(Clone, Copy)]
 enum Expected {
@@ -88,8 +91,17 @@ fn assert_matrix(cases: &[Case], expected_observations: usize) {
             .add_source("consume.ko", case.text)
             .expect("fixed source");
         let file = parser_test_assertions::parse_file_twice(&sources, source, case.label);
-        observations.push(observe_single(case, &sources, &file));
-        observations.push(observe_unit(case, &sources, &file));
+        // The original basic owned roots have the same observable move and
+        // result-cleanup contract. Keep richer or differing Legacy lanes distinct.
+        if matches!(
+            case.label,
+            "grouped-val-bound" | "populated-var-bound" | "discarded-result"
+        ) {
+            observations.push(observe_unit(case, &sources, &file, false, None));
+        } else {
+            observations.push(observe_single(case, &sources, &file));
+        }
+        observations.push(observe_unit(case, &sources, &file, true, None));
     }
     assert_eq!(observations.len(), expected_observations);
     assert!(
@@ -318,20 +330,25 @@ fn observe_single(case: &Case, sources: &SourceMap, file: &ParsedFile) -> Observ
     observation
 }
 
-fn observe_unit(case: &Case, sources: &SourceMap, file: &ParsedFile) -> Observation {
-    let mut observation = Observation::new(case, "unit");
+fn observe_unit(
+    case: &Case,
+    sources: &SourceMap,
+    file: &ParsedFile,
+    rooted: bool,
+    exact_rejection: Option<&Diagnostic>,
+) -> Observation {
+    let mut observation = Observation::new(case, if rooted { "unit" } else { "memory" });
     observation.record("parse", file.diagnostics().is_empty(), file.diagnostics());
     if !file.diagnostics().is_empty() {
         observation.blocked("names/raw/complete/ownership: parser diagnostics");
         return observation;
     }
     let (environment, types) = standard_environments();
-    let inputs = [SourceUnitInput::new(
-        "root",
-        "consume.ko",
-        file.source_id(),
-        file,
-    )];
+    let inputs = [if rooted {
+        SourceUnitInput::new("root", "consume.ko", file.source_id(), file)
+    } else {
+        SourceUnitInput::memory_document(file.source_id(), file)
+    }];
     let index = match index_compilation_unit(sources, &inputs) {
         Ok(index) => index,
         Err(error) => {
@@ -340,6 +357,23 @@ fn observe_unit(case: &Case, sources: &SourceMap, file: &ParsedFile) -> Observat
             return observation;
         }
     };
+    if exact_rejection.is_some() {
+        let [indexed] = index.source_units() else {
+            panic!("one exact input source")
+        };
+        let matching_layout = match (rooted, indexed.key()) {
+            (false, SourceUnitKey::MemoryDocument) => true,
+            (true, SourceUnitKey::Rooted { root, logical_path }) => {
+                root.as_str() == "root" && logical_path.as_str() == "consume.ko"
+            }
+            _ => false,
+        };
+        observation.record(
+            "exact layout source identity",
+            matching_layout && indexed.source_id() == file.source_id(),
+            indexed.key(),
+        );
+    }
     let names = match resolve_compilation_unit_names(sources, &inputs, &index, &environment) {
         Ok(names) => match names.validate() {
             Ok(names) => names,
@@ -434,6 +468,70 @@ fn observe_unit(case: &Case, sources: &SourceMap, file: &ParsedFile) -> Observat
             observation.record("ordinary take target", selected, target);
         }
     }
+    if exact_rejection.is_some() {
+        match case.label {
+            "stable-element" => exact_rejections::assert_indexed_consume_selection(
+                case,
+                sources,
+                file,
+                source,
+                local_names,
+                &typed,
+                &calls,
+            ),
+            "read-after-move" | "consume-twice" => {
+                exact_rejections::assert_after_consume_selection(
+                    case,
+                    sources,
+                    file,
+                    source,
+                    local_names,
+                    &typed,
+                    &calls,
+                )
+            }
+            "for-binding" => exact_rejections::assert_for_binding_selection(
+                case,
+                sources,
+                file,
+                source,
+                local_names,
+                &typed,
+                &calls,
+            ),
+            "active-loan" => exact_rejections::assert_active_loan_selection(
+                case,
+                sources,
+                file,
+                source,
+                local_names,
+                &typed,
+                &calls,
+            ),
+            "explicit-borrow-local" => exact_rejections::assert_explicit_borrow_local_selection(
+                case,
+                sources,
+                file,
+                source,
+                local_names,
+                &typed,
+                &calls,
+            ),
+            "own-parameter" => exact_rejections::assert_own_parameter_consume_selection(
+                case,
+                sources,
+                file,
+                source,
+                local_names,
+                &typed,
+                &calls,
+            ),
+            "temporary" => exact_rejections::assert_temporary_consume_selection(
+                case, sources, file, source, &typed, &calls,
+            ),
+            _ => {}
+        }
+    }
     match complete_compilation_unit_types(sources, &inputs, &names, &types, &typed) {
         Ok(complete) => observation.record(
             "complete same analysis",
@@ -458,7 +556,27 @@ fn observe_unit(case: &Case, sources: &SourceMap, file: &ParsedFile) -> Observat
     };
     match check_compilation_unit_ownership(sources, &inputs, &names, &types, &typed) {
         Ok(owned) => {
-            observe_unit_ownership(case, source, root, result, &calls, &owned, &mut observation)
+            observe_unit_ownership(case, source, root, result, &calls, &owned, &mut observation);
+            if let Some(expected) = exact_rejection {
+                observation.record(
+                    "exact ownership diagnostic",
+                    owned.diagnostics() == std::slice::from_ref(expected),
+                    owned.diagnostics(),
+                );
+                let no_executable_ownership = owned.loans().is_empty()
+                    && owned.direct_call_loan_ends().is_empty()
+                    && owned.borrow_results().call_uses().is_empty()
+                    && owned.borrow_results().bindings().is_empty()
+                    && owned.borrow_call_transports().is_empty()
+                    && owned.construction_plans().is_empty()
+                    && owned.formed_owned_locals().is_empty();
+                observation.record(
+                    "no executable loan or construction",
+                    no_executable_ownership,
+                    (),
+                );
+                observation.record("rejected Unit capability", owned.validate().is_err(), ());
+            }
         }
         Err(error) => observation.record("ownership internal", false, error),
     }
@@ -707,7 +825,7 @@ fn map_consume_complete_local_roots_transfer_one_cleanup() {
             r#"fun run(): Unit {
   var source = mutableMapOf<String, String>()
   source.put("key", "value");
-  { borrow val item = source.requireValue("key"); println(item) }
+  block { borrow val item = source.requireValue("key"); println(item) }
   val result = source.consume()
 }"#,
             Str,
@@ -790,53 +908,11 @@ fun run(own input: MutableMap<Int, Int>?): Unit {
 fn map_consume_complete_rejects_receiver_move_and_live_loan_boundaries() {
     // SPEC-0291 e94b938f chooses L0130 for the extra root eligibility failures.
     // Existing subtree/access diagnostics still take priority; no new span is frozen here.
-    use BuiltinType::{Int, String as Str};
+    use BuiltinType::Int;
     let cases = [
-        ("temporary", r#"fun run(): Unit { val result = mutableMapOf<Int, Int>().consume() }"#, Int, Expected::Rejected("L0130"), 1),
         // Guide v0.46: a top-level runtime root is L0167 before ownership, so no global-root case.
-        ("own-parameter", r#"fun run(own source: MutableMap<Int, Int>): Unit {
-  val result = source.consume()
-  val count = source.size
-}"#, Int, Expected::Rejected("L0130"), 1),
         ("borrow-parameter", r#"fun run(source: MutableMap<Int, Int>): Unit { val result = source.consume() }"#, Int, Expected::Rejected("L0133"), 1),
         ("inout-parameter", r#"fun run(inout source: MutableMap<Int, Int>): Unit { val result = source.consume() }"#, Int, Expected::Rejected("L0133"), 1),
-        ("explicit-borrow-local", r#"fun run(input: MutableMap<Int, Int>): Unit {
-  borrow val source = input
-  val result = source.consume()
-}"#, Int, Expected::Rejected("L0133"), 1),
-        ("stable-field", r#"class Holder(val source: MutableMap<Int, Int>)
-fun run(): Unit {
-  val holder = Holder(mutableMapOf<Int, Int>())
-  val result = holder.source.consume()
-}"#, Int, Expected::Rejected("L0132"), 1),
-        ("stable-element", r#"fun run(): Unit {
-  val maps = listOf(mutableMapOf<Int, Int>())
-  val result = maps[0].consume()
-}"#, Int, Expected::Rejected("L0136"), 1),
-        ("read-after-move", r#"fun run(): Unit {
-  val source = mutableMapOf<Int, Int>()
-  val result = source.consume()
-  val count = source.size
-}"#, Int, Expected::Rejected("L0131"), 1),
-        ("consume-twice", r#"fun run(): Unit {
-  val source = mutableMapOf<Int, Int>()
-  val first = source.consume()
-  val second = source.consume()
-}"#, Int, Expected::Rejected("L0131"), 2),
-        ("active-loan", r#"fun run(): Unit {
-  var source = mutableMapOf<String, String>()
-  source.put("key", "value")
-  borrow val item = source.requireValue("key")
-  val result = source.consume()
-  println(item)
-}"#, Str, Expected::Rejected("L0135"), 1),
-        ("for-binding", r#"fun run(): Unit {
-  val maps = listOf(mutableMapOf<Int, Int>())
-  for (source in maps) {
-    val result = source.consume()
-    break
-  }
-}"#, Int, Expected::Rejected("L0133"), 1),
         ("temporary-preserves-child-error", r#"fun identity(own item: MutableMap<Int, Int>): MutableMap<Int, Int> { return item }
 fun run(): Unit {
   val source = mutableMapOf<Int, Int>()
@@ -844,5 +920,13 @@ fun run(): Unit {
   val result = identity(source).consume()
 }"#, Int, Expected::Rejected("L0131"), 1),
     ].map(|(label, text, element, expected, calls)| Case { label, text, key: element, value: element, expected, calls });
-    assert_matrix(&cases, 24);
+    assert_matrix(&cases, 6);
+    exact_rejections::for_binding();
+    exact_rejections::active_loan();
+    exact_rejections::after_consume();
+    exact_rejections::explicit_borrow_local();
+    exact_rejections::own_parameter();
+    exact_rejections::temporary();
+    exact_rejections::stable_field();
+    exact_rejections::stable_element();
 }

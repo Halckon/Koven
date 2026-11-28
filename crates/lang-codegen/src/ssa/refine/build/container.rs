@@ -583,9 +583,9 @@ impl Builder<'_, '_> {
             };
             owner
         };
-        let index = self
-            .required(descriptor.index().expression())?
-            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let Some(index) = self.required(descriptor.index().expression())? else {
+            return Ok(None);
+        };
         let element = self.ssa_type(parameter, span)?;
         let arg_span = self.span(expression);
         let place = self.value(

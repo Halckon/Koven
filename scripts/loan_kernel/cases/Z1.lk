@@ -1,0 +1,100 @@
+// 仅普通类型自身的 own this 方法能解除整值 deinit。
+class File(fd: Int) deinit
+class Buf(n: Int)
+class Conn(sock: File, buf: Buf) deinit
+fun mayFail(): Unit trusted
+fun handoff(own f: File): Unit trusted
+fun close(own this: Conn): Unit in Conn {
+  open this as sock, buf
+  mayFail()
+  handoff(move sock)
+  use(buf.n)
+}
+fun alreadyOpened(own this: Conn): Unit in Conn {
+  open this as sock, buf
+  use(this)  // ERR K8
+}
+fun borrowedField(own this: Conn): Unit in Conn {
+  val r = &this.sock
+  open this as sock, buf  // ERR K1
+  use(r)
+}
+fun outsider(own this: Conn): Unit {
+  open this as sock, buf  // ERR K25
+}
+fun shared(borrow this: Conn): Unit in Conn {
+  open this as sock, buf  // ERR K25
+}
+fun closeBorrowed(own x: Conn): Unit {
+  close(&x)  // ERR TYPE
+  use(x)
+}
+fun closeWrongType(own x: File): Unit {
+  close(move x)  // ERR TYPE
+}
+fun closeOwned(own x: Conn): Unit {
+  close(move x)
+}
+fun afterClose(own x: Conn): Unit {
+  close(move x)
+  use(x)  // ERR K8
+}
+fun <Conn> shadow(own this: Conn): Unit in Conn {
+  open this as sock, buf  // ERR K25
+}
+fun replaceReceiver(own this: Conn, own x: Conn): Unit in Conn {
+  this = &x  // ERR TYPE
+  open this as sock, buf
+  use(x)
+}
+sig ConsumeFile(own x: File): Unit
+sig ConsumeConn(own x: Conn): Unit
+fun withFile(own f: fn ConsumeFile, own x: File): Unit { f(move x) }
+fun withConn(own f: fn ConsumeConn, own x: Conn): Unit { f(move x) }
+fun indirectWrong(own x: File): Unit {
+  withFile(close, move x)  // ERR K12
+}
+fun indirectOwned(own x: Conn): Unit {
+  withConn(close, move x)
+}
+fun constructFromBorrow(own this: Conn, own f: File, own b: Buf): Unit in Conn {
+  this = Conn(&f, move b)  // ERR TYPE
+  open this as sock, buf
+  handoff(move sock)
+  use(f)
+}
+fun constructFromOwned(own this: Conn, own f: File, own b: Buf): Unit in Conn {
+  this = Conn(move f, move b)
+  open this as sock, buf
+  handoff(move sock)
+}
+fun fieldFromBorrow(own this: Conn, own f: File): Unit in Conn {
+  this.sock = &f  // ERR TYPE
+  open this as sock, buf
+  handoff(move sock)
+  use(f)
+}
+fun storeFromBorrow(inout dst: Conn, borrow src: Conn): Unit {
+  *dst = src  // ERR X1
+}
+sig Conn(): Unit
+fun storeFromSameNamedFunction(inout dst: Conn, own src: fn Conn): Unit {
+  *dst = src  // ERR X1
+}
+fun storeFunctionIntoFunction(own dst: fn Conn, own src: fn Conn): Unit {
+  val r = &mut dst
+  *r = src
+}
+fun storeClassIntoFunction(own dst: fn Conn, own src: Conn): Unit {
+  val r = &mut dst
+  *r = move src  // ERR X1
+}
+fun storeFromOwned(inout dst: Conn, own src: Conn): Unit {
+  *dst = move src
+}
+fun wrongResult(own x: File): Conn {
+  return move x  // ERR TYPE
+}
+deinit Conn {
+  open this as sock, buf  // ERR K24
+}

@@ -13,7 +13,7 @@ use crate::{
         UnitPointerCallableReturnSummary,
         borrow_result::ReturnSource,
         callable_provenance::{
-            UnitCallableFacts,
+            InterpolationEvaluations, UnitCallableFacts,
             graph::{Collector, NodeId, ReturnFrame},
         },
     },
@@ -527,6 +527,7 @@ pub(super) fn finish(
     typed: &crate::type_checking::CompilationUnitTypes,
     capture_index: &CaptureIndex<'_>,
     entered_calls: BTreeSet<UnitExpressionId>,
+    interpolation_evaluations: InterpolationEvaluations,
     call_dispatch: BTreeMap<UnitExpressionId, bool>,
     completed_arguments: BTreeSet<UnitExpressionId>,
 ) -> UnitCallableFacts {
@@ -593,6 +594,7 @@ pub(super) fn finish(
         call_dispatch,
         completed_arguments,
         entered_calls,
+        interpolation_evaluations: interpolation_evaluations.into_values().collect(),
         origins,
         returns,
         closure_returns,

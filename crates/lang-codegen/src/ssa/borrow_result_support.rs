@@ -552,11 +552,25 @@ pub(in crate::ssa) mod verify_range {
             let receiver_count = usize::from(callee.receiver.is_some());
             if parameter_types.len() != arguments.len() + receiver_count
                 || callee.receiver.is_some() != receiver.is_some()
-                || !parameter_types.iter().all(|ty| match ty {
-                    EntityType::Value(ty) => is_first_class(module, *ty),
-                    EntityType::Loan { target, .. } => is_first_class(module, *target),
-                    EntityType::Place(_) => false,
-                })
+                || !parameter_types
+                    .iter()
+                    .enumerate()
+                    .all(|(index, ty)| match ty {
+                        EntityType::Value(ty)
+                        | EntityType::Loan {
+                            kind: LoanKind::Shared,
+                            target: ty,
+                        } => {
+                            is_first_class(module, *ty)
+                                || (index >= receiver_count
+                                    && module.type_kind(*ty) == Some(&SsaTypeKind::Unit))
+                        }
+                        EntityType::Loan {
+                            kind: LoanKind::Exclusive,
+                            target,
+                        } => is_first_class(module, *target),
+                        EntityType::Place(_) => false,
+                    })
                 || !callee
                     .return_types
                     .iter()

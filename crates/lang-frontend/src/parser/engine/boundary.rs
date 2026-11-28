@@ -86,7 +86,6 @@ pub(super) enum TypeParameterOwner {
 pub(super) struct FileAngleRecovery {
     pub(super) groups: RefCell<recovery::FileAngleGroups>,
     pub(super) boundary: Cell<Option<(usize, bool)>>,
-    pub(super) significant_start: Cell<Option<(usize, usize)>>,
 }
 
 impl Parser<'_> {
@@ -435,13 +434,13 @@ impl Stops {
     pub(super) const fn with(self, flag: u16) -> Self {
         Self {
             delimiters: self.delimiters | flag,
-            block_elements: self.block_elements,
-            when_entry_body: self.when_entry_body,
+            ..self
         }
     }
 
     pub(super) const fn as_when_entry_body(self, has_subject: bool) -> Self {
         Self {
+            delimiters: self.delimiters & !Self::WHEN_CALL_OPERAND_RECOVERY,
             when_entry_body: Some(if has_subject {
                 WhenEntryBody::WithSubject
             } else {
@@ -453,18 +452,16 @@ impl Stops {
 
     pub(super) const fn without_lambda_body_soft_stops(self) -> Self {
         Self {
-            delimiters: self.delimiters
-                & !(Self::LAMBDA_COMMA | Self::ARROW | Self::FILE_DECLARATION | Self::SEMICOLON),
+            delimiters: self.delimiters & !Self::BODY_SOFT_STOPS,
             block_elements: false,
-            when_entry_body: self.when_entry_body,
+            ..self
         }
     }
 
     pub(super) const fn without_file_and_semicolon_stops(self) -> Self {
         Self {
             delimiters: self.delimiters & !(Self::FILE_DECLARATION | Self::SEMICOLON),
-            block_elements: self.block_elements,
-            when_entry_body: self.when_entry_body,
+            ..self
         }
     }
 
@@ -532,6 +529,7 @@ impl Stops {
 #[derive(Clone, Copy)]
 pub(super) struct TypeStops {
     delimiters: u16,
+    pub(super) when_call_body: Option<WhenEntryBody>,
     supertype_owner: Option<super::class::ClassifierHeaderOwner>,
     proven_type_closer: Option<usize>,
 }
@@ -544,6 +542,7 @@ impl TypeStops {
     pub(super) const fn empty() -> Self {
         Self {
             delimiters: 0,
+            when_call_body: None,
             supertype_owner: None,
             proven_type_closer: None,
         }
@@ -815,7 +814,7 @@ impl NameContext {
 }
 
 #[derive(Clone, Copy)]
-pub(super) struct DeclarationStops(u32);
+pub(super) struct DeclarationStops(pub(super) u32);
 
 impl DeclarationStops {
     pub(super) const EMPTY: Self = Self(0);

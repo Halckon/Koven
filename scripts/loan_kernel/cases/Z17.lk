@@ -1,0 +1,83 @@
+// 拆出多借用字段（共享与独占混合）及按值嵌套的非递归子视图，各路径来源独立转移。
+class Arr(len: Int)
+class File(fd: Int) deinit
+view class Slice(borrow source: Arr)
+view class MixPair(borrow ro: Arr, inout rw: Arr)
+view class Nested(inner: MixPair, borrow tail: Arr)
+view class DeepHolder(nested: Nested, file: File) deinit
+fun mayFail(): Unit trusted
+fun update(inout a: Arr): Unit trusted
+fun putSlice(inout dst: Slice, own src: Slice): Unit flows src into dst {
+  *dst = move src
+}
+fun nestedProtectionMatchesEachFieldKind(own this: DeepHolder, own a: Arr, own b: Arr, own c: Arr, own f: File): Unit in DeepHolder {
+  this = DeepHolder(Nested(MixPair(&a, &mut b), &c), move f)
+  open this as nested, file
+  use(a.len)
+  update(&mut a)  // ERR K1
+  use(b.len)  // ERR K1
+  update(&mut b)  // ERR K1
+  use(c.len)
+  update(&mut c)  // ERR K1
+  use(nested.inner.ro.len)
+  update(nested.inner.rw)
+  use(nested.tail.len)
+}
+fun nestedReleasedAfterLastUse(own this: DeepHolder, own a: Arr, own b: Arr, own c: Arr, own f: File): Unit in DeepHolder {
+  this = DeepHolder(Nested(MixPair(&a, &mut b), &c), move f)
+  open this as nested, file
+  use(nested.inner.ro.len)
+  update(nested.inner.rw)
+  use(nested.tail.len)
+  update(&mut a)
+  use(b.len)
+  update(&mut b)
+  update(&mut c)
+}
+fun cannotCopyNestedExclusiveView(own this: DeepHolder): Unit in DeepHolder {
+  open this as nested, file
+  val copy = nested  // ERR K8
+  use(copy.tail.len)
+  use(nested.tail.len)
+}
+fun forwardNestedRo(own this: DeepHolder): borrow Int from this.nested.inner.ro in DeepHolder {
+  open this as nested, file
+  return &nested.inner.ro.len
+}
+fun forwardNestedRw(own this: DeepHolder): inout Int from this.nested.inner.rw in DeepHolder {
+  open this as nested, file
+  return &mut nested.inner.rw.len
+}
+fun wrongFieldContractRejected(own this: DeepHolder): borrow Int from this.nested.tail in DeepHolder {
+  open this as nested, file
+  return &nested.inner.ro.len  // ERR K6
+}
+fun localNestedEscapeRejected(own this: DeepHolder, own a: Arr, own b: Arr, own c: Arr, own f: File): borrow Int from this.nested.inner.ro in DeepHolder {
+  this = DeepHolder(Nested(MixPair(&a, &mut b), &c), move f)
+  open this as nested, file
+  return &nested.inner.ro.len  // ERR K6
+}
+fun deliverOnlyRo(own this: DeepHolder, inout dst: Slice): Unit flows this.nested.inner.ro into dst in DeepHolder {
+  open this as nested, file
+  putSlice(dst, Slice(nested.inner.ro))
+}
+fun callerIsolatesDeliveredNestedField(own a: Arr, own b: Arr, own c: Arr, own old: Arr, own f: File): Unit {
+  val dst = Slice(&old)
+  deliverOnlyRo(DeepHolder(Nested(MixPair(&a, &mut b), &c), move f), &mut dst)
+  update(&mut a)  // ERR K1
+  update(&mut old)  // ERR K1
+  update(&mut b)
+  update(&mut c)
+  use(dst.source.len)
+  update(&mut a)
+  update(&mut old)
+}
+fun dropsNestedFieldsOnFailure(own this: DeepHolder): Unit in DeepHolder {
+  open this as nested, file
+  mayFail()
+  update(nested.inner.rw)
+}
+cell view class CellReceiver(n: Int) deinit
+fun unsupportedCellReceiver(own this: CellReceiver): Unit in CellReceiver {
+  open this as n  // ERR K25
+}

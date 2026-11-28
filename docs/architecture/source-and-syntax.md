@@ -119,19 +119,33 @@ owner，成员分号仍交给外层。分段字符串沿用 Lexer 的终止事�
 父类型内部的泛型实参与函数类型参数按自身 delimiter 恢复，原 TypeRef 与消费的错误区
 分别保存。已证明的函数参数 closer 约束错误扫描和跳转，显式分号保留给声明调用方。
 
-Block 与 lambda body 的 dispatch 每轮复用当前 lexeme 判断 closer、hard stop 和分号，避免
-在同一 trivia 区域重复扫描；分号不生成 statement，caller hard closer 保留给外层 owner。
+Block 与 lambda body 的 dispatch 每轮复用当前 lexeme 判断 closer、hard stop、分号与同行 `block {` 显式词法作用域块起点（`explicit_block_start`），避免在同一 trivia 区域重复扫描；语句位置独立裸 `{ ... }` 分别报 `L0030` / `L0032` 并提示改用 `block { ... }`，表达式位置 `block { ... }` 报 `L0009` 且不回退为调用；分号不生成 statement，caller hard closer 保留给外层 owner。
 
 普通/control/nested block 与 lambda body 的顶层 Pratt/postfix 在完整左表达式之后遇换行的 `(`、`+`、`-`
-时归还 block dispatch。局部解构的真实 `=` 后允许 control/lambda primary，并将外层分号交给 body owner。group/call/index 内的 block soft stop
+时归还 block dispatch；已闭合圆括号实参列表 `(...)` 的调用允许跨换行附着唯一一个尾 lambda `{ ... }`，裸名跨行 `f\n{ ... }` 与无括号泛型跨行 `f<T>\n{ ... }` 不附着。局部解构的真实 `=` 后允许 control/lambda primary，并将外层分号交给 body owner。group/call/index 内的 block soft stop
 已清除；for header 只在真实 opener 存在时清软 stop，因此未闭合 delimiter 内继续解析。解构缺内层 `)` 时保留 `in` 和外层停止 token，外层边界上的错误节点使用空 Span。
 typed-call 试探、独立 expression 与顶层
 initializer 保持既有入口行为。lambda 顶层 body 与内嵌普通 block 保留独立 owner，但共用换行
 边界。三个 body dispatch 的分隔校验在后继 element 起点以空 Span 报 L0169；恢复保留真实
 后继，不补造分号。已有缺 operand/poison 错误不追加同根分隔诊断。
 
-when 分支体在换行后遇到已配对的圆括号时，只在 selector 后缀到达同层真实箭头后让出该分组。
+when 分支体在换行后遇到配对圆括号或 lambda 时，在 selector 后缀到达同层箭头后让出分组。同行分组须直属当前 when 的左花括号。直接箭头，或以中缀、条件逗号和表达式后缀续接到同层箭头时，保留下一臂并在其起点报告 L0065。裸尾随 lambda 沿用同行约束。配对组的形状和复合扫描结果可复用；Parser 游标和探针共享 strict trial 的显著 token 索引，换行判断沿用 SourceMap 的行索引。后缀探针按候选处的 if/else 深度和 selector 逗号排除不能分臂的位置。
 扫描复用类型和配对索引跳过内层箭头，遵守普通及泛型尾 lambda 换行规则。探针按 when 主体区分裸 is/in 与中缀续行，常规入口保留裸条件的类型诊断。 循环内的 break/continue 按零操作数扫描。只有已配对的括号才可覆盖 block 的普通换行边界。
+分支结束后遇到 EOF 或调用者拥有的硬停止符时，`when` 保留该边界并走缺闭合符的恢复路径。
+`L0065` 的同行分隔检查只在解析还能进入下一臂时执行。
+分支体内的调用若缺少配对的 `)`，会在显式分号或探针识别到下一臂时归还外层边界，
+并在边界处标记缺闭合符。配对完整的调用仍拥有嵌套表达式和跨行实参。
+错误实参或分隔符触发跳过时，只有退出局部配对分组及字符串 owner 后才检查下一臂。
+恢复探针复用等价的操作数后缀结果。若后缀扫描仍有待匹配的 `else`，只有能证明
+独立起步仍会失败时才记录负结果。
+未闭调用的实参缺少前缀或中缀操作数时，已识别的下一臂在 Pratt 和控制体恢复中继续保留。
+缺失操作数的错误节点止于最后消费的 token，诊断位于下一臂；配对实参和独立嵌套语法沿用自己的停止范围。
+类型转换和类型测试缺少类型操作数时也遵守这个边界，生成空的 `TypeRef::Error`。
+若严格类型索引能从当前位置识别完整函数类型，则该类型优先取得自己的箭头。
+未闭调用的类型实参列表也可归还已识别的下一臂。完整泛型优先保留自身的 `>`，
+但严格类型前缀后紧接同行裸操作数时会继续检查它是否属于下一臂的比较。
+软中缀名称后须有可开始右操作数的 token 才能作为这种同行续接的证据。
+若 `>` 后换行且下一行可独立作为新一臂，则保留完整类型和各自的臂起点。
 
 `return` 的同行操作数起点允许既有 control primary（含 `if` / `when`），不把 block 的
 下一 element soft stop 误用为缺值判断；已开始解析操作数后仍传递原 stops。换行、分号、
@@ -155,7 +169,8 @@ Error 接收者的后缀恢复共享这些边界。块分号留给块分派，�
 缺右方括号在外层起点使用零宽范围，同行左花括号不作为这条恢复的归属证据。
 
 Parser 覆盖按语法领域位于 `crates/lang-frontend/tests/parser_*.rs`，matrix suites 覆盖恢复和资源
-边界。测试选择规则见[开发测试指南](../development/testing.md)。
+边界。测试选择规则见[开发测试指南](../development/testing.md)。[SPEC-0478](../archive/specs/0478-independent-block-difftest.md)
+的可选离线目标已能对两个普通块输入比较独立文法结构及换行事件；默认测试不启动外部解释器。
 
 `parse_super` 在 interface、dot、member-name 的 Lexer poison 处消费并保存 Error，不追加同根
 语法诊断。共享 error-postfix 恢复保留 caller stops 与显式分号；`parser_super_recovery` 逐值核对

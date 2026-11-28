@@ -12,6 +12,10 @@ pub(super) struct PlannedBodyContext<'a> {
     pub(super) names: &'a ValidatedCompilationUnitNames,
     pub(super) typed: &'a CompilationUnitTypes,
     pub(super) owned: &'a dyn UnitLoweringFacts,
+    pub(super) two_receiver_facts: crate::ssa::refine::TwoReceiverFacts,
+    pub(super) single_receiver_receipts: crate::ssa::refine::SingleReceiverReceiptIndex,
+    pub(super) single_receiver_facts: crate::ssa::refine::SingleReceiverFacts,
+    pub(super) subset_drop_index: Option<crate::ssa::refine::SubsetDropIndex>,
     pub(super) constant_owned: Option<&'a ConstEnabledOwnedUnit>,
     pub(super) function_ids: &'a BTreeMap<UnitFunctionInstanceKey, FunctionId>,
     pub(super) callable_returns: &'a BTreeMap<FunctionId, SsaTypeId>,
@@ -101,6 +105,10 @@ impl PlannedBodyContext<'_> {
                 names,
                 typed,
                 owned,
+                two_receiver_facts: Some(&self.two_receiver_facts),
+                single_receiver_receipts: Some(&self.single_receiver_receipts),
+                single_receiver_facts: Some(&self.single_receiver_facts),
+                subset_drop_index: self.subset_drop_index.as_ref(),
                 constant_owned,
                 function_ids,
                 callable_returns,
@@ -130,6 +138,20 @@ impl PlannedBodyContext<'_> {
             };
             let route = crate::ssa::refine::route(&inputs);
             compatibility = matches!(route, CallableRoute::Compatibility);
+            #[cfg(test)]
+            if compatibility && crate::ssa::refine::initializer_probe::requested(inputs.span) {
+                crate::ssa::refine::prepare_types(&inputs, types, module)?;
+                let refine_types = crate::ssa::refine::RefineTypes {
+                    type_ids: types.type_ids(),
+                    heap_payloads: types.heap_payloads(),
+                    field_indices: types.field_indices(),
+                    enum_payloads: types.enum_payloads(),
+                    map_results: &module.map_results,
+                    nullable_maps: &module.nullable_maps,
+                    ssa_types: &module.types,
+                };
+                crate::ssa::refine::initializer_probe::inspect(&inputs, &entities, &refine_types);
+            }
             if matches!(route, CallableRoute::Refine) {
                 crate::ssa::refine::prepare_types(&inputs, types, module)?;
                 let function = module
@@ -145,6 +167,14 @@ impl PlannedBodyContext<'_> {
                     nullable_maps: &module.nullable_maps,
                     ssa_types: &module.types,
                 };
+                #[cfg(test)]
+                if crate::ssa::refine::initializer_probe::requested(inputs.span) {
+                    crate::ssa::refine::initializer_probe::inspect(
+                        &inputs,
+                        &entities,
+                        &refine_types,
+                    );
+                }
                 crate::ssa::refine::lower(&inputs, function, entry, &entities, &refine_types)?;
                 return Ok(());
             }
@@ -320,17 +350,7 @@ impl PlannedBodyContext<'_> {
                 expression,
             )))?;
         }
-        let values = match (builtin_type(typed, plan.return_type), result) {
-            (Some(BuiltinType::Unit), LoweredValue::Unit) => Vec::new(),
-            (Some(BuiltinType::Unit), LoweredValue::Value(_))
-            | (_, LoweredValue::Unit | LoweredValue::Diverged) => {
-                return Err(lowering_error(
-                    LoweringErrorKind::MissingFact,
-                    plan.instance.span(),
-                ));
-            }
-            (_, LoweredValue::Value(value)) => vec![value],
-        };
+        let values = lowerer.return_values(result, plan.instance.span())?;
         lowerer
             .function
             .set_terminator(

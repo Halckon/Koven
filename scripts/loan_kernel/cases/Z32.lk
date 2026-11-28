@@ -1,0 +1,114 @@
+// Rc 与 Weak 的析构义务与能力边界（KB1 × KB4 × KB8）：
+// Weak 出现后强引用的析构时机可被观察（deinit 屏障，不提前析构）；弱引用自身只递减弱计数（可提前析构）；两者皆线程绑定（local）。
+local class StrongRef(v: Int) deinit
+local class OptStrong(v: Int) empty deinit
+local class WeakRef(v: Int)
+class CacheSlot(cached: OptStrong)
+
+fun newRc(own v: Int): StrongRef trusted
+fun cloneRc(borrow r: StrongRef): StrongRef trusted
+fun downgrade(borrow r: StrongRef): WeakRef trusted
+fun cloneWeak(borrow w: WeakRef): WeakRef trusted
+fun upgrade(borrow w: WeakRef): OptStrong trusted
+fun readRc(borrow r: StrongRef): borrow Int from r trusted
+fun releaseRc(own r: StrongRef): Unit trusted
+fun consumeWeak(own w: WeakRef): Unit trusted
+fun mayFail(): Unit trusted
+fun <T: Transferable> send(own x: T): Unit trusted
+
+// 一、deinit 屏障：WeakRef 可提前析构，StrongRef 与 upgrade 得到的 OptStrong 留到词法作用域结束
+fun rcWaitsForScopeWhileWeakDropsEarly(): Unit {
+  val r = newRc(1)
+  val w = downgrade(&r)
+  val p = upgrade(&w)
+  mayFail()
+}
+
+// 二、不可隐式复制（K8），须显式 cloneRc / cloneWeak
+fun rcCannotImplicitlyCopy(): Unit {
+  val r = newRc(1)
+  val r2 = r  // ERR K8
+}
+fun weakCannotImplicitlyCopy(): Unit {
+  val r = newRc(1)
+  val w = downgrade(&r)
+  val w2 = w  // ERR K8
+}
+fun explicitCloneAndDowngradeWork(): Unit {
+  val r1 = newRc(1)
+  val r2 = cloneRc(&r1)
+  val w1 = downgrade(&r1)
+  val w2 = cloneWeak(&w1)
+  val p = upgrade(&w2)
+  mayFail()
+}
+
+// 三、从强引用借出的引用保护其不被提前移走，且不得逃逸
+fun borrowFromRcBlocksMove(): Unit {
+  val r = newRc(1)
+  val x = readRc(&r)
+  releaseRc(move r)  // ERR K1
+  use(x)
+}
+fun borrowFromRcReleasedAfterLastUse(): Unit {
+  val r = newRc(1)
+  val x = readRc(&r)
+  use(x)
+  releaseRc(move r)
+}
+fun borrowFromRcCannotEscape(): borrow Int {
+  val r = newRc(1)
+  return readRc(&r)  // ERR K6
+}
+
+// 四、单臂移走：StrongRef 因可观察保留析构标志，WeakRef 不可观察在另一臂末尾补偿析构（无标志）
+fun conditionalReleaseRcKeepsDropFlag(): Unit {
+  val r = newRc(1)
+  if (*) {
+    releaseRc(move r)
+  }
+  mayFail()
+}
+fun conditionalMoveWeakNeedsNoDropFlag(): Unit {
+  val r = newRc(1)
+  val w = downgrade(&r)
+  if (*) {
+    consumeWeak(move w)
+  }
+  mayFail()
+}
+
+// 五、线程绑定（local）：普通 suspend 接受，parallel suspend 报 S5，Transferable 上界报 CAP
+suspend fun rcAndWeakAllowedAcrossNormalSuspend(): Unit {
+  val r = newRc(1)
+  val w = downgrade(&r)
+  suspend
+  val p = upgrade(&w)
+}
+parallel suspend fun rcCannotCrossParallelSuspend(): Unit {
+  val r = newRc(1)
+  suspend  // ERR S5
+  val r2 = cloneRc(&r)
+}
+parallel suspend fun weakCannotCrossParallelSuspend(): Unit {
+  val r = newRc(1)
+  val w = downgrade(&r)
+  releaseRc(move r)
+  suspend  // ERR S5
+  val p = upgrade(&w)
+}
+fun rcAndWeakRejectedByTransferableBound(): Unit {
+  val r = newRc(1)
+  val w = downgrade(&r)
+  send(move w)  // ERR CAP
+  send(move r)  // ERR CAP
+}
+
+// 六、升级结果可空句柄与 replace 的配合
+fun replaceUpgradedOptRc(): Unit {
+  val r = newRc(1)
+  val w = downgrade(&r)
+  val slot = CacheSlot(upgrade(&w))
+  val got = replace slot.cached
+  mayFail()
+}

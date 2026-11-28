@@ -227,7 +227,7 @@ fn readonly_deinit_rejection_keeps_exact_diagnostics_in_both_unit_entries() {
         name_resolution::SourceUnitKey,
     };
 
-    // These are the unchanged sources of the adjacent Single/Rooted difference witness.
+    // Pin both original sources; only the assignment still needs a Single difference witness.
     for body in ["this.value = 3", "update(&this.value)"] {
         let text = format!(
             "fun update(inout value: Int): Unit {{}}\nclass Guard(var value: Int) {{ deinit() {{ {body} }} }}"

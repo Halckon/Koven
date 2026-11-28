@@ -1,8 +1,9 @@
-//! 普通借用结果直接交付同步 Borrow 实参；成功见证保留旧独立 loan-end，拒绝组走双 Unit 入口。
+//! 同步借用结果的双 Unit 合同及仍独立比较的 Single nullable 对照。
 use lang_frontend::{
     lexer::lex,
     name_resolution::{
-        SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names, resolve_names,
+        SourceUnitId, SourceUnitInput, SourceUnitKey, ValidatedCompilationUnitNames,
+        index_compilation_unit, resolve_compilation_unit_names, resolve_names,
     },
     ownership_checking::{
         CompilationUnitOwnership, OwnershipCheckedFile, check_compilation_unit_ownership,
@@ -16,9 +17,22 @@ use lang_frontend::{
     },
 };
 
+#[path = "ownership_nested_borrow_arguments/distinct_roots.rs"]
+mod distinct_roots;
+#[path = "ownership_nested_borrow_arguments/generic_transport.rs"]
+mod generic_transport;
+#[path = "ownership_nested_borrow_arguments/grouped_transport.rs"]
+mod grouped_transport;
+#[path = "ownership_nested_borrow_arguments/later_scalar.rs"]
+mod later_scalar;
+#[path = "ownership_nested_borrow_arguments/nullable_last_use.rs"]
+mod nullable_last_use;
+#[path = "ownership_nested_borrow_arguments/owned_auxiliary.rs"]
+mod owned_auxiliary;
+#[path = "ownership_nested_borrow_arguments/parent_transport.rs"]
+mod parent_transport;
+
 struct Checked {
-    sources: SourceMap,
-    parsed: ParsedFile,
     single: OwnershipCheckedFile,
     unit: CompilationUnitOwnership,
 }
@@ -65,27 +79,16 @@ fn checked(text: &str, rooted: bool) -> Checked {
         .validate()
         .unwrap();
     let unit = check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed).unwrap();
-    Checked {
-        sources,
-        parsed,
-        single,
-        unit,
-    }
+    Checked { single, unit }
 }
 
-fn ordinary_entry(body: &str, rooted: bool) -> Checked {
-    checked(
-        &format!(
-            "fun view(source: String): borrow String from source = source\nfun observe(item: String) {{ println(item) }}\nfun consume(own item: String) {{}}\n{body}"
-        ),
-        rooted,
-    )
-}
-
-// Negative-source consumers have no legacy-only loan-end oracle. Keep the original
-// positive Single analysis and its independent event checks below.
+// Unit-only cases use the original source in both layouts. Other positive cases
+// retain independent Single event checks until Unit equivalents are proved.
 struct UnitChecked {
     sources: SourceMap,
+    parsed: ParsedFile,
+    source_units: [SourceUnitId; 2],
+    unit_names: [ValidatedCompilationUnitNames; 2],
     memory: CompilationUnitOwnership,
     rooted: CompilationUnitOwnership,
 }
@@ -94,6 +97,10 @@ fn ordinary_unit(body: &str) -> UnitChecked {
     let text = format!(
         "fun view(source: String): borrow String from source = source\nfun observe(item: String) {{ println(item) }}\nfun consume(own item: String) {{}}\n{body}"
     );
+    unit_checked(&text)
+}
+
+fn unit_checked(text: &str) -> UnitChecked {
     let mut sources = SourceMap::new();
     let source = sources.add_source("nested_borrow.ko", text).unwrap();
     let lexed = lex(&sources, source).unwrap();
@@ -105,14 +112,32 @@ fn ordinary_unit(body: &str) -> UnitChecked {
         parsed.diagnostics()
     );
     let (environment, types) = standard_environments();
-    let [memory, rooted] = [
-        SourceUnitInput::memory_document(source, &parsed),
-        SourceUnitInput::new("root", "nested_borrow.ko", source, &parsed),
+    let [
+        (memory, memory_id, memory_names),
+        (rooted, rooted_id, rooted_names),
+    ] = [
+        (false, SourceUnitInput::memory_document(source, &parsed)),
+        (
+            true,
+            SourceUnitInput::new("root", "nested_borrow.ko", source, &parsed),
+        ),
     ]
-    .map(|input| {
+    .map(|(rooted, input)| {
         let inputs = [input];
         let index = index_compilation_unit(&sources, &inputs).unwrap();
         assert!(index.diagnostics().is_empty(), "{:?}", index.diagnostics());
+        let [indexed] = index.source_units() else {
+            panic!("one original source");
+        };
+        assert_eq!(indexed.source_id(), source);
+        match (rooted, indexed.key()) {
+            (false, SourceUnitKey::MemoryDocument) => {}
+            (true, SourceUnitKey::Rooted { root, logical_path }) => {
+                assert_eq!(root.as_str(), "root");
+                assert_eq!(logical_path.as_str(), "nested_borrow.ko");
+            }
+            _ => panic!("expected requested Unit layout"),
+        }
         let names =
             resolve_compilation_unit_names(&sources, &inputs, &index, &environment).unwrap();
         assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
@@ -126,74 +151,272 @@ fn ordinary_unit(body: &str) -> UnitChecked {
         let owned =
             check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed).unwrap();
         assert!(owned.is_compatible_with(&typed));
-        owned
+        (owned, indexed.id(), names)
     });
     UnitChecked {
         sources,
+        parsed,
+        source_units: [memory_id, rooted_id],
+        unit_names: [memory_names, rooted_names],
         memory,
         rooted,
     }
 }
 
-fn assert_accepted(checked: &Checked) {
-    assert!(
-        checked.single.diagnostics().is_empty(),
-        "{:?}",
-        checked.single.diagnostics()
-    );
-    assert!(
-        checked.unit.diagnostics().is_empty(),
-        "{:?}",
-        checked.unit.diagnostics()
-    );
-    assert!(checked.single.deferred().is_empty());
-    assert!(checked.unit.deferred().is_empty());
-    assert_call_use_contracts(checked);
-}
-
 #[test]
 fn direct_and_grouped_results_are_synchronous_borrow_operands() {
-    for rooted in [false, true] {
-        for operand in ["view(source)", "((view((source))))"] {
-            assert_accepted(&ordinary_entry(
-                &format!(
-                    "fun run() {{ val source = \"kept\"; observe({operand}); consume(source) }}"
-                ),
-                rooted,
-            ));
+    use lang_frontend::{
+        ownership_checking::{LoanKind, UnitDropPoint, UnitDropTarget, UnitLoanTarget},
+        parser::Expression,
+        type_checking::UnitExpressionId,
+    };
+    for (operand, inner, inner_argument) in [
+        ("view(source)", "view(source)", "source"),
+        ("((view((source))))", "view((source))", "(source)"),
+    ] {
+        let checked = ordinary_unit(&format!(
+            "fun run() {{ val source = \"kept\"; observe({operand}); consume(source) }}"
+        ));
+        for unit in [checked.memory, checked.rooted] {
+            assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
+            assert!(unit.deferred().is_empty(), "{:?}", unit.deferred());
+            let [usage] = unit.borrow_results().call_uses() else {
+                panic!("one verified synchronous borrow operand");
+            };
+            let [transport] = unit.borrow_call_transports() else {
+                panic!("one actual inner-to-outer continuation");
+            };
+            let [consumer, source] = transport.ended_loans();
+            let source_unit = usage.call().source_unit();
+            let text = |id: UnitExpressionId| {
+                assert_eq!(id.source_unit(), source_unit);
+                let span = checked
+                    .parsed
+                    .ast()
+                    .expressions()
+                    .get(id.expression())
+                    .unwrap()
+                    .span();
+                assert_eq!(span.source_id(), checked.parsed.source_id());
+                checked.sources.slice(span).unwrap()
+            };
+            assert_eq!(text(source.call()), inner);
+            assert_eq!(text(source.argument()), inner_argument);
+            assert_eq!(text(consumer.call()), format!("observe({operand})"));
+            assert_eq!(text(consumer.argument()), operand);
+            assert_eq!(consumer.kind(), LoanKind::Shared);
+            assert_eq!(source.kind(), LoanKind::Shared);
+            assert_eq!(usage.expression(), source.call());
+            assert_eq!(usage.source_loan().call(), source.call());
+            assert_eq!(usage.source_loan().argument(), source.argument());
+            assert_eq!(usage.call(), consumer.call());
+            assert_eq!(usage.argument(), consumer.argument());
+            let node = checked
+                .parsed
+                .ast()
+                .expressions()
+                .get(usage.call().expression())
+                .unwrap();
+            let Expression::Call { arguments, .. } = node.payload() else {
+                panic!("actual outer call");
+            };
+            assert!(
+                arguments
+                    .iter()
+                    .any(|arg| arg.value == usage.argument().expression())
+            );
+            for loan in [source, consumer] {
+                assert_eq!(loan.target(), usage.origin());
+                assert!(unit.loans().contains(loan));
+            }
+            let UnitLoanTarget::Place(root) = usage.origin() else {
+                panic!("actual named source");
+            };
+            assert_eq!(
+                transport.handoff_point(),
+                UnitDropPoint::CallReturn(source.call())
+            );
+            assert_eq!(
+                transport.point(),
+                UnitDropPoint::CallReturn(consumer.call())
+            );
+            assert_ne!(transport.handoff_point(), transport.point());
+            assert_eq!(usage.end_point(), transport.point());
+            assert!(
+                !unit
+                    .direct_call_loan_ends()
+                    .iter()
+                    .any(|end| end.loan() == source || end.loan() == consumer)
+            );
+            assert!(!unit.drops().iter().any(|drop| drop.target()
+                == UnitDropTarget::Temporary(usage.expression())
+                || drop.target() == UnitDropTarget::Temporary(usage.argument())));
+            assert!(
+                !unit
+                    .drops()
+                    .iter()
+                    .any(|drop| drop.target() == UnitDropTarget::Named(root.root())
+                        && drop.point() == transport.point())
+            );
+            assert!(unit.validate().is_ok());
         }
     }
 }
 
 #[test]
-fn named_mixed_arguments_and_multiple_result_chains_follow_source_order() {
-    for rooted in [false, true] {
-        for body in [
-            "fun select(aux: String, source: String): borrow String from source = source\nfun run() { val source = \"kept\"; val aux = \"aux\"; observe(select(source = source, aux = aux)); consume(source) }",
-            "fun select(own aux: Int, source: String): borrow String from source = source\nfun run() { val source = \"kept\"; observe(select(source = source, aux = 7)); consume(source) }",
-            "class Resource { deinit() {} }\nfun select(source: String, own aux: Resource): borrow String from source = source\nfun run() { val source = \"kept\"; observe(select(source, Resource())); consume(source) }",
-            "fun pair(first: String, second: String) {}\nfun run() { val source = \"kept\"; pair(second = view(source), first = view(source)); consume(source) }",
-            "fun pair(first: String, second: String) {}\nfun run() { val first = \"one\"; val second = \"two\"; pair(view(first), view(second)); consume(first); consume(second) }",
-            "fun pair(first: String, own count: Int) {}\nfun length(source: String): Int = 1\nfun run() { val source = \"kept\"; pair(view(source), length(source)); consume(source) }",
-        ] {
-            assert_accepted(&ordinary_entry(body, rooted));
+fn reversed_named_same_owner_chains_end_before_consume() {
+    use lang_frontend::{
+        ownership_checking::{
+            LoanKind, UnitDropPoint, UnitDropTarget, UnitLoanTarget, UnitValueDeliveryKind,
+        },
+        parser::Expression,
+        type_checking::UnitExpressionId,
+    };
+
+    let checked = ordinary_unit(
+        "fun pair(first: String, second: String) {}\nfun run() { val source = \"kept\"; pair(second = view(source), first = view(source)); consume(source) }",
+    );
+    let expressions = checked.parsed.ast().expressions();
+    let node = |id| expressions.get(id).unwrap();
+    let text = |span| checked.sources.slice(span).unwrap();
+    let call_id = |spelling| {
+        let matches: Vec<_> = expressions
+            .iter()
+            .filter_map(|(id, node)| (text(node.span()) == spelling).then_some(id))
+            .collect();
+        let [id] = matches.as_slice() else {
+            panic!("expected one expression spelling {spelling}");
+        };
+        *id
+    };
+    let pair_id = call_id("pair(second = view(source), first = view(source))");
+    let consume_id = call_id("consume(source)");
+    let arguments = |id| {
+        let Expression::Call { arguments, .. } = node(id).payload() else {
+            panic!("expected an ordinary call");
+        };
+        arguments.as_slice()
+    };
+    let [second, first] = arguments(pair_id) else {
+        panic!("expected two named arguments in source order");
+    };
+    let [consume] = arguments(consume_id) else {
+        panic!("expected the original consuming argument");
+    };
+    assert_eq!(text(second.named_prefix.unwrap().name_span), "second");
+    assert_eq!(text(first.named_prefix.unwrap().name_span), "first");
+    assert_ne!(second.value, first.value);
+    assert!(node(pair_id).span().end() < node(consume_id).span().start());
+
+    for (unit, source_unit) in [checked.memory, checked.rooted]
+        .into_iter()
+        .zip(checked.source_units)
+    {
+        assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
+        assert!(unit.deferred().is_empty(), "{:?}", unit.deferred());
+        let [second_use, first_use] = unit.borrow_results().call_uses() else {
+            panic!("expected two borrow uses in source order");
+        };
+        let [end_a, end_b] = unit.borrow_call_transports() else {
+            panic!("expected each same-root chain to retire at the consumer");
+        };
+        let [delivery] = unit.value_deliveries() else {
+            panic!("expected the later ownership transfer");
+        };
+        let qualified = |id| UnitExpressionId::new(source_unit, id);
+        let pair = qualified(pair_id);
+        let root = delivery.place().expect("consume must move the named owner");
+        assert_eq!(delivery.call(), qualified(consume_id));
+        assert_eq!(delivery.argument(), qualified(consume.value));
+        assert_eq!(delivery.kind(), UnitValueDeliveryKind::Move);
+        assert_eq!(delivery.span(), node(consume.value).span());
+        assert_eq!(text(delivery.span()), "source");
+
+        // Match by exact operand identity, not just the shared owner root.
+        // The API proves consumer-before-source in each separate transaction.
+        for (argument, usage) in [(second, second_use), (first, first_use)] {
+            let [source_argument] = arguments(argument.value) else {
+                panic!("expected one source operand to view");
+            };
+            let inner = qualified(argument.value);
+            let operand = qualified(source_argument.value);
+            assert_eq!(text(node(argument.value).span()), "view(source)");
+            assert_eq!(text(node(source_argument.value).span()), "source");
+            let end = [end_a, end_b]
+                .into_iter()
+                .find(|end| end.ended_loans()[0].argument() == inner)
+                .expect("unique real transport for this source operand");
+            let [consumer, source] = end.ended_loans();
+            assert_eq!((consumer.call(), consumer.argument()), (pair, inner));
+            assert_eq!((source.call(), source.argument()), (inner, operand));
+            assert_eq!((usage.call(), usage.argument()), (pair, inner));
+            assert_eq!(usage.expression(), inner);
+            assert_eq!(usage.source_loan().call(), inner);
+            assert_eq!(usage.source_loan().argument(), operand);
+            assert_eq!(usage.origin(), &UnitLoanTarget::Place(root.clone()));
+            for loan in [consumer, source] {
+                assert_eq!(loan.kind(), LoanKind::Shared);
+                assert_eq!(loan.target(), usage.origin());
+                assert!(unit.loans().contains(loan));
+                assert!(
+                    !unit
+                        .direct_call_loan_ends()
+                        .iter()
+                        .any(|direct| direct.loan() == loan)
+                );
+            }
+            assert_eq!(end.handoff_point(), UnitDropPoint::CallReturn(inner));
+            assert_eq!(end.point(), UnitDropPoint::CallReturn(pair));
+            assert_eq!(usage.end_point(), end.point());
+            assert!(
+                !unit
+                    .drops()
+                    .iter()
+                    .any(|drop| drop.target() == UnitDropTarget::Temporary(inner))
+            );
         }
+        assert!(
+            !unit
+                .drops()
+                .iter()
+                .any(|drop| drop.target() == UnitDropTarget::Named(root.root()))
+        );
+        assert!(unit.validate().is_ok());
     }
 }
 
 #[test]
-fn generic_field_wrapper_and_existing_parent_sources_keep_their_identity() {
-    for rooted in [false, true] {
-        for body in [
-            "fun <T> genericView(source: T): borrow T from source = source\nfun run() { val source = \"kept\"; observe(genericView(source)); consume(source) }",
-            "class Record(val text: String)\nfun field(source: Record): borrow String from source = source.text\nfun run() { val source = Record(\"kept\"); observe(field(source)) }",
-            "fun wrap(source: String): borrow String from source = view(source)\nfun run() { val source = \"kept\"; observe(wrap(source)); consume(source) }",
-            "fun run() { val source = \"kept\"; borrow val parent = view(source); observe(view(parent)); println(parent); consume(source) }",
-            "fun measure(source: String): Int = 1\nfun run() { val source = \"kept\"; val count = measure(view(source)); consume(source) }",
-        ] {
-            assert_accepted(&ordinary_entry(body, rooted));
-        }
-    }
+fn generic_synchronous_borrow_has_the_exact_unit_transport() {
+    generic_transport::assert_transport(
+        include_str!("ownership_nested_borrow_arguments/fixtures/generic-transport.ko"),
+        "genericView",
+        "source: T",
+    );
+}
+
+#[test]
+fn wrapper_synchronous_borrow_has_the_exact_unit_transport() {
+    generic_transport::assert_transport(
+        include_str!("ownership_nested_borrow_arguments/fixtures/wrapper-transport.ko"),
+        "wrap",
+        "source: String",
+    );
+}
+
+#[test]
+fn field_borrow_ends_before_releasing_the_exact_record_owner() {
+    generic_transport::assert_root_drop_transport(
+        include_str!("ownership_nested_borrow_arguments/fixtures/field-transport.ko"),
+        "field",
+        "source: Record",
+    );
+}
+
+#[test]
+fn scalar_synchronous_borrow_ends_before_moving_the_original_owner() {
+    generic_transport::assert_scalar_transport(include_str!(
+        "ownership_nested_borrow_arguments/fixtures/scalar-transport.ko"
+    ));
 }
 
 #[test]
@@ -235,121 +458,6 @@ fn later_move_and_exclusive_access_conflict_before_outer_return() {
     }
 }
 
-fn assert_call_use_contracts(checked: &Checked) {
-    use lang_frontend::{
-        ownership_checking::{DropPoint, DropTarget, LoanEndPoint, UnitDropPoint, UnitDropTarget},
-        parser::Expression,
-    };
-    let single = checked.single.borrow_results().call_uses();
-    let unit = checked.unit.borrow_results().call_uses();
-    assert_eq!(single.len(), unit.len());
-    for (fact, unit_fact) in single.iter().zip(unit) {
-        assert_eq!(fact.expression(), unit_fact.expression().expression());
-        assert_eq!(fact.call(), unit_fact.call().expression());
-        assert_eq!(fact.argument(), unit_fact.argument().expression());
-        assert_eq!(fact.end_point(), DropPoint::CallReturn(fact.call()));
-        assert_eq!(
-            unit_fact.end_point(),
-            UnitDropPoint::CallReturn(unit_fact.call())
-        );
-        let Expression::Call { arguments, .. } = checked
-            .parsed
-            .ast()
-            .expressions()
-            .get(fact.call())
-            .unwrap()
-            .payload()
-        else {
-            panic!("outer call");
-        };
-        assert!(
-            arguments
-                .iter()
-                .any(|argument| argument.value == fact.argument())
-        );
-        let source = fact.source_loan();
-        assert_eq!(source.call(), fact.expression());
-        assert_eq!(source.call(), unit_fact.source_loan().call().expression());
-        assert_eq!(
-            source.argument(),
-            unit_fact.source_loan().argument().expression()
-        );
-        let source_loan = checked
-            .single
-            .loans()
-            .iter()
-            .find(|loan| loan.call() == source.call() && loan.argument() == source.argument())
-            .unwrap();
-        assert_eq!(source_loan.target(), fact.origin());
-        let outer_loan = checked
-            .single
-            .loans()
-            .iter()
-            .find(|loan| loan.call() == fact.call() && loan.argument() == fact.argument())
-            .unwrap();
-        assert_eq!(outer_loan.target(), fact.origin());
-        let source_ends: Vec<_> = checked
-            .single
-            .loan_ends()
-            .iter()
-            .filter(|end| end.call() == source.call() && end.argument() == source.argument())
-            .collect();
-        assert_eq!(source_ends.len(), 1);
-        assert_eq!(
-            source_ends[0].point(),
-            LoanEndPoint::CallReturn(fact.call())
-        );
-        let ends = checked.single.loan_ends();
-        let outer_end = ends
-            .iter()
-            .position(|end| end.call() == fact.call() && end.argument() == fact.argument())
-            .unwrap();
-        let source_end = ends
-            .iter()
-            .position(|end| end.call() == source.call() && end.argument() == source.argument())
-            .unwrap();
-        assert!(
-            outer_end < source_end,
-            "result must end before its source ancestor"
-        );
-        assert!(
-            !checked
-                .single
-                .loans_ending_at(source.call())
-                .any(|loan| loan.argument() == source.argument())
-        );
-        assert!(
-            checked
-                .single
-                .loans_ending_at(fact.call())
-                .any(|loan| loan.argument() == fact.argument())
-        );
-        let source_loan = checked
-            .unit
-            .loans()
-            .iter()
-            .find(|loan| {
-                loan.call() == unit_fact.source_loan().call()
-                    && loan.argument() == unit_fact.source_loan().argument()
-            })
-            .unwrap();
-        assert_eq!(source_loan.target(), unit_fact.origin());
-        let outer_loan = checked
-            .unit
-            .loans()
-            .iter()
-            .find(|loan| loan.call() == unit_fact.call() && loan.argument() == unit_fact.argument())
-            .unwrap();
-        assert_eq!(outer_loan.target(), unit_fact.origin());
-        assert!(!checked.single.drops().iter().any(|drop| drop.target()
-            == DropTarget::Temporary(fact.expression())
-            || drop.target() == DropTarget::Temporary(fact.argument())));
-        assert!(!checked.unit.drops().iter().any(|drop| drop.target()
-            == UnitDropTarget::Temporary(unit_fact.expression())
-            || drop.target() == UnitDropTarget::Temporary(unit_fact.argument())));
-    }
-}
-
 fn assert_atomic_empty(checked: &UnitChecked) {
     for owned in [&checked.memory, &checked.rooted] {
         assert!(owned.borrow_results().call_uses().is_empty());
@@ -360,100 +468,22 @@ fn assert_atomic_empty(checked: &UnitChecked) {
 
 #[test]
 fn grouped_named_operands_and_same_root_chains_are_not_collapsed() {
-    for rooted in [false, true] {
-        let checked = ordinary_entry(
-            "fun pair(first: String, second: String) {}\nfun run() { val source = \"kept\"; pair(second = ((view((source)))), first = view(source)) }",
-            rooted,
-        );
-        assert_accepted(&checked);
-        let facts = checked.single.borrow_results().call_uses();
-        assert_eq!(facts.len(), 2);
-        assert_eq!(facts[0].call(), facts[1].call());
-        assert_ne!(facts[0].expression(), facts[1].expression());
-        assert_ne!(facts[0].argument(), facts[1].argument());
-        assert_eq!(facts[0].origin(), facts[1].origin());
-        assert_ne!(facts[0].argument(), facts[0].expression());
-        assert_eq!(facts[1].argument(), facts[1].expression());
-        let text = |expression| {
-            checked
-                .sources
-                .slice(
-                    checked
-                        .parsed
-                        .ast()
-                        .expressions()
-                        .get(expression)
-                        .unwrap()
-                        .span(),
-                )
-                .unwrap()
-        };
-        assert_eq!(text(facts[0].argument()), "((view((source))))");
-        assert_eq!(text(facts[0].expression()), "view((source))");
-        assert_eq!(text(facts[0].source_loan().argument()), "(source)");
-        assert_eq!(text(facts[1].source_loan().argument()), "source");
-    }
+    grouped_transport::assert_grouped_same_root_transport();
 }
 
 #[test]
 fn existing_parent_survives_call_and_memory_owner_drops_at_outer_return() {
-    for rooted in [false, true] {
-        use lang_frontend::ownership_checking::{
-            DropPoint, DropTarget, LoanTarget, UnitDropPoint, UnitDropTarget, UnitLoanTarget,
-        };
-        let checked = ordinary_entry(
-            "fun run() { val source = \"kept\"; borrow val parent = view(source); observe(view(parent)); println(parent) }",
-            rooted,
-        );
-        assert_accepted(&checked);
-        let fact = &checked.single.borrow_results().call_uses()[0];
-        let parent = &checked.single.borrow_results().bindings()[0];
-        assert_eq!(fact.parent(), Some(parent.binding()));
-        assert_eq!(fact.origin(), parent.origin());
-        assert_ne!(
-            checked.single.borrow_results().ends()[0].point(),
-            fact.end_point()
-        );
-        let fact = &checked.unit.borrow_results().call_uses()[0];
-        assert_eq!(
-            fact.parent(),
-            Some(checked.unit.borrow_results().bindings()[0].binding())
-        );
-        assert_ne!(
-            checked.unit.borrow_results().ends()[0].point(),
-            fact.end_point()
-        );
+    // Keep the historical test identity; the direct no-parent case now runs separately.
+    parent_transport::assert_parent_drop_transport();
+}
 
-        let checked = ordinary_entry(
-            "fun run() { val source = \"kept\"; observe(view(source)) }",
-            rooted,
-        );
-        assert_accepted(&checked);
-        let fact = &checked.single.borrow_results().call_uses()[0];
-        let LoanTarget::Place(place) = fact.origin() else {
-            panic!("named source");
-        };
-        let drops: Vec<_> = checked
-            .single
-            .drops()
-            .iter()
-            .filter(|drop| drop.target() == DropTarget::Named(place.root()))
-            .collect();
-        assert_eq!(drops.len(), 1);
-        assert_eq!(drops[0].point(), DropPoint::CallReturn(fact.call()));
-        let fact = &checked.unit.borrow_results().call_uses()[0];
-        let UnitLoanTarget::Place(place) = fact.origin() else {
-            panic!("named source");
-        };
-        let drops: Vec<_> = checked
-            .unit
-            .drops()
-            .iter()
-            .filter(|drop| drop.target() == UnitDropTarget::Named(place.root()))
-            .collect();
-        assert_eq!(drops.len(), 1);
-        assert_eq!(drops[0].point(), UnitDropPoint::CallReturn(fact.call()));
-    }
+#[test]
+fn direct_named_owner_drops_at_the_exact_outer_return_without_a_move() {
+    generic_transport::assert_root_drop_transport(
+        include_str!("ownership_nested_borrow_arguments/fixtures/root-drop-transport.ko"),
+        "view",
+        "source: String",
+    );
 }
 
 #[test]
@@ -598,143 +628,128 @@ fn inout_receiver_and_nonreturning_sources_do_not_publish_call_uses() {
 }
 
 #[test]
-fn nullable_copy_ends_nested_source_before_the_next_operand() {
-    use lang_frontend::ownership_checking::{
-        DropPoint, LoanEndPoint, LoanKind, LoanTarget, UnitDropPoint, UnitLoanTarget,
-    };
-    let text = "fun view(source: Int): borrow Int from source = source\nfun observe(value: Int?, inout changed: Int): Unit { changed = 9 }\nfun run() { var n: Int = 7; observe(value = ((view(n))), changed = &n) }";
-    for rooted in [false, true] {
-        let Checked { single, unit, .. } = checked(text, rooted);
-        assert!(
-            single.diagnostics().is_empty(),
-            "{:?}",
-            single.diagnostics()
-        );
-        assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
-        let [single_use] = single.borrow_results().call_uses() else {
-            panic!("expected one copy")
+fn nullable_copy_does_not_create_ownership_of_a_move_only_result() {
+    use lang_frontend::diagnostic::{DiagnosticDetail, Severity};
+
+    let text = "fun view(source: String): borrow String from source = source\nfun observe(value: String?): Unit {}\nfun run() { val n = \"resource\"; observe(view(n)) }";
+    // This harness admits lexing, parsing, names and complete types before
+    // collecting the ownership diagnostic from each real Unit layout.
+    let checked = unit_checked(text);
+    let source = checked.parsed.source_id();
+    assert_eq!(checked.memory.diagnostics(), checked.rooted.diagnostics());
+    for unit in [&checked.memory, &checked.rooted] {
+        let [diagnostic] = unit.diagnostics() else {
+            panic!("one ownership error only: {:?}", unit.diagnostics());
         };
+        assert_eq!(diagnostic.severity(), Severity::Error);
+        assert_eq!(diagnostic.code().to_string(), "L0164");
         assert_eq!(
-            single_use.end_point(),
-            DropPoint::AfterExpression(single_use.argument())
+            diagnostic.message(),
+            "caller borrow result continuation is not yet proven"
         );
-        assert!(
-            single
-                .loans()
-                .iter()
-                .any(|loan| loan.call() == single_use.call()
-                    && loan.kind() == LoanKind::Shared
-                    && loan.target() == &LoanTarget::Temporary(single_use.argument()))
-        );
-        let source = single_use.source_loan();
-        assert!(single.loan_ends().iter().any(|end| {
-            end.call() == source.call()
-                && end.argument() == source.argument()
-                && end.point() == LoanEndPoint::AfterExpression(single_use.argument())
-        }));
-        let [unit_use] = unit.borrow_results().call_uses() else {
-            panic!("expected one copy")
+        let primary = diagnostic.primary_span();
+        assert_eq!(primary.source_id(), source);
+        assert_eq!((primary.start(), primary.end()), (138, 145));
+        assert_eq!(checked.sources.slice(primary), Ok("view(n)"));
+        let [DiagnosticDetail::Label(declaration)] = diagnostic.details() else {
+            panic!(
+                "exact ordered label and no notes/help: {:?}",
+                diagnostic.details()
+            );
         };
-        assert_eq!(
-            unit_use.end_point(),
-            UnitDropPoint::AfterExpression(unit_use.argument())
-        );
-        assert!(
-            unit.loans()
-                .iter()
-                .any(|loan| loan.call() == unit_use.call()
-                    && loan.kind() == LoanKind::Shared
-                    && loan.target() == &UnitLoanTarget::Temporary(unit_use.argument()))
-        );
-        assert!(unit.borrow_call_transports().is_empty());
+        assert_eq!(declaration.message(), "borrow result declared here");
+        let label = declaration.span();
+        assert_eq!(label.source_id(), source);
+        assert_eq!((label.start(), label.end()), (26, 32));
+        assert_eq!(checked.sources.slice(label), Ok("borrow"));
     }
+    assert_rejected_without_executable_ownership(&checked);
 }
 
-#[test]
-fn nullable_copy_does_not_create_ownership_of_a_move_only_result() {
-    let text = "fun view(source: String): borrow String from source = source\nfun observe(value: String?): Unit {}\nfun run() { val n = \"resource\"; observe(view(n)) }";
-    for rooted in [false, true] {
-        let Checked { single, unit, .. } = checked(text, rooted);
-        for diagnostics in [single.diagnostics(), unit.diagnostics()] {
-            let [diagnostic] = diagnostics else {
-                panic!("{diagnostics:?}")
-            };
-            assert_eq!(diagnostic.code().to_string(), "L0164");
-        }
-        assert!(single.borrow_results().call_uses().is_empty());
-        assert!(unit.borrow_results().call_uses().is_empty());
+fn assert_rejected_without_executable_ownership(checked: &UnitChecked) {
+    for unit in [&checked.memory, &checked.rooted] {
+        // Merely classifying the syntactic arguments is not a sealed ownership
+        // capability. Rejection must not publish an executable loan or cleanup.
+        assert!(unit.deferred().is_empty());
+        let results = unit.borrow_results();
+        assert!(results.forwarded_source_loans().is_empty());
+        assert!(results.range_return_origins().is_empty());
+        assert!(results.range_uses().is_empty());
+        assert!(unit.borrow_call_transports().is_empty());
+        assert!(unit.borrow_binding_transports().is_empty());
+        assert!(unit.borrow_forward_transports().is_empty());
+        assert!(unit.borrow_call_handoffs().is_empty());
+        assert!(unit.borrow_call_prefix_ends().is_empty());
+        assert!(unit.direct_call_loan_ends().is_empty());
+        assert!(unit.loans().is_empty());
+        assert!(unit.drops().is_empty());
+        assert!(unit.formed_owned_locals().is_empty());
+        assert!(unit.value_deliveries().is_empty());
+        assert!(unit.clone().validate().is_err());
     }
+    assert_atomic_empty(checked);
+}
+
+const NULLABLE_PARENT_OVERLAP: &str = "fun view(source: Int): borrow Int from source = source\nfun observe(value: Int?, inout changed: Int): Unit { changed = 9 }\nfun keep(value: Int): Unit {}\nfun run() { var n: Int = 7; borrow val parent = view(n); observe(view(parent), &n); keep(parent) }";
+
+#[test]
+fn nullable_parent_conflict_reports_the_unit_selected_inout_parameter() {
+    use lang_frontend::{
+        diagnostic::{DiagnosticDetail, Severity},
+        source::Span,
+    };
+
+    // unit_checked requires a clean parse, names and complete type pass.
+    let checked = unit_checked(NULLABLE_PARENT_OVERLAP);
+    let source = checked.parsed.source_id();
+    let expect_span = |span: Span, offsets: (usize, usize), token| {
+        assert_eq!(span.source_id(), source);
+        assert_eq!((span.start(), span.end()), offsets);
+        assert_eq!(checked.sources.slice(span), Ok(token));
+    };
+    assert_eq!(checked.memory.diagnostics(), checked.rooted.diagnostics());
+    for unit in [&checked.memory, &checked.rooted] {
+        let [diagnostic] = unit.diagnostics() else {
+            panic!("one ownership error: {:?}", unit.diagnostics());
+        };
+        assert_eq!(diagnostic.severity(), Severity::Error);
+        assert_eq!(diagnostic.code().to_string(), "L0135");
+        assert_eq!(
+            diagnostic.message(),
+            "new loan conflicts with an active loan"
+        );
+        expect_span(diagnostic.primary_span(), (231, 232), "&");
+        let [
+            DiagnosticDetail::Label(conflict),
+            DiagnosticDetail::Label(parameter),
+        ] = diagnostic.details()
+        else {
+            panic!(
+                "conflict then selected parameter: {:?}",
+                diagnostic.details()
+            );
+        };
+        assert_eq!(conflict.message(), "conflicting loan starts here");
+        expect_span(conflict.span(), (205, 206), "n");
+        assert_eq!(parameter.message(), "selected parameter declared here");
+        expect_span(parameter.span(), (80, 98), "inout changed: Int");
+    }
+    assert_rejected_without_executable_ownership(&checked);
 }
 
 #[test]
 fn nullable_copy_preserves_a_live_parent_and_ends_a_last_use_source() {
-    use lang_frontend::ownership_checking::{
-        DropPoint, DropTarget, LoanTarget, UnitDropPoint, UnitDropTarget, UnitLoanTarget,
-    };
-
-    let overlapping = "fun view(source: Int): borrow Int from source = source\nfun observe(value: Int?, inout changed: Int): Unit { changed = 9 }\nfun keep(value: Int): Unit {}\nfun run() { var n: Int = 7; borrow val parent = view(n); observe(view(parent), &n); keep(parent) }";
-    let last_use = "class Boxed(val value: Int)\nfun view(source: Boxed, aux: Boxed): borrow Int from source = source.value\nfun observe(value: Int?): Unit {}\nfun run() { val boxed = Boxed(7); val aux = Boxed(9); observe(view(boxed, aux)) }";
+    // Keep the historical Single/Unit test identity for the L0135 rejection.
+    // The independent source-last-use positive now has its own Unit fixture.
 
     for rooted in [false, true] {
-        let Checked { single, unit, .. } = checked(overlapping, rooted);
+        let Checked { single, unit, .. } = checked(NULLABLE_PARENT_OVERLAP, rooted);
         for diagnostics in [single.diagnostics(), unit.diagnostics()] {
             let [diagnostic] = diagnostics else {
                 panic!("{diagnostics:?}")
             };
             assert_eq!(diagnostic.code().to_string(), "L0135");
         }
-
-        let accepted = checked(last_use, rooted);
-        assert!(
-            accepted.single.diagnostics().is_empty(),
-            "{:?}",
-            accepted.single.diagnostics()
-        );
-        assert!(
-            accepted.unit.diagnostics().is_empty(),
-            "{:?}",
-            accepted.unit.diagnostics()
-        );
-        let single = &accepted.single;
-        let [usage] = single.borrow_results().call_uses() else {
-            panic!("expected one copy")
-        };
-        let LoanTarget::Place(place) = usage.origin() else {
-            panic!("expected owned source place")
-        };
-        let drops = single
-            .drops()
-            .iter()
-            .filter(|fact| matches!(fact.target(), DropTarget::Named(_)))
-            .collect::<Vec<_>>();
-        let [aux, drop] = drops.as_slice() else {
-            panic!("{drops:?}")
-        };
-        assert_eq!(aux.point(), DropPoint::CallReturn(usage.expression()));
-        assert_eq!(drop.target(), DropTarget::Named(place.root()));
-        assert_eq!(drop.point(), DropPoint::AfterExpression(usage.argument()));
-
-        let unit = &accepted.unit;
-        let [usage] = unit.borrow_results().call_uses() else {
-            panic!("expected one copy")
-        };
-        let UnitLoanTarget::Place(place) = usage.origin() else {
-            panic!("expected owned source place")
-        };
-        let drops = unit
-            .drops()
-            .iter()
-            .filter(|fact| matches!(fact.target(), UnitDropTarget::Named(_)))
-            .collect::<Vec<_>>();
-        let [aux, drop] = drops.as_slice() else {
-            panic!("{drops:?}")
-        };
-        assert_eq!(aux.point(), UnitDropPoint::CallReturn(usage.expression()));
-        assert_eq!(drop.target(), UnitDropTarget::Named(place.root()));
-        assert_eq!(
-            drop.point(),
-            UnitDropPoint::AfterExpression(usage.argument())
-        );
     }
 }
 

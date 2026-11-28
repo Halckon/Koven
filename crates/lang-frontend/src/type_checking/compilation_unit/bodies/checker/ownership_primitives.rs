@@ -344,6 +344,7 @@ impl BodyChecker<'_> {
         let arg1_category = self.expression_category(source, arguments[1].value);
         self.parts.calls.push(UnitCallDescriptor {
             text_primitive: None,
+            display_requirement: false,
             expression: UnitExpressionId::new(source, expression),
             instance: UnitCallableInstanceKey {
                 target: UnitCallTarget::External(external),
@@ -650,6 +651,7 @@ impl BodyChecker<'_> {
             .insert(callee_id, ExpressionCategory::Temporary);
         self.parts.calls.push(UnitCallDescriptor {
             text_primitive: None,
+            display_requirement: false,
             expression: UnitExpressionId::new(source, expression),
             instance: UnitCallableInstanceKey {
                 target: UnitCallTarget::External(external),

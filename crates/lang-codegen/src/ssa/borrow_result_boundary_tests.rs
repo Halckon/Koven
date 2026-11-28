@@ -146,9 +146,9 @@ fn stable_place_root_unit_lowering_preserves_real_storage() {
 
 pub(in crate::ssa) mod conditional_facts {
     //! Complete plan exits and owner incoming provenance; no fixed arm or payload syntax.
-    use crate::ssa::lower_frontend::map_iteration::conditional::verify::actions;
     use crate::ssa::lower_frontend::map_iteration::conditional::*;
     use crate::ssa::lower_frontend::map_iteration::*;
+    use crate::ssa::lower_frontend_tests::root_primitive_tests::conditional_actions as actions;
 
     use lang_frontend::ownership_checking::{
         CleanupConditionId, CleanupSelection, CleanupSelectorSource, DropFact, DropTarget,

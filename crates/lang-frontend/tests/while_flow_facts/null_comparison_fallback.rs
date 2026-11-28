@@ -127,7 +127,9 @@ fn mark(name: &'static str, text: &'static str, shape: Shape) -> Mark {
 }
 
 // 与既有 helper 相同：先完成所有源码、MemoryDocument / rooted Unit 两种来源的 raw/complete 收集并输出，再开始 oracle。
-fn collect(cases: &[Case]) -> Vec<(&Case, SourceMode, Result<Observation, String>)> {
+fn collect<'a>(
+    cases: &'a [Case<'_>],
+) -> Vec<(&'a Case<'a>, SourceMode, Result<Observation, String>)> {
     let observations = cases
         .iter()
         .flat_map(|case| {

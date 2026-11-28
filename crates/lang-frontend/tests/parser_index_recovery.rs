@@ -723,7 +723,7 @@ fn an_unterminated_interpolation_keeps_its_terminal_lexer_diagnostics() {
 fn adjacent_poison_does_not_turn_a_caller_block_into_a_trailing_lambda() {
     for separator in [" ", "\n"] {
         let mut sources = SourceMap::new();
-        let text = format!("{{ xs[key β{separator}{{ next }}; tail }}");
+        let text = format!("{{ xs[key β{separator}block {{ next }}; tail }}");
         let id = sources.add_source("index-recovery.ko", &text).unwrap();
         let parsed = parse_block_twice(&sources, id, &text);
         let ast = parsed.ast();
@@ -740,7 +740,7 @@ fn adjacent_poison_does_not_turn_a_caller_block_into_a_trailing_lambda() {
         );
         let next = ast.statements().get(*next).unwrap();
         assert!(matches!(next.payload(), Statement::Block { .. }));
-        assert_eq!(sources.slice(next.span()), Ok("{ next }"));
+        assert_eq!(sources.slice(next.span()), Ok("block { next }"));
         assert_eq!(
             sources.slice(ast.statements().get(*tail).unwrap().span()),
             Ok("tail")

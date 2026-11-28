@@ -16,6 +16,7 @@ use crate::{
 pub struct UnitSourceDescriptor {
     key: UnitSourceDescriptorKey,
     source_id: SourceId,
+    embedded_support: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -41,6 +42,7 @@ impl UnitSourceDescriptor {
                 logical_path: logical_path.into(),
             },
             source_id,
+            embedded_support: false,
         }
     }
 
@@ -50,7 +52,14 @@ impl UnitSourceDescriptor {
         Self {
             key: UnitSourceDescriptorKey::MemoryDocument,
             source_id,
+            embedded_support: false,
         }
+    }
+
+    pub(super) fn embedded(root: String, path: &str, source: SourceId) -> Self {
+        let mut descriptor = Self::new(root, path, source);
+        descriptor.embedded_support = true;
+        descriptor
     }
 
     /// 返回保留输入种类的只读原始 key。
@@ -71,7 +80,7 @@ impl UnitSourceDescriptor {
     /// 投影同一 descriptor 与真实 ParsedFile，不重建或登记 source identity。
     #[must_use]
     pub fn as_input<'a>(&'a self, parsed: &'a ParsedFile) -> SourceUnitInput<'a> {
-        match self.input_key() {
+        let input = match self.input_key() {
             SourceUnitInputKey::Rooted {
                 root_identity,
                 logical_path,
@@ -79,6 +88,11 @@ impl UnitSourceDescriptor {
             SourceUnitInputKey::MemoryDocument => {
                 SourceUnitInput::memory_document(self.source_id, parsed)
             }
+        };
+        if self.embedded_support {
+            input.with_embedded_support()
+        } else {
+            input
         }
     }
 

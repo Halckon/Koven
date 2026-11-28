@@ -439,8 +439,12 @@ val after = 1
         (variable_declaration
           (identifier)
           (expression
-            (identifier))))
-      (ERROR)))
+            (binary_expression
+              (expression
+                (identifier))
+              (expression
+                (jump_expression
+                  (MISSING "return")))))))))
   (variable_declaration
     (identifier)
     (expression

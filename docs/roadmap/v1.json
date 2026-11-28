@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "Koven v1",
-    "updated": "2026-11-06",
+    "updated": "2026-11-11",
     "baseline": "488497a9 + SPEC-0392 F5/F7 未提交工作树（macOS 单宿主，非 main/PR CI）· Guide v0.47",
     "scope_source": "2026-10-13 v1 范围评审（未入库）",
     "v1_definition": "能写真实命令行工具的语言：单进程、同步 IO；被接受的程序内存安全、资源确定性释放；合法程序要么正确运行，要么得到明确的“未实现”诊断；AArch64 macOS 与 x86_64 Linux glibc。",
@@ -300,6 +300,25 @@
         "L18"
       ],
       "ref": "proposals/v0.46-language-decisions.md"
+    },
+    {
+      "id": "D16",
+      "title": "起草下列条目的 Spec 时须审阅兼容性约束清单（Z1–Z9）",
+      "recommend": "公开名字、签名与可观察行为在动工前对照清单逐项确认",
+      "status": "decided",
+      "outcome": "2026-11-11：用户要求把约束清单的结论并入对应条目的 Spec。这些条目尚无 Spec 草稿，故只登记审阅义务；清单本身是未启用的候选，各项内容在对应 Spec 评审时逐条裁决，其中 Z1 另有一个待用户决定的问题",
+      "items": [
+        "T1",
+        "L6b",
+        "L6",
+        "L1",
+        "L21",
+        "L16",
+        "S3",
+        "V6",
+        "V2"
+      ],
+      "ref": "proposals/v1-freeze-decisions.md"
     }
   ],
   "items": [
@@ -668,7 +687,7 @@
       "stage": "P0",
       "area": "tooling",
       "priority": "must",
-      "status": "active",
+      "status": "done",
       "guide": "enabled",
       "phases": [
         4,
@@ -678,7 +697,7 @@
       "specs": [
         "0369"
       ],
-      "note": "发布决定已接受；最终产物、源码路径及 macOS/Linux LLDB 实施验收进行中。"
+      "note": "生产实现已合入 main（9d9bc3d8），macOS dSYM/LLDB 与 Linux ELF/LLDB 均已验收并归档；部分发布失败例外保留为后续独立议题。"
     },
     {
       "id": "B19",
@@ -1097,12 +1116,14 @@
       "stage": "P2",
       "area": "types",
       "priority": "must",
-      "status": "todo",
+      "status": "partial",
       "guide": "enabled",
       "phases": [
         4
       ],
-      "title": "Double/Float 运算与 Char 比较的 native 支持"
+      "title": "Double/Float 运算与 Char 比较的 native 支持",
+      "specs": ["0392"],
+      "note": "SPEC-0392 §470–471：Char 标量比较与 Float/Double 原生标量运算已接入双入口，p05_double、p06_char 转为 run_ok。浮点聚合边界及发布验收仍待复审。"
     },
     {
       "id": "N06",
@@ -1118,9 +1139,10 @@
       ],
       "title": "interface bound 泛型调用、companion 函数调用、interface 实现与默认方法（单文件）",
       "specs": [
-        "0323"
+        "0323",
+        "0392"
       ],
-      "note": "companion 调用已由 0323 转为正确的静态角色；native 仍报 BE:UnsupportedSource。"
+      "note": "0392 接通接口上界调用的名义实例分派，p11_interface_bound 输出 dog。companion 调用已由 0323 转为正确的静态角色，原生生成仍待接入。"
     },
     {
       "id": "N07",
@@ -1202,7 +1224,10 @@
         5
       ],
       "title": "值语义协议 Equatable/Hashable/Display（Comparable 只给内建数值、Char、String）；value class/enum 自动推导相等与哈希；Map 键 K : Equatable + Hashable",
-      "decision": "D1"
+      "decision": "D1",
+      "links": [
+        "proposals/v1-freeze-decisions.md"
+      ]
     },
     {
       "id": "L2",
@@ -1424,7 +1449,8 @@
       ],
       "title": "同步、非逃逸 Borrow 回调的 forEach 与 List/Map 高层基础 API",
       "links": [
-        "proposals/collection-api-followups.md"
+        "proposals/collection-api-followups.md",
+        "proposals/v1-freeze-decisions.md"
       ],
       "note": "依赖 S1 与 N04。"
     },
@@ -1546,7 +1572,8 @@
       ],
       "title": "owned 集合算法：map/filter/fold/sort/contains/indexOf/reverse",
       "links": [
-        "proposals/collection-algorithm-ownership-r3.md"
+        "proposals/collection-algorithm-ownership-r3.md",
+        "proposals/v1-freeze-decisions.md"
       ]
     },
     {
@@ -1638,7 +1665,8 @@
       "decision": "D9",
       "links": [
         "guide/13-program-runtime-standard-library.md",
-        "proposals/text-input-and-io.md"
+        "proposals/text-input-and-io.md",
+        "proposals/v1-freeze-decisions.md"
       ],
       "note": "依赖L5、N08、E4；SPEC-0366启用便利IO，不证明实现。time/sleep/math与exitProcess目标保留；旧readLine/eprintln摘要不另成公共API。"
     },
@@ -1656,7 +1684,10 @@
       ],
       "title": "main 可返回 Result<Unit, E>（E : Display）：Err 时 stderr 输出 `error: …`，退出码 1",
       "decision": "D9",
-      "note": "依赖 E4 与 L1。"
+      "note": "依赖 E4 与 L1。",
+      "links": [
+        "proposals/v1-freeze-decisions.md"
+      ]
     },
     {
       "id": "T1",
@@ -1674,7 +1705,8 @@
       "title": "受限线程：thread(move { }) : Thread<T>、join()、channel（多生产者单消费者）；drop 时隐式 join；worker abort 即进程 abort；只转移所有权",
       "decision": "D5",
       "links": [
-        "proposals/thread-transfer.md"
+        "proposals/thread-transfer.md",
+        "proposals/v1-freeze-decisions.md"
       ],
       "note": "依赖 N04（move 闭包）与 L6 runtime；用第七个验收程序验收。2026-10-22 用户确认 v1 必须提供最基础的线程能力（spawn/join，以及 channel），与生态 M4 一致。"
     },
@@ -1692,7 +1724,8 @@
       ],
       "title": "time/sleep/math 基础 API",
       "links": [
-        "proposals/text-input-and-io.md"
+        "proposals/text-input-and-io.md",
+        "proposals/v1-freeze-decisions.md"
       ]
     },
     {
@@ -1705,8 +1738,8 @@
       "phases": [
         6
       ],
-      "title": "六个验收程序（词频、配置解析、表达式求值、RAII 状态机、二进制编解码、链表/栈）双宿主运行正确且 ASan/LSan 干净",
-      "note": "源码与 expected.txt 已入库并接入 scripts/conformance_gate.py 强 oracle；当前两模式一致均为 known_unimplemented（0 / 6 可运行）。另设第七个线程程序验收 T1，不计入 v1.0 硬门槛。"
+      "title": "十个 V1 验收程序（词频、配置解析、表达式求值、RAII 状态机、二进制编解码、链表/栈、文本日志汇总、泛型查询管道、共享 DAG 析构、受限并发管道）双宿主运行正确且 ASan/LSan 干净",
+      "note": "源码与 expected.txt 已入库并接入 scripts/conformance_gate.py 强 oracle；当前目录登记 2 / 10 为 run_ok，其余 8 项仍为 known_unimplemented，与 conformance/README.md 保持同一 V1 验收范围。"
     },
     {
       "id": "V2",
@@ -1721,7 +1754,10 @@
         4
       ],
       "title": "Conformance 矩阵：按 Guide 每章正反例，合法 100% 运行、非法 100% 前端诊断、0 ICE",
-      "note": "以下 137/154 是 2026-10-27 历史基线；2026-11-07 本机 138/154 与宿主边界见 meta.metrics。V2 前六片已落地：conformance/expectations.json + conformance/ORACLE_AUDIT.md + scripts/conformance_gate.py + scripts/tests/test_conformance_gate.py 已接入 scripts/check_docs.py 结构门禁与 .github/workflows/ci.yml 双宿主（macos-14 / ubuntu-24.04）回归门禁，覆盖 Guide 01–13 全部 13 个规范章节归属映射（guide_chapter）、逐探针语义推导账本（oracle_derivation）、前端错误码目录（diagnostic.rs）交叉核验，以及全部 17 个 known_unimplemented probe 与 6 个验收程序的路线图阻塞项（roadmap_blockers: N01–N08, L1, L2, L7, S6, T1）实测双向对账校验（154 probe 能力通过 137/154，两模式差异 0，内部错误 0）。本轮后续待清零 16 个 known_unimplemented probe 并补齐每章正反例；此前 17 个仅为历史口径。"
+      "note": "以下 137/154 是 2026-10-27 历史基线；2026-11-07 本机 138/154 与宿主边界见 meta.metrics。V2 前六片已落地：conformance/expectations.json + conformance/ORACLE_AUDIT.md + scripts/conformance_gate.py + scripts/tests/test_conformance_gate.py 已接入 scripts/check_docs.py 结构门禁与 .github/workflows/ci.yml 双宿主（macos-14 / ubuntu-24.04）回归门禁，覆盖 Guide 01–13 全部 13 个规范章节归属映射（guide_chapter）、逐探针语义推导账本（oracle_derivation）、前端错误码目录（diagnostic.rs）交叉核验，以及全部 17 个 known_unimplemented probe 与 6 个验收程序的路线图阻塞项（roadmap_blockers: N01–N08, L1, L2, L7, S6, T1）实测双向对账校验（154 probe 能力通过 137/154，两模式差异 0，内部错误 0）。本轮后续待清零 16 个 known_unimplemented probe 并补齐每章正反例；此前 17 个仅为历史口径。",
+      "links": [
+        "proposals/v1-freeze-decisions.md"
+      ]
     },
     {
       "id": "V3",
@@ -1733,7 +1769,7 @@
       "phases": [
         4
       ],
-      "title": "Linux ASan/LSan 覆盖整个矩阵与六个验收程序",
+      "title": "Linux ASan/LSan 覆盖整个矩阵与十个 V1 验收程序",
       "specs": [
         "0266"
       ]
@@ -1782,7 +1818,8 @@
         "0272"
       ],
       "links": [
-        "proposals/measurement-distribution.md"
+        "proposals/measurement-distribution.md",
+        "proposals/v1-freeze-decisions.md"
       ]
     },
     {

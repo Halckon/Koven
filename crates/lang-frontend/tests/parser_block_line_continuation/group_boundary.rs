@@ -28,14 +28,14 @@ fn a_group_recovery_leaves_the_block_declaration_after_a_bad_index() {
 
 #[test]
 fn a_group_recovery_leaves_the_next_block_after_a_bad_index() {
-    let text = "{ val broken = (value junk [key\n{ sentinel() }\n], rest)\nval later = 1 }";
+    let text = "{ val broken = (value junk [key\nblock { sentinel() }\n], rest)\nval later = 1 }";
     let (sources, block) = parsed(text);
     let ast = block.ast();
     assert!(
         block_elements(ast, block.root()).iter().any(|statement| {
             let statement = ast.statements().get(*statement).unwrap();
             matches!(statement.payload(), Statement::Block { .. })
-                && sources.slice(statement.span()) == Ok("{ sentinel() }")
+                && sources.slice(statement.span()) == Ok("block { sentinel() }")
         }),
         "{:?}",
         block.diagnostics()

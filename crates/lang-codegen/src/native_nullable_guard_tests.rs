@@ -238,7 +238,7 @@ fun entry(): Unit {
     val value = "owned".clone()
     inspect(value)
     forward(value)
-    { borrow val item = view(value); inspect(item) }
+    block { borrow val item = view(value); inspect(item) }
     take(value)
 }
 "#;
@@ -262,8 +262,8 @@ fun take(own value: String): Unit { println(value) }
 fun entry(): Unit {
     val source = "source".clone()
     val value: String? = "owned".clone()
-    { borrow val result = inspect(null, source); println(result) }
-    { borrow val result = inspect(value, source); println(result) }
+    block { borrow val result = inspect(null, source); println(result) }
+    block { borrow val result = inspect(value, source); println(result) }
     take(source)
 }
 "#;
@@ -303,8 +303,8 @@ fun take(own value: String): Unit { println(value) }
 fun entry(): Unit {
     val source = "source".clone()
     val value: String? = "owned".clone()
-    { borrow val result = inspect(null, source); println(result) }
-    { borrow val result = inspect(value, source); println(result) }
+    block { borrow val result = inspect(null, source); println(result) }
+    block { borrow val result = inspect(value, source); println(result) }
     take(source)
 }
 "#;
@@ -367,8 +367,8 @@ fun choose(source: String, stop: Boolean): borrow String from source {
 fun take(own value: String): Unit { println(value) }
 fun entry(): Unit {
     val source = "owner".clone()
-    { borrow val result = choose(source, true); println(result) }
-    { borrow val result = choose(source, false); println(result) }
+    block { borrow val result = choose(source, true); println(result) }
+    block { borrow val result = choose(source, false); println(result) }
     take(source)
 }
 "#;
@@ -400,8 +400,8 @@ fun choose(source: String, stop: Boolean): borrow String from source {
 fun take(own value: String): Unit { println(value) }
 fun entry(): Unit {
     val source = "owner".clone()
-    { borrow val result = choose(source, true); println(result) }
-    { borrow val result = choose(source, false); println(result) }
+    block { borrow val result = choose(source, true); println(result) }
+    block { borrow val result = choose(source, false); println(result) }
     take(source)
 }
 "#;
@@ -438,8 +438,8 @@ fun choose(source: String, stop: Boolean): borrow String from source {
 fun take(own value: String): Unit { println(value) }
 fun entry(): Unit {
     val source = "owner".clone()
-    { borrow val result = choose(source, true); println(result) }
-    { borrow val result = choose(source, false); println(result) }
+    block { borrow val result = choose(source, true); println(result) }
+    block { borrow val result = choose(source, false); println(result) }
     take(source)
 }
 "#;
@@ -490,8 +490,8 @@ fun choose(source: String, stop: Boolean): borrow String from source {
 fun take(own value: String): Unit { println(value) }
 fun entry(): Unit {
     val source = "owner".clone()
-    { borrow val result = choose(source, true); println(result) }
-    { borrow val result = choose(source, false); println(result) }
+    block { borrow val result = choose(source, true); println(result) }
+    block { borrow val result = choose(source, false); println(result) }
     take(source)
 }
 "#;
@@ -569,8 +569,8 @@ fun entry(): Unit {
     terminating_arm(true)
     terminating_arm(false)
     val source = "borrowed".clone()
-    { borrow val result = borrowed(source, true, true); println(result) }
-    { borrow val result = borrowed(source, true, false); println(result) }
+    block { borrow val result = borrowed(source, true, true); println(result) }
+    block { borrow val result = borrowed(source, true, false); println(result) }
     take(source)
 }
 "#;
@@ -652,8 +652,8 @@ fun entry(): Unit {
     closed(true)
     closed(false)
     val source = "owner".clone()
-    { borrow val result = route(source, true); println(result) }
-    { borrow val result = route(source, false); println(result) }
+    block { borrow val result = route(source, true); println(result) }
+    block { borrow val result = route(source, false); println(result) }
     take(source)
 }
 "#;
@@ -701,10 +701,10 @@ fun entry(): Unit {
     inside(1u)
     inside(2u)
     val source = "owner".clone()
-    { borrow val result = route(source, 0); println(result) }
-    { borrow val result = route(source, 2); println(result) }
-    { borrow val result = route(source, 3); println(result) }
-    { borrow val result = route(source, 10); println(result) }
+    block { borrow val result = route(source, 0); println(result) }
+    block { borrow val result = route(source, 2); println(result) }
+    block { borrow val result = route(source, 3); println(result) }
+    block { borrow val result = route(source, 10); println(result) }
     take(source)
 }
 "#;
@@ -743,8 +743,8 @@ fun tagged(source: String, tag: Tag): Unit {
 fun take(own value: String): Unit { println(value) }
 fun entry(): Unit {
     val source = "owner".clone()
-    { borrow val result = text(source, "hit".clone()); println(result) }
-    { borrow val result = text(source, "miss".clone()); println(result) }
+    block { borrow val result = text(source, "hit".clone()); println(result) }
+    block { borrow val result = text(source, "miss".clone()); println(result) }
     tagged(source, Tag.Mark(7))
     tagged(source, Tag.Other)
     take(source)

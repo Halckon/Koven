@@ -261,9 +261,6 @@ mod tests {
     }
 }
 
-#[cfg(test)]
-pub(in crate::ssa) use crate::ssa::unit_llvm_tests::callable_plan_tests;
-
 mod callable_planner {
     //! Deterministic source worklist; callback identity lives in the shared flat arena.
     use super::*;

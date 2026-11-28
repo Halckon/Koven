@@ -4,7 +4,6 @@ use lang_frontend::{
 };
 
 use super::{
-    LoweringErrorKind,
     model::{EntityId, Function, Operation, SsaTypeKind},
     render::render_program,
     unit_lower::lower_scalar_unit_with_entry,
@@ -829,22 +828,28 @@ fun main(): Unit {
 }
 
 #[test]
-fn owned_enum_when_keeps_temporary_subject_cleanup_rejected() {
-    for subject in ["make()", "((make()))"] {
+fn owned_enum_when_releases_temporary_subject_after_either_arm() {
+    for subject in ["make(full)", "((make(full)))"] {
         let source = format!(
-            "enum class Owned {{ Full(value: String), Empty }}\n\
-             fun make(): Owned = Owned.Full(\"value\")\n\
-             fun entry(own item: Owned): Int = when ({subject}) {{\n\
-                 is Owned.Full -> 1\n\
-                 is Owned.Empty -> 0\n\
-             }}"
+            r#"enum class Owned {{ Full(value: String), Empty }}
+fun make(full: Boolean): Owned = if (full) Owned.Full("value".clone()) else Owned.Empty
+fun select(own item: Owned, full: Boolean): Int = when ({subject}) {{
+    is Owned.Full -> 1
+    is Owned.Empty -> 0
+}}
+fun entry(): Unit {{
+    if (select(Owned.Empty, true) == 1) {{ println("full") }}
+    if (select(Owned.Empty, false) == 0) {{ println("empty") }}
+}}"#,
         );
-        with_generic_enum_source("rejected-when.ko", &source, "entry", |view, entry| {
-            let error = match super::unit_lower::lower_owned_unit_with_entry(view, entry) {
-                Ok(_) => panic!("temporary enum owners still need an explicit subject plan"),
-                Err(error) => error,
-            };
-            assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode, "{subject}");
+        with_generic_enum_source("temporary-when.ko", &source, "entry", |view, entry| {
+            let (program, entry) = super::unit_lower::lower_owned_unit_with_entry(view, entry)
+                .expect("the temporary enum subject has a cleanup for both arms");
+            super::verify::verify_program(&program)
+                .expect("the enum subject owner is consumed once");
+            let llvm = crate::llvm::render_verified_program_with_entry(&program, entry).unwrap();
+            let run = crate::native_tests::boxed_enum_tests::run_counted_allocations(&llvm, 1);
+            crate::native_tests::boxed_enum_tests::assert_success(&run, b"full\nempty\n");
         });
     }
 }

@@ -1,0 +1,35 @@
+// C7：Rc 与 Weak 的能力推导与良构上界（KB4 × KB1）
+class File(fd: Int) deinit
+class Guard(fd: Int) deinit unforgettable
+class Ticket(id: Int) consume
+view class Slice(borrow data: Int)
+class Node(parent: Weak<Node>?, next: Rc<Node>?)
+
+// Weak 不可隐式复制、不可跨线程转移或共享；但只递减弱计数，恒可提前析构
+expect Copyable Weak<Int> = no
+expect Transferable Weak<Int> = no
+expect Shareable Weak<Int> = no
+expect Escapable Weak<Int> = yes
+expect EarlyDrop Weak<Int> = yes
+expect EarlyDrop Weak<File> = yes
+expect Forgettable Weak<Int> = yes
+expect ImplicitDrop Weak<Int> = yes
+
+// 含 Weak 与 Rc 的递归节点：不可转移/共享/复制，但可逃逸、可遗忘、可隐式析构
+expect Copyable Node = no
+expect Transferable Node = no
+expect Shareable Node = no
+expect Escapable Node = yes
+expect EarlyDrop Node = yes
+expect Forgettable Node = yes
+expect ImplicitDrop Node = yes
+
+// Rc 与 Weak 都不放开默认上界：不可装入不可遗忘、必须显式消费或不可逃逸的载荷
+expect wf Weak<Int> = yes
+expect wf Weak<File> = yes
+expect wf Weak<Guard> = no
+expect wf Weak<Ticket> = no
+expect wf Weak<Slice> = no
+expect wf Rc<Guard> = no
+expect wf Rc<Ticket> = no
+expect wf Rc<Slice> = no

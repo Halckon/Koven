@@ -32,7 +32,9 @@ pub struct UnitSymbolId {
     symbol: SymbolId,
 }
 impl UnitSymbolId {
-    pub(crate) const fn new(source_unit: SourceUnitId, symbol: SymbolId) -> Self {
+    /// 构造带 source-unit 限定的 symbol identity。
+    #[must_use]
+    pub const fn new(source_unit: SourceUnitId, symbol: SymbolId) -> Self {
         Self {
             source_unit,
             symbol,
@@ -142,6 +144,7 @@ pub struct SourceUnitInput<'parsed> {
     key: SourceUnitInputKey<'parsed>,
     source_id: SourceId,
     parsed: &'parsed ParsedFile,
+    embedded_support: bool,
 }
 impl<'parsed> SourceUnitInput<'parsed> {
     /// 构造显式 rooted 输入；全部不变量由索引入口统一校验。
@@ -159,6 +162,7 @@ impl<'parsed> SourceUnitInput<'parsed> {
             },
             source_id,
             parsed,
+            embedded_support: false,
         }
     }
     /// 构造独立内存文档输入；不从 URI 或 package 推导路径。
@@ -168,7 +172,16 @@ impl<'parsed> SourceUnitInput<'parsed> {
             key: SourceUnitInputKey::MemoryDocument,
             source_id,
             parsed,
+            embedded_support: false,
         }
+    }
+    pub(crate) const fn with_embedded_support(mut self) -> Self {
+        self.embedded_support = true;
+        self
+    }
+
+    pub(super) const fn is_embedded_support(self) -> bool {
+        self.embedded_support
     }
     /// 返回未经路径验证、保留输入种类的只读 key。
     #[must_use]

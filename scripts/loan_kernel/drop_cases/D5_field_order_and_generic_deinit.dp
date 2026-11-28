@@ -1,0 +1,121 @@
+// D5：单个值内部各字段的析构次序与泛型类型的 deinit（KB1 × KB4，U2 Box<T> / C1 ScopeGuard 前置）
+type Buf
+type FileA deinit
+type FileB deinit
+type FileC deinit
+type Ticket consume
+
+type Pair(first: FileA, second: FileB)
+type Outer(left: Pair, right: FileC)
+
+type OrderedDeinit(first: FileA, second: FileB) deinit
+deinit OrderedDeinit { // => ok
+  call
+}
+
+type MoveSecondDeinit(first: FileA, second: FileB) deinit
+deinit MoveSecondDeinit { // => ok
+  take b = this.second
+  move b
+  call
+}
+
+type BranchDeinit(first: FileA, second: FileB) deinit
+deinit BranchDeinit { // => ok
+  if {
+    take a = this.first
+    move a
+  } else {
+  }
+}
+
+type Box<T>(value: T) deinit
+deinit Box { // => ok
+  call
+}
+
+type ScopeGuard<T, F>(value: T, action: F) deinit
+deinit ScopeGuard { // => ok
+  take v = this.value
+  take act = this.action
+  call
+  move act
+  move v
+}
+
+type Wrapper<T>(first: FileA, payload: T) deinit
+deinit Wrapper { // => ok
+  call
+}
+
+type BranchBox<T>(value: T) deinit
+deinit BranchBox { // => ok
+  if {
+    take v = this.value
+    move v
+  } else {
+  }
+}
+
+type BadReplaceBox<T>(value: T) deinit
+deinit BadReplaceBox { // => reject D8
+  replace v = this.value
+  move v
+}
+
+fun pairDropsFieldsInReverseOrder { // => ok
+  let p = Pair
+}
+
+fun nestedDropsFieldsInReverseOrder { // => ok
+  let o = Outer
+}
+
+fun partialMoveSecondDropsTakenThenFirst { // => ok
+  let p = Pair
+  take x = p.second
+}
+
+fun partialMoveFirstDropsTakenThenSecond { // => ok
+  let p = Pair
+  take x = p.first
+}
+
+fun deinitRunsBeforeRemainingFields { // => ok
+  let d = OrderedDeinit
+}
+
+fun deinitMovesSecondThenDropsFirst { // => ok
+  let d = MoveSecondDeinit
+}
+
+fun deinitBranchMovesFirst { // => ok
+  let d = BranchDeinit
+}
+
+fun genericBoxWithBufAndFile { // => ok
+  let b1 = Box<Buf>
+  let b2 = Box<FileA>
+}
+
+fun genericScopeGuardMovesPayloadAndAction { // => ok
+  let g = ScopeGuard<FileA, FileB>
+}
+
+fun genericWrapperDropsPayloadBeforeFirst { // => ok
+  let w = Wrapper<FileB>
+}
+
+fun genericBranchBoxWithFile { // => ok
+  let b = BranchBox<FileA>
+}
+
+fun genericBoxWithTicketImplicitDropRejected { // => reject D5
+  let b = Box<Ticket>
+}
+
+fun genericBoxWithTicketOpenedAndConsumed { // => ok
+  let b = Box<Ticket>
+  open b as t
+  move t
+}

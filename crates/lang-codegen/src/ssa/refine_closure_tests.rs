@@ -235,64 +235,8 @@ fn a_thunk_keeps_the_gate_for_its_own_while_and_named_iteration() {
 mod source_closure_tests {
     //! Source behavior beyond the public matrix: ordering, callback reuse and iteration ASAP.
 
-    use crate::ssa::{
-        lower_frontend::{LoweringErrorKind, orchestrate::lower_scalar_file},
-        model::{Operation, Program, SsaTypeKind, TerminatorKind},
-    };
+    use crate::ssa::model::{Operation, Program, SsaTypeKind, TerminatorKind};
     use crate::test_support::diagnostics::assert_diagnostic;
-    use lang_frontend::{
-        lexer::lex,
-        name_resolution::{NameResolution, resolve_names},
-        ownership_checking::{LoanTarget, OwnershipCheckedFile, check_ownership},
-        parser::{ParsedFile, parse_file},
-        source::SourceMap,
-        type_checking::{DeferredReason, TypeKind, TypedFile, check_types, standard_environments},
-    };
-
-    fn analyze<T>(
-        text: &str,
-        check: impl FnOnce(
-            &SourceMap,
-            &ParsedFile,
-            &NameResolution,
-            &TypedFile,
-            &OwnershipCheckedFile,
-        ) -> T,
-    ) -> T {
-        let mut sources = SourceMap::new();
-        let source = sources
-            .add_source("single-runtime-intent.ko", text)
-            .expect("source");
-        let lexed = lex(&sources, source).expect("lexer");
-        let parsed = parse_file(&sources, &lexed).expect("parser");
-        let (environment, types) = standard_environments();
-        let names = resolve_names(&sources, &parsed, &environment).expect("names");
-        let typed = check_types(&sources, &parsed, &names, &types).expect("types");
-        let owned = check_ownership(&sources, &parsed, &names, &typed).expect("ownership");
-        assert!(
-            parsed.diagnostics().is_empty(),
-            "{text}: {:?}",
-            parsed.diagnostics()
-        );
-        assert!(
-            names.diagnostics().is_empty(),
-            "{text}: {:?}",
-            names.diagnostics()
-        );
-        assert!(
-            typed.diagnostics().is_empty(),
-            "{text}: {:?}",
-            typed.diagnostics()
-        );
-        assert!(
-            owned.diagnostics().is_empty(),
-            "{text}: {:?}",
-            owned.diagnostics()
-        );
-        assert!(owned.is_compatible_with(&names, &typed));
-        check(&sources, &parsed, &names, &typed, &owned)
-    }
-
     #[test]
     fn single_runtime_nothing_operand_stops_before_borrow_and_initializer() {
         use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
@@ -372,55 +316,6 @@ mod source_closure_tests {
     }
 
     /// A clean diagnostic list does not select an unresolved source callable for its ABI.
-    fn assert_deferred_boundary(
-        text: &str,
-        operand: &str,
-        reason: DeferredReason,
-        temporary_loan: bool,
-    ) {
-        analyze(text, |sources, parsed, names, typed, owned| {
-            let expressions = parsed
-                .ast()
-                .expressions()
-                .iter()
-                .filter(|(_, node)| &text[node.span().start()..node.span().end()] == operand)
-                .collect::<Vec<_>>();
-            assert_eq!(expressions.len(), 1, "one exact deferred operand");
-            let (expression, node) = expressions[0];
-            assert_eq!(
-                typed
-                    .expression_type(expression)
-                    .and_then(|ty| typed.types().get(ty)),
-                Some(&TypeKind::Deferred(reason))
-            );
-            assert!(
-                owned.callable_origin(expression).is_none(),
-                "no selected source/environment fact"
-            );
-            if temporary_loan {
-                assert!(
-                    matches!(owned.loan_begin(expression).map(|fact| fact.target()),
-                    Some(LoanTarget::Temporary(origin)) if *origin == expression),
-                    "the real frontend temporary loan is retained, not fabricated or discarded"
-                );
-            } else {
-                assert!(owned.loan_begin(expression).is_none());
-            }
-            let arena = typed.types().len();
-            let failure = match lower_scalar_file(sources, parsed, names, typed, owned) {
-                Err(failure) => failure,
-                Ok(_) => panic!("deferred source facts cannot select a concrete callable ABI"),
-            };
-            assert_eq!(failure.kind, LoweringErrorKind::UnsupportedNode);
-            assert_eq!(failure.span, Some(node.span()));
-            assert_eq!(
-                typed.types().len(),
-                arena,
-                "backend must not resolve deferred types"
-            );
-        });
-    }
-
     #[test]
     fn single_runtime_guard_keeps_size_loan_live_before_initializer_factory() {
         use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
@@ -608,139 +503,6 @@ mod source_closure_tests {
     }
 
     #[test]
-    fn single_runtime_deferred_named_initializer_cannot_select_source_identity() {
-        assert_deferred_boundary(
-            "fun identity(index: Int): Int = index\nfun entry(): Int { val items = List<Int>(3, identity)\nreturn items[2] }",
-            "identity",
-            DeferredReason::OverloadSelection,
-            true,
-        );
-    }
-
-    #[test]
-    fn single_runtime_deferred_named_helper_with_inner_break_never_selects_slot() {
-        let call = "helper(identity, if (true) { while (true) { break }\n3 } else { 0 })";
-        let text = format!(
-            "fun identity(index: Int): Int = index\nfun helper(callback: (Int)->Int, count: Int): Int {{ val items = List<Int>(count, callback)\nreturn items[2] }}\nfun entry(): Int = {call}"
-        );
-        assert_deferred_boundary(&text, call, DeferredReason::Call, false);
-    }
-
-    #[test]
-    fn single_runtime_deferred_named_helper_with_inner_continue_never_selects_slot() {
-        let call = "helper(identity, if (true) { var step = 0\nwhile (step < 1) { step += 1\ncontinue }\n3 } else { 0 })";
-        let text = format!(
-            "fun identity(index: Int): Int = index\nfun helper(callback: (Int)->Int, count: Int): Int {{ val items = List<Int>(count, callback)\nreturn items[2] }}\nfun entry(): Int = {call}"
-        );
-        assert_deferred_boundary(&text, call, DeferredReason::Call, false);
-    }
-
-    #[test]
-    fn single_runtime_generic_helper_preserves_nominal_element_and_three_environments() {
-        let mut failures = Vec::new();
-        for container in ["Array", "List"] {
-            for (environment, initializer) in [
-                ("pointer", "{ index -> Leaf(index) }"),
-                ("shared", "{ index -> Leaf(index + scale) }"),
-                ("owned", "move { index -> Leaf(index + scale) }"),
-            ] {
-                let text = format!(
-                    "class Leaf(val number: Int) {{ deinit() {{ println(\"leaf\") }} }}\nfun <T> generate(size: Int, callback: (Int)->T): {container}<T> = {container}<T>(size, callback)\nfun entry(): Int {{ val scale = 7\nval callback: (Int)->Leaf = {initializer}\nval items = generate<Leaf>(3, callback)\nreturn items.size }}"
-                );
-                analyze(&text, |sources, parsed, names, typed, owned| {
-                    let arena = typed.types().len();
-                    match lower_scalar_file(sources, parsed, names, typed, owned) {
-                        Ok(program) => {
-                            let module = &program.modules[0];
-                            let generate = module
-                                .functions
-                                .iter()
-                                .find(|function| function.name.starts_with("generate<"))
-                                .expect("one actual nominal helper instance");
-                            let operation = generate
-                                .instructions
-                                .iter()
-                                .find(|instruction| {
-                                    matches!(
-                                        instruction.operation,
-                                        Operation::ContainerGenerateBorrowed { .. }
-                                    )
-                                })
-                                .expect("helper must execute the borrowed runtime constructor");
-                            let Operation::ContainerGenerateBorrowed {
-                                container,
-                                initializer,
-                                ..
-                            } = operation.operation
-                            else {
-                                unreachable!()
-                            };
-                            let SsaTypeKind::SequentialContainer { element, .. } =
-                                module.type_kind(container).unwrap()
-                            else {
-                                panic!("concrete sequential identity")
-                            };
-                            assert!(
-                                matches!(
-                                    module.type_kind(*element),
-                                    Some(SsaTypeKind::HeapOwner { .. })
-                                ),
-                                "ordinary Resource class remains its concrete heap-owner element identity"
-                            );
-                            let crate::ssa::model::EntityType::Loan { target, .. } = generate
-                                .entity(crate::ssa::model::EntityId::Loan(initializer))
-                                .unwrap()
-                                .ty
-                            else {
-                                panic!("borrowed initializer ABI")
-                            };
-                            match (environment, module.type_kind(target).unwrap()) {
-                                ("pointer", SsaTypeKind::FunctionPointer { signature }) => {
-                                    assert_eq!(signature.returns.as_slice(), [*element])
-                                }
-                                (
-                                    "shared" | "owned",
-                                    SsaTypeKind::ConcreteClosure {
-                                        signature,
-                                        captures,
-                                        ..
-                                    },
-                                ) => {
-                                    assert_eq!(signature.returns.as_slice(), [*element]);
-                                    assert_eq!(captures.len(), 1);
-                                    assert_eq!(
-                                        captures[0].mode,
-                                        if environment == "shared" {
-                                            crate::ssa::model::ClosureCaptureMode::Shared
-                                        } else {
-                                            crate::ssa::model::ClosureCaptureMode::Owned
-                                        }
-                                    );
-                                }
-                                _ => panic!("concrete helper callback environment: {environment}"),
-                            }
-                            crate::llvm::render_verified_program(&program)
-                                .expect("nominal generic helper must reach verified LLVM");
-                        }
-                        Err(error) => {
-                            failures.push(format!("{container}/{environment}: {error:?}"))
-                        }
-                    }
-                    assert_eq!(
-                        typed.types().len(),
-                        arena,
-                        "the backend must only read canonical nominal and function types"
-                    );
-                });
-            }
-        }
-        assert_diagnostic!(
-            failures.is_empty(),
-            "nominal generic helper must preserve each selected callback ABI: {failures:?}"
-        );
-    }
-
-    #[test]
     fn single_runtime_named_shared_callback_survives_when_sibling_edges() {
         for branches in [
             "flag -> println(\"then\")\nelse -> println(\"else\")",
@@ -767,42 +529,6 @@ mod source_closure_tests {
             let text = format!("fun entry(): Int {{ return 0\n{body} }}");
             super::assert_unreachable_lambda_unit(&text);
         }
-    }
-
-    #[test]
-    fn single_runtime_reachable_nested_lambda_remains_a_precise_boundary() {
-        let text = "fun entry(): Unit { val callback: ()->Unit = { val nested: ()->Unit = {}\nnested() }\ncallback() }";
-        analyze(text, |sources, parsed, names, typed, owned| {
-            let lambdas = parsed
-                .ast()
-                .expressions()
-                .iter()
-                .filter(|(_, node)| {
-                    matches!(
-                        node.payload(),
-                        lang_frontend::parser::Expression::Lambda { .. }
-                    )
-                })
-                .collect::<Vec<_>>();
-            assert_eq!(lambdas.len(), 2);
-            assert!(lambdas.iter().all(|(expression, _)| {
-                matches!(
-                    owned.callable_origin(*expression).map(|fact| fact.origin()),
-                    Some(lang_frontend::ownership_checking::CallableOrigin::Lambda(origin))
-                        if origin == *expression
-                )
-            }));
-            let failure = match lower_scalar_file(sources, parsed, names, typed, owned) {
-                Ok(_) => panic!("evaluated nested closure layouts remain outside the Single slice"),
-                Err(error) => error,
-            };
-            assert_eq!(failure.kind, LoweringErrorKind::UnsupportedNode);
-            assert!(
-                lambdas
-                    .iter()
-                    .any(|(_, node)| Some(node.span()) == failure.span)
-            );
-        });
     }
 }
 
@@ -898,3 +624,5 @@ mod generic_container_view_contract;
 
 #[path = "callback_replacement_ssa_contract.rs"]
 mod callback_replacement_ssa_contract;
+#[path = "closure_source_unit_retirement_tests.rs"]
+mod closure_source_unit_retirement;

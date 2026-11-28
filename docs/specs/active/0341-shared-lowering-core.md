@@ -21662,6 +21662,7 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 本头 [PR-event run 44302058515](https://github.com/Halckon/Koven/actions/runs/44302058515) 已实际通过双宿主 Targeted（macOS 1h27m38s、Ubuntu35m3s）及双宿主 Workspace Check & Clippy；Docs & Spec、格式、依赖和 Rust 尺寸门禁通过。该 run attempt2 已 completed/success：双宿主 Preview Producer 与 Independent Consumer、CI Passed 及 Code CI Evidence 均成功，Editor lexical contracts 按条件 skipped。此结果绑定 bee 代码头及测试 merge `f675f27e069ccf1732503e0b795c3eedcd384749`，不冒称后续文档头重新执行全部代码测试，也不表示已经合并。
 - 未纳入：mutable nullable alias、field Elvis、left Elvis 及其本地交叉整合候选；nested Elvis 来源聚合另线探针在本头 bee 和 base625 均复现8组合漏 L0137，属已知后续缺口而非本 PR 新引入回退，尚不以候选验证替代本头能力。保留原测试与诊断证据，后续按独立提交及最新 main 对账。
 - 本地未运行 native、fault 或全量；远端 Targeted 是该 CI 配置的实际目标集合，不推断等于任意全量覆盖。SPEC-0341 §6 整体验收仍开放，按 §8 保持 in-progress，不迁 archive、不改变 inventory 或宣称 D10/E2 完成。本次仅提交该文档收据；文档后继仍须通过对应 docs 门禁与 CI 证据复用核查，合并由主协调线程另行核验执行。
+
 ### 2026-11-18：有界 mutable nullable alias 诊断来源
 
 - 在 `beeae677` 独立树重放旧候选，原树/未验证版本完整保留，不改 #444。沿既有形成时 Shared 叶闭包摘要补局部 var 的提交更新；只纳入循环外、未被捕获且没有循环内写入的 nullable callable binding，参数/字段/元素不新增资格，资源快照仍清除全部诊断元数据。
@@ -22005,3 +22006,485 @@ Unit checker 使用惰性、不可变的稀疏 span 索引复用原直线函数�
 - 新三项在既有 `ownership_mutable_nullable_alias_escape` CI 选择目标内运行，共 32 个双布局组合，保该目标原五项；私有八项覆盖缺席/Unknown 双向合流、嵌套、克隆隔离及无候选不分配。lazy 实现移入诊断子模块前共 156 项 FE 测试通过（目标 8、私有 8、邻控 140）；未运行 CG/native、sanitizer、CI-only fault 或远端 CI。
 - 初版内联 shadow 导致既有 nested Elvis 默认栈溢出；同源干净 `f1d91066` 默认栈 exact 通过后改为仅 seed 分配的 `Option<Box<_>>`，保集合合流及撤资格元数据，原默认栈三项完整转绿，不提高线程栈。另一次共享 target 下同源 6/8 失败原因未定，保留记录；强制当前根包重编后通过，不以短编译时间断言缓存原因。最终源码独审通过，完整日志保留在本地仓库外。
 - 尺寸门拦下根 dataflow 模块新增声明造成的 1001 行，随后将新模块按职责归入 `escape_witness/loop_shadow`，根文件恢复原 1000 行，无压行或豁免。独审反向还原 import/可见性/私有测试路径后，模块 SHA256 与移动前精确相同；最终路径重新实跑 nested Elvis 3、mutable 8、私有 8，共 19 项通过，FE all-target `loan-observation-test-support` Clippy `-D warnings` 通过（48.86s）。格式/diff、文档 982 页及 Rust 尺寸 2653 文件检查通过；仅本地，整体 D10/E2 仍 in-progress。
+
+### 2026-11-19：独立 main 的 range-prefix 保旧观察候选
+
+- 精确基线 `b314a85770f57a72e2b530be31e45192c103370d`，仅新增私有 planner trace 与模块声明，复用 `60bfab6d` 的同字节测试；保留 `ownership_range_construction::range_call_prefix_return_publishes_only_established_outer_argument_ends` 四份原源码和全部旧断言。
+- 断言同一真实 loan 注册、Return 臂 ControlTransfer 移除及正常后缀 pending 移除的身份与分支归属，并比较观察开关前后事实不变。这是静态替代路径证据，不等于同一路径两次终止、公开完整 loan-end 表或运行时证明，不据此退休旧测试。
+- 本独立输入已在受限离线 Linux 实跑：新 lib exact 1 passed（910 filtered，本树编译 1m16）；保留旧 integration exact 强制本树重编 2.74s 后 1 passed（22 filtered），list 核实共 23 tests。首次旧缓存产物的 24 filtered 结果作废，不计证据。两项均仅 FE，无 CG/native 或远端 CI。
+- fmt/diff、docs 与尺寸门及独审通过；原日志分别为仓外 new-exact.log、retained-exact-rebuilt.log 和 retained-list.log。不带 E2、索引优化、CI 或其他 Refine/native 切片，不推送。
+
+
+### 2026-11-19：独立 main 的嵌套 rangeView 值验收候选
+
+- 精确基 `b314a85770f57a72e2b530be31e45192c103370d`，仅重放 `6aa1c31a` 的 scalar 测试改动，保留原运算源码及已有 Unit 路由、SSA/LLVM 断言；不带其父分支的 E2、其他 Refine 或 CI 改动。
+- 附加 entry 仅在 Koven 内计算 `main() == 270` 后输出标记，预期半开区间五项之和为 50+50+70+50+50。标记不是直接整数格式化，也不是将 270 当操作系统退出码。
+- 本精确基线在 macOS/LLVM21 强制本树 frontend 与 codegen 重编 2m24 后，原 exact 1 passed、3490 filtered，测试用时 0.54s 含一次普通 native。Koven 内返回值比较成功后标记断言通过；并非直接打印整数或单独计时 native 子进程。日志保留为仓外 d10-native270-main-exact-20261119.log。
+- fmt/diff、docs 与尺寸门及独审通过；未执行其他 native、sanitizer、CI 专属故障注入或远端 CI，不推送。原 6aa 分支及证据保留。
+
+
+### 独立 main 条件根清理消费对照（2026-11-19）
+
+- 基线 `b314a857`，仅重放 `be16585d` 的原两源、双布局 SSA 消费测试；保留所有旧 FE 断言。
+- 追踪 replace/swap 的字面量来源、两个交换后根身份，以及实际两条正常路径上的先交换后各清理一次。
+- 不改生产、索引、CI 或投影准入；不以本片替代旧条件 cleanup-owner 合同。
+- 定向 exact 本树 FE/CG 重编 2m05 后 1 passed（两原源 × 两布局）；fmt/diff/docs/尺寸门与独审通过。
+- 仅普通 SSA verifier 与身份/路径断言；未执行 LLVM/native、CI 或故障注入，未退休旧合同。
+
+### 2026-11-20：旧 Single 所有权测试迁移首批
+
+- 基线 `5958c06b`。`ownership_checking` 的 ASAP cleanup、非拥有值无 drop、独立重复分析确定性三项保留原始源码，两个 Unit 布局逐一复用原断言；额外要求无 deferred 且可验证，确定性正控保留 loans/drops 非空。
+- 保留仍依赖 Single 的其他合同。特别是两入口同名 `loans_ending_at` 含义不同：Single 检查实际 CallReturn 结束，Unit 只按调用筛选 loan 描述符。不能据此退休真实结束断言。未改变生产、公开入口、实验 CLI 或 CI。
+- macOS 固定工具链独立目标目录离线执行 `lang-frontend --test ownership_checking`：28 passed；三测试原始源码字面量逐字节对照一致。未运行 native、Linux 或远端 CI；SPEC-0341 仍 in-progress。
+
+### 2026-11-20：旧 Single 常量 Abort 与 Range 双布局断言
+
+- 基于 `12d52832`。字符串左操作数在插值中 Abort 时，`ownership_constants` 原源码由旧 Single 改为专用常量 Unit（MemoryDocument / Rooted）：两个布局均必须取得同次 validated capability，且未求值的常量不物化、不析构。
+- `ownership_range_construction` 的五项原已通过两 Unit 布局执行；现将较强原断言统一用于两边：实际 root/loan 来源与 begin Span、RangeView provider 与 metadata 不析构、L0133/L0135。此处不是额外五项 Single 迁移；保留需要 Single 独立 loan-end 表的 range prefix 用例。
+- macOS Rust 1.96.0 离线全目标：`ownership_range_construction` 23 passed，`ownership_constants` 17 passed。逐字节复核源码字面量；仅测试与本账本改动。未运行 native、Linux 或远端 CI；SPEC-0341 仍 in-progress。
+
+### 2026-11-20：旧 Range 前缀 loan 退出测试迁移
+
+- 基于 `1f8d3141`。原 `ownership_range_construction` 仍有且仅有一项调用旧 Single：四份 Range 前缀源码逐字节保留，迁到已有的私有 Unit planner trace，并在原 Rooted `std` 与 MemoryDocument 独立验证。
+- 同一 source-qualified 外层调用、实参与借用来源先建立相同 loan；提前 `return` 的臂只在该实际 ControlTransfer 卸载，继续臂不提前卸载，正常后续只在实际 CallReturn 卸载。断言不接受其他结束事件；没有用调用描述符筛选替代结束证明。两个清理位置不是同一运行路径上的双重结束。
+- 仅测试及账本变化。默认 FE lib 测试目标属于现有 CI 的有界组合，不改 CI、生产行为或 API；私有 trace 不是公开全表，也不证明 native/LLVM 或全部旧 Single 借用合同。macOS 离线定点通过；FE lib 897 passed / 14 ignored、Range 集成目标 22 passed。未运行 Linux、native 或远端 CI，SPEC-0341 仍 in-progress。
+
+### 2026-11-20：参数与嵌套调用的真实 loan end 迁移
+
+- 基于 `c9293c7b`。`ownership_checking` 的参数 binding/loan 查询与嵌套实参 loan end 两项原源码逐字节保留，复用同一 SPEC-0027 自建环境，在 MemoryDocument 与 Rooted 分别检查。
+- 保留 binding/loan kinds、Place 和确切 call Span。每个 source-qualified loan 在实际 planner trace 中必须恰有一对 Begin/CallReturn；将实际 DirectBorrowEnded 与 PendingBorrowRemoved 同构为返回结束，不接受 unwind、重复或换序。内层 Shared 结束必须早于外层 Exclusive 建立；不以 Unit 的 `loans_ending_at` 描述符筛选替代。
+- 本批仅测试与账本；没有新增 trace hook、生产 API、CI 或发布改动。macOS 离线定点 2/2（各两布局）、FE lib 899 passed / 14 ignored、ownership_checking 26 passed；未运行 Linux、native 或远端 CI。旧 Single 边界/恢复及混合 deferred 合同仍保留；SPEC-0341 仍 in-progress。
+
+### 2026-11-20：具名借用返回的辅助结束与结果迁移
+
+- 基于 `2a99536a`。`ownership_borrow_continuation` 的具名参数用例保留正反两份原始源码，在 MemoryDocument 与 Rooted 上执行；提前移动来源的 L0135 反例不变。
+- Unit 的实际 handoff 在同一 CallReturn 移除唯一辅助参数 token，精确核对 source/auxiliary 的实参身份、地点、跨度与两个已知调用 loan。独立 binding transport 把原 source token 从初始化返回携至同一结果的实际 later end，并明确断言两个位置不同，不用 descriptor 或空表推导非终止。
+- macOS 离线定点 1/1（两个布局），本集成目标全 14 passed。其他旧 Single 独立事件测试仍保留；不改生产、API 或 CI，未运行 Linux、native 或远端 CI；SPEC-0341 仍 in-progress。
+
+### 2026-11-20：普通 wrapper 借用转发与析构测试迁移
+
+- 基于 `3231fb5f`。原始 String wrapper 用例与公共源码前缀逐字节保留；该集成测试目标最后一项 Single 依赖迁到 MemoryDocument / Rooted 双 Unit。
+- 独立锚定 wrapper 内层 `view(source)` 和调用者 `wrap(source)`。真实 planner 记录关联原 acquisition 与 wrapper 交接而非结束；调用者原 source token 跨 initializer CallReturn 保留，结果真实结束与 named owner 唯一析构同点，结果绑定和初始化表达式不析构 payload。保持相关观察流无提前 End 的断言，但不把部分流的缺项当全局无结束证明。
+- macOS 离线定点 1/1（两个布局），`ownership_borrow_continuation` 全 14 passed。未运行 Linux、native 或远端 CI；无生产、API、CI 变化，SPEC-0341 仍 in-progress。
+
+### 2026-11-20：直接与 Group 普通借用结果调用测试迁移
+
+- 基于 `95710ddd`，只迁移 `direct_and_grouped_results_are_synchronous_borrow_operands`。直接、内外 Group 两种原源码及之后 `consume(source)` 不变，在 MemoryDocument / Rooted 双布局验证。
+- 原 AST 调用与最外实参链接、source/consumer 同一根、真实内层 CallReturn handoff、外层 CallReturn 有序实际结束（consumer 后才 source）均保留。借用 payload 不被析构，仍需后续消费的 named root 不在外层返回提前析构。只用真 transport 证明结束，不用 call descriptor 筛选当作事件。
+- macOS 离线定点通过，`ownership_nested_borrow_arguments` 14 passed、`unit_direct_call_loan_ends` 358 passed。相邻需旧 Single 独立证据的其他形状未迁；不改生产、API、CI，未运行 Linux、native 或远端 CI；SPEC-0341 仍 in-progress。
+
+### 2026-11-20：Group nullable-copy 实参的实际来源借用结束迁移
+
+- 基于 `0564374e`。原始源码逐字节保留，两个 Unit 布局均要求实际内层 Shared 在外层 Group 实参 AfterExpression 的 `retain_mut` 分支移除，随后同一 place 的外层第二个显式 inout 确实建立 Exclusive。核对原 call/argument/Span、同一外层调用与两事件顺序。
+- 外层 Shared 的目标仍为复制的 nullable temporary，不发普通借用转运。私有作用域探针仅 `cfg(test)`、无产物/API 变化；同一输入开关前后核对借用结果、loans、drops。只退休这一项旧 Single 测试，不外推为其他 nullable-copy 或全部 loan 结束等价。
+- macOS Rust 1.96.0 离线定点 1/1（两布局）；FE lib 900 passed / 14 ignored、`ownership_nested_borrow_arguments` 13 passed、`unit_direct_call_loan_ends` 358 passed。未运行 Linux、native 或远端 CI，SPEC-0341 仍 in-progress。
+
+### 2026-11-20：反序具名实参的同根双借用链测试迁移
+
+- 基于 `36c7ad95`，仅替换混合测试矩阵中的 `pair(second = view(source), first = view(source)); consume(source)`。原源码逐字节保留，源身份及布局经真实索引验证；其他五种形状仍走 Single/Unit 对账。
+- 由 AST 具名实参的源码次序锚定两份不同的 inner call/argument，逐一核对共享根与真实 source token 的 inner CallReturn handoff、outer CallReturn 中本链 consumer→source 的结束次序；不外推跨链全局顺序。原后续 `consume` 必须成功 Move 同一 place，既不析构借用 payload，也不由 caller 析构已交付根。
+- macOS Rust 1.96.0 离线定点 1/1（MemoryDocument / Rooted），`ownership_nested_borrow_arguments` 14 passed、`unit_direct_call_loan_ends` 358 passed。未运行 Linux、native 或远端 CI；不改生产、API、CI，SPEC-0341 仍 in-progress。
+
+### 2026-11-20：根资源 replace/swap 的实例身份测试迁移
+
+- 基于 `c2249969`。原 `resource_replace_and_swap_transport_distinct_owner_definitions_once` 源码逐字节保存为共享 fixture。MemoryDocument / Rooted 均检查两次原子操作、严格三个非条件词法具名析构（old、second、first）及无隐藏临时/旧根析构；保留 FE 测试，移除本项 Single 调用。
+- 同一原源码的 Unit typed SSA 以根 replace→swap→tick→三次 Drop→Return 验证实际边界；同一已验证产物转 LLVM、链接运行，三个实际活分配地址以 Resource(1)→Resource(3)→Resource(2) 逐地址唯一释放。诊断 span 不用作 owner token。
+- macOS Rust 1.96.0 / LLVM 21，FE `ownership_resource_deinit` 31 passed、codegen 定点 1/1（两布局含 native）。未运行 Linux 或远端 CI；生产、API、CI 未改，SPEC-0341 仍 in-progress。其余 Return/Abort、字段实例身份与有意差异见证维持旧路径。
+
+### 2026-11-20：字段资源与外层调用放弃的 owner 身份迁移
+
+- 基于 `090e4587`，迁移余下三个资源实例用例。根与字段的两组 Return/Abort，以及字段的 val/var × temporary/named 四个原渲染源共 8 份，逐字节保留；共用模板同时供两个 Unit 前端布局与真正 SSA 消费。
+- FE 保持根/字段交换事实、词法顺序、精确 Return 清理点及 Abort 不退栈。SSA 以原构造产物的 ValueId 绑定实际 RootReplace / HeapFieldExchange：外层 accept 不派发，Return 按旧值、当前根/原父 owner 顺序各一次 Drop，Abort 无 Drop；字段正常调用保留原父构造，以独立旧字段结果、sibling、原父的顺序在 tick 后各 Drop 一次。
+- Mac FE 31/31，相关 codegen 3/3（本批 8 原输入各双布局；上一片根交换继续双布局链接 native）。本批 8 形态未运行 native，未跑 Linux 或远端 CI。仅保留原 L0135/L0134 与资源条件 deferral 两项故意差异的 Single 见证；生产、API、CI 不变，SPEC-0341 仍 in-progress。
+
+### 2026-11-20：不同具名 owner 的两条同步借用链测试迁移
+
+- 基于 `8f702e7b`，仅替换原混合测试矩阵的 `pair(view(first), view(second)); consume(first); consume(second)`。原 fixture 逐字节不变；原矩阵其余四项、两项资源语义的有意 Single 差异均保留。
+- 两个 Unit 布局按原 AST 的实参次序和 source-qualified 身份区分两个内层 source token、两个消费者及各自不同的根；分别核对真实内层 CallReturn 交接、外层 CallReturn 的本链 consumer→source 退休、之后对同一根的独立 Move、无借用 payload 或已交付根的 caller drop。未声称两链共享全局执行顺序。
+- Mac Rust 1.96.0 离线定点 1/1（双布局），`ownership_nested_borrow_arguments` 15 passed、`unit_direct_call_loan_ends` 358 passed；未运行 Linux、native 或远端 CI。不改生产、API、CI，SPEC-0341 仍 in-progress。
+
+### 2026-11-20：后序标量实参在同步借用链存活时完成
+
+- 基于 `0171401c`。原样保留 `pair(view(source), length(source)); consume(source)`；仅移除旧混合矩阵这一行，三种辅助实参形态仍走 Single/Unit 对账。
+- 在两个 Unit 布局中，按实际 source-qualified AST 实参、共享根、真实 acquisition ID 与 handoff ID 核对同一无分支 catalog：来源 Begin → handoff → 消费者 Begin → 后序 length Begin、CallReturn End → 外层 consumer→source 退休。后序标量值独立交付给外层，原具名根之后才能 Move，无 borrowed payload 或已交付根的 caller drop。本证据不声称完整生命周期或一般 CFG/动态跨路径排序。
+- Mac Rust 1.96.0 离线定点 1/1（双布局）；`ownership_nested_borrow_arguments` 16 passed、`unit_direct_call_loan_ends` 358 passed。未跑 Linux、native 或远端 CI；不改生产、API、CI，SPEC-0341 仍 in-progress。
+
+### 2026-11-20：同步借用结果的两个 owned 辅助实参迁移
+
+- 基于 `ba22d88c`，反序具名 `own aux: Int` 与临时 `Resource()` 的原 fixture 字节不变，各经 MemoryDocument / Rooted。保留来源参数真实身份、正常同步 transport 的 source/consumer 实际 acquisition 及 handoff 到逐链退休，后续原根 Move；不推断跨表全生命周期。
+- 核对辅助 Value 的原 AST operand、callee 参数及实际 Temporary 交付。Int 无清理；Resource 的真实参数符号在原表达式体返回边恰有一项无条件 cleanup，caller 不重复清理临时或借用结果。没有以诊断位置冒充 drop owner 身份。
+- Mac Rust 1.96.0 离线定向 2/2（双布局），`ownership_nested_borrow_arguments` 18 passed、`unit_direct_call_loan_ends` 358 passed。未跑 Linux、native 或远端 CI，生产/API/CI 不变。原矩阵唯一借用辅助项继续保留 Single：普通借用结果同步实参不应套用显式 borrow initializer 的辅助退休表，后续可核真实 pending removal 的私有测试观测。SPEC-0341 仍 in-progress。
+
+### 2026-11-20：同步借用结果的具名借用辅助实参迁移
+
+- 基于 `67cefb18`，原 `observe(select(source = source, aux = aux)); consume(source)` 完整源码逐字节保留，MemoryDocument / Rooted 各证明原源码参数次序、独立两个局部 owner 及同一外层同步使用。仅退役混合六形态矩阵最后一项 Single 对账；其他泛型、父借用、nullable 专项旧证据不变。
+- 复用已有私有 `cfg(test)` pending-token 探针，不新增生产/feature 观测。逐相同全字段 loan 核实真实注册顺序、inner CallReturn 实际移除辅助 token、只析构独立 aux owner、再注册外层 consumer；on/off facts、catalog 与运输产物相同。公开 catalog 另核实 source/consumer 的真实 acquisition/handoff ID 及本链 consumer→source 退休，源根最后 Move；不把两类表冒充跨路径或一般完整流。
+- Mac Rust 1.96.0 离线定点 1/1（双布局），FE lib 901 passed / 14 ignored、`ownership_nested_borrow_arguments` 17 passed、`unit_direct_call_loan_ends` 358 passed。未跑 Linux、native、远端 CI；不改生产、API、CI，SPEC-0341 仍 in-progress。
+
+### 2026-11-20：常量物化失败的完整诊断固定 oracle
+
+- 基于 `1cfbc1be`，只迁移 `ownership_failure_clears_materialization_capability`。原常量与三次交付源码未改。在原 AST 独立选两次 `take(input)` 的 operand：后者为 L0131 主范围，前者为已移动标签；固定 Error、完整消息和有序标签曾与尚未移除的 Single 诊断逐字段相等。
+- MemoryDocument / Rooted 对照完整固定诊断，额外标签指向真实 `own text: String` 声明；保留 validated constant type 身份、原子撤销 materializations/loans/drops 及拒绝 ownership capability。未碰同套其它 Single 见证或有意差异。
+- Mac Rust 1.96.0 离线定点 1/1；`ownership_constants` 17、`multifile_constant_ownership` 23、`const_owned_compilation_unit_view` 4 通过。未跑 Linux、native 或远端 CI；不改生产、API、CI，SPEC-0341 仍 in-progress。
+
+### 2026-11-20：与 #453 主干整合和常量插值终止证据
+
+- 本地主干整合 `e83aed1d` 的第二父提交为已合入 #453 的 `8207b212`。冲突处仅采用显式 `block {}` 样式，延续 D10 逐 token 断言；已由测试内实际四输入证据取代的 Range Prefix Single 测试不复活。整合树在 Mac 的 FE lib 901/14 ignored、9 个集成套件 512 passed 和 codegen 3 passed（含根资源双布局 native）通过。
+- `"${stop()}" + TEXT` 已走原 Unit 双布局，不重复计算为新迁移。在不改源的前提下补全固定见证：真实插值 AST 绑定到返回 `Nothing` 的已选择调用，两个 `TEXT`（RHS/后续语句）保有各自 source-qualified typed use、值和声明身份；两处无 runtime materialization、delivery、loan 或 drop。同一 const capability 可验证，保留相邻旧全 loan-end 断言。
+- Mac Rust 1.96.0 离线定点 1/1（双布局），相关常量三集成套件复验。未跑 Linux 或远端 CI；无本轮生产、API、CI 改动，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：条件构造实参提前退出的清理证据
+
+- 基于 D10 `cdc5ff12`，远端 `main` 仍为 `8207b212`。原 `Holder(if (select) { "a" } else { "b" }, if (early) { return } else { 1 })` fixture 不改；Single 在提前返回上具有两条 guarded owner definitions。
+- MemoryDocument / Rooted 实证 Unit 合并先完成的条件表达式结果，以同一 source-qualified 实参在实际 `return` 处发布一条非条件临时析构；正常路径两实参按源码顺序交付，具名 `holder` 仅析构一次。两套事实形状不同，保留该唯一本文件的 Single 断言，不能用这条 flat drop 推断两个分支的 owner 身份。
+- Mac Rust 1.96.0 复用同生产树已有前端 rlib 编译测试 harness，原 Single 定点及加固后双布局定点均通过，`ownership_construction` 10/10。未运行 Linux、native 或远端 CI；不改生产、API、CI，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：条件构造原始 fixture 的 Unit CFG 与原生清理
+
+- 基于 `922791cd`，将原条件构造 fixture 按原输入字节抽为共享测试文件；前端保留 Single 的独立 guarded owners。下游仅追加测试入口，MemoryDocument / Rooted 分别以实际布尔参数运行选择真/假和早退真/假的四种组合。
+- SSA verifier 后核实际 shared Bool 实参、条件读取、两臂各自产生不同的 String ValueId，以及真实边实参到同一合流参数再到早退 Drop 或正常第一字段的运输；正常分支的 aggregate、HeapAllocate 与最终 Drop 逐 ValueId 相接。原字面量为静态字节，不声称分配可释放 String buffer；同一 LLVM 产物的 native 计数验证早退无 heap allocation、正常仅 Holder 恰一次分配并释放。
+- 单独的 `.clone()` 派生对照只验证动态存储，不替换旧 fixture：两布局四路径检查释放的首个实际地址及其 a/b 字节、正常路径才有第二个 Holder 地址并按序各释放一次。Mac Rust 1.96.0 / LLVM 21.1.8，`ownership_construction` 10/10、codegen 定向 2/2（各自双布局四路径）；未运行 Linux、sanitizer 或远端 CI。未改生产、API、CI，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：nullable When 替换后不继承旧 subject 证明
+
+- 基于 `4c26e31b`。原 `x = replacement` 后两次读取 `x` 的 fixture 字节不变，原 Single 定点和同源码双 Unit 对照均实际通过后，仅退役其旧入口调用；仍保留 Copyable-under-loan 等独立 Single 见证。
+- MemoryDocument / Rooted 上用实际赋值 descriptor、原稳定 subject symbol、两项后续 AST Name 和实际名称解析证明：同一 `x` 完成原赋值，读取回到 `Int?`，没有原 generation 的 When 或非空证明，且未发布借用或析构事实；只包裹赋值的显式 `block { ... }` 对照同样失效。去掉写入时两项读取必须保留原 subject、symbol、entry 和 generation 的真实见证并收窄为 `Int`，不以空表当成证明。
+- Mac Rust 1.96.0 使用同生产树已有前端 rlib 单独构建定向测试 harness，原定点 1/1、替换定点 1/1（原样及两对照各双布局），`ownership_nullable_when`、共享 helper 的 `ownership_checking` 各 26/26。未运行 Linux、native 或远端 CI；生产、API、CI 不变，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：共享实参借用期间复制 nullable When payload
+
+- 基于 `f5b3832d`。原 `combine(x, when (x) { null -> 0; else -> x })` 源码按输入字节抽为共享 fixture。原 Single 验收与同源 Unit 同时通过后，仅退休这项旧入口调用；其他 nullable extraction 见证不动。
+- MemoryDocument / Rooted 均将第一个 Shared 实参的 call、AST argument 及 place root 绑定到同轮 When 稳定 symbol，唯一 else typed use 精确匹配 subject、entry、body、generation，结果为 Copyable Int；外层 Value 只有 When 实参本身。原根是借入参数，不用本例空的有限 direct-call-end 表推断实际退休。
+- 同一实际 Unit SSA 先建立外层 reborrow，再由同一根读取 Copyable `Int?` 快照。两条边逐实体传递同一次 reborrow；非空边的 NullableTake 只提取快照 payload，不移动借入存储；和 null 边的 0 合流后真实调用原 combine，再结束同次 reborrow。经 SSA verifier 与 LLVM verifier 的产物在两个布局各链接运行原 test，分别验证 `null -> 0`、`9 -> 9`。
+- Mac Rust 1.96.0 / LLVM 21.1.8：FE 定点及 `ownership_nullable_when` 26/26、codegen 定点 1/1（两布局，含原生）、相邻 `unit_lower_nullable_tests` 4/4。未运行 Linux、sanitizer 或远端 CI；不改生产、API、CI，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：单纯 nullable When body Copy 对账
+
+- 基于 `2c4e84e8`。只拆出原 Copy/Consume/Read 三联中的 Copy；原 `fun test(x: Int?): Int = when (x) { null -> 0; else -> x }` 输入字节不变。实际 Unit 的唯一 typed use 对应原稳定 subject/place/generation 和 else body，而非条件 alternative；产物读取借入根为 inline `Int?` 快照，只在 non-null 边用同一 proof 提取该副本的 payload，两边返回的分别是 0 和该 payload。保留剩余 Consume/Read 原 Single 断言。
+- 当前这个前端测试文件的剩余 Single 合同，按观测分组：
+  - 条件位置：原 later `identity(x)` 双布局均发布实际 Place Copy delivery，但没有带 original subject/entry/alternative 的 nullable typed-use；不能用普通 Copy 或编译成功代替旧 `entry=1, alternative=0`。
+  - 条件消费与全根 Move：`MayConsume` 必须区别实际未走移动的路径；六类 MoveOnly 值的全根 Consume 还须证明不伪造 Rc retain/share。优先选确定有真实 Unit delivery/edge Move 的原 fixture；带条件的 Drop/Move 不从 flat 数据反推。
+  - Borrow/Read 与非稳定源：保留“Read 没有 extraction”和 repeated field/index 的“内部 view 保留 place identity、不是可安定 smart-cast 的 symbol”合同；只有真实相同 borrowed subject、投影及来源能替换，而不能用两个拼写相同的 AST 节点代替。
+- Mac Rust 1.96.0 / LLVM 21.1.8：原 Single 与双布局 Unit 并列定点 1/1 后移除仅该 Copy 调用；前端 `ownership_nullable_when` 27/27、codegen 2/2（各自两种布局通过 SSA verifier、LLVM verifier 与 native null/9），未跑 Linux、sanitizer 或远端 CI。未改生产、API 或 CI，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：原 Node? When tail 整体移动的下游边界
+
+- 基于 `25e2d428`。保留原 `fun extract(own x: Node?): Node = when (x) { null -> Node(); else -> x }` 的 Single Consume/no-Rc 断言，按原输入字节抽为共享 fixture，不用前端通过替代实际移动。
+- 两种 Unit 布局核真实 MoveOnly Node 的 else typed use 仍绑定到同一具名 subject/root/entry/generation。唯一前端 Drop 义务是 null 边空 nullable wrapper 的逻辑退休；非空边无 Drop、无额外 loan/Rc effect。此事实不证明已生成实际 Move 或释放任何 heap 地址。
+- 同一原源不改入口声明，只加可达 wrapper。实际普通 Unit SSA 对整个 When 给出 `UnsupportedNode`：MoveOnly 结果未获准做隐式 owner extraction。回归固定两种布局及 null/Node 两个 wrapper 输入的真实失败位置；没有 SSA、LLVM 或 native 产物。不改生产、API、CI，也不迁移其他 MoveOnly、Rc、条件消费或 field/index 合同。后续应优先选已有真实 direct-owned-call 的 Move 用例，而不是把此受限尾值改成不同源码后宣称等价。
+- Mac Rust 1.96.0：前端 `ownership_nullable_when` 28/28，codegen `unit_lower_nullable_tests` 5/5，格式、diff 与文档结构检查通过；未运行 Linux、sanitizer 或远端 CI。
+
+### 2026-11-21：nullable 具名根的条件 direct-owned-call
+
+- 基于 `c9ba859b`。原 `when (x) { null -> {}; else -> if (flag) { take(x) } else {} }` 的源码字节不改。同源 Single `MayConsume` 与双布局 Unit 定点均通过后，仅退休本项 Single：真实 call/argument/参数声明、nullable subject/entry/generation、Place Move 与具名根相接；只有 null 或跳过 call 的分支各有该具名根的退休义务。
+- 实际 Unit SSA 逐边运输同一 root/proof，flag 真从非空根提取同一 ValueId 交给原 `take` 并由被调方释放；假分支先结束 proof 再清理原根；null 分支只退休空 wrapper。Mac native 在 MemoryDocument/Rooted 各验证四组实际输入：null 分支不得发起物理分配/释放，Node 两条路径释放唯一相同的实际分配地址一次。SSA/LLVM verifier 均通过。
+- 退役分档：此前的 Copy-under-loan、普通 body Copy、这里的 direct call 条件 Move 都有同源对应证据；明确保留 MoveOnly When tail（SSA 拒绝）、later 条件 Copy（缺 subject/alternative 证明）、旧 guarded construction 分支 owners（Unit FE 提供合并事实）。其他 MoveOnly/Rc 及 field/index 身份与 Read 仍逐原 fixture 核对；不能由此项或近似替代源码一并退役。下一候选优先原具名 `read(x)` 的 Shared loan/同根与无 Move，与非稳定 field/index 分开审计。
+- Mac Rust 1.96.0 / LLVM 21.1.8：前端 28/28、codegen 6/6，fmt/diff/docs 通过；未运行 Linux、sanitizer 或远端 CI。生产、API、CI 不变，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：nullable 具名根的 Shared read 下游边界
+
+- 基于 `ab9b8ffd`。原 `fun test(x: Node?): Unit = when (x) { null -> {}; else -> read(x) }` 源码字节不变，保留 Single 无 extraction 的断言。Unit 双布局的 `BorrowRoot`、原 subject/root/entry/generation、实际 `Observe` 和唯一 Shared call loan 相接；该 loan 的开始引用、结束调用及 `x: Node` 参数身份真实一致。无 Move/delivery、Drop 或 Rc effect，不拿 Copy 的证据替代借用。
+- 普通 sealed Unit SSA 同源输出 `UnsupportedNode`，span 精确指向整个 nullable When；回归验证两布局和空/非空入口，不产生可验证 SSA、LLVM 或 native，未退休该旧断言。先前的 x01 `if` 证据以及已支持 direct-owned-call 不能覆盖这个 BorrowRoot When。
+- 后续单独拆查非稳定 field/index 的真实投影与重复读取，各自需同源 identity 证据。生产、API、CI 不变，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：nullable When 的非稳定字段与索引分开核对
+
+- 基于 `e7567a75`。原 `h.item` 与 `xs[0]` 两段保留准确输入字节及各自 Single 内部 non-null view 查证。两种 Unit 布局完整最终类型准入通过：字段为 `OrdinaryField`，绑定 `h` 与已解析 `item` 声明；索引为 `ContainerElement`，保留 `xs` 根与真实逻辑 `Known(0)`。不能用字段测试代替索引身份。
+- 两条原源码的 subject 与重复读取是不同 AST identity，均有原 nullable 类型；后一次只是针对同一具体 place 的普通 Shared call loan，无稳定 symbol/reference/generation、nullable extraction、Move 或 Drop。不把同一 place 误解为重复读取继承第一次的 non-null 结论。
+- 追加独立可达 wrapper 后，普通 sealed Unit SSA 仍各在原完整 When 返回 `UnsupportedNode`，两种布局一致，未产生 SSA/LLVM/native；两条旧 Single 均不退役。未改生产、API 或 CI，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：Single ownership 公开入口的实际消费者与退役门槛
+
+- 基于 `f5ff7c90`，按 Git tracked Rust 中 `check_ownership\s*\(` 的直接调用形状清点，排除公开函数定义和只有 import 的文件：frontend 集成测试 43 文件／67 点，frontend `src` 22／23，codegen `src` 12／14。后两项是测试链，包括 `cfg(test)` 的 `checker/drop_planner/iteration/instance_replay`、two-source shape 对照、可选研究 observer 的测试模块，以及 codegen 的 `lowering_entry_contract_tests`、`lower_frontend/container.rs` 内嵌测试和 `unit_lower/nullable_when/source.rs` 内嵌对照。codegen 旧 `lower_frontend` 模块和 `lower_scalar_file_with_entry` 由 `ssa/mod.rs` 仅在 `cfg(test)` 挂载。未在 tracked examples、benches、Cargo 示例/基准配置、构建脚本或其他 workspace crate 中发现该入口的直接调用。此清点不统计函数指针间接调用或仓外客户端；workspace `publish = false` 不证明 API 无用户。
+- 实际生产路由：CLI `unit_build::check_unit_frontend` 和 LSP `unit_session::UnitSnapshot::analyze` 调用 `analyze_basic_unit_ownership`，该前端阶段调用 `check_compilation_unit_ownership`；CLI native 构建经 `owned_compilation_unit_view` 或 const capability 交接，不使用公开 Single 来降低单文件。现有正常 Unit 覆盖包括 `ownership_checking::ownership_facts_are_deterministic_across_repeated_checks`（两布局各重复检查实际相同字节及 facts）、`basic_unit_ownership::empty_and_multiroot_subset_preserve_complete_manual_facts_and_identity`（公开适配器与直接 Unit checker）、CLI `unit_single_entry_uses_original_user_source_after_standard_sorting`（入口身份）、LSP `session_name_owner_matches_complete_same_source_manual_prefix_and_ast_pairing`。这些只证明正常路径/同源产物，不是 API 兼容承诺。
+- 保留 API 合同：Single 的 `ownership_stage_preserves_source_identity_and_rejects_mismatched_inputs` 前置拒绝顺序是 foreign names 的 `MismatchedNameSource`、foreign typed 的 `MismatchedTypedSource`、同 SourceId 但重跑 names/换环境的 `MismatchedAnalysisIdentity`；空 map 原链保留 `Source(_)`。同 names 重跑 type 则可通过 names 兼容检查，但旧 owned product 拒绝新 typed owner。Unit `basic_provenance_rejections_keep_the_original_checker_error` 将换环境、重建 names、foreign map、换 root 和重复 input 统一返回 `MismatchedCompilationUnitTypes`；`cloned_chain_and_rechecked_ownership_keep_view_identity_but_fresh_typed_does_not` 证明 Unit 自身的产品链隔离。没有找到复刻两段原 `val first = 1` / `val second = 2` 及全部错误变体的 Unit ownership test；同文字的 index/name snapshot 测试不经过 ownership。
+- 准确的反例：`error_nodes_do_not_create_ownership_cascades` 原文件缺 initializer，Single 仍推进到所有权且无 ownership 诊断；用完全相同字节探测 MemoryDocument、Rooted，两者都在验证 names 阶段拒绝，未进入 ownership。不能以 Unit 的“不产生 ownership 诊断”替代 Single 的“检查恢复 AST 但不级联”。保留这两项旧 API/恢复入口，不迁移、不删公开 API 或 producer。下一步应选原诊断有效、能进入两种 Unit ownership 的子项；删除 API 本身另需明确的仓外兼容和诊断契约决策。
+- Mac Rust 1.96.0 用同生产树缓存单独构建两个定向 harness：两项 Single 定点均过、`basic_unit_ownership` 25/25；同源恢复探针两布局均重现 names 阶段拒绝。只改本记录，不改生产、测试或 CI；未跑 Linux/native/远端 CI，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：原双 Map 短路的真实 Unit 分岔
+
+- 基于 `60c94c46`。`owned_source_continue_external_owner_and_short_circuit_boundaries` 的死 Map 不重复：原 fixture 已走严格 MemoryDocument，保持原 entry、无 deferred 和无进程入口 LLVM 合同。原另外两条 Single negative（外部 shadow owner 的 `keys` 与双 Map 的 `second`）仍精确报 `UnsupportedNode`。同字节 MemoryDocument 探针实际能降低这两条；不以生产 Unit 支持否定 Single 的原准入合同。
+- 从原 Single test 只抽出逐字节一致的双 Map 正/负共享源，不更改函数和字面量。两种 Unit 布局完整 final type admission 后，真实 `first.contains(3)` 控制短路分支；左 Map 在查询后退休，同一 `second` owner 通过两条 edge 实参传输；仅真边查询右 Map 再 Drop，假边跳过整个查询并 Drop 同一 owner。该测试断言 SSA Drop identity，不将其表述为真实 heap 地址计数。 已存在 `owned_source_continue_native_map_and_source_liveness`，但它分别写两个 if，不经过 `&&` 的 RHS 跳过边，不能代替本断言。
+- 原输入运行只经过 lhs 为真的路径；运行输出验证成功案例，lhs 为假的无查询/Drop 由实际 CFG 证明，不宣称原生运行覆盖两边。保留既有旧断言，不改生产、API 或 CI，SPEC-0341 仍 in-progress。
+- Mac Rust 1.96.0 / LLVM 21.1.8：原混合旧断言与新增 Unit 正例各定点 1/1，格式、diff 和文档检查通过；未运行 Linux、sanitizer 或远端 CI。
+
+### 2026-11-21：双 Map 短路的独立 native 假路对照
+
+- 基于 `ee6506e2`。原代码、Single 拒绝和 Unit 同源正例均保留。另有派生用例明确增加 `drive(probe: Int)` 和 `right(own map)`：左侧真实查动态传入的 3 或 8，右侧 helper 先输出 `rhs` 再查询接到的同一 Map，不改变原用例作为基线。
+- 两布局均核实际 SSA：wrapper 把对应常量经共享 loan 传到 `drive`；左查询结果控制 CFG，假边直接 Drop 同一传输 owner、没有 helper call；真边将该 owner 交给 `right`，真实查询后由 helper 对收到的参数恰做一次 SSA Drop，并返回真实结果。没有替换 allocator，也不声称有 heap 地址计数。
+- 派生 native 四次（双布局各两值）验证 3 输出 `rhs / maps / done`，8 仅输出 `done`；原 fixture 仍只声称覆盖其实际真路。上一轮完整 `owned_source_continue` 套件最终 33/33（含 54 个 provider 子用例），不是超时。未改生产、API 或 CI；不退役旧入口断言，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：原外部同名 keys 与内层循环 owner
+
+- 基于 `d147c4b7`。原 `Array[9]` 的外部 `keys` 与局部 `Array[1,2]` 的同名 `keys` 源按字节抽为共用 fixture，不修改原普通源；保留 Single 的 `UnsupportedNode` 与 `keys` span。既有相邻独立/同源循环正例不包含这个已退休的同名外部 owner 对照。
+- 双 Unit 布局完整 type/ownership 准入、SSA 与 LLVM 验证；外数组做真实 `size` Shared read、结束借用并 Drop 后才构造内数组；进入循环时只携带实际内数组 owner，continue/正常边以真实对应参数保留同一内 owner/源 loan，退出后结束这条 loan，再对内数组最后一次 `size` read，结束短借用并仅 Drop 一次。
+- 原样 native 的验证只包装本用例已验 LLVM 的 allocator calls：实际 4 字节数组先分配、写入 9 并释放同一指针，再分配 8 字节、写入 1/2 并释放该指针；严格计数和顺序独立于地址能否恰好复用。这是原源码的正常执行证据，不声称对其他异常路径或平台给出释放证明。
+- 不改生产、API、CI，不以 Unit 允许来否定 Single 的旧入口合同，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：实验 object CLI 与普通 project 的退役边界审计
+
+- 基于 `7e9abcfd`。CLI feature `d10-catalog-experiment` 默认关闭，`main::run` 在同一 cfg 下才追加帮助和 dispatch 单源 `experimental-d10-object` / 双源 `experimental-d10-split-object`；feature-off 的两定点验证拒绝、无目录变化、帮助不列命令。它们不是普通 `build`、`run` 或 `--project` 的 fallback。
+- Feature-on 的两个独立实验路径均使用原完整 source snapshot / Unit names/types；分别调用 `prepare[_selected]_named_entry` 和 `prepare[_selected]_split_named_entry`，先完成 final type 与一次 ownership，再查 sealed wrapper/source identity。同名 selector 可能预先查找，但未找到不会覆盖真正的源码 admission 错误；CLI output preflight 属独立、更早的操作检查。Prepared capability / codegen 检查原声明与原 owned view，不把已验证事实转成旧 Single。
+- 既有实验回归 `both_orders_emit_real_objects_only_for_the_exact_source_entry`、`split_cli_objects_preserve_sources_selectors_and_existing_targets` 验证合格对象、错误 selector、源文件/已有目标不被覆盖；单源还有 hard link/dangling alias；split 验证物理路径重复和 symlink aliases，`split_cli_native_zero_and_multiple_rounds` 验证可链接对象。新增 `split_cli_rejects_unreachable_bad_member_in_other_source_before_selector` 与既有破坏 wrapper 的测试不同：被选择 wrapper 和实际 `run` 不变，仅另一文件不可达函数出错，物理排序及 CLI 参数顺序对换时，同一 `L0080` 保持 callee source 和精确 `fooBar` span，找到/找不到 selector 均同输出、不新建对象、原文件逐字节保持。
+- 普通 CLI 的 `unit_build::check_unit_frontend` 完成全部用户/标准源码的 names/final-types/ownership，之后普通 `select_project_entry` 用包路径和 process shape 选择声明，走 ordinary 或 const sealed view；实验的 builtin-only scope、单/双文件封装及 object no-overwrite 不是普通 project 的定义。既有 `d10_project_cli` 同时覆盖真实标准库加载下的正常单/双多轮项目；`project_basic_ownership_cli` 固定 source validation 与 entry 的优先级及 stdout/stderr、output accounting。无需复制这些普通路径测试。
+- 此审计不等价于退役两个命令，不删除/改名 feature、公开 API 或生产路由，SPEC-0341 仍 in-progress。
+- Mac Rust 1.96.0 / LLVM 21.1.8：feature-off 2/2，feature-on 单源 3/3、split 4/4、普通 D10 project 2/2、普通 project ownership CLI 9/9；fmt/diff/docs 检查通过。未运行 Linux、sanitizer 或远端 CI。
+
+### 2026-11-21：D10 本地组合与实际 CI 选测
+
+- 基于 `31d8fc7e`，只读核实远端 `main=8207b21266dc1228e0ee6d912ae27f4f010ac6af`，是当前候选祖先，未重放或推送。候选相对 main 有 32 个范围内提交；既有 `e83aed1d` 整合后至此 15 个。代码文件路径也复核：codegen `ssa/mod.rs` 只有 `cfg(test)` 注册；整合前 `36c7ad95` 在 `borrow_call_use.rs` / `call_contract.rs` 的改动均受 `cfg(test)` 限定。不能仅凭路径名宣称 production 更新，也不能把 15 个误报成全部提交。
+- 普通 `check_integration.sh` 组合 `check_core.sh` 和 stage：前者默认执行全量 codegen（额外 `loan-observation-test-support`，没有 D10 catalog）、全量默认 feature 的 lang-cli（包括双命令关闭态、两普通项目 target）；后者显式选择 `ownership_construction`、`ownership_nullable_when`、`ownership_constants`、`ownership_checking` 等。新增 Unit/SSA/native fixtures 不被 ignored，也不要求 D10 catalog；正常项目覆盖无需另加门禁。
+- 找到一个真实缺口：开启 feature 的 split CLI normal step 之前只执行两个旧 exact FQN，新 `enabled::split_cli_rejects_unreachable_bad_member_in_other_source_before_selector` 不会被选中。仅在既有 `Explicit D10 split CLI normal contract` step 增加该 exact 调用及 `1 passed; 0 failed; 0 ignored;` 校验，避免不存在的 FQN 以 0 tests 误绿。不改默认 feature、全局测试入口、现有 native 矩阵或普通使用者路由。
+- 复核命令（Mac 额外用 `--offline`）：`cargo test --locked -j1 -p lang-cli --features d10-catalog-experiment --test d10_split_object_cli enabled::split_cli_rejects_unreachable_bad_member_in_other_source_before_selector -- --exact` 实际 1/1；不存在 FQN 实为 0 tests 且 guard 拒绝。此前同代码测试：`cargo test --locked -p lang-cli --no-default-features --test d10_object_cli --test d10_split_object_cli` 2/2；`cargo test --locked -p lang-cli --features d10-catalog-experiment --test d10_object_cli --test d10_split_object_cli --test d10_project_cli --test project_basic_ownership_cli` 18/18。CI 组合脚本的 Python 合同 45/45；没有声称重新运行整套 `check_integration` 或远端双宿主。
+- 下一实质退役决定：先明确是否保留公开 Single `check_ownership` 的细粒度来源错误与恢复 AST 合同（仓外客户端仍未知），另行决定是否停用两个 opt-in CLI 命令及各自 sealed/create-only 约束；ordinary Unit project 证据不能代替这两项兼容决策。本片只改现有 CI 选测和记录，未改生产/API，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：x01 原 nullable class 读取的两种 Unit 布局
+
+- 基于 `e96111f8`。保留原有 test FQN 与 163 字节 `x01_nullable_class_retest.ko`；与 conformance 原 probe 逐字节相同（SHA-256 `b3ef9dad60dd36ca1abf3992a7cc55bfed7865fb9831c97daad8355b134a7342`）。已有 exact 只验证 Rooted，现另执行真实 MemoryDocument；不是用 if 替代 BorrowRoot When，也不重写 §28 的历史失败记录。
+- 双布局保完整前端与 sealed view/构建/真实 native object 流程。SSA 精确核对 `use(n)` 接收该非空边实际 Shared loan，原 `use` 只用这个 ABI 参数读 `n.v`；调用方结束同一 loan、放掉同一 nullable owner 后，才用返回的标量与原字面量 3 做内层条件。空边只退休空 wrapper、不执行 `use`；原用例动态输入非空，不声称运行覆盖空边。
+- 两布局的 public native 对象都保持 `retest\n`/exit 0/空 stderr。独立的 verified LLVM 视图只包装实际分配/释放，确认同一唯一 Node 地址恰释放一次且保持相同输出，不以该包装替代 public object 的已验证路径。无生产或 API 改动；旧 API、实验 CLI 及 E2 range 合作边界仍分别决策，SPEC-0341 仍 in-progress。
+- Mac Rust 1.96.0 / LLVM 21.1.8：`ssa::unit_lower_nullable_tests::` 9/9，格式、diff 和文档检查通过，本次未复跑 Linux 或远端 CI。
+
+### 2026-11-21：x01 独立空输入 native 对照
+
+- 基于 `6beb9fda`。原 163 字节 fixture 和原 exact FQN 原样保留。独立 `derived_nullable_class_null_path_skips_read_and_physical_release` 只把 `Node(3)` 改成 `null`；逆替换断言其余源码完全相同。两布局从实际 `NullableNull` 分支，与 unchanged positive 的真实构造/包裹相区分；SSA 上空边不会调用 `use`，只退休空 nullable wrapper。
+- 双布局分别经完整 Unit 名称/类型/所有权、真实 sealed public native object 和链接子进程；空对照 exit 0，stdout/stderr 皆空，原例仍输出 `retest\n`。对经验证的 LLVM 另做原生分配钩子：空对照中任何 malloc/free 都会失败，原例继续检查唯一实际 Node 地址恰好释放一次。空 wrapper 的 SSA Drop 不等于释放堆对象。
+- 保留原 exact 的顶级 FQN，新增空对照也在同层，将 x01 实现拆入 `unit_lower_nullable_tests/x01.rs`，使主文件 689 行、模块 400 行，不修改 Rust size policy。未改生产、API、范围 metadata 对照或 CI，SPEC-0341 仍 in-progress。
+- Mac nullable codegen 10/10，格式和文档检查通过。against main `8207b212` 的整体物理行数 guard 仍因此前前端 `ownership_nullable_when.rs` 1102 行而红；另案做仅测试拆分，不能把本次 x01 测试通过视为全体门禁通过。
+
+### 2026-11-21：nullable ownership 测试通过物理行数门槛
+
+- 基于 `39ec2e99`，只下沉 `named_nullable_read_borrows_without_extracting`、`owned_nullable_node_moves_the_original_root` 的原断言到 `retained_boundaries.rs`。顶级测试入口、Single 与双 Unit 分析、fixture 字节及所有断言保持；前后 test list 排序比较逐行一致。
+- 根测试从 1102 缩至 945 行，新子模块 176 行；上一片 x01 的 689/400 拆分保持。只移动测试代码，不修改 production/公开 API、CI 选测或 size policy。Mac `ownership_nullable_when` 30/30，SPEC-0341 仍 in-progress。
+- 官方 `python3 scripts/check_rust_sizes.py --base 8207b212` 实际通过，只报告既有两个批准例外；fmt/diff/docs 检查通过。
+
+### 2026-11-21：普通泛型借用结果的同步运输
+
+- 基于已验证候选 `3843a810` 的独立测试线。原 `generic_field_wrapper_and_existing_parent_sources_keep_their_identity` 五个子项只迁首个 `observe(genericView(source)); consume(source)`；原 helper 前缀与 body 重建后和共享 fixture 逐字节相同。同源 Single 的原独立 loan-end 断言先复验，再删除这一子项的旧入口调用，其他 field/wrapper/parent/measure 四项保留。
+- 两布局核实际 transports，不把空有限 end 表当作终止证明：同一具名 root、两枚真实 Shared loan、generic/observe 的原 AST 与参数 span，handoff 到实际 observe 回来才按 child→lender 结束；后续实际 Value delivery 移动同一个 root，没有误造 temporary/caller Drop。
+- 同源真 Unit SSA/LLVM 验证顺序和身份：具体 String 实例由 `BorrowCall` 返回自己的真实 lender 参数，原 `observe` 得到 child，先结束 child 再结束 lender，最后原 ValueId 交给 `consume` 的 own 参数且被调方只做一次 SSA Drop。两个布局 native 都输出 `kept\n`；原 String 是静态字面量，不拿 native 输出声称它分配或释放 heap buffer。
+- Mac 前端 `ownership_nested_borrow_arguments` 18/18、codegen 定点 1/1（两布局），格式、diff、docs 和对 main `8207b212` 的 Rust size guard 通过；不改生产、API 或 CI。未与 E2 合并、未跑 Linux/远端 CI，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：原 wrapper 的嵌套借用同步运输
+
+- 基于 `c35de787`。只拆换同一旧混合组中的 `wrap(source)` 子项：真实 `fun wrap(source: String): borrow String from source = view(source)` 与 `observe(wrap(source)); consume(source)` 连同旧前置声明一共 278 字节不变。原 Single 的端点先实跑通过，再迁本条；field、parent、measure 三个旧子项不动。
+- 双 Unit 布局验证真实 source/consumer 共享根、caller handoff/按 child→lender 结束，再发生同根的 own Move。实际 Unit SSA 另追 `wrap` 内自己的 Shared 参数到原 `view` 的 BorrowCall 与返回 child，再返回同一 child；外层 observe 使用实际子借用，两个贷款在原调用结束位置退休，最终同一 ValueId 到 `consume` 且只在该被调方有 SSA Drop。不是用泛型直接返回测试推论 wrapper 链。
+- Mac 原样 native 两布局均 `kept\n`，只证行为和 SSA 所有权，不声称静态字面量在 heap 分配；前端 19/19，codegen 2/2（含前项 generic 复验，两布局）。fmt、diff、docs 和对 main 的 Rust size guard 均通过。保留原验证候选 `3843a810`，未改 production/API/CI、未合 E2、未推送或跑 Docker/Linux，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：原 Record 字段借用的同步运输与释放
+
+- 基于 `0527087a`。只迁旧混合组 `observe(field(source))` 子项；原前置声明、`Record` 定义及 `source.text` 借用返回逐字节保留。两布局的原 Single 独立 loan-end 断言先实跑通过，再迁本项；parent、measure 两个原 Single 子项保持。
+- 双 Unit FE 核同一具名 Record 根、真实 child/lender 的结束顺序及外层 observe 返回处唯一 Named Drop，无临时 Drop 或 Move。前端运输的两个 Shared 事实同样会锁根，单凭它不能证明返回了字段而不是整个 Record。
+- 双布局的 Unit SSA 证明实际共享 Record ABI 参数经字段 0 的 `SharedHeapFieldLoan` 投影到独立 String loan，且被调方返回这个实际投影；外层 observe 消费这个子借用后，按 child→Record lender 的次序结束，再 Drop 最初构造的同一 Record ValueId。由同一验证过的 LLVM 链接执行，输出 `kept\n`，分配跟踪要求唯一真实 Record 地址恰好释放一次；不把静态 String 字面量算作独立分配。
+- Mac 前端 20 项，codegen 定点 3 项（含前两片的复验），fmt、diff、docs 与相对 main 的 Rust size guard 通过。未改生产/API/CI，未跑 Linux 或远端 CI；SPEC-0341 仍 in-progress。
+
+### 2026-11-21：原 parent 借用跨同步调用后再移动 owner
+
+- 基于 `1723a4a3`。只迁旧混合组 `observe(view(parent)); println(parent); consume(source)` 子项，保留原前置声明和 262 字节源码。两布局原 Single 独立 loan-end 先实跑；无最后 `consume` 的邻近旧用例整体不动，旧 measure 子项也保留。
+- 双 Unit FE 固定同一具名源、实际 parent 绑定和同步使用的来源，绑定直到原 `println(parent)` statement 之后才结束，此后有同根实际 Move 而无 caller/temporary Drop。该形状的前端不会产出平面的 `borrow_call_transports`，不以空表声称证明 child 的结束；另核实实际 SSA。
+- 双布局 Unit SSA 证明实际 Shared 根借用经原 `view` 成为持续 parent，再从同一 parent 借出新的 child；observe 只使用并结束 child，println 仍使用同一 parent loan，随后依次结束 parent/root，原 ValueId 才交给 `consume` 的 own 参数且仅被调方执行 SSA Drop。双布局由真实 LLVM 链接执行为 `kept\nkept\n`；原静态字面量不主张 heap 分配证据。
+- Mac 前端 21 项、codegen 定点 4 项，fmt、diff、docs 及相对 main 的 Rust size guard 通过。代码、CI、公开 API 的生产行为不变，未跑 Linux 或远端 CI；SPEC-0341 仍 in-progress。
+
+### 2026-11-21：原标量同步调用的返回值与 owner 后续移动
+
+- 基于 `d5a4e475`。只迁旧混合组最后一个 `val count = measure(view(source)); consume(source)` 子项，原前置声明、未使用局部及原源码 260 字节完全相同；两布局原 Single 独立 loan-end oracle 先实跑通过。移除的是该空下来的混合组入口，未移除邻近无 consume 的 parent 见证或其他 Single 合同。
+- 双 Unit FE 核实际 `measure` consumer、同根 Shared child→lender 终止顺序及后续 Move。真实 Unit SSA 分别验证 `measure` 的 ABI 接收实际 child，原函数返回同一真实 Int 常量 1（signed 32-bit），caller 有独立 scalar Value；两条实际借用在原调用端点结束后才交付同一个 owner ValueId，Drop 只在 consume 被调方。
+- 两布局的原 LLVM 均直接链接执行并保持无输出；不把“无输出”用作标量证明。测试另在该 LLVM 中匹配唯一已生成的 `measure` 调用，给原 i32 结果增加一个 C 观察者；不新建 `measure` 调用，不替换 return，也不改 Koven 源码。两布局的观察执行均验证实际值是 1 并精确输出一次 `measure=1\n`。这不是静态 String 字面量内存分配证据。
+- Mac 前端 21 项、codegen 定点 5 项，fmt、diff、docs 及相对 main 的 Rust size guard 通过。未改生产/API/CI、未跑 Linux 或远端 CI；SPEC-0341 仍 in-progress。
+
+### 2026-11-21：普通具名根在同步借用的外层返回处自行 Drop
+
+- 基于 `aefa8833`，该父提交的五个原混合组回归在 Linux AMD64 Rust 1.96.0 / LLVM 21.1.8 已实际跑过：前端 21/21、SSA/native 5/5，均为默认 feature。不是本片的 Linux 验证。
+- 精确迁移旧 `existing_parent_survives_call_and_memory_owner_drops_at_outer_return` 的第二个原子项 `observe(view(source))`（无 `consume`）；原 194 字节重建等同。原 Single 和 Unit 布局先实跑，另一个无 consume 的 parent 子项保留原 FQN 和断言，不用前片有 consume 的 parent 代替。
+- 双 Unit FE 证同一原具名 String 根、实际 child→lender 的终止顺序、外层 observe 返回处唯一非临时 Named Drop，且无 Move 或临时 Drop；这不是字段投影或被调方回收。实际 Unit SSA 强化：两实际 loan IDs 依次结束，原 String owner 的同一 ValueId 在 caller 被 Drop；随后才返回。SSA Drop 的源位置归属原局部声明。
+- 两布局原样 LLVM native 均输出 `kept\n`。另在唯一既有逻辑 drop 调用之后加入独立测试观察者，验证真实顺序 `kept\ndrop\n`；不改变原 Koven 源码，也不把静态字面量的逻辑 Drop 误报为 heap 释放。
+- Mac 前端 22 项、codegen 定点 6 项，fmt/diff/docs 与相对 main 的 Rust size guard 通过；未改生产/API/CI、未跑本片 Linux 或远端 CI，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：原无 consume 的 parent 在最后读取后由 caller 清理
+
+- 基于 `985bda8d`，只迁留存旧入口 `existing_parent_survives_call_and_memory_owner_drops_at_outer_return` 的剩余子项，保留历史 FQN。同原 helper 重建的 245 字节完全相同，旧 Single/原 Unit 独立端点先双布局实跑；有 `consume` 的 262 字节 sibling 与不含 parent 的外层返回处 Drop 用例保持。
+- 双 Unit FE 核原 `view(source)` 绑定自己的 parent、`observe(view(parent))` 回来并未结束 parent，实际最后 `println(parent)` 后同一 statement 上结束 parent 并有唯一原具名 String 根 Drop，无 Move 或临时对象 Drop。FE 同 statement 不自行证明两者顺序；Unit SSA 明确 observe 只 End child、原 parent loan 被后续 PrintString 读取，然后依次 End parent、End root，最终 caller Drop 原构造的同一 ValueId。
+- 双布局原 LLVM native 实跑均输出 `kept\nkept\n`；独立观察在唯一真实逻辑 drop 调用返回后输出第三行 `drop`，没有替换原调用，也不把静态 String 字面量的逻辑 Drop 说成 heap 释放。
+- Mac FE 22 项、codegen/native 7 项，fmt、diff、docs、相对 main 的 Rust size guard 通过。未改生产/API/CI、未跑本片 Linux/远端 CI，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：原具名 pair 同根借用的源码顺序与参数顺序
+
+- 基于 `1038e2ac`。只迁原 `grouped_named_operands_and_same_root_chains_are_not_collapsed`，保留 FQN、原括号及旧 helper 重建的 271 字节。先实跑原 Single 的每条 child→lender 端点。仅清理本测试最后使用的 ordinary/assert helper，仍保留三组独立 nullable 对照的 Single 检查入口和原断言。
+- 双 Unit FE 核 `second = ((view((source))))` 在 AST 与借用 use 中先于 `first = view(source)`；真实 typed 参数对应的 transport 却为 first、second，单独保全圆括号 operand、规范内层调用、同一具名根及互不相同的四个 loan witness。每条在真实 pair 返回点按 child→lender 结束，没有 Move 或临时 Drop，调用方只 Drop 原具名 root 一次。
+- 实际 Unit SSA 验证两条链按 source order 求值，各有独立 lender 与 child IDs，分别发起同根的真实 view；pair 接收的参数 ID 为 first-child、second-child。四条 loan 在 outer return 按相应 child→lender 结束后再 Drop 原 owner ValueId。真实 LLVM 也把第二个计算所得临时放到第一个参数位置；无输出 native 仅确认原样链接和执行，不用同根指针值相等或不等判定两条链身份，也不主张静态字面量的 heap 释放。
+- Mac FE 22 项、codegen/native 8 项，fmt、diff、docs、相对 main 的 Rust size guard 通过。没有改 E3 grouped 生产实现、任何 API 或 CI；未跑本片 Linux/远端 CI，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：nullable Copy 拒绝 MoveOnly 借用结果的完整诊断
+
+- 基于 `f921e43c`，只迁 `nullable_copy_does_not_create_ownership_of_a_move_only_result`，保持原 FQN 和原 inline 源码。先在原源码、两个 Unit 布局实跑 Single/Unit 结构化诊断数组相等，且零实际 loan/end/drop/交付。其他 Single nullable Copy 用例（包括 L0135、源 last-use、递归 cleanup）及其比较入口保留。
+- 双 Unit 从 lex、parse、index/names 到 final types 均无诊断，错误由 ownership 产生：唯一 Error L0164，主消息 `caller borrow result continuation is not yet proven`，原主 `view(n)` span 138..145，唯一有序关联 `borrow` span 26..32、消息 `borrow result declared here`，无额外 notes/help 或 deferred。
+- 两布局均不能验证成可用的 ownership 能力，也不发布 borrow-result binding/use/forward/range、transport/handoff/end、任何实际 loan/drop、具名 owned formation 或 value delivery。原有语法/类型参数分类不是成功的 borrow capability，不要求清除它。本用例专门验证前端拒绝，未尝试 SSA/native。
+- Mac 前端 22 项、fmt、diff、docs 及相对 main 的 Rust size guard 通过。未修改生产/API/CI、未跑本片 Linux 或远端 CI，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：原 nullable Copy 的源与辅助 owner 最后使用
+
+- 基于 `6bd53cad`。只迁原 `nullable_copy_preserves_a_live_parent_and_ends_a_last_use_source` 的独立正例，原 inline source 的 218 字节保持。原 Single 与双 Unit 的两个 Drop 端点先实跑；同 FQN 的 L0135 对照仍留（Unit 比 Single 多一个参数声明标签，诊断不等价），递归捕获 cleanup 对照不动。
+- 双 Unit FE 核独立 Named source/aux、两条 Shared 输入以及外层对临时 nullable Copy 的借用而不是原 source 的借用；aux 在内层 CallReturn，boxed 在同一内层实参 AfterExpression Drop。无 Move 或临时 Drop。实际 Unit SSA 中两不同构造 ValueId 和借用身份明确：callee 从实际 boxed ABI 参数投影，aux 结束并 Drop 后沿真实 field loan Read，结束结果与 boxed lender 后 Drop boxed，把同一复制的 Int 值包装为 nullable，外层 observe 用独立临时槽位。
+- 两布局原始 LLVM native 均链接运行且保持静默；独立观察保留原 call 与 return，在真实 observe ABI 检查 presence 和 copied Int，同时核真实不同地址按 aux(9)→boxed(7) 各物理释放一次后才观察到 present 7。观察不改原 Koven 程序；该正例不声称覆盖 OOM 或其他退出边。
+- Mac FE 23 项、SSA/native 9 项，fmt/diff/docs、相对 main Rust size guard 通过。没有生产/API/CI 改动；未跑本片 Linux/远端 CI，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：原递归 capture cleanup 暂不迁旧 oracle
+
+- 基于 `4e32033f`。保留 `nullable_copy_protects_the_source_from_recursive_call_return_cleanup` 原 Single/Unit 比较及 240 字节源码。原测试 Mac 实跑通过；独立 Unit 探针两布局均完成 names/final types/validated ownership，证实 `{ boxed.value }` closure 捕获的 Shared/Borrow 是同一个 boxed root，aux 的 Named Drop 在 `CallReturn(view(boxed, aux))`，boxed 的在该实参 `AfterExpression`，外层借用的是权属独立的 nullable Copy 临时槽。此前无捕获的 Boxed/Boxed 源 last-use 正例不能代替此合同。
+- 普通 Unit lowering 两布局均返回 `InvalidModel`、无公开 span。复跑既有 `loan-observation-test-support` final-verifier observer，在同一个真实最终验证里定位到唯一错误 `InvalidTypeDefinition: a callable view is only a shared loan target`；位置为 `view(boxed, aux)` 的 `aux`（233..236）所生成的 Place。其来自真实 concrete closure 的 `RootPlace`/ `BorrowBegin`，该 Place 却被赋予 CallableView 类型，并非先借真实 closure 再做 callable-view reborrow。已知阻塞是参数 ABI 适配；不能根据未验证 SSA 断言任何真实释放或顺序。
+- 后续若处理，先审查 borrowed-result call 的 callable 参数应如何从具体 closure 的真实 loan 形成并结束 `CallableViewOf`，不放松 verifier；修正后用原 240 字节、双布局验证 capture/closure/boxed 身份、复制值与实际清理。此次仅记录诊断，不冻结预期失败为新退役验收，也未渲染无效 SSA 或跑 native/远端 CI；SPEC-0341 仍 in-progress。
+
+### 2026-11-21：原 nullable parent/inout 冲突的 Unit 专属诊断
+
+- 基于 `434c7009`。保留 `nullable_copy_preserves_a_live_parent_and_ends_a_last_use_source` 的历史 FQN、原 Single 对照与原源码；另加同一源码的双 Unit 完整诊断，原递归 cleanup 测试不动。仓内没有这个 exact Unit 两标签断言，不能用其他 selected-parameter 场景代替。
+- 两布局的 lex/parse/names/final types 均通过，ownership 唯一 Error L0135、主消息 `new loan conflicts with an active loan` 指向 `&`（231..232）。两个有序关联标签依次为原冲突 `n`（205..206，`conflicting loan starts here`）、`inout changed: Int`（80..98，`selected parameter declared here`）；无其他 notes/help。同源 Single 缺少第二标签，因此不是等价迁移。
+- Unit 验证明确拒绝且无实际可执行借用、传递、结束、形成、Move 或 Drop；与既有 L0164 复用同一无所有权能力断言，并不要求删除前置语法分类。Mac 前端 24 项、fmt、diff、docs、相对 main Rust size guard 通过；不改生产/API/CI，未跑本片 Linux 或远端 CI，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：原常量/字面量 owned 参数在提前 return 上的清理
+
+- 基于 `28c3d959`。只迁 `constant_cleanup_matches_literal_on_control_flow_edges` 的 `take(VALUE, if (flag) { return } else { 0 })` 子项。先实跑原 Single 七项矩阵，提取时复原原生成模板与两条替换后的完整源码；另六项及有意保留的 Single 专有边界原样保留。
+- 原 TEXT 和 literal 两源码具四个 Unit FE/SSA 配对，分别走 MemoryDocument 和 Rooted。只 TEXT 有一个真实 StringTemporary 物化，两者相同的临时值身份用于 early ControlTransfer Drop 和 normal own 参数传递，后一条只有被调方 FunctionEntry Drop；第二实参只在正常调用路径形成独立标量借用。
+- 实际 Unit SSA 先构造同一个 `hi` owner 再读取 flag，两互斥边携带同一原 ValueId，true 只由 caller Drop；false 才构造标量 0、传递正常边 owner，只有 take 内的 own 参数被 Drop。字面量路径可显式携带已有 flag 借用，不将内部表示差异误当作语义差异。真实 LLVM 以独立 native ABI 驱动覆盖两旗值：`early/drop` 与 `normal/take/drop`，两源码与两布局均一致。静态字面量的逻辑 Drop 不等于堆释放。
+- Mac FE 18 项、codegen/native 定点 1 项（四配对、各两条边），fmt/diff/docs、相对 main Rust size guard 通过。未改生产/API/CI，未跑本片 Linux 或远端 CI；SPEC-0341 仍 in-progress。
+
+### 2026-11-21：原 Map consume 具名字段拒绝的完整诊断
+
+- 基于 `bf82575c`。只迁 `consume::map_consume_complete_rejects_receiver_move_and_live_loan_boundaries` 内的 stable-field 原子项。旧矩阵/FQN 先实跑，`holder.source.consume()` 的 153 字节完全不变；其他十一项依旧各走原 Single/Rooted。旧接收者激活与闭包捕获排查发现完整诊断不等价，未改。
+- 独立实际对照确认 Single/MemoryDocument/Rooted 的完整错误相同：所有权唯一 Error L0132，消息 `cannot move a non-Copyable component out of its owner`，主 `source`（135..141），唯一关联原字段声明 `source`（17..23，`non-Copyable component declared here`）。移除本项旧入口后，双 Unit 沿原测试的 parse/name/raw/final admission、实际选中调用与 typed Map 结果检查，再断言完整错误。
+- 失败的两布局均不授权可执行所有权，无借用/终止、Drop、接收者事实、构造计划、具名形成或交付。Mac 复用生产源码未变的 rlib 编译并完整运行 `ownership_map` 13/13，未重建 Cargo、未改生产/API/CI，也未跑 Linux/native 或远端 CI；SPEC-0341 仍 in-progress。
+
+### 2026-11-21：原 Map consume 顺序容器元素拒绝
+
+- 基于 `6b9a3858`。只迁同一原 FQN 的 stable-element 子项：原 `maps[0].consume()` 全部 98 字节不变，先实跑原 Single 矩阵及完整诊断对照。更新后 stable-field 复用同一诊断 harness，自身源码、断言与原 FQN 不变；其余十项旧矩阵原样。
+- 原 Single 与两种 Unit 布局同选一个内建 MapConsume，绑定同一 `maps[0]` place、局部 `maps` 与常量索引 (0)。它是由 ListForm 的唯一 Value operand 形成的 `List<MutableMap<Int, Int>>` 槽，不是可移走的 standalone name root；选中调用仍有 `Map<Int, Int>` 类型结果。拒绝产物不发布实际 ownership binding 或其他可执行事实。
+- 两布局在 parse/name/raw/final admission 通过，ownership 唯一 Error L0136；`cannot move a non-Copyable element out of a sequential container`，主 `maps[0]`（79..86），原 `maps` 声明标签 24..28（`container owner remains responsible for every initialized element`）。完整诊断与 Single 相等。Unit 不能 seal 成可执行能力，无部分借用、Drop、构造或交付。
+- Mac 复用生产源码不变的已构建 rlib 校验 `ownership_map` 13/13，格式、diff、docs、Rust size guard 通过；未重建 Cargo、未改生产/API/CI、未跑本片 Linux/native 或远端 CI，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：Map consume 旧拒绝矩阵盘点与原匿名临时值
+
+- 基于 `4400d606`。冻结旧矩阵的十个精确原源码、旧 FQN 与所属阶段；十项在 Single 与双 Unit 都通过解析、名称、基础与最终类型准入，再由 ownership 拒绝。只迁本次 `temporary` 行，其他九项保持，已迁字段/索引行不重复。完整诊断快照的主位置与关联详情如下（字节半开区间）：
+
+| 原行 | 错误及主位置 | Single / MemoryDocument / Rooted 完整诊断对照 |
+| --- | --- | --- |
+| `temporary` | L0130 31..55 | 相同；无关联详情；本片迁移 |
+| `own-parameter` | L0130 65..71 | 相同；无关联详情 |
+| `borrow-parameter` | L0133 59..65 | 不同；原声明标签 Single 8..14，Unit 8..36 |
+| `inout-parameter` | L0133 65..71 | 不同；原声明标签 Single 14..20，Unit 8..42 |
+| `explicit-borrow-local` | L0133 88..94 | 相同；非持有声明标签 47..53 |
+| `read-after-move` | L0131 104..110 | 相同；移动点标签 73..79 |
+| `consume-twice` | L0131 104..110 | 相同；移动点标签 72..78 |
+| `active-loan` | L0135 155..161 | 相同；冲突起点标签 113..119 |
+| `for-binding` | L0133 106..112 | 相同；非持有声明标签 71..77 |
+| `temporary-preserves-child-error` | L0131 186..192 | 都有移动点标签 155..161；Unit 另有参数声明标签 13..43，不等价 |
+
+- 原 `temporary` 67 字节和旧测试名保持。实际 Single 与两布局选择相同内建 `MutableMapOf` 形成临时接收者，随后选择真实 MapConsume，接收者类型 `MutableMap<Int, Int>`、结果类型 `Map<Int, Int>`，没有具名根。仅 ownership 唯一 Error L0130：`MutableMap.consume requires an owned local val/var root`，主为原工厂调用，无标签、说明或建议。拒绝不能 seal，且不发布部分可执行借用、构造、接收者或交付事实。
+- Mac 复用生产源码不变的已有 rlib 验证 `ownership_map` 13/13，静态格式、diff、docs 和 size guard 通过。未重新构建 Cargo、未改生产/API/CI、未跑本片 Linux 或远端 CI，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：原 Map consume 自有形参拒绝测试迁移
+
+- 基于 `2c579121`，只迁同一旧 FQN 的 `own-parameter` 行，109 字节原源码原样，包括 `source.consume()` 之后的 `source.size`。剩余八项仍保留在原 Single/Rooted 矩阵。
+- 原 Single 与两种 Unit 完整类型检查均选择一个 MapConsume 和独立的后续 Map size 读取。Unit 两处读取指向同一个真实 `ValueParameter` 符号，签名明确为 `own`（`ParameterMode::Value`）；不是无根的临时值，也不是允许消费的本地 `val/var`。分析只在 ownership 拒绝：唯一 L0130 主为消费处的原 `source`（65..71），完整诊断与 Single 相等且无附加详情；既不误报后续读取为 use-after-move，也不发布部分所有权事实或 seal 可执行能力。
+- Mac 复用生产源码不变的 rlib 验证 `ownership_map` 13/13，格式、diff、docs 和 Rust size guard 通过；未改生产/API/CI，未重建 Cargo 或跑本片 Linux/native，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：原 Map consume 显式局部借用拒绝测试迁移
+
+- 基于 `3442cb25`，只迁同一旧 FQN 的 `explicit-borrow-local` 原源码。剩余七项仍在原 Single/Rooted 矩阵，包括三项已知完整诊断不等价的场景。
+- 原 Single 与两种 Unit 均通过完整类型准入，ownership 唯一 L0133：`cannot move a non-Copyable value out of a borrowed binding`；主为消费处的 `source`（88..94），原声明真实 `borrow` 标记（47..53）为唯一关联标签 `non-owning binding established here`。完整诊断相同。Unit 真实 MapConsume 的 typed Place 和选择到的具名接收者均指向本地 `source`；该符号来自解析出的 `borrow val`，其初始化表达式另行解析到签名中 Borrow 模式的 `input` 形参。拒绝不会发布可执行借用、交付或清理事实。
+- Mac 缓存 rlib 验证 `ownership_map` 13/13，格式、diff、docs 和 Rust size guard 通过；未修改生产/API/CI，未重建 Cargo、未跑本片 Linux/native，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：原 Map consume 使用已移动值的两个拒绝测试
+
+- 基于 `96a76227`，只迁同一旧 FQN 的 `read-after-move`、`consume-twice` 两行，原源码字节不变。余五项保持原 Single/Rooted 矩阵，包括三项完整诊断不等价场景。
+- 原 Single 与两种 Unit 的完整 ownership 诊断相同：一条 L0131 `use of moved value`，主均为第二次使用的 `source`（104..110）；唯一标签 `value was moved here` 分别锚定原首个 consume 接收者（73..79 / 72..78）。两布局均通过最终类型准入，解析至同一由真实 `MutableMapOf` 初始化的本地 `val source`。第一例后续选中真实 Map size 读取 (`Int`)，第二例选中两个不同的 MapConsume 调用 ID，而非将一次调用重复计数；两次接收者各自解析至同一个 source-qualified 符号。只 pin 类型选择和诊断，不把拒绝产物当作可执行 Move 或其他事实。
+- Mac 缓存 rlib 验证 `ownership_map` 13/13，格式、diff、docs 和 Rust size guard 通过；未修改生产/API/CI、未重建 Cargo、未跑本片 Linux/native，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：原 Map consume 活跃借用拒绝测试迁移
+
+- 基于 `9bf4ff6f`，只迁同一旧 FQN 的 `active-loan` 原源码；余四项继续由原 Single/Rooted 矩阵检查，包括三项诊断不等价。
+- Single 与两种 Unit 都通过完整类型准入，完整 ownership 诊断相同：唯一 L0135 `move conflicts with an active loan`，主为消费处 `source`（155..161），唯一关联 `conflicting loan starts here` 为原借用调用的 receiver（113..119）。Unit 实际 MapRequireValue 有唯一 receiver 借用来源和 String key/value，接收者与真实 MapConsume 指向同一个 source-qualified Map 根。原 `borrow val item` 的 initializer 指向该调用；消费之后的实际编译器绑定 println 选择 String Borrow 参数，实参解析到同一个 `item`。这证明冲突场景的类型来源和原后续使用，不把拒绝产物当作 executable loan 或可执行交付。
+- Mac 缓存 rlib 验证 `ownership_map` 13/13，格式、diff、docs、Rust size guard 通过；未改生产/API/CI、未重建 Cargo、未跑本片 Linux/native，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：原 Map consume 循环绑定拒绝测试与矩阵收口
+
+- 基于 `a457de07`，只迁原 `for-binding`，源码和测试 FQN 不变。原 Single 与两种 Unit 都通过完整类型准入，ownership 唯一 L0133：`cannot move a non-Copyable value out of a borrowed binding`。主为消费处 `source`（106..112），唯一标签为原循环 binder `source`（71..77，`non-owning binding established here`）。三者完整诊断相同。
+- Unit 实际绑定借用交付的 List iteration：真实 `for` statement 与 source expression 对齐；已解析的 `maps` 是容器变量，当前轮 `source` 是不同的 ForBinding symbol，并采用 ListForm 的实际元素类型 `MutableMap<Int, Int>`。实际 MapConsume 指向同一当前轮 binder，未指向 List owner。拒绝无可执行借用、清理或交付事实。
+- 原十二行中九条完整等价准入/拒绝合同已迁到双 Unit 布局，保留三条不同诊断的 Single/Rooted 对照：`borrow-parameter`、`inout-parameter` 的关联声明跨度不同，`temporary-preserves-child-error` 的 Unit 多出一个选中参数标签。若退役这三个旧断言，要先明确是否接受 Unit 的诊断合同作为唯一长期合同，而不是继续按等价测试迁移。
+- Mac 缓存 rlib 验证 `ownership_map` 13/13，格式、diff、docs、Rust size guard 通过；未改生产/API/CI、未重建 Cargo、未跑本片 Linux/native，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：原 Map 显式借用 receiver 字段消费测试迁移
+
+- 基于 `203cfbbc`，只迁默认借用 receiver 的原 `this-consume` 行（`this.source.consume()`）。源码及 `consume::field_roots::map_consume_field_roots_preserve_old_value_rejection` FQN 不变；普通 `this-take` 仍按原入口做诊断优先级对照，bare 与 own-this 组及原三条不同诊断的 Map 阴性矩阵保持。
+- 同源原 Single、MemoryDocument 与 Rooted 的完整 ownership 诊断相同：唯一 L0132，主为访问处字段 `source`（85..91），唯一声明标签为 17..23。两种 Unit 以已选择的 MapConsume receiver 作为实际字段投影；根为解析和类型检查过的显式 `this`，与 `Holder.f` 的 Borrow receiver 同类型，投影字段与同一 source-qualified 主构造器字段一致。完成最终类型准入，拒绝后不发布可执行所有权事实，不能 validate 出能力。
+- Mac 缓存 rlib 验证 `ownership_map` 13/13，格式、diff、docs、Rust size guard 通过；未修改生产/API/CI，未重建 Cargo 或验证本片 Linux/native，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：原 Map 自有 receiver 字段消费与遗留诊断决策
+
+- 基于 `38a1b745`，只迁原 `own-this-consume` 行，源码和 field-root 测试 FQN 不变。原 Single 与两种 Unit 的完整 L0132 相同，主为字段 `source`（89..95），唯一关联为原字段声明（17..23）。Unit 真实 MapConsume 投影指向同一字段；其显式 `this` 根类型与 `Holder.f` 签名中的 `ParameterMode::Value` receiver 相同，保留并检查真实 `own` marker。拒绝不发布执行事实；原默认 Borrow receiver 仍按各自诊断位置和无 marker 检查。
+- 尚保留的 Map 诊断合同：`borrow-parameter` / `inout-parameter` 的关联范围不同；`temporary-preserves-child-error`、`this-take` 与 `own-this-take` 的 Unit 另带选中参数声明标签。若选择 Unit 作为长期诊断合同，以上可以单独定稿，不属于等价迁移。裸字段 `bare-take`（Single 无错误，Unit L0132）及 `bare-consume`（Single L0130，Unit L0132）则需明确是否采用 Unit 的字段移动规则及优先级，不能仅按诊断格式处理。所有这些原对照仍在。
+- Mac 缓存 rlib 验证 `ownership_map` 13/13，格式、diff、docs、Rust size guard 通过；未改生产/API/CI，未重建 Cargo，未跑本片 Linux/native，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：局部不可变 val 赋值拒绝迁移
+
+- 基于 `5632585d`，仅迁 `readonly_variable_assignments_remain_ownership_errors` 中原局部 `val number = 1; number = 2`，保留 FQN、原源码字节和 own/Borrow 形参对照。原 Single 与两种 Unit 通过解析、名称、基础与最终类型；均在 ownership 唯一报 L0134，主 `number`（35..41），唯一原声明标签 23..29（`immutable binding declared here`），完整相同。Borrow 形参仍保留旧 Single L0135 与 Unit L0134 差异。
+- Unit 验证实际 typed plain assignment、Int 存储与 RHS、Unit 结果和 Place，引用解析到同一文件内解析出的不可变局部声明；所有权拒绝后不发布 replacement、可执行交付、借用或清理，不能取得能力。
+- Mac 缓存 rlib 验证 `final_type_admission` 63/63，格式、diff、docs 和 Rust size guard 通过；无生产/API/CI 改动，未重建 Cargo 或跑本片 Linux，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：不可变 own 形参赋值拒绝迁移
+
+- 基于 `bbaa9554`，只迁 `readonly_variable_assignments_remain_ownership_errors` 的原 `own number: Int` 源码，FQN 不变。Single 与两种 Unit 都通过完整类型准入，ownership 完整诊断一致：唯一 L0134 `assignment target is not a mutable place`，主 `number` 34..40，唯一不可变声明标签 13..19。原 Borrow 形参仍保留 Single L0135/Unit L0134 的不等价对照。
+- 双 Unit 验证真正选中普通赋值 descriptor，目标 Place 与 RHS 均为 Int，赋值自身为 Unit；目标引用精确绑定到带 `own` 的 source-qualified Value-mode 形参，而不是已迁的局部 `val`。所有权拒绝不发布可执行 replacement、交付、借用或清理事实，也不能取得能力。
+- Mac 缓存 rlib 验证 `final_type_admission` 63/63，格式、diff、docs、Rust size guard 通过；未改生产/API/CI，未重建 Cargo 或跑本片 Linux，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：可变局部复合赋值的最终类型门禁
+
+- 基于 `41362f66`，只迁 `compound_assignment_keeps_deferred_boundary` 原 lambda 内 `number += 2`，源码字节和 FQN 不变；当前 frontend 仍不接受这个形状，不扩展生产能力。
+- 原 Single 和两种 Unit 解析及原始类型检查均无诊断，表达式保留 Assignment deferred，而最终类型准入产生完全相同的唯一 L0165，主为原赋值表达式 57..68，无附加详情。Unit 同文件名绑定解析到真实 `var number: Int`（类型由 initializer 推导），AST 为原 `+=`；无成功 assignment descriptor。Basic 校验虽成功，但不能替代最终准入，此测试未调用 ownership。
+- Mac 缓存 rlib 验证 `final_type_admission` 63/63，格式、diff、docs、Rust size guard 通过；未改生产/API/CI，未重建 Cargo 或跑本片 Linux，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：lambda 局部赋值 RHS 类型错误迁移
+
+- 基于 `e7c92195`，只迁 `invalid_rhs_preserves_storage_type_diagnostic` 的原 lambda 局部 `var number: Int = 1; number = true`，原字节和 FQN 不变；保留该测试内从外层捕获的相邻源码及其原对照。
+- Single 与两种 Unit 的原始类型诊断及完整准入拒绝完全相同：唯一 L0084 `expression type does not match the expected type`，主为 Boolean 字面量 `true`（71..75），唯一标签为原声明 `number`（45..51，`expected Int, found Boolean`）。Unit 真实目标为 source-qualified 局部 `var` 的 Int Place；RHS 语法是 Boolean，遭拒绝后的 typed 结果为 Error，不发布成功的 assignment descriptor，也不能取得 Basic 或最终类型能力，不进入 ownership。
+- Mac 缓存 rlib 验证 `final_type_admission` 63/63，格式、diff、docs、Rust size guard 通过；未改生产/API/CI，未重建 Cargo 或跑本片 Linux，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：lambda 尾赋值的上下文返回类型拒绝迁移
+
+- 基于 `e6e467c9`，只迁原 `expected_non_unit_lambda_rejects_assignment_result`，源码字节及 FQN 保持。原 Single、MemoryDocument、Rooted 的原始类型与最终准入诊断完整相同：仅 L0084，主为原 lambda 尾赋值（56..66），唯一标签指向 `() -> Int`（26..35，`expected Int, found Unit`）。
+- 实际解析的 callable 注解与 Unit lambda 上下文都为无参数返回 Int；真实末尾的是普通赋值，目标为 Int Place、RHS 为 Int。区别于上一片 RHS 类型问题，此处报告赋值结果与 lambda 上下文不匹配。错误恢复后的尾表达式为 Error，无成功赋值 descriptor，也不能取得 Basic 或最终类型能力，未进入 ownership。捕获输入不匹配的同族旧对照未改。
+- Mac 缓存 rlib 验证 `final_type_admission` 63/63，格式、diff、docs、Rust size guard 通过；未改生产/API/CI，未重建 Cargo 或跑本片 Linux，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：不返回的等号左操作数与未执行常量读取
+
+- 基于 `514b2c28`，保持原 `aborting_binary_left_has_no_right_or_following_materialization_cleanup` 源码、FQN 和 Single 断言，增补 MemoryDocument/Rooted 验证。该原源码的真实选中 `stop()` 是返回 Nothing 的等号左操作数，不是已覆盖的插值后拼接。右操作数和后续语句仍各有精确的 typed `TEXT` 读取，指向同一原声明及值，但在同一已验证常量所有权产物中均无运行时物化。没有借用、清理、价值交付或直接调用借用结束。
+- Unit 的直接调用借用结束不是 Single 全类别 `loan_ends()` 的等价查询，因此保留旧断言。本片不声称新增 native 证明或完整退役。
+- Mac 使用现有生产 rlib 直接链接测试，两个 abort 定点各通过，`ownership_constants` 18/18；格式、diff、docs、Rust size guard 通过。未改生产/API/CI，未跑本片 Linux 或远端 CI。
+
+### 2026-11-21：原常量相等比较的终止型 Unit SSA
+
+- 基于 `d83b1e7d`，前端与新 codegen 测试共用原 164 字节文件（SHA-256 `e9d28c10c6d4cb73725be073d8f62bc432281455f9e05440a14707b9eb876ac5`），前端旧 FQN 和 Single 全类别结束动作断言原样保留。
+- 两种布局下从原 `use` entry 降低并验证实际 SSA：唯一调用方 block 只含原 `stop()` 对本源声明的 DirectCall，callee 为无正常返回的 Nothing ABI，调用无实参或结果；同位置的 Unreachable 无任何后继。调用方没有常量物化、BorrowEnd、Drop 或其他可执行指令。该证据只证明已验证 SSA，不等同公开 Single planner 事件流；不运行故意不终止的递归。
+- Mac 现有缓存 offline 单 job codegen exact 1/1、常量前端 18/18，静态检查通过。未改生产/API/CI、未做本片 Linux 或远程验证，SPEC-0341 仍 in-progress。
+
+### 2026-11-21：前向常量解析后的迭代类型准入迁移
+
+- 基于 `b4b752ff`，只迁 `pending_iteration_source::resolved_forward_constant_keeps_single_iteration_plan` 的原正例，源码字节和历史 FQN 不变。同源旧 Single 与双 Unit 实际通过最终类型准入、各有唯一真实迭代类型描述符。Unit 不把常量专用能力误当基础 capability。
+- 两种 Unit 明确验证 `FIRST` 通过后定义的 `SECOND` 获得 true，条件引用到精确的 `FIRST` 符号，两个分支读取原 `p`，同一真实 for 获得 List Borrow provider、Int 元素和精确 `item` binder。邻接 pending、嵌套跳转及旧分阶段边界不变。该旧用例只验证类型，不要求新所有权/SSA 证据。
+- Mac 缓存 rlib 定点通过，`final_type_admission` 63/63，格式、diff、docs、Rust size guard 通过。未改生产/API/CI，未重建 Cargo，未跑本片 Linux 或远端 CI。
+
+### 2026-11-21：合法 nullable 写入后不复用非空精化
+
+- 基于 `18f703b7`，只迁原 `nullable_storage_rhs_clears_target_refinement` 的拒绝分支，保留 FQN 和原成功分支的 Single/Unit。原 Single 与双 Unit 的原始类型、最终准入完整诊断相同：唯一 L0084，主为后续 `current`（98..105），标签为 `Int`（92..95，`expected Int, found Int?`）。
+- Unit 用同一局部变量的实际引用证明：guard 的读为 nullable 类型，赋值目标表达式已被 guard 精化到 Int，但实际 `current = null` 写入仍使用 nullable 存储类型，RHS 合法；后续读不得沿用非空精化。存在真实 raw assignment descriptor，不代表整个失败产物取得 Basic 或最终类型能力，不进入 ownership。
+- 仅测试树 `06daee610ee793980d2e0ba28d172c3d0e274bdf` 在隔离 Linux 直接链接同一生产 rlib，定点 1/1、`final_type_admission` 63/63。格式、diff、docs、Rust size guard 通过，Mac 仅运行用于检查旧等价性的缓存探针，未跑本片完整 Mac harness、未改生产/API/CI 或推送。
+
+### D10：移除旧 own receiver 私有 lowering 转译见证
+
+- 原 `unsupported_own_receiver_cannot_enter_legacy_lowering` 在 Mac 旧二进制定点通过。仅退役这个 test-only 适配器把真实 Single L0170 转译为 `FrontendDiagnostics` 的见证；复用逐字不变的原 76 字节源码，保留公开 Single 完整 L0170 和 fail-closed 事实于 frontend 正式目标。原 source/analysis/diagnostics 先后顺序和其他旧调用不动。
+- 同源两种 Unit 布局通过最终类型准入与所有权资格，拥有实际 `noop` Value receiver 清理事实；另一独立测试用普通 Unit lowering 选择原空 `entry`，其已验证 SSA 直接返回。空入口不会执行 `noop`，不据此声称 native 调用或所有 Single 消费者退役。
+- Mac 前端受影响目标 4/4、codegen 新定点 1/1；未重复运行其他目标或本片 Linux/远端 CI。只改测试和记录，不改公开 API 或普通/实验命令。
+
+### D10：标准实例配额的三类对照
+
+- **有意改变**：按 [ADR-0034 §3 与方案 A](../../adr/accepted/0034-refine-closures-and-callable-views.md)，Borrow 函数参数通过不拥有的 callable view 传递，不把具体闭包加入被调函数的专门化键。相同递归 `relay` 源码不再重演 Single 的 owner-qualified 实例增长；1024 个互异借用闭包仍有各自的来源和操作数，但只调用一个 `helper<Int>` 实例。两者不是 Single 配额等价。
+- **保持不变**：1025 次使用同一个 callback 来源仍去重，只占一个实际 helper 键。前三条用例已在首轮 [#454 PR CI](https://github.com/Halckon/Koven/actions/runs/44965660554) 的 Linux 和 macOS 物理日志逐条确认，通过不代表标准上限的拒绝分支已验证。
+- **独立的标准上限验证**：Unit 的 `plan_unit_instances` 以 `MAX_UNIT_GENERIC_INSTANCES` 为上限，只对真实专门化键记账（类型实参、静态 self 或 owned callable 实参），普通根不记账。新增 `standard_budget_rejects_one_extra_specialized_key` 用相同的已验证源码分别选根，双布局对照 1024 个真实类型参数组合成功、加一后在原 helper span 报 `InstanceLimitExceeded` 且不改动类型表。只在真实 CI 执行；此记录不预填通过。旧压力断言保留，SPEC-0341 仍 in-progress。

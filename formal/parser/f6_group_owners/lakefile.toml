@@ -1,0 +1,6 @@
+name = "f6_group_owners"
+version = "0.1.0"
+defaultTargets = ["F6GroupOwners"]
+
+[[lean_lib]]
+name = "F6GroupOwners"

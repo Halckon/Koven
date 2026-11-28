@@ -324,7 +324,7 @@ fn resource_deinit_native_local_move_scope_does_not_leave_stale_cfg_owner() {
     let source = format!(
         r#"{LEAF}
 fun work(own stop: Boolean): Unit {{
-    {{
+    block {{
         val local = Leaf("local")
         val moved = (local)
         println("inside")

@@ -11,6 +11,11 @@ enum TokenType {
   BORROW,
   INOUT,
   LOOP,
+  BLOCK,
+  CONTROL_LBRACE,
+  LAMBDA_LBRACE,
+  SAME_LINE_TRAILING_LBRACE,
+  CROSSLINE_LAMBDA_NL,
   MOVE_LAMBDA,
   MOVE_TYPE,
   TO,
@@ -20,6 +25,12 @@ enum TokenType {
   AS,
   NOT_IN,
   NOT_IS,
+  SHL,
+  SHR,
+  USHR,
+  BIT_AND,
+  BIT_XOR,
+  BIT_OR,
 };
 
 static const char *const RESERVED_WORDS[] = {
@@ -56,26 +67,233 @@ static bool is_reserved_word(const char *text, size_t length) {
   return false;
 }
 
-// Look ahead across the same horizontal/comment extras as grammar.js. Never skip
-// bytes here: the token start/end must remain the identifier already marked.
-static void peek_context(TSLexer *lexer) {
+// Look ahead across horizontal whitespace and block comments without skipping
+// bytes. Returns true iff no line break was crossed.
+static int32_t peek_context(TSLexer *lexer, bool *same_line_out) {
+  bool same_line = true;
   for (;;) {
-    while (lexer->lookahead == ' ' || lexer->lookahead == '\t' ||
-           lexer->lookahead == '\r' || lexer->lookahead == '\f') {
+    while (lexer->lookahead == ' ' || lexer->lookahead == '\t') {
       lexer->advance(lexer, false);
     }
-    if (lexer->lookahead != '/') return;
+    if (lexer->lookahead != '/') {
+      *same_line_out = same_line;
+      return lexer->lookahead;
+    }
     lexer->advance(lexer, false);
-    if (lexer->lookahead != '*') return;
+    if (lexer->lookahead == '/') {
+      while (!lexer->eof(lexer) && lexer->lookahead != '\n' &&
+             lexer->lookahead != '\r') {
+        lexer->advance(lexer, false);
+      }
+      *same_line_out = false;
+      return lexer->lookahead;
+    }
+    if (lexer->lookahead != '*') {
+      *same_line_out = same_line;
+      return '/';
+    }
     lexer->advance(lexer, false);
     bool star = false;
     while (!lexer->eof(lexer)) {
       const int32_t character = lexer->lookahead;
+      if (character == '\n') same_line = false;
       lexer->advance(lexer, false);
       if (star && character == '/') break;
       star = character == '*';
     }
   }
+}
+
+// Advance past whitespace and comments (optionally including LF/CRLF newlines)
+// during pure lookahead (after mark_end has already been placed). Returns the
+// first non-trivia character, or '/' if a bare '/' (not a comment) was seen.
+static int32_t peek_trivia(TSLexer *lexer, bool allow_newlines) {
+  for (;;) {
+    for (;;) {
+      if (lexer->lookahead == ' ' || lexer->lookahead == '\t' ||
+          (allow_newlines && lexer->lookahead == '\n')) {
+        lexer->advance(lexer, false);
+        continue;
+      }
+      if (allow_newlines && lexer->lookahead == '\r') {
+        lexer->advance(lexer, false);
+        if (lexer->lookahead == '\n') {
+          lexer->advance(lexer, false);
+          continue;
+        }
+        return '\r';
+      }
+      break;
+    }
+    if (lexer->lookahead != '/') return lexer->lookahead;
+    lexer->advance(lexer, false);
+    if (lexer->lookahead == '/') {
+      while (!lexer->eof(lexer) && lexer->lookahead != '\n') {
+        lexer->advance(lexer, false);
+      }
+      if (!allow_newlines) return lexer->lookahead;
+      continue;
+    }
+    if (lexer->lookahead == '*') {
+      lexer->advance(lexer, false);
+      bool star = false;
+      while (!lexer->eof(lexer)) {
+        const int32_t ch = lexer->lookahead;
+        lexer->advance(lexer, false);
+        if (star && ch == '/') break;
+        star = ch == '*';
+      }
+      continue;
+    }
+    return '/';
+  }
+}
+
+static bool skip_balanced(TSLexer *lexer, int32_t open, int32_t close) {
+  if (lexer->lookahead != open) return false;
+  lexer->advance(lexer, false);
+  unsigned depth = 1;
+  while (!lexer->eof(lexer) && depth > 0) {
+    const int32_t ch = lexer->lookahead;
+    if (ch == '"') {
+      lexer->advance(lexer, false);
+      while (!lexer->eof(lexer) && lexer->lookahead != '"' &&
+             lexer->lookahead != '\n') {
+        if (lexer->lookahead == '\\') {
+          lexer->advance(lexer, false);
+          if (!lexer->eof(lexer)) lexer->advance(lexer, false);
+        } else {
+          lexer->advance(lexer, false);
+        }
+      }
+      if (lexer->lookahead == '"') lexer->advance(lexer, false);
+      continue;
+    }
+    if (ch == '\'') {
+      lexer->advance(lexer, false);
+      while (!lexer->eof(lexer) && lexer->lookahead != '\'' &&
+             lexer->lookahead != '\n') {
+        if (lexer->lookahead == '\\') {
+          lexer->advance(lexer, false);
+          if (!lexer->eof(lexer)) lexer->advance(lexer, false);
+        } else {
+          lexer->advance(lexer, false);
+        }
+      }
+      if (lexer->lookahead == '\'') lexer->advance(lexer, false);
+      continue;
+    }
+    if (ch == '/') {
+      lexer->advance(lexer, false);
+      if (lexer->lookahead == '/') {
+        while (!lexer->eof(lexer) && lexer->lookahead != '\n') {
+          lexer->advance(lexer, false);
+        }
+      } else if (lexer->lookahead == '*') {
+        lexer->advance(lexer, false);
+        bool star = false;
+        while (!lexer->eof(lexer)) {
+          const int32_t inner = lexer->lookahead;
+          lexer->advance(lexer, false);
+          if (star && inner == '/') break;
+          star = inner == '*';
+        }
+      }
+      continue;
+    }
+    if (ch == open) {
+      depth++;
+    } else if (ch == close) {
+      depth--;
+    }
+    lexer->advance(lexer, false);
+  }
+  return depth == 0;
+}
+
+// Mirror the Rust parser's `brace_when_entry_follows`: if `{ ... }` is
+// followed on the same `when` condition (including postfix chains, binary
+// operators like `&& flag`, or `,` condition lists, and line-continuations) by
+// a top-level `->`, it starts a `when` entry rather than a cross-line trailing
+// lambda.
+static bool is_line_continuation_char(int32_t ch) {
+  return ch == '&' || ch == '|' || ch == ',' || ch == '+' || ch == '-' ||
+         ch == '*' || ch == '/' || ch == '%' || ch == '=' || ch == '!' ||
+         ch == '<' || ch == '>' || ch == ':' || ch == '?' || ch == '.';
+}
+
+static bool brace_starts_when_entry(TSLexer *lexer) {
+  if (!skip_balanced(lexer, '{', '}')) return false;
+  int32_t last_sig = '}';
+  while (!lexer->eof(lexer)) {
+    peek_trivia(lexer, false);
+    if (lexer->eof(lexer)) return false;
+    const int32_t ch = lexer->lookahead;
+    if (ch == '\n') {
+      peek_trivia(lexer, true);
+      if (lexer->eof(lexer)) return false;
+      const int32_t next = lexer->lookahead;
+      if (!is_line_continuation_char(last_sig) && next != '.' && next != '?') {
+        return false;
+      }
+      continue;
+    }
+    if (ch == ';' || ch == '}') return false;
+    if (ch == '(') {
+      if (!skip_balanced(lexer, '(', ')')) return false;
+      last_sig = ')';
+      continue;
+    }
+    if (ch == '[') {
+      if (!skip_balanced(lexer, '[', ']')) return false;
+      last_sig = ']';
+      continue;
+    }
+    if (ch == '{') {
+      if (!skip_balanced(lexer, '{', '}')) return false;
+      last_sig = '}';
+      continue;
+    }
+    if (ch == '"') {
+      lexer->advance(lexer, false);
+      while (!lexer->eof(lexer) && lexer->lookahead != '"' &&
+             lexer->lookahead != '\n') {
+        if (lexer->lookahead == '\\') {
+          lexer->advance(lexer, false);
+          if (!lexer->eof(lexer)) lexer->advance(lexer, false);
+        } else {
+          lexer->advance(lexer, false);
+        }
+      }
+      if (lexer->lookahead == '"') lexer->advance(lexer, false);
+      last_sig = '"';
+      continue;
+    }
+    if (ch == '\'') {
+      lexer->advance(lexer, false);
+      while (!lexer->eof(lexer) && lexer->lookahead != '\'' &&
+             lexer->lookahead != '\n') {
+        if (lexer->lookahead == '\\') {
+          lexer->advance(lexer, false);
+          if (!lexer->eof(lexer)) lexer->advance(lexer, false);
+        } else {
+          lexer->advance(lexer, false);
+        }
+      }
+      if (lexer->lookahead == '\'') lexer->advance(lexer, false);
+      last_sig = '\'';
+      continue;
+    }
+    if (ch == '-') {
+      lexer->advance(lexer, false);
+      if (lexer->lookahead == '>') return true;
+      last_sig = '-';
+      continue;
+    }
+    last_sig = ch;
+    lexer->advance(lexer, false);
+  }
+  return false;
 }
 
 void *tree_sitter_koven_external_scanner_create(void) { return NULL; }
@@ -102,10 +320,83 @@ void tree_sitter_koven_external_scanner_deserialize(void *payload,
 bool tree_sitter_koven_external_scanner_scan(void *payload, TSLexer *lexer,
                                              const bool *valid_symbols) {
   (void)payload;
-  while (lexer->lookahead == ' ' || lexer->lookahead == '\t' ||
-         lexer->lookahead == '\r' || lexer->lookahead == '\f') {
+  while (lexer->lookahead == ' ' || lexer->lookahead == '\t') {
     lexer->advance(lexer, true);
   }
+
+  // Never fire during error recovery (when all external tokens are valid).
+  const bool in_error_recovery = valid_symbols[DESTRUCTURING_IDENTIFIER] &&
+                                 valid_symbols[NOT_IN] &&
+                                 valid_symbols[CONTROL_LBRACE];
+
+  // Cross-line trailing lambda after closed `(...)`: consume LF, CRLF, or a
+  // multiline block comment containing `\n` so intervening single-line comments
+  // stay regular `extras` nodes in the syntax tree.
+  if (!in_error_recovery && valid_symbols[CROSSLINE_LAMBDA_NL]) {
+    if (lexer->lookahead == '\n' || lexer->lookahead == '\r') {
+      if (lexer->lookahead == '\r') {
+        lexer->advance(lexer, false);
+        if (lexer->lookahead != '\n') return false;
+      }
+      lexer->advance(lexer, false);
+      lexer->mark_end(lexer);
+      if (peek_trivia(lexer, true) == '{' && !brace_starts_when_entry(lexer)) {
+        lexer->result_symbol = CROSSLINE_LAMBDA_NL;
+        return true;
+      }
+      return false;
+    }
+    if (lexer->lookahead == '/') {
+      lexer->advance(lexer, false);
+      if (lexer->lookahead == '*') {
+        lexer->advance(lexer, false);
+        bool star = false;
+        bool saw_newline = false;
+        while (!lexer->eof(lexer)) {
+          const int32_t ch = lexer->lookahead;
+          if (ch == '\n') saw_newline = true;
+          lexer->advance(lexer, false);
+          if (star && ch == '/') {
+            if (saw_newline) {
+              lexer->mark_end(lexer);
+              if (peek_trivia(lexer, true) == '{' && !brace_starts_when_entry(lexer)) {
+                lexer->result_symbol = CROSSLINE_LAMBDA_NL;
+                return true;
+              }
+            }
+            return false;
+          }
+          star = ch == '*';
+        }
+      }
+      return false;
+    }
+  }
+
+  // `{` disambiguation: control_block > trailing lambda > value lambda.
+  // Bare `{ ... }` at statement start (where BLOCK is valid) is rejected.
+  if (!in_error_recovery && lexer->lookahead == '{') {
+    if (valid_symbols[CONTROL_LBRACE]) {
+      lexer->advance(lexer, false);
+      lexer->mark_end(lexer);
+      lexer->result_symbol = CONTROL_LBRACE;
+      return true;
+    }
+    if (valid_symbols[SAME_LINE_TRAILING_LBRACE]) {
+      lexer->advance(lexer, false);
+      lexer->mark_end(lexer);
+      lexer->result_symbol = SAME_LINE_TRAILING_LBRACE;
+      return true;
+    }
+    if (valid_symbols[LAMBDA_LBRACE] && !valid_symbols[BLOCK]) {
+      lexer->advance(lexer, false);
+      lexer->mark_end(lexer);
+      lexer->result_symbol = LAMBDA_LBRACE;
+      return true;
+    }
+    return false;
+  }
+
   const bool negated = lexer->lookahead == '!';
   if (negated) lexer->advance(lexer, false);
   if (!is_identifier_start(lexer->lookahead)) {
@@ -143,24 +434,34 @@ bool tree_sitter_koven_external_scanner_scan(void *payload, TSLexer *lexer,
   // Select soft keywords only in grammar states and lookahead contexts that own
   // them; e.g. `own: Int` and ordinary `move()` calls remain identifiers.
   const bool safe_cast = lexer->lookahead == '?';
-  peek_context(lexer);
-  const bool next_name = is_identifier_start(lexer->lookahead);
+  bool same_line = true;
+  const int32_t same_line_next = peek_context(lexer, &same_line);
+  const bool next_name = is_identifier_start(same_line_next);
+  const int32_t crossline_next =
+      same_line_next == '/' ? '/' : peek_trivia(lexer, true);
   const struct {
     const char *word;
     enum TokenType symbol;
     bool context;
   } contextual[] = {
-      {"own", OWN, next_name || lexer->lookahead == '('},
-      {"borrow", BORROW, next_name || lexer->lookahead == '('},
-      {"inout", INOUT, next_name || lexer->lookahead == '('},
-      {"loop", LOOP, lexer->lookahead == '{'},
-      {"move", MOVE_LAMBDA, lexer->lookahead == '{'},
-      {"move", MOVE_TYPE, lexer->lookahead == '('},
+      {"own", OWN, next_name || same_line_next == '('},
+      {"borrow", BORROW, next_name || same_line_next == '('},
+      {"inout", INOUT, next_name || same_line_next == '('},
+      {"loop", LOOP, same_line_next == '{'},
+      {"block", BLOCK, same_line && same_line_next == '{'},
+      {"move", MOVE_LAMBDA, crossline_next == '{'},
+      {"move", MOVE_TYPE, crossline_next == '('},
       {"to", TO, true},
       {"by", BY, true},
       {"in", IN, true},
       {"is", IS, true},
       {"as", AS, !safe_cast},
+      {"shl", SHL, true},
+      {"shr", SHR, true},
+      {"ushr", USHR, true},
+      {"and", BIT_AND, true},
+      {"xor", BIT_XOR, true},
+      {"or", BIT_OR, true},
   };
   for (size_t index = 0; index < sizeof(contextual) / sizeof(contextual[0]); index++) {
     if (!overflow && valid_symbols[contextual[index].symbol] &&

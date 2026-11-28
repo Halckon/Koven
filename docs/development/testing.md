@@ -273,7 +273,9 @@ AArch64 macOS 与 x86_64 Linux + glibc，仅编译并运行宿主目标，不提
 
 `bash scripts/check_integration.sh`依次选择core、ownership_iteration、stage、尚未覆盖的guide_litmus、
 真实CLI教程。独立stage/Guide入口保留，不增加任意skip开关。core包含lang-std源码资产，
-组合为138个唯一frontend integration和23次Cargo调用；接线与失败传播由Python合同测试核验。
+组合为139个唯一frontend integration和23次Cargo调用；接线与失败传播由Python合同测试核验。
+Parser 批次完整选择 `formatting` 各一次（无过滤器），保留词法/幂等检查并覆盖
+[SPEC-0477](../archive/specs/0477-parser-formatter-difftest.md) 的首片 AST 往返；接线不等于 CI 已执行。
 SPEC-0290 补齐 PR69 改动目标中的 23 个遗漏选择；stage policy 锁定相关 25 个目标
 （含此前已选择的 2 个）各恰一次且不带过滤器。range/N1a 测试进入门禁不表示启用其语义，
 脚本接线与 Python policy 通过也不表示新增 Rust 目标已实际运行。
@@ -305,3 +307,19 @@ LSan的clean/leak及检测开关都使用同一C worker入口，join完成后再
 SPEC-0331 的Resource provider另导出六份真实history的双入口12程序；Linux逐项ASan/LSan，
 执行前落完整输入SHA账本，失败仍保留身份。该动态接线不改变macOS partial合同。
 不得把关闭接线后普通崩溃当成检测成功。合同与未覆盖项见[0266](../archive/specs/0266-native-sanitizer-wiring.md)。
+
+## E2 影子试点与正式门禁切换
+
+[SPEC-0495](../archive/specs/0495-e2-two-source-ci-shadow-pilot.md) 通过独立非门禁工作流
+`.github/workflows/ci-e2-shadow-pilot.yml` 与 `scripts/e2_two_source_shadow_pilot.py`
+对 E2 两套 CI 套件（`e2-two-source-unit`：5 配置 / 179 条目；`e2-replay`：2 配置 / 14 条目）完成了双宿主冷/热与默认多核 A/B 实证；[SPEC-0496](../archive/specs/0496-formal-e2-ci-gate-switch.md) 在保留原 `scripts/check_e2_replay_ci.sh` 与 `scripts/check_e2_two_source_unit_ci.sh` 真源脚本不变的前提下，将 `.github/workflows/ci.yml` `Targeted Tests` 中对应两步切换为该已验证的 `candidate --candidate-jobs default --formal-gate` 执行器：
+
+- 每套套件由独立清单（`scripts/e2_two_source_unit_manifest.json`、`scripts/e2_replay_manifest.json`）同时驱动基线臂（`baseline`，固定 `-j1`）与候选臂（`candidate`，支持 `manifest` `-j1` 或 `default` 默认多核），启动前自动校验与对应原脚本的配置、顺序和过滤器完全等价；不同套件与不同配置各自独立锁定产物，严禁跨套件或跨异构 feature 混用二进制或对账账本。
+- 候选臂先用 Cargo JSON 唯一锁定匹配宿主三元组、`package_id`、`target`、`features` 与 `test`
+  profile 的测试可执行文件（并强制校验同 target 不同 `features` 的可执行文件路径与摘要互异），再用真实 Cargo 启动探针（`target.<triple>.runner`）与直调启动探针核验
+  工作目录、白名单 `CARGO_*`/工具链变量、动态库搜索路径与实际 `llvm-config`/`clang` 等价，不打印全量环境或秘密。
+- 每条用例硬校验 `--list` 恰好命中 1 条、运行阶段实际执行恰好 1 次，保留预期失败分类与失败证据子串对照；
+  CI 专属故障仅在真实 GitHub Actions 运行，本地仅使用 `--list-only`，禁止伪造 `CI` 或 `GITHUB_ACTIONS`。
+- 双宿主（`ubuntu-26.04` 固定工具链容器与 `macos-15`）按 `(suite, arm)` 各用独立 `CARGO_TARGET_DIR` 与无前缀回退的精确缓存键，
+  不恢复现网 `test` job 缓存、不互相恢复；现网共享 target 的步骤耗时仅作参考，不能与隔离冷跑直接相减。
+  仓库变量 `KOVEN_E2_SHADOW_PILOT_DISABLED=true` 可零提交一键停用试点。

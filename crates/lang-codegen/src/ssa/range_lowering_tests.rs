@@ -148,7 +148,7 @@ mod call_prefix {
             (true, false) => ("val root=source()", "take(root,1)", "", "consume(root)"),
             (false, false) => ("", "take(source(),1)", "", ""),
             (true, true) => (
-                "val root=source();{borrow val parent=take(root,2)",
+                "val root=source();block {borrow val parent=take(root,2)",
                 "take(parent,1)",
                 "};",
                 "consume(root)",
@@ -566,7 +566,7 @@ pub(in crate::ssa) fn range_single_and_unit_for_deliver_only_shared_elements() {
 pub(in crate::ssa) fn range_single_and_unit_named_for_transport_descriptor_and_ancestor_loans() {
     for (case, exit) in ["", "break", "continue"].into_iter().enumerate() {
         let consumer = format!(
-            "class Item(val text:String){{}}\nfun consume(own source:List<Item>):Unit{{}}\nfun main():Unit{{val source=listOf(Item(\"first\"),Item(\"excluded\"));{{borrow val part=take(source,1);for(item in part){{println(item.text);{exit}}}}};consume(source)}}"
+            "class Item(val text:String){{}}\nfun consume(own source:List<Item>):Unit{{}}\nfun main():Unit{{val source=listOf(Item(\"first\"),Item(\"excluded\"));block {{borrow val part=take(source,1);for(item in part){{println(item.text);{exit}}}}};consume(source)}}"
         );
         for (entry, program) in [
             ("single", memory_unit_llvm(&consumer)),
@@ -658,7 +658,7 @@ pub(in crate::ssa) fn range_verifier_rejects_metadata_end_while_an_element_loan_
 #[test]
 pub(in crate::ssa) fn range_verifier_preserves_descriptor_root_pairing_through_loop_edges() {
     let mut program = unit(
-        "package app\nimport koven.algorithms.take\nfun main():Unit{val a=listOf(\"a\");val b=listOf(\"b\");{borrow val left=take(a,1);borrow val right=take(b,1);for(item in left){println(item)};for(item in right){println(item)}}}",
+        "package app\nimport koven.algorithms.take\nfun main():Unit{val a=listOf(\"a\");val b=listOf(\"b\");block {borrow val left=take(a,1);borrow val right=take(b,1);for(item in left){println(item)};for(item in right){println(item)}}}",
     );
     let caller = program.modules[0]
         .functions
@@ -975,7 +975,7 @@ pub(in crate::ssa) fn abort_predecessor_range_end_source_loan_then_both_abort() 
         fun test_case(source: List<String>, flag: Boolean): Unit {
             var marker = 10
             replace(&marker, 20)
-            {
+            block {
                 borrow val part = take(source, 1)
                 val len = part.size
             }

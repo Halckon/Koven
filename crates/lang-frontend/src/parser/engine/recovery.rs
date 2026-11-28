@@ -1,9 +1,15 @@
+#![allow(unexpected_cfgs)]
+
 use super::{class::ClassifierHeaderOwner, *};
-use std::cell::{Cell, OnceCell};
+use std::cell::{Cell, OnceCell, RefCell};
+use std::collections::HashMap;
 use std::num::NonZeroUsize;
 
 mod adjacent_poison;
+mod angle_groups;
+mod diagnostic_anchor;
 mod ordinary_groups;
+mod owner_events;
 
 use adjacent_poison::{AdjacentPoisonTail, ElsePoisonTail};
 
@@ -13,6 +19,7 @@ pub(super) struct LexicalRecoveryIndex<'source> {
     source: &'source str,
     pub(super) source_len: usize,
     string_owner_ends: Vec<(usize, usize)>,
+    string_owner_closers: HashMap<usize, usize>,
     string_recoveries: Vec<(usize, usize)>,
     lexical_poison_string_recoveries: Vec<(usize, usize)>,
     diagnostic_anchor_prefix: Vec<usize>,
@@ -28,6 +35,11 @@ pub(super) struct LexicalRecoveryIndex<'source> {
     angle_terminal_hint: usize,
     // The same declaration starter can stop several nested TypeRefs during unwinding.
     pub(super) supertype_boundary: Cell<Option<(usize, ClassifierHeaderOwner, bool, bool)>>,
+    pub(super) when_arm_boundaries: RefCell<HashMap<(usize, WhenEntryBody), bool>>,
+    pub(super) when_group_shapes: RefCell<HashMap<usize, bool>>,
+    pub(super) when_compound_suffixes: RefCell<HashMap<(usize, WhenEntryBody), bool>>,
+    pub(super) committed_when_arm: Cell<Option<(usize, WhenEntryBody)>>,
+    pub(super) active_when_body_opener: Cell<Option<usize>>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -161,11 +173,7 @@ impl<'source> LexicalRecoveryIndex<'source> {
             return Err(ParserInternalError::InvalidLexemeStream);
         }
 
-        let mut count = 0;
-        for mark in &mut diagnostic_anchor_prefix {
-            count += *mark;
-            *mark = count;
-        }
+        diagnostic_anchor::finalize_anchor_prefix(&mut diagnostic_anchor_prefix);
 
         string_exit_events.sort_unstable();
         invalid_string_escape_spans.sort_unstable();
@@ -178,86 +186,19 @@ impl<'source> LexicalRecoveryIndex<'source> {
                 .cmp(&right.offset)
                 .then_with(|| right.opener.cmp(&left.opener))
         });
-        let mut verified_events = Vec::with_capacity(terminal_owner_events.len());
-        let mut active_owners = Vec::new();
-        let mut next_terminal_event = 0usize;
-        for lexeme in lexed.lexemes() {
-            while terminal_owner_events
-                .get(next_terminal_event)
-                .is_some_and(|event| event.offset <= lexeme.span().start())
-            {
-                let event = terminal_owner_events[next_terminal_event];
-                if active_owners.last().copied() != Some((event.kind, event.opener)) {
-                    return Err(ParserInternalError::InvalidLexemeStream);
-                }
-                active_owners.pop();
-                verified_events.push(event);
-                next_terminal_event += 1;
-            }
-
-            if matches!(lexeme.kind(), LexemeKind::Eof) && !active_owners.is_empty() {
-                // 终止性 char/comment 根因会按 Lexer 的级联抑制规则取代外层 string / interpolation
-                // 诊断；此时没有显式 owner event，但剩余 owner 仍必须在同一 EOF 关闭。
-                if !terminal_error_at_eof {
-                    return Err(ParserInternalError::InvalidLexemeStream);
-                }
-                while let Some((kind, opener)) = active_owners.pop() {
-                    verified_events.push(TerminalOwnerEvent {
-                        offset: source.len(),
-                        kind,
-                        opener,
-                    });
-                }
-            }
-
-            match lexeme.kind() {
-                LexemeKind::Token(TokenKind::StringStart) => {
-                    active_owners.push((TerminalOwnerKind::String, lexeme.span().start()))
-                }
-                LexemeKind::Token(TokenKind::InterpolationStart) => {
-                    active_owners.push((TerminalOwnerKind::Interpolation, lexeme.span().start()))
-                }
-                LexemeKind::Token(TokenKind::StringEnd) => {
-                    if !matches!(active_owners.pop(), Some((TerminalOwnerKind::String, _))) {
-                        return Err(ParserInternalError::InvalidLexemeStream);
-                    }
-                }
-                LexemeKind::Token(TokenKind::InterpolationEnd) => {
-                    if !matches!(
-                        active_owners.pop(),
-                        Some((TerminalOwnerKind::Interpolation, _))
-                    ) {
-                        return Err(ParserInternalError::InvalidLexemeStream);
-                    }
-                }
-                LexemeKind::Invalid(_)
-                    if terminal_escape_spans
-                        .binary_search(&(lexeme.span().start(), lexeme.span().end()))
-                        .is_ok() =>
-                {
-                    let Some((TerminalOwnerKind::String, opener)) = active_owners.last().copied()
-                    else {
-                        return Err(ParserInternalError::InvalidLexemeStream);
-                    };
-                    let event = TerminalOwnerEvent {
-                        offset: lexeme.span().end(),
-                        kind: TerminalOwnerKind::String,
-                        opener,
-                    };
-                    active_owners.pop();
-                    verified_events.push(event);
-                }
-                _ => {}
-            }
-        }
-        if next_terminal_event != terminal_owner_events.len() {
-            return Err(ParserInternalError::InvalidLexemeStream);
-        }
+        let verified_events = owner_events::verify_terminal_owner_events(
+            lexed.lexemes(),
+            &terminal_owner_events,
+            &terminal_escape_spans,
+            terminal_error_at_eof,
+            source.len(),
+        )?;
         let mut active_strings: Vec<ActiveString> = Vec::new();
         let mut string_owner_ends = Vec::new();
+        let mut string_owner_closers = HashMap::new();
         let mut lexical_poison_string_recoveries = Vec::new();
         let mut next_exit = 0usize;
-        for lexeme in lexed.lexemes() {
+        for (raw, lexeme) in lexed.lexemes().iter().enumerate() {
             while string_exit_events
                 .get(next_exit)
                 .is_some_and(|(end, _)| *end <= lexeme.span().start())
@@ -279,6 +220,7 @@ impl<'source> LexicalRecoveryIndex<'source> {
                 LexemeKind::Token(TokenKind::StringStart) => {
                     active_strings.push(ActiveString {
                         opener: lexeme.span().start(),
+                        raw_opener: raw,
                         lexical_poison: false,
                     });
                 }
@@ -287,6 +229,7 @@ impl<'source> LexicalRecoveryIndex<'source> {
                         .pop()
                         .ok_or(ParserInternalError::InvalidLexemeStream)?;
                     string_owner_ends.push((owner.opener, lexeme.span().end()));
+                    string_owner_closers.insert(owner.raw_opener, raw);
                     if owner.lexical_poison {
                         lexical_poison_string_recoveries.push((owner.opener, lexeme.span().end()));
                     }
@@ -352,6 +295,7 @@ impl<'source> LexicalRecoveryIndex<'source> {
             source,
             source_len: source.len(),
             string_owner_ends,
+            string_owner_closers,
             string_recoveries,
             lexical_poison_string_recoveries,
             diagnostic_anchor_prefix,
@@ -365,19 +309,18 @@ impl<'source> LexicalRecoveryIndex<'source> {
             angle_group_closers: OnceCell::new(),
             poisoned_string_starts: OnceCell::new(),
             supertype_boundary: Cell::new(None),
+            when_arm_boundaries: RefCell::default(),
+            when_group_shapes: RefCell::default(),
+            when_compound_suffixes: RefCell::default(),
+            committed_when_arm: Cell::new(None),
+            active_when_body_opener: Cell::new(None),
             angle_terminal_hint: 0,
         })
     }
 
     /// Checks diagnostic anchors in an already consumed raw lexeme range.
     pub(super) fn has_diagnostic_anchor(&self, start: usize, end: usize) -> bool {
-        match (
-            self.diagnostic_anchor_prefix.get(start),
-            self.diagnostic_anchor_prefix.get(end),
-        ) {
-            (Some(before), Some(after)) => before < after,
-            _ => false,
-        }
+        diagnostic_anchor::prefix_has_anchor(&self.diagnostic_anchor_prefix, start, end)
     }
 
     pub(super) fn angle_group_closer(&self, lexed: &LexedFile, opener: usize) -> Option<usize> {
@@ -412,6 +355,10 @@ impl<'source> LexicalRecoveryIndex<'source> {
             .binary_search_by_key(&start, |(owner, _)| *owner)
             .ok()
             .map(|index| self.string_recoveries[index].1)
+    }
+
+    pub(super) fn string_owner_closer(&self, opener: usize) -> Option<usize> {
+        self.string_owner_closers.get(&opener).copied()
     }
 
     pub(super) fn string_owner_end(&self, start: usize) -> Option<usize> {
@@ -480,6 +427,7 @@ fn diagnostic_anchor_index(
 #[derive(Clone, Copy)]
 struct ActiveString {
     opener: usize,
+    raw_opener: usize,
     lexical_poison: bool,
 }
 
@@ -552,19 +500,38 @@ struct GroupOwners {
 }
 
 impl GroupOwners {
+    #[cfg(any(test, kani))]
+    fn lexical_depth(&self) -> usize {
+        self.lexical_depth
+    }
+
+    #[cfg(any(test, kani))]
+    fn next_terminal_index(&self) -> usize {
+        self.next_terminal
+    }
+
     fn outside_lexical_symbol(
         &mut self,
         lexeme: Lexeme,
         terminals: &[TerminalOwnerEvent],
     ) -> Option<Symbol> {
+        self.outside_lexical_symbol_parts(lexeme.span().start(), lexeme.kind(), terminals)
+    }
+
+    fn outside_lexical_symbol_parts(
+        &mut self,
+        start: usize,
+        kind: LexemeKind,
+        terminals: &[TerminalOwnerEvent],
+    ) -> Option<Symbol> {
         while terminals
             .get(self.next_terminal)
-            .is_some_and(|event| event.offset <= lexeme.span().start())
+            .is_some_and(|event| event.offset <= start)
         {
             self.lexical_depth -= 1;
             self.next_terminal += 1;
         }
-        match lexeme.kind() {
+        match kind {
             LexemeKind::Token(TokenKind::StringStart | TokenKind::InterpolationStart) => {
                 self.lexical_depth += 1;
                 None
@@ -607,39 +574,7 @@ fn angle_group_closers(
             Some((raw, kind, opening))
         })
         .collect();
-    let eof = delimiters.len();
-    let mut boundaries = vec![[eof; 8]; eof + 1];
-    let mut matched = vec![None; lexed.lexemes().len()];
-    let closes = |boundary: usize, kind: usize| {
-        delimiters
-            .get(boundary)
-            .is_some_and(|&(_, found, opening)| !opening && found == kind)
-    };
-    for (index, &(raw, kind, opening)) in delimiters.iter().enumerate().rev() {
-        let shape = 1 << kind;
-        for active in 0..8 {
-            boundaries[index][active] = if opening {
-                let end = boundaries[index + 1][active | shape];
-                if closes(end, kind) {
-                    boundaries[end + 1][active]
-                } else {
-                    // 异形 closer 仍交给实际拥有它的祖先，孤立右花括号是硬边界。
-                    end
-                }
-            } else if active & shape != 0 || kind == 2 {
-                index
-            } else {
-                boundaries[index + 1][active]
-            };
-        }
-        if opening {
-            let end = boundaries[index + 1][shape];
-            if closes(end, kind) {
-                matched[raw] = NonZeroUsize::new(delimiters[end].0);
-            }
-        }
-    }
-    matched
+    angle_groups::match_angle_group_delimiters(&delimiters, lexed.lexemes().len())
 }
 
 impl Parser<'_> {
@@ -657,7 +592,7 @@ impl Parser<'_> {
         stops: DeclarationStops,
         proven_type_closer: Option<usize>,
     ) -> Result<usize, ParserInternalError> {
-        self.recover_declaration_tokens(stops, false, proven_type_closer)
+        self.recover_declaration_tokens(stops, false, proven_type_closer, None)
             .map(|(end, _)| end)
     }
 
@@ -665,14 +600,15 @@ impl Parser<'_> {
     pub(super) fn recover_declaration_string(
         &mut self,
     ) -> Result<(usize, bool), ParserInternalError> {
-        self.recover_declaration_tokens(DeclarationStops::EMPTY, true, None)
+        self.recover_declaration_tokens(DeclarationStops::EMPTY, true, None, None)
     }
 
-    fn recover_declaration_tokens(
+    pub(super) fn recover_declaration_tokens(
         &mut self,
         stops: DeclarationStops,
         stop_at_string_end: bool,
         proven_type_closer: Option<usize>,
+        when_arm: Option<WhenEntryBody>,
     ) -> Result<(usize, bool), ParserInternalError> {
         let mut delimiters = Vec::new();
         let mut paired_groups = Vec::new();
@@ -808,10 +744,19 @@ impl Parser<'_> {
             let hard_stop = outside_owner
                 && !nested_greater
                 && !protected_suffix
-                && stops.contains_hard(current, symbol)
-                && !(proven_groups
-                    && symbol == Some(Symbol::LeftBrace)
-                    && self.has_paired_lambda_header(raw_index)?);
+                && ((stops.contains_hard(current, symbol)
+                    && !(proven_groups
+                        && symbol == Some(Symbol::LeftBrace)
+                        && self.has_paired_lambda_header(raw_index)?))
+                    || (stops.0 & DeclarationStops::LEFT_BRACE != 0
+                        && self.explicit_block_start(current)?));
+            if outside_owner
+                && delimiters.is_empty()
+                && let Some(body) = when_arm
+                && self.when_arm_boundary_follows(end, body)?
+            {
+                break;
+            }
             if hard_stop
                 || (outside_owner
                     && !protected_suffix
@@ -986,5 +931,23 @@ impl Parser<'_> {
     }
 }
 
+#[cfg(kani)]
+mod adjacent_poison_kani;
+#[cfg(test)]
+mod adjacent_poison_tests;
+#[cfg(kani)]
+mod angle_group_kani;
 #[cfg(test)]
 mod angle_group_tests;
+#[cfg(kani)]
+mod group_owner_kani;
+#[cfg(test)]
+mod group_owner_tests;
+#[cfg(kani)]
+mod ordinary_group_kani;
+#[cfg(test)]
+mod ordinary_group_tests;
+#[cfg(kani)]
+mod owner_events_kani;
+#[cfg(test)]
+mod owner_events_tests;

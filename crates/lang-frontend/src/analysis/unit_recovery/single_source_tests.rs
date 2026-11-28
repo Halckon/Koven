@@ -23,6 +23,46 @@ use crate::{
 
 const MOVED: &str = "class Resource()\nfun take(own r: Resource): Unit {}\nfun moves(own r: Resource): Unit { take(r)\ntake(r) }";
 
+#[test]
+fn standalone_recovery_reports_completed_display_storage_error() {
+    let mut sources = SourceMap::new();
+    let source = sources
+        .add_source(
+            "display.ko",
+            r#"
+interface Action {
+    fun <X> apply(): Int = 1
+    fun toString(): String = "${this.apply<Nothing>()}"
+}
+class Actual(): Display, Action {
+    override fun <Y> apply(): Int { val items = listOf<Y>(); return 2 }
+}
+fun main(): Unit { println("${Actual()}") }
+"#,
+        )
+        .unwrap();
+    let (mut environment, types) = standard_environments();
+    let mut descriptors = vec![UnitSourceDescriptor::memory_document(source)];
+    crate::analysis::append_builtin_display(
+        &mut sources,
+        &mut descriptors,
+        &mut environment,
+        "koven-std",
+    )
+    .unwrap();
+    let snapshot = analyze_unit_names(sources, descriptors, environment).unwrap();
+    let (typed, owned) = analyze_unit_recovery(&snapshot, &types).unwrap();
+    let [diagnostic] = typed.diagnostics() else {
+        panic!("{:?}", typed.diagnostics());
+    };
+    assert_eq!(diagnostic.code().to_string(), "L0125");
+    assert_eq!(
+        snapshot.sources().slice(diagnostic.primary_span()),
+        Ok("Actual()")
+    );
+    assert!(owned.validate().is_err());
+}
+
 struct Manual {
     parsed: ParsedFile,
     names: CompilationUnitNames,

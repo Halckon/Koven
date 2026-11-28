@@ -3,8 +3,7 @@ use super::*;
 use lang_frontend::{
     lexer::lex,
     name_resolution::{
-        CompilationUnitNames, SourceUnitInput, index_compilation_unit,
-        resolve_compilation_unit_names,
+        CompilationUnitNames, index_compilation_unit, resolve_compilation_unit_names,
     },
     ownership_checking::check_compilation_unit_ownership,
     parser::{ParsedFile, parse_file},
@@ -31,27 +30,39 @@ impl ManualSnapshot {
     ) -> Result<Self, UnitSessionError> {
         let mut sources = SourceMap::new();
         let mut source_ids = Vec::with_capacity(config.sources().len());
-        let mut parsed = Vec::<ParsedFile>::with_capacity(config.sources().len());
+        let mut descriptors = Vec::with_capacity(config.sources().len() + 1);
         for source in config.sources() {
             let text = overlays
                 .get(source.uri().as_str())
                 .map_or(source.text(), |overlay| overlay.text.as_str());
             let source_id = sources.add_source(source.uri().as_str(), text)?;
-            let lexed = lex(&sources, source_id)?;
-            parsed.push(parse_file(&sources, &lexed)?);
+            descriptors.push(UnitSourceDescriptor::new(
+                source.root(),
+                source.logical_path(),
+                source_id,
+            ));
             source_ids.push(source_id);
         }
-        let inputs = config
-            .sources()
+        let (mut name_environment, type_environment) = standard_environments();
+        append_builtin_display(
+            &mut sources,
+            &mut descriptors,
+            &mut name_environment,
+            "koven-std",
+        )?;
+        let parsed = descriptors
             .iter()
-            .zip(source_ids.iter().copied())
-            .zip(parsed.iter())
-            .map(|((source, source_id), parsed)| {
-                SourceUnitInput::new(source.root(), source.logical_path(), source_id, parsed)
+            .map(|descriptor| {
+                let lexed = lex(&sources, descriptor.source_id())?;
+                Ok(parse_file(&sources, &lexed)?)
             })
+            .collect::<Result<Vec<_>, UnitSessionError>>()?;
+        let inputs = descriptors
+            .iter()
+            .zip(&parsed)
+            .map(|(descriptor, parsed)| descriptor.as_input(parsed))
             .collect::<Vec<_>>();
         let index = index_compilation_unit(&sources, &inputs)?;
-        let (name_environment, type_environment) = standard_environments();
         let names = resolve_compilation_unit_names(&sources, &inputs, &index, &name_environment)?;
         let mut diagnostics = names.diagnostics().to_vec();
         let Ok(validated_names) = names.clone().validate() else {
@@ -104,6 +115,15 @@ impl ManualSnapshot {
                 .into_iter()
                 .cloned()
                 .collect();
+        let mut parsed = parsed;
+        parsed.sort_by_key(|file| {
+            names
+                .index()
+                .source_units()
+                .iter()
+                .position(|unit| unit.source_id() == file.source_id())
+                .expect("indexed source")
+        });
         let definitions = UnitDefinitionIndex::build(&parsed, &names, typed.as_ref())?;
         Ok(Self {
             sources,

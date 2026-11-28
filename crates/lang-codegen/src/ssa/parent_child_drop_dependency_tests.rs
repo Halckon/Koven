@@ -741,7 +741,7 @@ pub(in crate::ssa) mod range_view_source {
 
     #[test]
     fn range_view_source_parent_child_and_elements_coexist_until_their_own_last_uses() {
-        let consumer = "class Item(val text:String){deinit(){println(this.text)}}\nfun read(view:View<Item>):Unit{for(item in view){println(item.text)}}\nfun consume(own source:List<Item>):Unit{}\nfun main():Unit{val source=listOf(Item(\"first\"),Item(\"second\"));{borrow val parent=take(source,2);borrow val child=take(parent,1);for(item in parent){read(child);println(item.text)};read(child)};consume(source)}";
+        let consumer = "class Item(val text:String){deinit(){println(this.text)}}\nfun read(view:View<Item>):Unit{for(item in view){println(item.text)}}\nfun consume(own source:List<Item>):Unit{}\nfun main():Unit{val source=listOf(Item(\"first\"),Item(\"second\"));block {borrow val parent=take(source,2);borrow val child=take(parent,1);for(item in parent){read(child);println(item.text)};read(child)};consume(source)}";
         use crate::native_tests::boxed_enum_tests::{
             assert_success, run_counted_allocations_in_order,
         };

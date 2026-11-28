@@ -164,7 +164,7 @@ pub(in crate::ssa) mod map_iteration_local {
     pub(in crate::ssa) use crate::ssa::constant_materialization::map_local_identity as identity;
     pub(in crate::ssa) use crate::ssa::lower_frontend::map_iteration::local_runtime::conditions;
     use crate::ssa::lower_frontend::map_iteration::source::topology;
-    pub(in crate::ssa) use identity::{lambda_body, producer};
+    pub(in crate::ssa) use identity::producer;
 
     use crate::ssa::lower_frontend::map_iteration::*;
 

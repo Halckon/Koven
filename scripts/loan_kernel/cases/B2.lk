@@ -1,0 +1,13 @@
+// guard 交付的引用越过 guard 的作用域
+class Guard(n: Int) deinit
+fun value(borrow g: Guard): borrow Int from g { return &g.n }
+fun f(): Unit {
+  val z = 0
+  val r = &z
+  {
+    val g = Guard(1)
+    r = value(&g)
+    use(r)
+  }  // ERR K9
+  use(r)
+}

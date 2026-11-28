@@ -855,7 +855,7 @@ fn lambda_body_dispatch_metrics(text: String) -> (usize, usize, usize, usize) {
 #[test]
 fn lambda_body_legal_unsupported_and_poison_families_stay_linear() {
     for (make, diagnostics_per_element) in [
-        (|count| format!("{{ {} }}", "{}; ".repeat(count)), 0),
+        (|count| format!("{{ {} }}", "block {}; ".repeat(count)), 0),
         (|count| format!("{{ {} }}", "return\n".repeat(count)), 0),
         (|count| format!("{{ {} }}", "@ ".repeat(count)), 1),
     ] as [(fn(usize) -> String, usize); 3]

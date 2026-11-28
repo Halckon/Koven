@@ -771,7 +771,7 @@ mod sources {
             path: "formed_k5_shadow_dead_tail.ko",
             single: r#"fun main(): Unit {
       val source: MutableMap<Int, Int>? = null;
-      {
+      block {
         return
         val source: MutableMap<Int, Int?>? = null
       }
@@ -780,7 +780,7 @@ mod sources {
             provider: r#"package p
     fun main(): Unit {
       val source: MutableMap<Int, Int>? = null;
-      {
+      block {
         return
         val source: MutableMap<Int, Int?>? = null
       }

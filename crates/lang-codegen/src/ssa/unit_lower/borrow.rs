@@ -460,10 +460,12 @@ impl UnitExpressionLowerer<'_> {
                     LoweredValue::Value(value) => {
                         self.adapt_temporary_borrow_owner(*temporary, value, target, span)?
                     }
-                    LoweredValue::Unit => {
-                        return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+                    LoweredValue::Unit
+                        if self.ssa_types.get(target.index()) == Some(&SsaTypeKind::Unit) =>
+                    {
+                        self.materialize_unit_value(temporary.expression(), span)?
                     }
-                    LoweredValue::Diverged => {
+                    LoweredValue::Unit | LoweredValue::Diverged => {
                         return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
                     }
                 }
@@ -531,14 +533,23 @@ impl UnitExpressionLowerer<'_> {
             // The heap wrapper takes over the proven MoveOnly temporary's drop obligation.
             self.take_owned_temporary_origin(temporary, owner, span)?;
         }
+        let operation = if self
+            .ssa_types
+            .get(actual.index())
+            .is_some_and(|kind| kind.is_null_only(self.ssa_types))
+        {
+            Operation::NullableNull { nullable: target }
+        } else {
+            Operation::NullableWrap {
+                nullable: target,
+                owner,
+            }
+        };
         let (_, results) = self
             .function
             .append_instruction(
                 self.block,
-                Operation::NullableWrap {
-                    nullable: target,
-                    owner,
-                },
+                operation,
                 vec![EntityType::Value(target)],
                 Origin::Source(span),
             )
@@ -558,10 +569,20 @@ impl UnitExpressionLowerer<'_> {
         target: SsaTypeId,
         span: Span,
     ) -> Result<bool, LoweringError> {
-        if !matches!(
-            self.ssa_types.get(target.index()),
-            Some(SsaTypeKind::InlineNullable { inner, .. }) if *inner == actual
-        ) {
+        let Some(SsaTypeKind::InlineNullable { inner, .. }) = self.ssa_types.get(target.index())
+        else {
+            return Ok(false);
+        };
+        if *inner != actual
+            && !(self
+                .ssa_types
+                .get(actual.index())
+                .is_some_and(|kind| kind.is_null_only(self.ssa_types))
+                && matches!(
+                    self.ssa_types.get(inner.index()),
+                    Some(SsaTypeKind::Float32 | SsaTypeKind::Float64)
+                ))
+        {
             return Ok(false);
         }
         let ty = self

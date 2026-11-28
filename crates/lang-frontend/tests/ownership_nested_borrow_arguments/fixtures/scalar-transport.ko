@@ -1,0 +1,5 @@
+fun view(source: String): borrow String from source = source
+fun observe(item: String) { println(item) }
+fun consume(own item: String) {}
+fun measure(source: String): Int = 1
+fun run() { val source = "kept"; val count = measure(view(source)); consume(source) }

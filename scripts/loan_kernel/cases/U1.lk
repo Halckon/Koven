@@ -1,0 +1,61 @@
+// 递归的视图类型：经借用字段指向同类型的视图。参数名下的来源只展开到第一次回到同一类型为止，更深的归到那个字段名下
+class Arr(len: Int)
+view class Node(borrow next: Node, borrow data: Arr)
+fun leaf(borrow a: Arr): Node from a trusted
+fun own(borrow n: Node): borrow Int from n.data { return &n.data.len }
+fun second(borrow n: Node): borrow Int from n.next { return &n.next.data.len }
+fun third(borrow n: Node): borrow Int from n.next { return &n.next.next.data.len }
+fun wrongBranch(borrow n: Node): borrow Int from n.data {
+  return &n.next.next.data.len  // ERR K6
+}
+fun undeclared(borrow n: Node): borrow Int {
+  return &n.next.data.len  // ERR K6
+}
+fun walk(borrow n: Node): borrow Int from n.next {
+  val cur = &n.next
+  while (*) {
+    cur = &cur.next
+  }
+  return &cur.data.len
+}
+fun deepSourceIsProtected(): Unit {
+  val a = Arr(1)
+  val b = Arr(2)
+  val c = Arr(3)
+  val n1 = leaf(&a)
+  val n2 = Node(&n1, &b)
+  val n3 = Node(&n2, &c)
+  val e = third(&n3)
+  c.len = 4
+  a.len = 5  // ERR K1
+  use(e)
+}
+fun ownDataOnly(): Unit {
+  val a = Arr(1)
+  val b = Arr(2)
+  val n1 = leaf(&a)
+  val n2 = Node(&n1, &b)
+  val e = own(&n2)
+  a.len = 5
+  b.len = 6  // ERR K1
+  use(e)
+}
+fun walkProtectsTheChain(): Unit {
+  val a = Arr(1)
+  val b = Arr(2)
+  val n1 = leaf(&a)
+  val n2 = Node(&n1, &b)
+  val e = walk(&n2)
+  a.len = 5  // ERR K1
+  use(e)
+}
+fun chainOutlivesSource(): Unit {
+  val b = Arr(2)
+  {
+    val a = Arr(1)
+    val n1 = leaf(&a)
+    val n2 = Node(&n1, &b)
+    use(n2.data.len)
+  }
+  b.len = 3
+}

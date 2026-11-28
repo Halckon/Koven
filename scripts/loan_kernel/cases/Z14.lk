@@ -1,0 +1,65 @@
+// 拆出携带独占借用的按值视图：独占来源随字段转移，读和写原存储均受保护。
+class Arr(len: Int)
+class File(fd: Int) deinit
+view class MutSlice(inout source: Arr)
+view class MutHolder(slice: MutSlice, file: File) deinit
+fun mayFail(): Unit trusted
+fun update(inout a: Arr): Unit trusted
+fun cannotReadWhileExclusiveViewLives(own this: MutHolder, own a: Arr, own f: File): Unit in MutHolder {
+  this = MutHolder(MutSlice(&mut a), move f)
+  open this as slice, file
+  use(a.len)  // ERR K1
+  update(slice.source)
+}
+fun cannotWriteWhileExclusiveViewLives(own this: MutHolder, own a: Arr, own f: File): Unit in MutHolder {
+  this = MutHolder(MutSlice(&mut a), move f)
+  open this as slice, file
+  update(&mut a)  // ERR K1
+  use(slice.source.len)
+}
+fun readAndWriteAfterLastUse(own this: MutHolder, own a: Arr, own f: File): Unit in MutHolder {
+  this = MutHolder(MutSlice(&mut a), move f)
+  open this as slice, file
+  update(slice.source)
+  use(a.len)
+  update(&mut a)
+}
+fun cannotCopyOpenedExclusiveView(own this: MutHolder): Unit in MutHolder {
+  open this as slice, file
+  val copy = slice  // ERR K8
+  use(copy.source.len)
+  use(slice.source.len)
+}
+fun forwardsExclusiveRef(own this: MutHolder): inout Int from this.slice.source in MutHolder {
+  open this as slice, file
+  return &mut slice.source.len
+}
+fun cannotOmitExclusiveSource(own this: MutHolder): inout Int in MutHolder {
+  open this as slice, file
+  return &mut slice.source.len  // ERR K6
+}
+fun cannotReturnLocalExclusiveSource(own this: MutHolder, own a: Arr, own f: File): inout Int from this.slice.source in MutHolder {
+  this = MutHolder(MutSlice(&mut a), move f)
+  open this as slice, file
+  return &mut slice.source.len  // ERR K6
+}
+fun extractMutSlice(own this: MutHolder): MutSlice from this.slice.source in MutHolder {
+  open this as slice, file
+  return move slice
+}
+fun callerRespectsReturnedExclusiveView(own a: Arr, own f: File): Unit {
+  val s = extractMutSlice(MutHolder(MutSlice(&mut a), move f))
+  use(a.len)  // ERR K1
+  update(s.source)
+}
+fun callerWritesAfterReturnedExclusiveViewEnds(own a: Arr, own f: File): Unit {
+  val s = extractMutSlice(MutHolder(MutSlice(&mut a), move f))
+  update(s.source)
+  use(a.len)
+  update(&mut a)
+}
+fun dropsExclusiveFieldsOnFailure(own this: MutHolder): Unit in MutHolder {
+  open this as slice, file
+  mayFail()
+  update(slice.source)
+}

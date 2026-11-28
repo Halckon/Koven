@@ -1,0 +1,5 @@
+const val TEXT = "hi"
+fun stop(): Nothing = stop()
+fun view(text: String, number: Int): Unit {}
+fun take(own text: String, number: Int): Unit {}
+fun use(flag: Boolean): Unit { val result = take(TEXT, if (flag) { return } else { 0 }) }

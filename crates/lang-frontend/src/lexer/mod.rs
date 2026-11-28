@@ -1,4 +1,5 @@
 //! Koven v1 的确定性词法模型与入口。
+#![allow(unexpected_cfgs)]
 
 mod scanner;
 #[cfg(test)]
@@ -73,6 +74,26 @@ impl Lexeme {
     #[must_use]
     pub const fn span(self) -> Span {
         self.span
+    }
+
+    #[cfg(any(test, kani))]
+    pub(crate) const fn synthetic_for_verification(kind: LexemeKind) -> Self {
+        Self {
+            kind,
+            span: Span::synthetic_for_verification(),
+        }
+    }
+
+    #[cfg(any(test, kani))]
+    pub(crate) const fn synthetic_with_span_for_verification(
+        kind: LexemeKind,
+        start: usize,
+        end: usize,
+    ) -> Self {
+        Self {
+            kind,
+            span: Span::synthetic_range_for_verification(start, end),
+        }
     }
 }
 

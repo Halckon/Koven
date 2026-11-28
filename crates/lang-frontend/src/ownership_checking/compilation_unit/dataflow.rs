@@ -33,6 +33,7 @@ mod non_null_assertion;
 mod nullable_when;
 mod ownership_primitive;
 mod place_access;
+use place_access::add_parameter_label;
 mod places;
 mod range_construction;
 mod rc;
@@ -152,6 +153,7 @@ pub(super) struct Analysis {
     pub(super) borrow_forward_transports: Vec<super::UnitBorrowForwardTransportFact>,
     pub(super) loan_action_observations: Vec<super::UnitLoanActionObservation>,
     pub(super) direct_call_loan_ends: Vec<super::UnitDirectCallLoanEndFact>,
+    pub(super) class_result_argument_unwinds: Vec<super::UnitDirectCallLoanEndFact>,
     pub(super) string_clone_loan_ends: Vec<crate::ownership_checking::UnitStringCloneLoanEndFact>,
     pub(super) loans: Vec<UnitLoanFact>,
     pub(super) borrow_results: crate::ownership_checking::borrow_result::UnitBorrowResults,
@@ -259,6 +261,7 @@ pub(super) fn analyze(
     let mut constant_materializations = Vec::new();
     let mut short_circuits = Vec::new();
     let mut entered_calls = std::collections::BTreeSet::new();
+    let mut interpolation_evaluations = BTreeMap::new();
     let mut call_dispatch = BTreeMap::new();
     let mut completed_arguments = std::collections::BTreeSet::new();
     let mut visited_lambdas = std::collections::BTreeSet::new();
@@ -270,6 +273,7 @@ pub(super) fn analyze(
     let mut borrow_forward_transports = Vec::new();
     let mut loan_action_observations = Vec::new();
     let mut direct_call_loan_ends = Vec::new();
+    let mut class_result_argument_unwinds = Vec::new();
     let mut string_clone_loan_ends = Vec::new();
     let mut exclusive_call_prefix_ends = Vec::new();
     let mut receiver_call_prefix_ends = Vec::new();
@@ -415,6 +419,10 @@ pub(super) fn analyze(
         iteration_required_exits.extend(drop_analysis.iteration_required_exits);
         short_circuits.extend(checker.short_circuits.into_values());
         entered_calls.extend(checker.entered_calls);
+        super::super::callable_provenance::merge_interpolation_evaluations(
+            &mut interpolation_evaluations,
+            checker.interpolation_evaluations.into_values(),
+        );
         call_dispatch.extend(checker.call_dispatch);
         completed_arguments.extend(checker.completed_arguments);
         visited_lambdas.extend(checker.visited_lambdas);
@@ -422,6 +430,7 @@ pub(super) fn analyze(
         owner_observations.extend(drop_analysis.owner_observations);
         loan_action_observations.extend(drop_analysis.loan_action_observations);
         direct_call_loan_ends.extend(drop_analysis.direct_call_loan_ends);
+        class_result_argument_unwinds.extend(drop_analysis.class_result_argument_unwinds);
         string_clone_loan_ends.extend(drop_analysis.string_clone_loan_ends);
         borrow_call_handoffs.extend(drop_analysis.borrow_call_handoffs);
         borrow_call_transports.extend(drop_analysis.borrow_call_transports);
@@ -495,6 +504,7 @@ pub(super) fn analyze(
             typed,
             &capture_index,
             entered_calls,
+            interpolation_evaluations,
             call_dispatch,
             completed_arguments,
         )
@@ -506,6 +516,7 @@ pub(super) fn analyze(
         borrow_return_origins.clear();
         loan_action_observations.clear();
         direct_call_loan_ends.clear();
+        class_result_argument_unwinds.clear();
         borrow_call_handoffs.clear();
         borrow_call_prefix_ends.clear();
         borrow_forward_transports.clear();
@@ -582,6 +593,7 @@ pub(super) fn analyze(
         owner_observations,
         loan_action_observations,
         direct_call_loan_ends,
+        class_result_argument_unwinds,
         string_clone_loan_ends,
         borrow_call_handoffs,
         borrow_call_transports,
@@ -633,6 +645,7 @@ struct Checker<'a> {
         crate::ownership_checking::UnitMapIterationOwnershipPlan,
     >,
     entered_calls: std::collections::BTreeSet<UnitExpressionId>,
+    interpolation_evaluations: super::super::callable_provenance::InterpolationEvaluations,
     call_dispatch: BTreeMap<UnitExpressionId, bool>,
     completed_arguments: std::collections::BTreeSet<UnitExpressionId>,
     visited_lambdas: std::collections::BTreeSet<UnitExpressionId>,
@@ -804,6 +817,7 @@ impl<'a> Checker<'a> {
             iterations: BTreeMap::new(),
             map_iterations: BTreeMap::new(),
             entered_calls: std::collections::BTreeSet::new(),
+            interpolation_evaluations: BTreeMap::new(),
             call_dispatch: BTreeMap::new(),
             completed_arguments: std::collections::BTreeSet::new(),
             visited_lambdas: std::collections::BTreeSet::new(),
@@ -979,17 +993,6 @@ impl<'a> Checker<'a> {
     const fn unit_expression(&self, expression: ExpressionId) -> UnitExpressionId {
         UnitExpressionId::new(self.source_unit, expression)
     }
-}
-
-fn add_parameter_label(
-    sources: &SourceMap,
-    diagnostic: &mut Diagnostic,
-    parameter_span: Option<Span>,
-) -> Result<(), OwnershipCheckingError> {
-    if let Some(parameter_span) = parameter_span {
-        diagnostic.add_label(sources, parameter_span, "selected parameter declared here")?;
-    }
-    Ok(())
 }
 
 const fn span_key(span: Span) -> (usize, usize) {

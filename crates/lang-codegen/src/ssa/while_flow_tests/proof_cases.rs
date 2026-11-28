@@ -179,8 +179,7 @@ fun entry(own initial: Holder?, own other: Holder?): Int {
     observe("owner-transfer", &[(transfer, false), (assertion, false)]);
 }
 
-/// Preserve the original five fixtures through the MemoryDocument Unit entrance.
-/// The historical test name remains; the obsolete Legacy shape execution is retired.
+/// The original no-package sources retain their same-analysis MemoryDocument proofs.
 #[test]
 fn single_direct_nullable_while_birth_and_local_retirement_reach_llvm() {
     let memory = collect_memory_entry_observations(&direct_proof_sources());
@@ -197,7 +196,7 @@ fn single_direct_nullable_while_birth_and_local_retirement_reach_llvm() {
 
 #[test]
 fn unit_direct_nullable_while_birth_and_local_retirement_reach_llvm() {
-    // Preserve the same five fixtures and complete Rooted Unit oracle.
+    // Keep the exact original Rooted source, entry, owner, and exit contracts.
     for (case, text) in direct_proof_sources().iter().enumerate() {
         let source = expect(lower_unit_source(text, true), "original Rooted Unit source");
         verify_program(&source.program).expect("original Rooted Unit SSA");

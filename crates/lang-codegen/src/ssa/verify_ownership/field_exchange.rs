@@ -966,7 +966,8 @@ pub(in crate::ssa) mod closure_escape {
                     | Operation::InoutExchange { loan, .. } => function
                         .entity(EntityId::Loan(*loan))
                         .is_some_and(|loan| types.contains(loan.ty.semantic_type())),
-                    Operation::HeapFieldExchange { replacement, .. } => may(*replacement),
+                    Operation::HeapFieldExchange { replacement, .. }
+                    | Operation::HeapReceiverFieldExchange { replacement, .. } => may(*replacement),
                     Operation::Mutate { place, value } => proof.is_projected(*place) && may(*value),
                     Operation::LoanMutate { value, .. } | Operation::LoanReplace { value, .. } => {
                         may(*value)

@@ -1,6 +1,81 @@
 use super::*;
 
 #[test]
+fn grouped_right_operand_keeps_writes_in_call_arguments() {
+    assert_cases(&[Case {
+        name: "inout-write-in-nested-call-argument",
+        text: "fun clear(inout value: Int?): Boolean { value = null; return true }
+        fun forward(value: Boolean): Boolean = value
+        fun probe(input: Int?, flag: Boolean): Int {
+            var x = input
+            if (x != null && (flag && (flag && forward(clear(&x))))) {
+                return /*reject*/x
+            }
+            return 0
+        }",
+        marks: vec![read("reject", Shape::Error)],
+        rejected: Some("reject"),
+    }]);
+}
+
+#[test]
+fn grouped_logical_writes_invalidate_the_baseline_on_normal_paths() {
+    for (name, condition, marker, rejected) in [
+        ("and-reaches", "flag && (flag && clear(&x))", "result", true),
+        ("or-reaches", "flag || (flag || clear(&x))", "result", true),
+        (
+            "and-bypasses",
+            "flag && (false && clear(&x))",
+            "result",
+            false,
+        ),
+        (
+            "or-bypasses",
+            "flag || (true || clear(&x))",
+            "result",
+            false,
+        ),
+        (
+            "nested-left-writes",
+            "flag && (clear(&x) && flag)",
+            "result",
+            true,
+        ),
+        (
+            "write-before-return",
+            "flag && (flag && (if (flag) { clear(&x); return 0 } else { true }))",
+            "result",
+            false,
+        ),
+        (
+            "write-before-local-break",
+            "flag && (flag && (if (flag) { loop { clear(&x); break }; true } else { false }))",
+            "result",
+            true,
+        ),
+    ] {
+        let text = format!(
+            "fun clear(inout value: Int?): Boolean {{ value = null; return true }}
+            fun probe(input: Int?, flag: Boolean): Int {{
+                var x = input
+                if (x == null) {{ return 0 }}
+                if ({condition}) {{ println(\"hit\") }}
+                return /*{marker}*/x
+            }}"
+        );
+        assert_cases(&[Case {
+            name,
+            text: &text,
+            marks: vec![read(
+                marker,
+                if rejected { Shape::Error } else { Shape::Int },
+            )],
+            rejected: rejected.then_some(marker),
+        }]);
+    }
+}
+
+#[test]
 fn runtime_boolean_condition_checks_writes_on_its_own_result_edge() {
     assert_cases(&[
         Case {
@@ -137,4 +212,126 @@ fn a_logical_rhs_uses_only_the_left_edge_that_reaches_it() {
             rejected: Some("reject"),
         },
     ]);
+}
+
+#[test]
+fn long_short_circuit_chain_preserves_selected_write_edges() {
+    for (name, seed, operator, marker, rejected) in [
+        (
+            "and-bypasses",
+            "(flag || (clear(&x) && false))",
+            "&&",
+            "use",
+            None,
+        ),
+        (
+            "and-writes",
+            "(flag || (clear(&x) && true))",
+            "&&",
+            "reject",
+            Some("reject"),
+        ),
+        (
+            "or-bypasses",
+            "(flag && (clear(&x) || true))",
+            "||",
+            "use",
+            None,
+        ),
+        (
+            "or-writes",
+            "(flag && (clear(&x) && false))",
+            "||",
+            "reject",
+            Some("reject"),
+        ),
+    ] {
+        let flags = format!(" {operator} flag").repeat(127);
+        let source = format!(
+            "fun clear(inout value: Int?): Boolean {{ value = null; return true }}
+             fun accept(value: Int): Boolean = true
+             fun probe(input: Int?, flag: Boolean): Boolean {{
+                 var x = input
+                 if (x == null) {{ return false }}
+                 return {seed}{flags} {operator} accept(/*{marker}*/x)
+             }}"
+        );
+        assert_cases(&[Case {
+            name,
+            text: &source,
+            marks: vec![read(
+                marker,
+                if rejected.is_some() {
+                    Shape::Error
+                } else {
+                    Shape::Int
+                },
+            )],
+            rejected,
+        }]);
+    }
+}
+
+#[test]
+fn long_short_circuit_chain_carries_condition_facts_to_the_rhs() {
+    for (name, seed, operator, middle, marker, rejected) in [
+        ("and-fact", "x != null", "&&", "", "use", None),
+        ("or-fact", "!(x != null)", "||", "", "use", None),
+        (
+            "and-write",
+            "x != null",
+            "&&",
+            " && clear(&x)",
+            "reject",
+            Some("reject"),
+        ),
+        (
+            "or-write",
+            "!(x != null)",
+            "||",
+            " || clear(&x)",
+            "reject",
+            Some("reject"),
+        ),
+    ] {
+        let flags = format!(" {operator} flag").repeat(127);
+        let source = format!(
+            "fun clear(inout value: Int?): Boolean {{ value = null; return true }}
+             fun accept(value: Int): Boolean = true
+             fun probe(input: Int?, flag: Boolean): Boolean {{
+                 var x = input
+                 return {seed}{flags}{middle} {operator} accept(/*{marker}*/x)
+             }}"
+        );
+        assert_cases(&[Case {
+            name,
+            text: &source,
+            marks: vec![read(
+                marker,
+                if rejected.is_some() {
+                    Shape::Error
+                } else {
+                    Shape::Int
+                },
+            )],
+            rejected,
+        }]);
+    }
+}
+
+#[test]
+fn long_grouped_condition_narrows_the_selected_branch() {
+    let source = format!(
+        "fun probe(x: Int?, flag: Boolean): Int {{
+             if (!(x == null{})) {{ return /*use*/x }}
+             return 0
+         }}",
+        " || flag".repeat(128)
+    );
+    assert_cases(&[Case {
+        name: "negated-or-condition-narrows-its-branch",
+        text: &source,
+        marks: vec![read("use", Shape::Int)],
+        rejected: None,
+    }]);
 }

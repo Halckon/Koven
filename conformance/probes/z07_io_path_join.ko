@@ -1,0 +1,9 @@
+import koven.io.Path
+
+fun main(): Unit {
+    val joined = Path.join("dir", "file.txt")
+    when (joined) {
+        is Ok -> if (joined.success == "dir/file.txt") { println("io-path") }
+        is Err -> println("io-err")
+    }
+}

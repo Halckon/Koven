@@ -1,0 +1,25 @@
+// 评审 R2 的反例：把具体类型的位置当作存在类型的槽位交给泛型 inout T
+interface Shape
+class Circle(r: Int) is Shape
+class Square(s: Int) is Shape
+class Point(x: Int)
+fun area(borrow this: any Shape): Int trusted
+fun scale(inout this: any Shape): Unit trusted
+fun <T> overwrite(inout dst: T, own value: T): Unit { *dst = move value }
+fun direct(): Unit {
+  val c = Circle(1)
+  overwrite(&mut c, pack Shape(Square(2)))  // ERR X2
+  use(c.r)
+}
+fun viaPayload(inout s: any Shape, own v: any Shape): Unit {
+  overwrite(s, move v)  // ERR X2
+}
+fun rename(inout s: any Shape, own v: any Shape): Unit {
+  val t = move s
+  overwrite(t, move v)  // ERR X2
+}
+fun wrongConcrete(): Unit {
+  val c = Circle(1)
+  val r = &mut c
+  *r = Square(2)  // ERR X1
+}

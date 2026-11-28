@@ -23,6 +23,12 @@ impl Builder<'_, '_> {
         span: Span,
     ) -> Result<Option<Lowered>, LoweringError> {
         let id = self.unit(expression);
+        if let Some(receiver) = self.inputs.non_completing_map_receiver(id) {
+            return match self.expression(receiver)? {
+                Lowered::Diverged => Ok(Some(Lowered::Diverged)),
+                _ => Err(error(LoweringErrorKind::InvalidModel, span)),
+            };
+        }
         let typed = self.inputs.typed;
         if typed.map_construction(id).is_some() {
             return self.map_construction(expression, span).map(Some);
@@ -440,6 +446,17 @@ impl Builder<'_, '_> {
             };
         let action_expr = descriptor.action().expression();
         let action_span = self.span(action_expr);
+        if self
+            .inputs
+            .typed
+            .expression_falls_through(descriptor.action())
+            == Some(false)
+        {
+            return match self.expression(action_expr)? {
+                Lowered::Diverged => Ok(Lowered::Diverged),
+                _ => Err(error(LoweringErrorKind::InvalidModel, action_span)),
+            };
+        }
         let Some((action_loan, created_action, action_read)) =
             self.runtime_initializer_loan(action_expr, action_span)?
         else {
@@ -605,6 +622,27 @@ impl Builder<'_, '_> {
         if self.inputs.is_nullable_string_equality(left_ty, right_ty) {
             return Ok(None);
         }
+        if let Some(nullable) = crate::ssa::lowering_support::nullable_equality_storage(
+            self.inputs.typed,
+            left_ty,
+            right_ty,
+        ) {
+            // Each operand is evaluated in its own storage before conversion for this comparison.
+            let outer_nullable = self.expected_nullable.take();
+            let result = (|| {
+                let Some(left_slot) = self.required(left)? else {
+                    return Ok(Some(Lowered::Diverged));
+                };
+                let left = self.adapt(left_slot, left, nullable)?;
+                let Some(right_slot) = self.required(right)? else {
+                    return Ok(Some(Lowered::Diverged));
+                };
+                let right = self.adapt(right_slot, right, nullable)?;
+                self.finish_nullable_equality(expression, operator, left, right)
+            })();
+            self.expected_nullable = outer_nullable;
+            return result;
+        }
         let left_map_res = self.map_result_ssa(left_ty)?;
         let right_map_res = self.map_result_ssa(right_ty)?;
         if left_map_res.is_none() && right_map_res.is_none() {
@@ -626,6 +664,16 @@ impl Builder<'_, '_> {
         {
             left_slot = self.wrap_map_result(left_slot, res_ty, span)?;
         }
+        self.finish_nullable_equality(expression, operator, left_slot, right_slot)
+    }
+
+    fn finish_nullable_equality(
+        &mut self,
+        expression: ExpressionId,
+        operator: BinaryOperator,
+        left: Slot,
+        right: Slot,
+    ) -> Result<Option<Lowered>, LoweringError> {
         let operator = if operator == BinaryOperator::Equal {
             ComparisonOperator::Equal
         } else {
@@ -634,8 +682,8 @@ impl Builder<'_, '_> {
         let result = self.typed_value(
             ROp::Compare {
                 operator,
-                left: left_slot,
-                right: right_slot,
+                left,
+                right,
             },
             expression,
         )?;

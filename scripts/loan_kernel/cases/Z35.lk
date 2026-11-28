@@ -1,0 +1,101 @@
+// 多层 replace（K26，KB1 × KB2）：嵌套按值 empty 类字段与视图字段的原地留空替换、deinit 函数体与跨借用字段边界
+class Arr(len: Int)
+class File(fd: Int) deinit
+class OptNode(id: Int) empty deinit
+class Mid(item: OptNode, keep: File)
+class Outer(mid: Mid, tail: File) deinit
+view class OptSlice(borrow source: Arr) empty
+view class MidView(first: OptSlice, second: OptSlice)
+view class DeepViewHolder(mid: MidView, tail: File) deinit
+view class LinkHolder(inout inner: MidView)
+view class RoLinkHolder(borrow inner: MidView)
+
+fun closeNode(own n: OptNode): Unit trusted
+fun update(inout a: Arr): Unit trusted
+fun mayFail(): Unit trusted
+
+// 一、嵌套普通 empty 类字段与 deinit 函数体
+deinit Outer {
+  val x = replace this.mid.item
+  closeNode(move x)
+  mayFail()
+}
+fun replaceNestedKeepsOuterAndSiblings(): Unit {
+  val o = Outer(Mid(OptNode(1), File(2)), File(3))
+  val x = replace o.mid.item
+  mayFail()
+  use(x.id)
+  use(o.mid.keep.fd)
+  use(o.tail.fd)
+}
+fun replaceNestedInLoopKeepsOuterComplete(): Unit {
+  val o = Outer(Mid(OptNode(1), File(2)), File(3))
+  while (*) {
+    val x = replace o.mid.item
+    closeNode(move x)
+  }
+  use(o.mid.item.id)
+}
+fun replaceNestedAllowedWhileSiblingBorrowed(): Unit {
+  val o = Outer(Mid(OptNode(1), File(2)), File(3))
+  val r = &o.mid.keep.fd
+  val x = replace o.mid.item
+  use(r)
+  closeNode(move x)
+}
+fun cannotReplaceNestedWhileBorrowed(): Unit {
+  val o = Outer(Mid(OptNode(1), File(2)), File(3))
+  val r = &o.mid.item.id
+  val x = replace o.mid.item  // ERR K1
+  use(r)
+  closeNode(move x)
+}
+fun cannotReplaceNestedNonEmptyField(): Unit {
+  val o = Outer(Mid(OptNode(1), File(2)), File(3))
+  val f = replace o.mid.keep  // ERR K26
+  use(f.fd)
+}
+fun cannotReplaceNestedViaBorrow(borrow o: Outer): Unit {
+  val x = replace o.mid.item  // ERR K1
+  closeNode(move x)
+}
+
+// 二、嵌套 empty 视图字段：来源随取出值转移、唯一目标精准清空该叶路径且不解除兄弟路径
+fun replaceNestedViewTransfersAndClearsUniqueSlot(): Unit {
+  val a = Arr(1)
+  val b = Arr(2)
+  val h = DeepViewHolder(MidView(OptSlice(&a), OptSlice(&b)), File(1))
+  val taken = replace h.mid.first
+  update(&mut a)  // ERR K1
+  update(&mut b)  // ERR K1
+  use(taken.source.len)
+  update(&mut a)
+  update(&mut b)  // ERR K1
+  use(h.mid.second.source.len)
+}
+fun takeNestedFirstViaInout(inout h: DeepViewHolder): OptSlice from h.mid.first {
+  return replace h.mid.first
+}
+fun takeNestedWrongContract(inout h: DeepViewHolder): OptSlice from h.mid.second {
+  return replace h.mid.first  // ERR K6
+}
+fun replaceNestedViewAcrossInoutField(): Unit {
+  val a = Arr(1)
+  val b = Arr(2)
+  val m = MidView(OptSlice(&a), OptSlice(&b))
+  val link = LinkHolder(&mut m)
+  val taken = replace link.inner.first
+  update(&mut a)  // ERR K1
+  use(taken.source.len)
+  update(&mut a)
+  update(&mut b)  // ERR K1
+  use(link.inner.second.source.len)
+}
+fun cannotReplaceNestedAcrossSharedField(): Unit {
+  val a = Arr(1)
+  val b = Arr(2)
+  val m = MidView(OptSlice(&a), OptSlice(&b))
+  val link = RoLinkHolder(&m)
+  val taken = replace link.inner.first  // ERR K1
+  use(taken.source.len)
+}

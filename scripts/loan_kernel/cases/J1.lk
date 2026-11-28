@@ -1,0 +1,26 @@
+// 私有字段：受信任签名交出独占元素之后，类型之外不能再经视图的字段碰同一块存储
+class Arr(len: Int)
+view class MutIter(private inout data: Arr, pos: Int)
+fun iterMut(inout a: Arr): MutIter from a trusted
+fun nextMut(inout it: MutIter): inout Arr from it.data in MutIter trusted
+fun nextLend(inout it: MutIter): inout Arr from it in MutIter { return it.data }
+fun outside(): Unit {
+  val arr = Arr(1)
+  val it = iterMut(&mut arr)
+  val a = nextMut(&mut it)
+  it.data.len = 5  // ERR K15
+  a.len = 2
+}
+fun publicFieldStaysOpen(): Unit {
+  val arr = Arr(1)
+  val it = iterMut(&mut arr)
+  use(it.pos)
+}
+fun viaMembers(): Unit {
+  val arr = Arr(1)
+  val it = iterMut(&mut arr)
+  val a = nextMut(&mut it)
+  val b = nextMut(&mut it)
+  a.len = 2
+  b.len = 3
+}

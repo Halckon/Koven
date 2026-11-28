@@ -1,5 +1,108 @@
 use super::*;
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum DelegationLambdaTailEvent {
+    Trivia,
+    SameLineClosedCall,
+    LineBreakLeftParen,
+    UnclosedLeftParen,
+    OuterHeaderDelimiter,
+    Other,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum DelegationLambdaTailStep {
+    Continue,
+    Accept,
+    Reject,
+}
+
+pub(super) const fn is_direct_delegation_boundary_kind(kind: LexemeKind) -> bool {
+    matches!(
+        kind,
+        LexemeKind::Eof
+            | LexemeKind::Token(TokenKind::Symbol(
+                Symbol::Comma | Symbol::LeftBrace | Symbol::RightBrace
+            ))
+    )
+}
+
+pub(super) const fn delegation_suffix_extra_stop(invalid_target: bool, poison: bool) -> u32 {
+    if invalid_target {
+        DeclarationStops::DELEGATION_ERROR_TARGET
+    } else if poison {
+        DeclarationStops::LEADING_UNPROVED_ANGLE_COMMA
+    } else {
+        DeclarationStops::DELEGATION_UNSUPPORTED_SUFFIX
+    }
+}
+
+pub(super) const fn supertype_deinit_suffix_decision(
+    owner: ClassifierHeaderOwner,
+    in_delegation_recovery: bool,
+    in_unsupported_delegation_suffix: bool,
+    next_line: bool,
+    call_body_follows: bool,
+) -> Option<bool> {
+    if !matches!(owner, ClassifierHeaderOwner::Member) || !in_delegation_recovery {
+        return None;
+    }
+    if in_unsupported_delegation_suffix || !next_line {
+        return Some((!in_unsupported_delegation_suffix || next_line) && call_body_follows);
+    }
+    None
+}
+
+pub(super) const fn classify_delegation_lambda_token(
+    kind: LexemeKind,
+    has_line_break: bool,
+    has_call_closer: bool,
+) -> DelegationLambdaTailEvent {
+    match kind {
+        LexemeKind::Trivia(_) => DelegationLambdaTailEvent::Trivia,
+        LexemeKind::Token(TokenKind::Symbol(Symbol::LeftParen)) => {
+            if has_line_break {
+                DelegationLambdaTailEvent::LineBreakLeftParen
+            } else if has_call_closer {
+                DelegationLambdaTailEvent::SameLineClosedCall
+            } else {
+                DelegationLambdaTailEvent::UnclosedLeftParen
+            }
+        }
+        LexemeKind::Token(TokenKind::Symbol(Symbol::Comma | Symbol::LeftBrace)) => {
+            DelegationLambdaTailEvent::OuterHeaderDelimiter
+        }
+        _ => DelegationLambdaTailEvent::Other,
+    }
+}
+
+pub(super) const fn step_delegation_lambda_tail(
+    event: DelegationLambdaTailEvent,
+) -> DelegationLambdaTailStep {
+    match event {
+        DelegationLambdaTailEvent::Trivia | DelegationLambdaTailEvent::SameLineClosedCall => {
+            DelegationLambdaTailStep::Continue
+        }
+        DelegationLambdaTailEvent::OuterHeaderDelimiter => DelegationLambdaTailStep::Accept,
+        DelegationLambdaTailEvent::LineBreakLeftParen
+        | DelegationLambdaTailEvent::UnclosedLeftParen
+        | DelegationLambdaTailEvent::Other => DelegationLambdaTailStep::Reject,
+    }
+}
+
+#[cfg(any(test, kani))]
+pub(super) fn run_delegation_lambda_tail(events: &[DelegationLambdaTailEvent]) -> bool {
+    let mut index = 0usize;
+    while index < events.len() {
+        match step_delegation_lambda_tail(events[index]) {
+            DelegationLambdaTailStep::Continue => index += 1,
+            DelegationLambdaTailStep::Accept => return true,
+            DelegationLambdaTailStep::Reject => return false,
+        }
+    }
+    false
+}
+
 impl Parser<'_> {
     pub(super) fn parse_supertype_list(
         &mut self,
@@ -107,13 +210,8 @@ impl Parser<'_> {
                             )?;
                         }
                         let _ = self.consume_closed_supertype_group()?;
-                        let stops = suffix_stops.with(if invalid_target {
-                            DeclarationStops::DELEGATION_ERROR_TARGET
-                        } else if poison {
-                            DeclarationStops::LEADING_UNPROVED_ANGLE_COMMA
-                        } else {
-                            DeclarationStops::DELEGATION_UNSUPPORTED_SUFFIX
-                        });
+                        let stops =
+                            suffix_stops.with(delegation_suffix_extra_stop(invalid_target, poison));
                         self.recover_declaration_region(stops)?;
                         if recover_suffix {
                             let end = self.previous_significant_end();
@@ -235,13 +333,8 @@ impl Parser<'_> {
         owner: ClassifierHeaderOwner,
         before_target: bool,
     ) -> Result<bool, ParserInternalError> {
-        if matches!(
-            current.kind(),
-            LexemeKind::Eof
-                | LexemeKind::Token(TokenKind::Symbol(
-                    Symbol::Comma | Symbol::LeftBrace | Symbol::RightBrace
-                ))
-        ) || self.is_file_declaration_boundary(current)
+        if is_direct_delegation_boundary_kind(current.kind())
+            || self.is_file_declaration_boundary(current)
         {
             return Ok(true);
         }
@@ -279,12 +372,19 @@ impl Parser<'_> {
             let next_line =
                 self.gap_has_line_break(self.previous_significant_end(), current.span().start())?;
             let named_suffix = stops.in_unsupported_delegation_suffix();
-            if named_suffix || !next_line {
+            let call_body_follows = (named_suffix == next_line)
+                && self.peek_is_symbol(1, Symbol::LeftParen)
+                && self.peek_is_symbol(2, Symbol::RightParen)
+                && self.peek_is_symbol(3, Symbol::LeftBrace);
+            if let Some(decision) = supertype_deinit_suffix_decision(
+                owner,
+                stops.in_delegation_recovery(),
+                named_suffix,
+                next_line,
+                call_body_follows,
+            ) {
                 // A call-shaped suffix may immediately precede the classifier body.
-                return Ok((!named_suffix || next_line)
-                    && self.peek_is_symbol(1, Symbol::LeftParen)
-                    && self.peek_is_symbol(2, Symbol::RightParen)
-                    && self.peek_is_symbol(3, Symbol::LeftBrace));
+                return Ok(decision);
             }
         }
         self.at_supertype_recovery_boundary(raw, current, owner, strict_member)
@@ -349,27 +449,39 @@ impl Parser<'_> {
             #[cfg(test)]
             self.significant_raw_visits
                 .set(self.significant_raw_visits.get() + 1);
-            match lexeme.kind() {
-                LexemeKind::Trivia(_) => next += 1,
-                LexemeKind::Token(TokenKind::Symbol(Symbol::LeftParen)) => {
-                    if self.gap_has_line_break(
-                        self.lexed.lexemes()[previous_closer].span().end(),
-                        lexeme.span().start(),
-                    )? {
-                        break;
+            let mut has_line_break = false;
+            let mut call_closer = None;
+            if matches!(
+                lexeme.kind(),
+                LexemeKind::Token(TokenKind::Symbol(Symbol::LeftParen))
+            ) {
+                has_line_break = self.gap_has_line_break(
+                    self.lexed.lexemes()[previous_closer].span().end(),
+                    lexeme.span().start(),
+                )?;
+                if !has_line_break {
+                    call_closer = self.lexical_recoveries.angle_group_closer(self.lexed, next);
+                }
+            }
+            let event = classify_delegation_lambda_token(
+                lexeme.kind(),
+                has_line_break,
+                call_closer.is_some(),
+            );
+            match step_delegation_lambda_tail(event) {
+                DelegationLambdaTailStep::Continue => match event {
+                    DelegationLambdaTailEvent::Trivia => next += 1,
+                    DelegationLambdaTailEvent::SameLineClosedCall => {
+                        let Some(closer) = call_closer else {
+                            break;
+                        };
+                        previous_closer = closer;
+                        next = closer + 1;
                     }
-                    let Some(call_closer) =
-                        self.lexical_recoveries.angle_group_closer(self.lexed, next)
-                    else {
-                        break;
-                    };
-                    previous_closer = call_closer;
-                    next = call_closer + 1;
-                }
-                LexemeKind::Token(TokenKind::Symbol(Symbol::Comma | Symbol::LeftBrace)) => {
-                    return Ok(Some(lambda_closer));
-                }
-                _ => break,
+                    _ => break,
+                },
+                DelegationLambdaTailStep::Accept => return Ok(Some(lambda_closer)),
+                DelegationLambdaTailStep::Reject => break,
             }
         }
         Ok(None)
@@ -408,5 +520,123 @@ impl Parser<'_> {
             )?;
         }
         Ok(NameMarker::Error(self.span(opener.start(), end)?))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn direct_delegation_boundary_matches_expected_kinds() {
+        assert!(is_direct_delegation_boundary_kind(LexemeKind::Eof));
+        assert!(is_direct_delegation_boundary_kind(LexemeKind::Token(
+            TokenKind::Symbol(Symbol::Comma)
+        )));
+        assert!(is_direct_delegation_boundary_kind(LexemeKind::Token(
+            TokenKind::Symbol(Symbol::LeftBrace)
+        )));
+        assert!(is_direct_delegation_boundary_kind(LexemeKind::Token(
+            TokenKind::Symbol(Symbol::RightBrace)
+        )));
+        assert!(!is_direct_delegation_boundary_kind(LexemeKind::Token(
+            TokenKind::Symbol(Symbol::Semicolon)
+        )));
+        assert!(!is_direct_delegation_boundary_kind(LexemeKind::Token(
+            TokenKind::Identifier
+        )));
+    }
+
+    #[test]
+    fn delegation_suffix_extra_stop_prioritizes_invalid_target_then_poison() {
+        assert_eq!(
+            delegation_suffix_extra_stop(true, true),
+            DeclarationStops::DELEGATION_ERROR_TARGET
+        );
+        assert_eq!(
+            delegation_suffix_extra_stop(true, false),
+            DeclarationStops::DELEGATION_ERROR_TARGET
+        );
+        assert_eq!(
+            delegation_suffix_extra_stop(false, true),
+            DeclarationStops::LEADING_UNPROVED_ANGLE_COMMA
+        );
+        assert_eq!(
+            delegation_suffix_extra_stop(false, false),
+            DeclarationStops::DELEGATION_UNSUPPORTED_SUFFIX
+        );
+    }
+
+    #[test]
+    fn supertype_deinit_suffix_decision_matches_member_recovery_matrix() {
+        assert_eq!(
+            supertype_deinit_suffix_decision(ClassifierHeaderOwner::File, true, true, true, true),
+            None
+        );
+        assert_eq!(
+            supertype_deinit_suffix_decision(
+                ClassifierHeaderOwner::Member,
+                false,
+                true,
+                true,
+                true
+            ),
+            None
+        );
+        assert_eq!(
+            supertype_deinit_suffix_decision(
+                ClassifierHeaderOwner::Member,
+                true,
+                true,
+                false,
+                true
+            ),
+            Some(false)
+        );
+        assert_eq!(
+            supertype_deinit_suffix_decision(ClassifierHeaderOwner::Member, true, true, true, true),
+            Some(true)
+        );
+        assert_eq!(
+            supertype_deinit_suffix_decision(
+                ClassifierHeaderOwner::Member,
+                true,
+                false,
+                false,
+                true
+            ),
+            Some(true)
+        );
+        assert_eq!(
+            supertype_deinit_suffix_decision(
+                ClassifierHeaderOwner::Member,
+                true,
+                false,
+                true,
+                true
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn delegation_lambda_tail_requires_outer_delimiter_without_line_break_or_unclosed_call() {
+        assert!(run_delegation_lambda_tail(&[
+            DelegationLambdaTailEvent::Trivia,
+            DelegationLambdaTailEvent::SameLineClosedCall,
+            DelegationLambdaTailEvent::OuterHeaderDelimiter,
+        ]));
+        assert!(!run_delegation_lambda_tail(&[
+            DelegationLambdaTailEvent::LineBreakLeftParen,
+            DelegationLambdaTailEvent::OuterHeaderDelimiter,
+        ]));
+        assert!(!run_delegation_lambda_tail(&[
+            DelegationLambdaTailEvent::UnclosedLeftParen,
+            DelegationLambdaTailEvent::OuterHeaderDelimiter,
+        ]));
+        assert!(!run_delegation_lambda_tail(&[
+            DelegationLambdaTailEvent::Trivia,
+            DelegationLambdaTailEvent::SameLineClosedCall,
+        ]));
     }
 }

@@ -1,0 +1,28 @@
+// 可同时保留多个独占元素的迭代器：只能由受信任的签名提供
+class Arr(len: Int)
+view class SliceIter(borrow source: Arr, pos: Int)
+view class MutIter(inout data: Arr, pos: Int)
+fun iter(borrow a: Arr): SliceIter from a trusted
+fun iterMut(inout a: Arr): MutIter from a trusted
+fun nextRef(inout it: SliceIter): borrow Int from it.source { return &it.source.len }
+fun nextMut(inout it: MutIter): inout Arr from it.data trusted
+fun nextLend(inout it: MutIter): inout Arr from it { return it.data }
+fun bad(inout it: MutIter): inout Arr from it.data {
+  return it.data  // ERR K6
+}
+fun twoItems(): Unit {
+  val arr = Arr(1)
+  val it = iterMut(&mut arr)
+  val a = nextMut(&mut it)
+  val b = nextMut(&mut it)
+  a.len = 2
+  b.len = 3
+  arr.len = 4
+}
+fun writeWhileItemAlive(): Unit {
+  val arr = Arr(1)
+  val it = iterMut(&mut arr)
+  val a = nextMut(&mut it)
+  arr.len = 4  // ERR K1
+  a.len = 2
+}

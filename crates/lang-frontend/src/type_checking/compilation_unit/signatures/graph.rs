@@ -632,7 +632,18 @@ impl SignatureCollector<'_> {
         if actual == expected {
             return Ok(true);
         }
+        let display = crate::type_checking::display::is_interface(
+            &self.types,
+            expected,
+            self.names.builtin_display_declaration(),
+        );
         match self.types.get(actual).cloned() {
+            Some(UnitTypeKind::Builtin(ty)) if display => {
+                Ok(crate::type_checking::display::builtin_witness(ty))
+            }
+            Some(UnitTypeKind::EnumCase { root, .. }) if display => {
+                self.satisfies_interface(root, expected)
+            }
             Some(UnitTypeKind::Nominal {
                 declaration,
                 arguments,

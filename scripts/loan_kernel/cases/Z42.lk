@@ -1,0 +1,244 @@
+// §80：现行 Guide 10（所有权/借用/析构/Transferable）与 Guide 11（Copyable/构造/Box）条款逐条对照
+
+class Obj(n: Int)
+class MemBuf(n: Int)
+class ResGuard(id: Int) deinit
+class Pair(left: Obj, right: Obj)
+class Boxed(inner: Obj)
+class OptObj(n: Int) empty
+class HolderOpt(opt: OptObj, keep: Obj) deinit
+local class RcHandle(n: Int)
+view class RoView(borrow src: Obj)
+view class RwView(inout src: Obj)
+view class GuardView(borrow src: Obj) deinit
+
+fun mayFail(): Unit trusted
+fun makeRes(): ResGuard trusted
+fun consumeObj(own x: Obj): Unit trusted
+fun consumeRes(own r: ResGuard): Unit trusted
+fun readObj(borrow x: Obj): Int trusted
+fun writeObj(inout x: Obj): Unit trusted
+fun twoArgsMutFirst(inout a: Obj, borrow b: Obj): Unit trusted
+fun twoArgsSharedFirst(borrow a: Obj, inout b: Obj): Unit trusted
+fun swapObjs(inout a: Obj, inout b: Obj): Unit trusted
+fun replaceObj(inout dst: Obj, own next: Obj): Obj trusted
+fun pushThis(inout this: Obj, own n: Int): Unit trusted
+fun plainInout(inout dst: Obj, own n: Int): Unit trusted
+fun updateThis(inout this: Obj, borrow other: Obj): Unit trusted
+fun unbox(own b: Boxed): Obj trusted
+fun <T: Transferable> sendAcrossThread(own x: T): Unit trusted
+fun <T: Copyable> requireCopyable(own x: T): Unit trusted
+fun peekObj(borrow x: Obj): borrow Int from x trusted
+fun peekFromInout(inout x: Obj): borrow Int from x trusted
+
+// ---- 1. Transferable 与 Copyable 上界（Guide 10 §Transferable / Guide 11 §Copyable）
+
+fun transferableAndCopyableBoundsOk(): Unit {
+  val o = Obj(1)
+  sendAcrossThread(move o)
+  requireCopyable(1)
+  val a = Obj(2)
+  val rv = RoView(&a)
+  val rv2 = rv
+  use(rv2.src.n)
+  use(rv.src.n)
+}
+
+fun nonTransferableAndMoveOnlyRejected(): Unit {
+  val rc = RcHandle(1)
+  sendAcrossThread(move rc) // ERR CAP
+  val o = Obj(1)
+  requireCopyable(move o) // ERR CAP
+  val p = Obj(2)
+  val q = p // ERR K8
+  use(q.n)
+}
+
+// ---- 2. 调用期借用、实参求值顺序与临时值（Guide 10 §所有者、参数绑定与调用期 Loan）
+
+fun callArgOrderAndTempBorrowOk(): Unit {
+  val a = Obj(1)
+  val n = readObj(&a)
+  writeObj(&mut a)
+  val m = readObj(&Obj(2))
+  use(n)
+  use(m)
+}
+
+fun earlierArgLoanBlocksLaterArg(): Unit {
+  val a = Obj(1)
+  twoArgsMutFirst(&mut a, &a) // ERR K1
+  twoArgsSharedFirst(&a, &mut a) // ERR K1
+}
+
+fun useAfterMoveToOwnParamRejected(): Unit {
+  val a = Obj(1)
+  consumeObj(move a)
+  use(a.n) // ERR K8
+}
+
+// ---- 3. Two-Phase Borrows（Guide 10 §Two-Phase Borrows）
+
+fun twoPhaseReceiverOk(): Unit {
+  val a = Obj(1)
+  pushThis(&mut a, readObj(&a))
+  pushThis(&mut a, a.n)
+}
+
+fun twoPhaseBoundariesRejected(): Unit {
+  val a = Obj(1)
+  plainInout(&mut a, readObj(&a)) // ERR K1
+  updateThis(&mut a, &a) // ERR K1
+}
+
+// ---- 4. Value / Borrow / Inout 参数体内能力（Guide 10 §参数体内能力）
+
+fun paramModesValid(own o: Obj, borrow b: Obj, inout m: Obj): Unit {
+  val r = readObj(b)
+  use(r)
+  val r2 = readObj(m)
+  use(r2)
+  writeObj(m)
+  *m = move o
+}
+
+fun borrowParamRejectsWriteInoutAndMove(borrow b: Obj, borrow p: Pair): Unit {
+  b.n = 1 // ERR K1
+  writeObj(b) // ERR K1
+  consumeObj(move b) // ERR TYPE
+  consumeObj(move p.left) // ERR K8
+}
+
+fun inoutParamRejectsMoveOut(inout m: Obj, inout p: Pair): Unit {
+  consumeObj(move m) // ERR TYPE
+  consumeObj(move p.left) // ERR K8
+}
+
+// ---- 5. 普通借用结果与唯一 from 来源（Guide 10 §普通借用结果与显式局部绑定）
+
+fun forwardBorrowResult(borrow s: Obj): borrow Int from s {
+  return peekObj(s)
+}
+
+fun forwardReadOnlyFromInout(inout s: Obj): borrow Int from s {
+  return peekFromInout(s)
+}
+
+fun borrowResultProtectsSourceThenReleases(): Unit {
+  val a = Obj(1)
+  val r = forwardReadOnlyFromInout(&mut a)
+  use(r)
+  writeObj(&mut a)
+}
+
+fun borrowResultBlocksWriteAndOwnDelivery(): Unit {
+  val a = Obj(1)
+  val r = forwardBorrowResult(&a)
+  writeObj(&mut a) // ERR K1
+  use(r)
+}
+
+fun borrowResultCannotReturnLocal(borrow a: Obj): borrow Int from a {
+  val local = Obj(1)
+  return peekObj(&local) // ERR K6
+}
+
+fun borrowResultCannotReturnWrongSource(borrow a: Obj, borrow b: Obj): borrow Int from a {
+  return peekObj(b) // ERR K6
+}
+
+// ---- 6. 原地置换原子原语：replace 与 swap（Guide 10 §replace 与 swap）
+
+fun replaceAndSwapOk(): Unit {
+  val a = Obj(1)
+  val b = Obj(2)
+  swapObjs(&mut a, &mut b)
+  val old = replaceObj(&mut a, Obj(3))
+  consumeObj(move old)
+  val h = HolderOpt(OptObj(1), Obj(2))
+  val taken = replace h.opt
+  use(taken.n)
+  use(h.keep.n)
+}
+
+fun swapOverlappingRejected(): Unit {
+  val a = Obj(1)
+  swapObjs(&mut a, &mut a) // ERR K1
+}
+
+// ---- 7. Place 重叠与冲突矩阵（Guide 10 §Place 重叠与冲突矩阵）
+
+fun disjointFieldsCanBeExclusivelyBorrowed(): Unit {
+  val p = Pair(Obj(1), Obj(2))
+  swapObjs(&mut p.left, &mut p.right)
+  use(p.left.n)
+}
+
+fun overlappingPrefixConflictMatrix(): Unit {
+  val p = Pair(Obj(1), Obj(2))
+  val r = &p.left
+  writeObj(&mut p.left) // ERR K1
+  use(r)
+  val w = &mut p.left
+  val r2 = &p.left // ERR K1
+  use(w)
+  use(r2)
+}
+
+// ---- 8. 双轨析构策略与 ASAP 析构（Guide 10 §双轨析构策略 & §ASAP 析构）
+
+fun dualTrackAsapVsLexical(): Unit {
+  val unused = MemBuf(0)
+  val mem = MemBuf(1)
+  val res1 = ResGuard(1)
+  val res2 = ResGuard(2)
+  val r = &mem.n
+  use(r)
+  val after = Obj(3)
+  use(after.n)
+  use(res1.id)
+  use(res2.id)
+}
+
+fun dualTrackConditionalDropFlag(): Unit {
+  val mem = MemBuf(1)
+  val g = ResGuard(2)
+  if (*) {
+    val dropMem = move mem
+    use(dropMem.n)
+    consumeRes(move g)
+  }
+  mayFail()
+}
+
+fun varReassignEvaluatesRhsBeforeDropOld(): Unit {
+  val a = Obj(1)
+  val n = readObj(&a)
+  a = Obj(n)
+  use(a.n)
+}
+
+// ---- 9. Guide 11 构造求值、Box 拆箱与结构化字段移出
+
+fun constructPartialEvalAndBoxUnbox(): Unit {
+  val p = Pair(Obj(1), Obj(2))
+  val left = move p.left
+  use(left.n)
+  use(p.right.n)
+  val bx = Boxed(Obj(3))
+  val view = &bx.inner
+  use(view)
+  val out = unbox(move bx)
+  use(out.n)
+}
+
+fun boxUnboxBlockedByBorrowAndDeinitBlocksPartialMove(): Unit {
+  val bx = Boxed(Obj(1))
+  val view = &bx.inner
+  val out = unbox(move bx) // ERR K1
+  use(view)
+  use(out.n)
+  val h = HolderOpt(OptObj(1), Obj(2))
+  val k = move h.keep // ERR K23
+  use(k.n)
+}

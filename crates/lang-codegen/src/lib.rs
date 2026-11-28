@@ -321,13 +321,13 @@ fun consumePacket(own source: Packet) {{ println("packet-owned") }}
 fun consumeResource(own source: Resource) {{ println("resource-owned") }}
 fun entry() {{
  val text = "kept".clone()
- {{ borrow val item = {callable}(text); observeText(item) }}
+ block {{ borrow val item = {callable}(text); observeText(item) }}
  consumeText(text)
  val packet = Packet("payload".clone())
- {{ borrow val item = {callable}(packet); observePacket(item) }}
+ block {{ borrow val item = {callable}(packet); observePacket(item) }}
  consumePacket(packet)
  val resource = Resource("payload".clone())
- {{ borrow val item = {callable}(resource); observeResource(item) }}
+ block {{ borrow val item = {callable}(resource); observeResource(item) }}
  consumeResource(resource)
 }}
 "#
@@ -348,10 +348,10 @@ fun consumePacket(own source: Packet) {{ println("packet-owned") }}
 fun consumeResource(own source: Resource) {{ println("resource-owned") }}
 fun entry() {{
  val packet = Packet("inline".clone())
- {{ borrow val item = packet{}(packet); println(item) }}
+ block {{ borrow val item = packet{}(packet); println(item) }}
  consumePacket(packet)
  val resource = Resource("heap".clone())
- {{ borrow val item = resource{}(resource); println(item) }}
+ block {{ borrow val item = resource{}(resource); println(item) }}
  consumeResource(resource)
 }}
 "#,
@@ -373,10 +373,10 @@ fun consume(own source: Token?) {{
 }}
 fun entry() {{
  val empty: Token? = null
- {{ borrow val item = {callable}(empty); observe(item) }}
+ block {{ borrow val item = {callable}(empty); observe(item) }}
  consume(empty)
  val full: Token? = Token(7)
- {{ borrow val item = {callable}(full); observe(item) }}
+ block {{ borrow val item = {callable}(full); observe(item) }}
  consume(full)
 }}
 "#
@@ -700,7 +700,7 @@ fun entry() {
  var m = mutableMapOf<String, String>()
  val key = "key".clone()
  m.put(key.clone(), "value".clone())
- { borrow val item = m.requireValue(key); observe(item); println(key) }
+ block { borrow val item = m.requireValue(key); observe(item); println(key) }
  m.put("other".clone(), "new".clone())
 }"#,
                 b"value\nkey\n",
@@ -712,7 +712,7 @@ fun observe(item: Packet) { println(item.text.clone()) }
 fun entry() {
  var m = mutableMapOf<String, Packet>()
  m.put("key".clone(), Packet("inline".clone()))
- { borrow val item = m.requireValue("key"); observe(item) }
+ block { borrow val item = m.requireValue("key"); observe(item) }
  m.put("key".clone(), Packet("replacement".clone()))
 }"#,
                 b"inline\n",
@@ -724,7 +724,7 @@ fun observe(item: Resource) { if (item.n == 1) { println("resource") } else { er
 fun entry() {
  var m = mutableMapOf<String, Resource>()
  m.put("key".clone(), Resource(1))
- { borrow val item = m.requireValue("key"); observe(item) }
+ block { borrow val item = m.requireValue("key"); observe(item) }
  m.put("key".clone(), Resource(2))
 }"#,
                 b"resource\ndrop-one\ndrop-two\n",
@@ -739,8 +739,8 @@ fun entry() {
  m.put("empty".clone(), empty)
  val full: Token? = Token(7)
  m.put("full".clone(), full)
- { borrow val item = m.requireValue("empty"); observe(item) }
- { borrow val item = m.requireValue("full"); observe(item) }
+ block { borrow val item = m.requireValue("empty"); observe(item) }
+ block { borrow val item = m.requireValue("full"); observe(item) }
  m.put("after".clone(), null)
 }"#,
                 b"nullable-slot\nnullable-slot\n",
@@ -758,8 +758,8 @@ mod native_map_with_cases {
             if name == "nullable" {
                 continue;
             }
-            let source = text.replace("{ borrow val item = m.requireValue(key); observe(item); println(key) }", "if (m.withValue(key, { item -> observe(item); println(key); return })) {} else { error(\"missing key\") }")
-   .replace("{ borrow val item = m.requireValue(\"key\"); observe(item) }", "if (m.withValue(\"key\".clone(), { item -> observe(item); return })) {} else { error(\"missing key\") }");
+            let source = text.replace("block { borrow val item = m.requireValue(key); observe(item); println(key) }", "if (m.withValue(key, { item -> observe(item); println(key); return })) {} else { error(\"missing key\") }")
+   .replace("block { borrow val item = m.requireValue(\"key\"); observe(item) }", "if (m.withValue(\"key\".clone(), { item -> observe(item); return })) {} else { error(\"missing key\") }");
             cases.push((name, source, expected));
         }
         cases.push(("missing", "fun entry() { var m = mutableMapOf<String, String>(); if (m.withValue(\"missing\".clone(), { item -> error(\"must not call\") })) { error(\"must be false\") }; m.put(\"after\".clone(), \"valid\".clone()); println(\"missing\") }".into(), b"missing\n"));

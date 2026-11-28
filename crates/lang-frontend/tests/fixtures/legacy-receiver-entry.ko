@@ -1,0 +1,3 @@
+package pair
+class Resource { own fun noop(): Unit {} }
+fun entry(): Unit {}

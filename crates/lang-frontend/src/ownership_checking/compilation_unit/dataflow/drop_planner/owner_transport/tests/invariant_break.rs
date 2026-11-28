@@ -249,7 +249,7 @@ fn break_exit_rejects_unproved_control_and_input_shapes() {
             r#"val local = "inner"; while(flag) { break }; break"#,
             false,
         ),
-        (r#"val local = "inner"; { break }"#, false),
+        (r#"val local = "inner"; block { break }"#, false),
         (r#"break"#, false),
         (r#"val local = held + "inner"; break"#, false),
         (r#"val local: String? = "inner"; break"#, false),

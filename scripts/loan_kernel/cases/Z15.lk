@@ -1,0 +1,51 @@
+// 单臂拆出独占视图与把拆出的独占视图移到分支外。
+class Arr(len: Int)
+class File(fd: Int) deinit
+view class MutSlice(inout source: Arr)
+view class MutHolder(slice: MutSlice, file: File) deinit
+fun mayFail(): Unit trusted
+fun update(inout a: Arr): Unit trusted
+fun openExclusiveInOneArm(own this: MutHolder, own a: Arr, own f: File): Unit in MutHolder {
+  if (*) {
+    this = MutHolder(MutSlice(&mut a), move f)
+    open this as slice, file
+    mayFail()
+    update(slice.source)
+    use(a.len)
+    update(&mut a)
+  } else {
+    mayFail()
+    use(this.slice.source.len)
+    use(a.len)
+    update(&mut a)
+  }
+  mayFail()
+  use(a.len)
+  update(&mut a)
+}
+fun cannotReadOrWriteInsideExclusiveArm(own this: MutHolder, own a: Arr, own f: File): Unit in MutHolder {
+  if (*) {
+    this = MutHolder(MutSlice(&mut a), move f)
+    open this as slice, file
+    use(a.len)  // ERR K1
+    update(&mut a)  // ERR K1
+    update(slice.source)
+  } else {
+    use(this.slice.source.len)
+  }
+}
+fun moveExclusiveOutOfArm(own this: MutHolder, own a: Arr, own b: Arr, own f: File): Unit in MutHolder {
+  val out = MutSlice(&mut b)
+  if (*) {
+    this = MutHolder(MutSlice(&mut a), move f)
+    open this as slice, file
+    out = move slice
+    mayFail()
+  }
+  mayFail()
+  update(out.source)
+  use(a.len)
+  update(&mut a)
+  use(b.len)
+  update(&mut b)
+}

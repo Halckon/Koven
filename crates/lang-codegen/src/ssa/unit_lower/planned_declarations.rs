@@ -11,6 +11,47 @@ pub(super) struct DeclaredUnit {
     pub(super) callable_abi: callable_abi::CallableAbi,
     pub(super) callable_plans: BTreeMap<closure::CallablePlanKey, closure::CallablePlan>,
 }
+// A module ABI prepared by the declaration/type phase, not body authority.
+struct CheckedFunctionSignature {
+    name: String,
+    receiver: Option<EntityType>,
+    return_types: Vec<SsaTypeId>,
+    parameter_types: Vec<EntityType>,
+    result_builtin: Option<BuiltinType>,
+    borrow_return: Option<lang_frontend::type_checking::BorrowReturnOrigin>,
+    span: Span,
+}
+
+/// Register the actual function and entry parameter entities for an already checked ABI.
+/// Carrier facts and callable layout obligations stay with the declaration driver.
+fn register_checked_function_signature(
+    module: &mut crate::ssa::model::Module,
+    signature: CheckedFunctionSignature,
+) -> Result<FunctionId, LoweringError> {
+    let origin = Origin::Source(signature.span);
+    let id = match signature.receiver {
+        Some(receiver) => {
+            module.add_instance_function(signature.name, receiver, signature.return_types, origin)
+        }
+        None => module.add_function(signature.name, signature.return_types, origin),
+    }
+    .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, signature.span))?;
+    let function = module
+        .function_mut(id)
+        .expect("new unit function must exist");
+    function.never_returns = signature.result_builtin == Some(BuiltinType::Nothing);
+    function
+        .add_block(signature.parameter_types, Origin::Source(signature.span))
+        .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, signature.span))?;
+    if let Some(borrow) = signature.borrow_return {
+        function.borrow_return = Some(crate::ssa::borrow_result_support::source_index(
+            borrow,
+            signature.span,
+        )?);
+    }
+    Ok(id)
+}
+
 pub(super) fn declare(
     module: &mut crate::ssa::model::Module,
     parsed_by_source: &[&ParsedFile],
@@ -191,14 +232,6 @@ pub(super) fn declare(
                 instance.key().static_self(),
                 parameter.span(),
             )?;
-            if parameter.mode() == ParameterMode::Borrow
-                && builtin_type(typed, concrete) == Some(BuiltinType::Unit)
-            {
-                return Err(lowering_error(
-                    LoweringErrorKind::UnsupportedNode,
-                    parameter.span(),
-                ));
-            }
             let ty = if matches!(
                 typed.types().get(concrete),
                 Some(UnitTypeKind::Function { .. })
@@ -269,32 +302,20 @@ pub(super) fn declare(
         if !instance.key().callable_arguments().is_empty() {
             name.push_str(&format!(".callable{source_ordinal}"));
         }
-        let origin = Origin::Source(instance.span());
-        let id = match receiver {
-            Some(receiver) => {
-                module.add_instance_function(name, receiver.entity_type, return_types, origin)
-            }
-            None => module.add_function(name, return_types, origin),
-        }
-        .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, instance.span()))?;
+        let id = register_checked_function_signature(
+            module,
+            CheckedFunctionSignature {
+                name,
+                receiver: receiver.map(|receiver| receiver.entity_type),
+                return_types,
+                parameter_types,
+                result_builtin,
+                borrow_return: callable.borrow_return().map(|contract| contract.origin()),
+                span: instance.span(),
+            },
+        )?;
         if let Some(returned) = callable_return {
             callable_returns.insert(id, returned);
-        }
-        let function = module
-            .function_mut(id)
-            .expect("new unit function must exist");
-        function.never_returns = result_builtin == Some(BuiltinType::Nothing);
-        function
-            .add_block(parameter_types, Origin::Source(instance.span()))
-            .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, instance.span()))?;
-        if let Some(contract) = callable.borrow_return() {
-            module
-                .function_mut(id)
-                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, instance.span()))?
-                .borrow_return = Some(crate::ssa::borrow_result_support::source_index(
-                contract.origin(),
-                instance.span(),
-            )?);
         }
         if let lang_frontend::type_checking::CallableResultSource::Carrier(contract) =
             callable.result_source()

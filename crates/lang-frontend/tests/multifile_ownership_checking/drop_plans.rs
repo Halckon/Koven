@@ -42,7 +42,7 @@ fn unit_asap_drop_facts_cover_return_temporary_replacement_and_control_edges() {
              val used = create()\n\
              val first = inspect(used)\n\
              var replaced = create()\n\
-             { replaced = create() }\n\
+             block { replaced = create() }\n\
              val temporary = inspect(create())\n\
              if (flag) {\n\
                  val branchRead = inspect(branchOwner)\n\
@@ -441,7 +441,7 @@ fn named_operand_drop(
 #[test]
 fn unit_return_cleanup_preserves_declaration_order_after_rebinding() {
     for replacement in [
-        "{ first = Resource() }",
+        "block { first = Resource() }",
         "if (flag) { first = Resource() } else { first = Resource() }",
     ] {
         let text = "class Resource {}

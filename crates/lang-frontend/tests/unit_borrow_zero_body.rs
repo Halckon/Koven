@@ -130,7 +130,7 @@ fn check_case(
 fn ordinary_zero_body_requires_actual_frame_lifecycle() {
     for count in [1, 3] {
         let body = format!(
-            "{{borrow val item=view(source);{}}};while(flag){{}}",
+            "block {{borrow val item=view(source);{}}};while(flag){{}}",
             "observe(item);".repeat(count)
         );
         check_case("preceding-complete", &body, false, |loops| {
@@ -164,7 +164,7 @@ fn ordinary_zero_body_requires_actual_frame_lifecycle() {
 
 #[test]
 fn ordinary_zero_body_identity_is_local_to_actual_loop_invocation() {
-    let frame = "{borrow val item=view(source);observe(item)}";
+    let frame = "block {borrow val item=view(source);observe(item)}";
     check_case(
         "siblings",
         &format!("{frame};while(flag){{}};{frame};while(flag){{}}"),
@@ -189,32 +189,32 @@ fn ordinary_zero_body_never_authorizes_nonempty_or_fresh_body() {
         ("no-prior", "while(flag){}", false),
         (
             "nonempty",
-            "{borrow val item=view(source);observe(item)};while(flag){observe(source)}",
+            "block {borrow val item=view(source);observe(item)};while(flag){observe(source)}",
             false,
         ),
         (
             "literal",
-            "{borrow val item=view(source);observe(item)};while(true){}",
+            "block {borrow val item=view(source);observe(item)};while(true){}",
             false,
         ),
         (
             "continue",
-            "{borrow val item=view(source);observe(item)};while(flag){continue}",
+            "block {borrow val item=view(source);observe(item)};while(flag){continue}",
             false,
         ),
         (
             "break",
-            "{borrow val item=view(source);observe(item)};while(flag){break}",
+            "block {borrow val item=view(source);observe(item)};while(flag){break}",
             false,
         ),
         (
             "return",
-            "{borrow val item=view(source);observe(item)};while(flag){return}",
+            "block {borrow val item=view(source);observe(item)};while(flag){return}",
             false,
         ),
         (
             "fresh",
-            "{borrow val item=view(source);observe(item)};while(flag){borrow val fresh=view(source);observe(fresh)}",
+            "block {borrow val item=view(source);observe(item)};while(flag){borrow val fresh=view(source);observe(fresh)}",
             true,
         ),
     ] {

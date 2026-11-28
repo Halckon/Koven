@@ -1,16 +1,11 @@
-//! 普通借用的 caller continuation 与 scope end；双入口 Unit 与独立 loan-end witness。
+//! 普通借用的 caller continuation 与 scope end；双布局 Unit 与实际 loan-end 证据。
 use lang_frontend::{
     lexer::lex,
-    name_resolution::{
-        SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names, resolve_names,
-    },
-    ownership_checking::{
-        CompilationUnitOwnership, OwnershipCheckedFile, check_compilation_unit_ownership,
-        check_ownership,
-    },
+    name_resolution::{SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names},
+    ownership_checking::{CompilationUnitOwnership, check_compilation_unit_ownership},
     parser::parse_file,
     source::SourceMap,
-    type_checking::{check_compilation_unit_types, check_types, standard_environments},
+    type_checking::{check_compilation_unit_types, standard_environments},
 };
 
 fn checked_entry(body: &str, rooted: bool) -> (SourceMap, CompilationUnitOwnership) {
@@ -55,67 +50,13 @@ fn checked_entry(body: &str, rooted: bool) -> (SourceMap, CompilationUnitOwnersh
     (sources, unit)
 }
 
-// Unit publishes source-qualified loans and result endpoints, but no independent
-// loan_ends stream. Keep this legacy witness only for CallReturn/ControlTransfer
-// and forwarded-source non-termination; result-end counts cannot replace it.
-fn checked_with_legacy_loan_ends(
-    body: &str,
-    rooted: bool,
-) -> (SourceMap, OwnershipCheckedFile, CompilationUnitOwnership) {
-    let text = format!(
-        "fun view(source: String): borrow String from source = source\nfun wrap(source: String): borrow String from source = view(source)\nfun consume(own source: String) {{}}\n{body}"
-    );
-    let mut sources = SourceMap::new();
-    let source = sources.add_source("continuation.ko", text).unwrap();
-    let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
-    assert!(
-        parsed.diagnostics().is_empty(),
-        "{:?}",
-        parsed.diagnostics()
-    );
-    let (environment, types) = standard_environments();
-    let names = resolve_names(&sources, &parsed, &environment).unwrap();
-    assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
-    let typed = check_types(&sources, &parsed, &names, &types).unwrap();
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    let single = check_ownership(&sources, &parsed, &names, &typed).unwrap();
-    let inputs = [if rooted {
-        SourceUnitInput::new("root", "continuation.ko", source, &parsed)
-    } else {
-        SourceUnitInput::memory_document(source, &parsed)
-    }];
-    let index = index_compilation_unit(&sources, &inputs).unwrap();
-    let [indexed] = index.source_units() else {
-        panic!("one original source")
-    };
-    assert_eq!(indexed.source_id(), source);
-    match (rooted, indexed.key()) {
-        (false, lang_frontend::name_resolution::SourceUnitKey::MemoryDocument) => {}
-        (true, lang_frontend::name_resolution::SourceUnitKey::Rooted { root, logical_path }) => {
-            assert_eq!(root.as_str(), "root");
-            assert_eq!(logical_path.as_str(), "continuation.ko");
-        }
-        _ => panic!("requested entry identity"),
-    }
-    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
-        .unwrap()
-        .validate()
-        .unwrap();
-    let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
-        .unwrap()
-        .validate()
-        .unwrap();
-    let unit = check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed).unwrap();
-    (sources, single, unit)
-}
-
 #[test]
 fn nested_reborrow_and_alias_scopes_restore_owner_permission() {
     for rooted in [false, true] {
         for body in [
-            "fun run() { val source = \"kept\"; { borrow val item = wrap(source); println(item) }; consume(source) }",
-            "fun run() { val source = \"kept\"; { borrow val item = view(source); { borrow val alias = item; println(alias) }; println(item) }; consume(source) }",
-            "fun run() { val source = \"kept\"; { borrow val item = view(source); { borrow val child = view(item); println(child) }; println(item) }; consume(source) }",
+            "fun run() { val source = \"kept\"; block { borrow val item = wrap(source); println(item) }; consume(source) }",
+            "fun run() { val source = \"kept\"; block { borrow val item = view(source); block { borrow val alias = item; println(alias) }; println(item) }; consume(source) }",
+            "fun run() { val source = \"kept\"; block { borrow val item = view(source); block { borrow val child = view(item); println(child) }; println(item) }; consume(source) }",
             "fun run(flag: Boolean) { val source = \"kept\"; if (flag) { borrow val item = view(source); println(item) } else { borrow val item = source; println(item) }; consume(source) }",
         ] {
             let (_, unit) = checked_entry(body, rooted);
@@ -134,9 +75,9 @@ fn live_results_and_children_block_source_move_on_every_branch() {
     for rooted in [false, true] {
         for body in [
             "fun run() { val source = \"kept\"; borrow val item = view(source); consume(source); println(item) }",
-            "fun run() { val source = \"kept\"; borrow val item = view(source); { borrow val child = view(item); consume(source); println(child) }; println(item) }",
+            "fun run() { val source = \"kept\"; borrow val item = view(source); block { borrow val child = view(item); consume(source); println(child) }; println(item) }",
             "fun run(flag: Boolean) { val source = \"kept\"; borrow val item = view(source); if (flag) { consume(source) }; println(item) }",
-            "fun run() { val source = \"kept\"; borrow val item = source; { borrow val alias = item; println(alias) }; consume(source); println(item) }",
+            "fun run() { val source = \"kept\"; borrow val item = source; block { borrow val alias = item; println(alias) }; consume(source); println(item) }",
         ] {
             let (_, unit) = checked_entry(body, rooted);
             {
@@ -154,54 +95,21 @@ fn live_results_and_children_block_source_move_on_every_branch() {
 fn results_continue_original_source_loans_and_never_own_the_payload() {
     for rooted in [false, true] {
         use lang_frontend::ownership_checking::{
-            DropTarget, LoanEndPoint, LoanTarget, UnitDropTarget, UnitLoanTarget,
+            UnitDropPoint, UnitDropTarget, UnitIterationCleanupAction, UnitLoanAction,
+            UnitLoanTarget,
         };
-        let (_, single, unit) = checked_with_legacy_loan_ends(
-            "fun run() { val source = \"kept\"; { borrow val item = wrap(source); println(item) } }",
+        let (sources, unit) = checked_entry(
+            "fun run() { val source = \"kept\"; block { borrow val item = wrap(source); println(item) } }",
             rooted,
         );
-        assert!(single.diagnostics().is_empty());
-        assert!(unit.diagnostics().is_empty());
-        let binding = &single.borrow_results().bindings()[0];
-        let source = binding.source_loan().unwrap();
-        let LoanTarget::Place(origin) = binding.origin() else {
-            panic!("stable source");
+        assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
+        assert!(unit.deferred().is_empty(), "{:?}", unit.deferred());
+        let [binding] = unit.borrow_results().bindings() else {
+            panic!("one initialized result binding");
         };
-        let source_loan = single
-            .loans()
-            .iter()
-            .find(|loan| loan.call() == source.call() && loan.argument() == source.argument())
-            .unwrap();
-        assert_eq!(source_loan.target(), binding.origin());
-        assert!(
-            !single
-                .loan_ends()
-                .iter()
-                .any(|end| end.call() == source.call()
-                    && end.argument() == source.argument()
-                    && end.point() == LoanEndPoint::CallReturn(source.call()))
-        );
-        let ends = single.borrow_results().ends();
-        assert_eq!(ends.len(), 1);
-        assert_eq!(ends[0].binding(), binding.binding());
-        let drops = single
-            .drops()
-            .iter()
-            .filter(|drop| drop.target() == DropTarget::Named(origin.root()))
-            .collect::<Vec<_>>();
-        assert_eq!(drops.len(), 1);
-        assert_eq!(drops[0].point(), ends[0].point());
-        assert!(
-            !single
-                .drops()
-                .iter()
-                .any(|drop| drop.target() == DropTarget::Named(binding.binding())
-                    || drop.target() == DropTarget::Temporary(binding.initializer()))
-        );
-        let binding = &unit.borrow_results().bindings()[0];
         let source = binding.source_loan().unwrap();
         let UnitLoanTarget::Place(origin) = binding.origin() else {
-            panic!("stable unit source");
+            panic!("stable caller source");
         };
         let source_loan = unit
             .loans()
@@ -209,26 +117,89 @@ fn results_continue_original_source_loans_and_never_own_the_payload() {
             .find(|loan| loan.call() == source.call() && loan.argument() == source.argument())
             .unwrap();
         assert_eq!(source_loan.target(), binding.origin());
-        let ends = unit.borrow_results().ends();
-        assert_eq!(ends.len(), 1);
-        assert_eq!(ends[0].binding(), binding.binding());
+        assert_eq!(sources.slice(source_loan.end_span()), Ok("wrap(source)"));
+        let [end] = unit.borrow_results().ends() else {
+            panic!("one actual result end");
+        };
+        assert_eq!(end.binding(), binding.binding());
+        let [transport] = unit.borrow_binding_transports() else {
+            panic!("actual caller source token reaches its result end");
+        };
+        assert_eq!(transport.source_loan(), source_loan);
+        assert_eq!(transport.binding(), binding.binding());
+        assert_eq!(
+            transport.handoff_point(),
+            UnitDropPoint::CallReturn(source.call())
+        );
+        assert_eq!(transport.point(), end.point());
+        assert_ne!(transport.point(), transport.handoff_point());
         let drops = unit
             .drops()
             .iter()
             .filter(|drop| drop.target() == UnitDropTarget::Named(origin.root()))
             .collect::<Vec<_>>();
         assert_eq!(drops.len(), 1);
-        assert_eq!(drops[0].point(), ends[0].point());
+        assert_eq!(drops[0].point(), end.point());
         assert!(!unit.drops().iter().any(|drop| drop.target()
             == UnitDropTarget::Named(binding.binding())
             || drop.target() == UnitDropTarget::Temporary(binding.initializer())));
-        for forwarded in single.borrow_results().forwarded_source_loans() {
-            assert!(!single.loan_ends().iter().any(
-                |end| end.call() == forwarded.call() && end.argument() == forwarded.argument()
-            ));
-        }
-        assert_eq!(single.borrow_results().forwarded_source_loans().len(), 1);
-        assert_eq!(unit.borrow_results().forwarded_source_loans().len(), 1);
+
+        let [forwarded] = unit.borrow_results().forwarded_source_loans() else {
+            panic!("one forwarded wrapper source");
+        };
+        let [forward] = unit.borrow_forward_transports() else {
+            panic!("one actual token delivery to the wrapper result");
+        };
+        let forward_loan = forward.source_loan();
+        assert_eq!(forward_loan.call(), forwarded.call());
+        assert_eq!(forward_loan.argument(), forwarded.argument());
+        assert_eq!(sources.slice(forward_loan.end_span()), Ok("view(source)"));
+        assert_ne!(forward_loan.call(), source_loan.call());
+        assert_eq!(forward.returned_expression(), forwarded.call());
+        assert_eq!(
+            forward.handoff_point(),
+            UnitDropPoint::CallReturn(forwarded.call())
+        );
+        assert_eq!(
+            forward.point(),
+            UnitDropPoint::ControlTransfer(forwarded.call())
+        );
+        let observations = unit.loan_action_observations();
+        let observed: Vec<_> = observations
+            .iter()
+            .flat_map(|observation| {
+                observation
+                    .actions()
+                    .iter()
+                    .map(move |action| (observation, action))
+            })
+            .filter_map(|(observation, action)| match action {
+                UnitLoanAction::BorrowForwardHandoff(handoff) => Some((observation, handoff)),
+                _ => None,
+            })
+            .collect();
+        let [(observation, handoff)] = observed.as_slice() else {
+            panic!("one observed delivery of the live wrapper token");
+        };
+        assert_eq!(handoff.transaction(), forward);
+        let acquisition = handoff
+            .source_begin()
+            .expect("exact actual wrapper source acquisition");
+        assert_eq!(
+            observation.action(&acquisition),
+            Some(&UnitLoanAction::Begin(forward_loan.clone()))
+        );
+        assert!(
+            !observations
+                .iter()
+                .flat_map(|observation| observation.actions())
+                .any(|action| matches!(action, UnitLoanAction::Cleanup {
+                point,
+                action: UnitIterationCleanupAction::EndCallLoan(loan)
+            } if loan == forward_loan
+                || (loan == source_loan && *point == transport.handoff_point())))
+        );
+        assert!(unit.validate().is_ok());
     }
 }
 
@@ -365,7 +336,7 @@ fn nullable_generic_and_copyable_bindings_keep_shared_capability() {
     for rooted in [false, true] {
         for body in [
             "fun nullableView(source: String?): borrow String? from source = source\nfun observe(source: String?) {}\nfun run(source: String?) { borrow val item = nullableView(source); observe(item) }",
-            "fun <T> genericView(source: T): borrow T from source = source\nclass Resource { deinit() {} }\nfun run() { val source = Resource(); { borrow val item = genericView(source) } }",
+            "fun <T> genericView(source: T): borrow T from source = source\nclass Resource { deinit() {} }\nfun run() { val source = Resource(); block { borrow val item = genericView(source) } }",
             "fun intView(source: Int): borrow Int from source = source\nfun observe(own item: Int) {}\nfun run(source: Int) { borrow val item = intView(source); observe(item) }",
         ] {
             let (_, unit) = checked_entry(body, rooted);
@@ -383,28 +354,62 @@ fn nullable_generic_and_copyable_bindings_keep_shared_capability() {
 #[test]
 fn named_source_continues_only_its_loan_and_other_arguments_end_at_call_return() {
     for rooted in [false, true] {
-        use lang_frontend::ownership_checking::LoanEndPoint;
-        let (_, single, unit) = checked_with_legacy_loan_ends(
+        use lang_frontend::ownership_checking::{LoanKind, UnitDropPoint};
+        let (sources, unit) = checked_entry(
             "fun select(other: String, source: String): borrow String from source = source\nfun run() { val source = \"kept\"; val other = \"other\"; borrow val item = select(source = source, other = other); println(item) }",
             rooted,
         );
-        assert!(
-            single.diagnostics().is_empty(),
-            "{:?}",
-            single.diagnostics()
-        );
         assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
-        let source = single.borrow_results().bindings()[0].source_loan().unwrap();
-        let ends = single
-            .loan_ends()
+        assert!(unit.deferred().is_empty(), "{:?}", unit.deferred());
+        let [binding] = unit.borrow_results().bindings() else {
+            panic!("one initialized result binding");
+        };
+        let source = binding.source_loan().unwrap();
+        let [handoff] = unit.borrow_call_handoffs() else {
+            panic!("one actual initializer handoff");
+        };
+        let [auxiliary] = handoff.auxiliary_loan_ends() else {
+            panic!("only the other argument ends at the initializer return");
+        };
+        let source_loan = handoff.source_loan();
+        assert_eq!(handoff.binding(), binding.binding());
+        assert_eq!(source_loan.call(), source.call());
+        assert_eq!(source_loan.argument(), source.argument());
+        assert_eq!(source_loan.target(), binding.origin());
+        assert_ne!(auxiliary.argument(), source.argument());
+        assert_eq!(auxiliary.call(), source.call());
+        assert_eq!(source_loan.kind(), LoanKind::Shared);
+        assert_eq!(auxiliary.kind(), LoanKind::Shared);
+        assert_eq!(sources.slice(source_loan.begin_span()), Ok("source"));
+        assert_eq!(sources.slice(auxiliary.begin_span()), Ok("other"));
+        assert_eq!(handoff.point(), UnitDropPoint::CallReturn(source.call()));
+        let call_loans = unit
+            .loans()
             .iter()
-            .filter(|end| end.call() == source.call())
+            .filter(|loan| loan.call() == source.call())
             .collect::<Vec<_>>();
-        assert_eq!(ends.len(), 1);
-        assert_ne!(ends[0].argument(), source.argument());
-        assert_eq!(ends[0].point(), LoanEndPoint::CallReturn(source.call()));
-        assert_eq!(single.borrow_results().ends().len(), 1);
-        assert_eq!(unit.borrow_results().ends().len(), 1);
+        assert_eq!(call_loans, [source_loan, auxiliary]);
+        assert!(
+            unit.direct_call_loan_ends()
+                .iter()
+                .all(|end| end.loan().call() != source.call())
+        );
+
+        // The handoff really removes the auxiliary pending token at CallReturn. The
+        // source is instead carried intact to the actual later result termination.
+        let [transport] = unit.borrow_binding_transports() else {
+            panic!("one actual source-token transport");
+        };
+        let [end] = unit.borrow_results().ends() else {
+            panic!("one actual result end");
+        };
+        assert_eq!(transport.source_loan(), source_loan);
+        assert_eq!(end.binding(), binding.binding());
+        assert_eq!(transport.binding(), end.binding());
+        assert_eq!(transport.handoff_point(), handoff.point());
+        assert_eq!(transport.point(), end.point());
+        assert_ne!(transport.point(), handoff.point());
+        assert!(unit.validate().is_ok());
         let (_, unit) = checked_entry(
             "fun select(other: String, source: String): borrow String from source = source\nfun run() { val source = \"kept\"; val other = \"other\"; borrow val item = select(source = source, other = other); consume(source); println(item) }",
             rooted,

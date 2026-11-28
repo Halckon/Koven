@@ -334,9 +334,9 @@ fn non_null_assertion_loop_allows_single_exit_and_replenished_owner() {
             "while (flag) { val item = source!!\nbreak }",
             "loop { val item = source!!\nreturn 0 }",
             "while (flag) { val local: Resource? = Resource()\nval item = local!! }",
-            "var local = source\nwhile (flag) { val item = local!!\n{ local = Resource() } }",
-            "var local = source\nwhile (flag) { { local = Resource() }\nval item = local!! }",
-            "var local = source\nloop { { local = Resource() }\nif (flag) { break }\nval item = local!! }\nval result = local!!",
+            "var local = source\nwhile (flag) { val item = local!!\nblock { local = Resource() } }",
+            "var local = source\nwhile (flag) { block { local = Resource() }\nval item = local!! }",
+            "var local = source\nloop { block { local = Resource() }\nif (flag) { break }\nval item = local!! }\nval result = local!!",
         ] {
             let text = format!(
                 "class Resource {{}}\nfun test(flag: Boolean, own source: Resource?): Int {{ {body}\nreturn 0 }}"
@@ -348,5 +348,26 @@ fn non_null_assertion_loop_allows_single_exit_and_replenished_owner() {
                 owned.diagnostics()
             );
         }
+    }
+}
+
+#[test]
+fn null_only_assertion_does_not_schedule_scope_drops_on_abort() {
+    for rooted in [false, true] {
+        let (_, _, owned) = super::nullable_unit::checked(
+            "class Resource { deinit() {} }\nfun stop(own resource: Resource, value: Nothing?): Int { value!! }",
+            "ownership.ko",
+            rooted,
+            super::environments(),
+        );
+        assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
+        let [plan] = owned.non_null_assertions() else {
+            panic!("the reached assertion must still publish its operand plan");
+        };
+        assert_eq!(
+            plan.non_null_transfer(),
+            lang_frontend::ownership_checking::NonNullAssertionTransferKind::Copy
+        );
+        assert!(owned.drops().is_empty(), "{:?}", owned.drops());
     }
 }

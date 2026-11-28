@@ -63,7 +63,7 @@ run cargo test --locked -p lang-frontend --no-fail-fast \
   --test parser_block --test parser_expression --test parser_control_flow \
   --test parser_lambda --test parser_local_destructuring --test parser_trailing_lambda \
   --test parser_declaration --test parser_file --test parser_operator_matrix \
-  --test parser_error_propagation
+  --test parser_error_propagation --test formatting
 run cargo test --locked -p lang-frontend --no-fail-fast \
   --test parser_prefix_truncation_matrix --test parser_suffix_truncation_matrix \
   --test parser_token_omission_matrix --test parser_trivia_invariance_matrix \

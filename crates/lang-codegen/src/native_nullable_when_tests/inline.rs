@@ -347,7 +347,7 @@ fun view(borrow text: String?): borrow String? from text = text
 fun show(borrow text: String): Unit { if (text == "") println("empty") else println(text) }
 fun showRc(borrow owner: Rc<Leaf>): Unit { println(owner.value.text) }
 fun run(borrow text: String?, early: Boolean): Unit {
-    {
+    block {
         borrow val parent = view(text)
         borrow val local = parent
         when ((local)) {
@@ -358,7 +358,7 @@ fun run(borrow text: String?, early: Boolean): Unit {
     println("after text")
 }
 fun runRc(borrow owner: Rc<Leaf>?, early: Boolean): Unit {
-    {
+    block {
         borrow val local = owner
         when (local) {
             null -> { println("null rc"); return }
@@ -723,7 +723,7 @@ fun inspect(inout owner: Rc<Leaf>?, stop: Boolean): Unit {
     when (owner) {
         null -> {}
         else -> {
-            {
+            block {
                 borrow val child = view(owner, if (stop) { return } else { true })
                 read(child)
             }

@@ -17,6 +17,41 @@ Proposal 本身不修改现行 v0.46、不批准 Spec，也不代表实现优先
 - [借用结果声明与类型合同比较](borrow-access-contract-comparison.md)
 - [Map / MutableMap 所有权候选](map-ownership.md)
 - [v2 interface 值与动态分发](v2-interface-values-and-dynamic-dispatch.md)
+- [所有权、可存储引用与 dyn 的中后期演进总纲](ownership-references-dyn-evolution.md)：v1.x–v4 方向、K0–K8 分阶段与待决问题
+  - [之一：调研、基底能力内核与决断](evolution-01-kernel-and-decisions.md)
+  - [之二：路线 L 借用内核](evolution-02-route-loan-kernel.md)
+  - [之三：路线 X 抽象打包（dyn 与 callable）](evolution-03-route-existential.md)
+  - [之四：路线 C/U/S 能力与共享、裸内存、挂起](evolution-04-route-capability-unsafe-suspend.md)
+  - [之五：数据结构适配性检验](evolution-05-data-structure-fitness.md)
+  - [之六：文本、全局状态、扩展函数与元数据](evolution-06-text-globals-extensions-metadata.md)
+  - [之七：并发与异步模型、IO 与外部函数边界](evolution-07-concurrency-async-io-ffi.md)
+  - [之八：中间表示、逃逸分析、向量化与自举条件](evolution-08-compiler-ir-escape-simd-selfhost.md)
+  - [之九：总体架构——内核与扩展的分层、接口与原则](evolution-09-architecture.md)
+  - [之十：尚未覆盖的领域](evolution-10-coverage-gaps.md)
+  - [之十一：失败模型、通用接口清单、编译单元依赖](evolution-11-failure-interfaces-units.md)
+  - [之十二：标准库清单与平台适配](evolution-12-stdlib-platform.md)
+  - [之十三：实施路线——从当前到 v1，从 v1 到之后](evolution-13-implementation-roadmap.md)
+- [v1 冻结前的兼容性约束（Z1–Z11）](v1-freeze-decisions.md)：可并入 v1 条目 Spec 的条款，已登记为路线图决策 D16
+- [unsafe 别名、失败安全与外部边界合同（U0 + FF0）](unsafe-aliasing-contract-outline.md)：完整候选合同（AL1–AL8、FS1–FS8、MM1–MM7、UB1–UB11、TR1–TR4、FFI1–FFI5 与检测矩阵）
+- [U0 迁入前硬门槛证据账本（AL1/AL2 与 UB1–UB11）](u0-ub-harness-evidence.md)：AL1/AL2 向路线 L 参考检查器的附加前提映射、预 U1 ASan/UBSan/TSan 代理反例实测记录与 UB1/UB5/W13 剩余阻塞清单
+- [L3 试金石程序与 Kotlin 风格人机工程评审](l3-litmus-programs.md)：分词器、借用迭代器、区域分配三组只写源码的 L3 试金石及库/应用双侧人机工程评审
+- [FD0：显式监督边界预留与“每连接一线程”服务器试金石](fd0-supervision-boundary-litmus.md)：J48 四项预留核对、每连接一线程监督回显服务器试金石与行为草案第 3–4 条收口建议
+- [编译单元依赖、接口产物与语言版本规则提案（之十一 J45–J47）](compilation-unit-dependency-rules.md)：J45 两层无环依赖、J46 接口产物导出合同、J47 按单元语言版本隔离及与 J37/标准库三分的衔接
+- [数据结构与并发试金石程序集（之五 §5）](data-structure-concurrency-litmus.md)：百万节点链表析构（G3）、迭代式遍历（G4）、`MoveOnly` 堆排序（G5）、有界阻塞队列（C4）与 `AtomicLong` 并发计数（C2/C3/U1）五组候选试金石
+- [L4 独占视图试金石与反例矩阵（之二 L4）](l4-exclusive-view-litmus.md)：原地排序（`MutSlice.splitAt` + `swap`）、二维矩阵行视图、链表可写游标难点对照与六类 L4 必测反例矩阵
+- [IR0 所有权图规格前置草案与多阶段路线图脚本设计（之八 J27–J30）](ir0-ownership-graph-draft.md)：IR0 归因统计模板与降级门槛、所有权图最小语句集/place 文法/失败出口预留边、以及 `gen_roadmap.py` 多阶段扩展设计
+- [路线 S 挂起与生成器试金石（之七 S3/S4）](suspend-generator-litmus.md)：二叉树中序遍历生成器、单线程异步回显服务器与作用域取消（含在途 IO 交接）及五类反例矩阵
+- [路线 X 存在类型试金石与反例矩阵（之三 X2/X3）](existential-visitor-litmus.md)：借用 existential 零分配访问者、事件总线 `MutableList<EventHandler>`、`Result<T, Error>` 单 `?` 转换及五类反例矩阵
+- [借用内核演算（内核 MVP 第 1–3 步）](loan-kernel-calculus.md)：参考检查器原型的语法、规则、用例清单与原型得到的发现
+- [内核原型的覆盖与欠账](kernel-prototype-coverage.md)：各内核基底的原型覆盖状态，未覆盖项按“先做 / 记账后集中做”排期
+- [内核演进两项悬决策略的裁决纪要与 3A 取消接口对比（2026-11）](kernel-open-decisions-2026-11.md)：OD1（A1 / 1A-ext）与 OD2（B1 / 首个已提交的普通失败）三轮讨论收口、Guide 合法位置示例、3A 取消接口两方案调用例对比与待补多任务验收清单
+- [析构义务的原型（内核基底 KB1）](drop-obligation-model.md)：析构规划器与独立检验器、条件移动与失败出口的清理、“消费并解除析构”与必须消费的发现
+- [结构能力推导的原型（内核基底 KB4）](capability-derivation-model.md)：能力引擎的模型、与现行规则和实现的对照用例、析构性质拆分与默认上界的发现
+- [失败出口与清理义务的状态模型（内核 MVP 第 4 步）](failure-cleanup-model.md)：借用型子任务的失败传播与在途 IO 两个状态模型，各候选政策违反的不变量与发现
+- [析构时机：两个方案的对比](drop-timing-comparison.md)：最早析构加屏障，对比词法析构加允许的提前释放；方向已裁决为后者
+- [IO 资源借用、责任交接与清理：设计安全原则](io-resource-handoff-cleanup.md)：在途 IO 的保活、责任交接与清理进度；失败政策与后端证明未决
+- [Parser 文法与验证实施建议：评审与路径分解](parser-grammar-verification-review.md)：恢复先行、机器文法为新语法把关的路线 F
+- [F5 增量门禁演练：OD4（L2/L3 候选语法前三项）](parser-formal-verification/f5-od4-l2-l3-syntax-gate-drill.md)：`flows … into`、`view T`、`p.origins` 的 F5 六项门禁字段、GNU Bison 2.3 冲突实测与 20 组正反例见证（排除 `borrow var`）
 - [顶层状态、静态存储与全局生命周期](global-and-static-state.md)：G1 接纳面收窄已决（v0.46 C），G2–G5 分层候选
 - [String Copyable 候选取舍](string-copyability.md)
 - [显式 clone() 候选设计](explicit-clone.md)
@@ -27,6 +62,8 @@ Proposal 本身不修改现行 v0.46、不批准 Spec，也不代表实现优先
 - [Unit 函数根集合工程候选](unit-function-root-set.md)：D10 whole-file 身份见证退出路径，未启用
 - [D10 独立 loop 证明候选](d10-independent-loop-proof.md)：独立 catalog、结构边和 SSA replay 的架构约束，未启用
 - [D10 child 未修改根最窄候选](d10-child-pass-through-root.md)：两根、单根更新的隔离设计，未启用
+- [Parser 分阶段形式化验证计划](parser-formal-verification-plan.md)：Phase 1，待评审
+- [Origin / IO 讨论审计与候选基线](origin-io-candidate-baseline.md)：安全不变量、六项验收矩阵与未决实施门槛，非完整定稿
 
 ## 候选依赖与推进顺序
 
@@ -76,6 +113,28 @@ String Copyable、Map 转换与 v2 interface 值不由此获得启用
 5. 按各版本 Spec 索引推进 Phase 产物，逐项记录定向验收；规范启用不代表实现已经完成。
 
 验收命令和测试并行仅由[测试与分层验收](../development/testing.md)定义；候选正文不复制工程门禁。
+
+## 表面语法提案增量门禁（仅限新增或修改表面语法）
+
+本节仅适用于新增或修改 Koven 表面语法的提案；不适用于纯语义、类型、所有权、codegen 或文案改动，
+不减免既有 required 检查，也不启用任何候选语义。此类提案在进入 Guide 前须补齐以下 6 项内容：
+
+1. **受影响入口与规则映射**：列明涉及 `parse_file` / `parse_expression` / `parse_declaration` / `parse_block` 中的哪些入口及目标 Guide 章节，禁止在多章复制互相矛盾的允许条件。
+2. **纯 CFG 与原始冲突变化**：给出改动前后的离线参考文法增量；若引入新的 shift/reduce、reduce/reduce 或 Earley 双树，必须逐条登记原始冲突与消解规则，不得用优先级指令或词法吞换行静默掩盖。
+3. **软词、词法与换行影响**：明确是否新增上下文关键字或改变 `NL` / CRLF / 块注释内换行 / `;` 的续行与分隔判定，以及必要的外部谓词（邻接 Span、无副作用 trial 等）。
+4. **恢复边界与资源合同（R1–R5）**：说明非法或未闭合输入是否影响 caller hard stop、soft declaration boundary、owner stack、诊断锚点或线性扫描/递归预算。
+5. **独立正反例与边界见证**：覆盖正常接受、跨行/注释/分号边界、未闭合回退及与相近语法的互斥对照；预期从拟议条文独立写出，不从现有实现回填。
+6. **下游同步范围**：列明受影响的 Formatter 往返投影、独立参考差分语料与 Tree-sitter 已知漂移清单；未同步项显式登记为范围外。
+
+进入 Guide 前，评审者须逐项核验以下 5 项放行检查（完整清单与演练记录见[F5 增量门禁清单](parser-formal-verification/syntax-gate-checklist.md#2-评审放行清单与-advisory--required-升级条件)）：
+
+- [ ] 规则增量已回链唯一 Guide 章节，未在多章复制互相矛盾的允许条件。
+- [ ] 冲突变化已由离线参考工具实测并保留原始报告；任何真正的多重推导（如换行后的附着 vs 独立元素）已在条文中规定唯一消解规则。
+- [ ] 软词、换行与邻接谓词均未破坏既有普通 `Identifier` 或词法错误交接（R4）。
+- [ ] 正反例覆盖跨行（LF/CRLF/含换行块注释）、分号阻断、未闭合回退与调用方边界。
+- [ ] 未将离线参考工具或 Tree-sitter 提升为第二规范，未夸称有限用例为全语言证明。
+
+离线文法或差分切片若需从 advisory 升为 required CI，必须另案获批，并满足依赖治理、双宿主（macOS AArch64 与 Linux x86_64）干净 checkout 可复现及连续观察窗零环境误报。
 
 ## 历史
 

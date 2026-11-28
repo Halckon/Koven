@@ -1,0 +1,4 @@
+class Node {}
+class Holder(val item: Node?)
+fun read(x: Node?): Unit {}
+fun test(h: Holder): Unit = when (h.item) { null -> {}; else -> read(h.item) }

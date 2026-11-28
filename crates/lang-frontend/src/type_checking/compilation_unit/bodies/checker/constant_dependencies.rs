@@ -326,6 +326,7 @@ impl BodyChecker<'_> {
         // Only closed initializer expressions are cached here; receiver namespace prefixes were not evaluated.
         for expression in &input.expressions {
             self.parts.expression_types.remove(expression);
+            self.parts.interpolation_plans.remove(expression);
             self.parts.expression_categories.remove(expression);
             self.parts.expression_falls_through.remove(expression);
             self.parts

@@ -12,7 +12,7 @@ use lang_frontend::{
     type_checking::{
         BorrowReturnOrigin, CallableResultSource, Copyability, ParameterMode,
         UnitAggregateProjectionReceiver, UnitCallDescriptor, UnitCallReceiverOrigin,
-        UnitExpressionId, UnitTypeId, UnitTypeKind,
+        UnitExpressionId, UnitMapRequireValueDescriptor, UnitTypeId, UnitTypeKind,
     },
 };
 
@@ -365,6 +365,39 @@ impl Builder<'_, '_> {
         Ok(Some((result, created)))
     }
 
+    pub(super) fn lower_abandoned_map_require_value(
+        &mut self,
+        descriptor: UnitMapRequireValueDescriptor,
+        span: Span,
+    ) -> Result<Lowered, LoweringError> {
+        let receiver = descriptor.receiver().expression();
+        let operand = if self
+            .inputs
+            .typed
+            .expression_falls_through(descriptor.receiver())
+            == Some(false)
+        {
+            receiver
+        } else {
+            let key = descriptor.key();
+            if self.inputs.typed.expression_falls_through(key) != Some(false) {
+                return Err(error(LoweringErrorKind::InvalidModel, span));
+            }
+            let receiver_span = self.span(receiver);
+            let Some((_, created, _)) =
+                self.borrow_call_operand_loan(receiver, None, receiver_span)?
+            else {
+                return Err(error(LoweringErrorKind::InvalidModel, receiver_span));
+            };
+            self.pending_call_loans.extend(created);
+            key.expression()
+        };
+        match self.expression(operand)? {
+            Lowered::Diverged => Ok(Lowered::Diverged),
+            _ => Err(error(LoweringErrorKind::InvalidModel, span)),
+        }
+    }
+
     fn borrow_call_operand_loan(
         &mut self,
         expression: ExpressionId,
@@ -507,6 +540,44 @@ impl Builder<'_, '_> {
         for (param_slot, value_expr, call_arg_span, mode, param_ty) in call_args {
             let arg_id = self.unit(value_expr);
             if mode == ParameterMode::Borrow {
+                if source_index == 0
+                    && param_slot == 1
+                    && arguments.len() == 2
+                    && arguments
+                        .iter()
+                        .all(|arg| arg.named_prefix.is_none() && arg.mode_marker.is_none())
+                    && matches!(
+                        descriptor.target(),
+                        lang_frontend::type_checking::UnitCallTarget::Declaration(_)
+                    )
+                    && descriptor.receiver().is_none()
+                    && descriptor.instance().type_arguments().is_empty()
+                    && descriptor.borrow_return().is_some_and(|contract| {
+                        contract.origin() == BorrowReturnOrigin::Parameter(0)
+                    })
+                    && self
+                        .inputs
+                        .typed
+                        .types()
+                        .get(self.c(descriptor.return_type()))
+                        == Some(&UnitTypeKind::Builtin(
+                            lang_frontend::type_checking::BuiltinType::Int,
+                        ))
+                    && let Some((operand, created, read)) = self
+                        .borrowed_result_callable_auxiliary(
+                            call,
+                            value_expr,
+                            param_ty,
+                            call_arg_span,
+                        )?
+                {
+                    created_loans.extend(created.iter().map(|&loan| (loan, call_arg_span)));
+                    self.pending_call_loans.extend(created.iter().copied());
+                    arg_loans.insert(arg_id, created);
+                    view_reads.extend(read);
+                    lowered_slots[param_slot] = Some(operand);
+                    continue;
+                }
                 if param_slot != source_index
                     && let Some((view, local)) = self.nullable_string_place_argument(
                         call.expression(),

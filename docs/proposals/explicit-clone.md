@@ -166,3 +166,11 @@ fun makeTask(name: String): () -> String {
 
 本文不提议修改 `Copyable` 定义、不提议引入 `Cloneable` 或泛型复制能力、不提议容器深拷贝、
 不提议 v1 内的 ARC/GC，也不把已选的 String intrinsic 扩展为其他类型或隐式复制的批准。
+
+## 10. 与演进总纲的对齐（2026-11-10 增补）
+
+[演进总纲之六](evolution-06-text-globals-extensions-metadata.md) §2 的候选结论（未启用）对本页的影响：
+
+- §4.1、§4.2 中“为了取得一段文本而 `clone()`”的用途，在只读视图（`StringView`）可用后大部分可以免去；
+  `clone()` 保留给确实需要独立 owner 的场合。之六 TX0 要求先把这些使用点列出来，作为视图需求的证据。
+- 通用复制能力（本页非目标）在总纲中仍无安排；若将来需要，它是一个普通 interface 加内建派生（之六 AT3），不是新的所有权能力。

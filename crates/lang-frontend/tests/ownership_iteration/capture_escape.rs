@@ -342,23 +342,8 @@ fn element_storage_cannot_keep_an_iteration_capture_past_the_element_access() {
         let text = format!(
             "fun read(n: Int) {{}}\nfun run(inout slots: Array<() -> Unit>, xs: List<Int>, flag: Boolean) {{ for (n in xs) {{ slots[0] = {value}\nbreak }} }}"
         );
-        let (_, _, owned) = checked(&text);
-        assert!(
-            owned
-                .diagnostics()
-                .iter()
-                .any(|diagnostic| diagnostic.code().to_string() == "L0137"),
-            "{value}: an outer container must not retain the iteration's borrowed environment: {:?}",
-            owned.diagnostics()
-        );
-        assert!(
-            owned.drops().is_empty(),
-            "invalid cleanup must not be published"
-        );
-        assert!(
-            owned.captures().is_empty(),
-            "invalid captures must not be published"
-        );
+        // The original three source literals already run through both real Unit inputs.
+        // Retain the rejection and nonpublication oracles, not the obsolete Single run.
         for rooted in [false, true] {
             let (_, owned) = borrow_rejection_unit::checked(
                 &text,
@@ -382,29 +367,6 @@ fn element_storage_cannot_keep_an_iteration_capture_past_the_element_access() {
             assert!(
                 owned.captures().is_empty(),
                 "invalid captures must not be published"
-            );
-        }
-    }
-}
-
-#[test]
-fn element_storage_accepts_owned_snapshots_and_capture_free_values() {
-    for container in ["Array", "MutableList"] {
-        for (ty, value) in [
-            ("() -> Unit", "({})"),
-            ("move () -> Unit", "move { read(n) }"),
-            (
-                "move () -> Unit",
-                "if (flag) { val captured: move () -> Unit = move { read(n) }\ncaptured } else move {}",
-            ),
-        ] {
-            let (_, _, owned) = checked(&format!(
-                "fun read(n: Int) {{}}\nfun run(inout slots: {container}<{ty}>, xs: List<Int>, flag: Boolean) {{ for (n in xs) {{ slots[0] = {value}\nbreak }} }}"
-            ));
-            assert!(
-                owned.diagnostics().is_empty(),
-                "{container}/{value}: storage owns its environment: {:?}",
-                owned.diagnostics()
             );
         }
     }

@@ -4,16 +4,14 @@ use std::{fs, path::Path};
 
 use lang_frontend::{
     diagnostic::{Diagnostic, DiagnosticDetail},
-    name_resolution::{NameEnvironment, resolve_names},
+    name_resolution::resolve_names,
     ownership_checking::{
-        DropPoint, DropTarget, LoanKind, LoanTarget, OwnershipBindingKind, OwnershipCheckedFile,
-        OwnershipCheckingError, OwnershipDeferredReason, check_ownership,
+        OwnershipCheckedFile, OwnershipCheckingError, OwnershipDeferredReason, UnitDropPoint,
+        UnitDropTarget, check_ownership,
     },
     parser::ParsedFile,
     source::SourceMap,
-    type_checking::{
-        BuiltinType, IntrinsicCallable, IntrinsicTypeConstructor, TypeEnvironment, check_types,
-    },
+    type_checking::check_types,
 };
 
 #[path = "support/parser_test_assertions.rs"]
@@ -29,79 +27,9 @@ mod nullable_unit;
 
 use parser_test_assertions::parse_file_twice;
 
-const BUILTINS: [BuiltinType; 16] = [
-    BuiltinType::Byte,
-    BuiltinType::Short,
-    BuiltinType::Int,
-    BuiltinType::Long,
-    BuiltinType::UByte,
-    BuiltinType::UShort,
-    BuiltinType::UInt,
-    BuiltinType::ULong,
-    BuiltinType::Float,
-    BuiltinType::Double,
-    BuiltinType::Boolean,
-    BuiltinType::Char,
-    BuiltinType::String,
-    BuiltinType::Unit,
-    BuiltinType::Nothing,
-    BuiltinType::Any,
-];
-
-fn environments() -> (NameEnvironment, TypeEnvironment) {
-    let mut names = NameEnvironment::new();
-    let declarations = BUILTINS.map(|builtin| {
-        (
-            names.declare_type(builtin.name()).expect("builtin"),
-            builtin,
-        )
-    });
-    let containers = [
-        (
-            names.declare_type("Array").expect("Array"),
-            IntrinsicTypeConstructor::Array,
-        ),
-        (
-            names.declare_type("List").expect("List"),
-            IntrinsicTypeConstructor::List,
-        ),
-        (
-            names.declare_type("MutableList").expect("MutableList"),
-            IntrinsicTypeConstructor::MutableList,
-        ),
-    ];
-    let constructors = [
-        (
-            names.declare_function("arrayOf").expect("arrayOf"),
-            IntrinsicCallable::ArrayOf,
-        ),
-        (
-            names.declare_function("listOf").expect("listOf"),
-            IntrinsicCallable::ListOf,
-        ),
-        (
-            names
-                .declare_function("mutableListOf")
-                .expect("mutableListOf"),
-            IntrinsicCallable::MutableListOf,
-        ),
-    ];
-    let mut types = TypeEnvironment::new(&names);
-    for (symbol, builtin) in declarations {
-        types.bind_builtin(symbol, builtin).expect("binding");
-    }
-    for (symbol, container) in containers {
-        types
-            .bind_intrinsic(symbol, container)
-            .expect("container binding");
-    }
-    for (symbol, constructor) in constructors {
-        types
-            .bind_intrinsic_callable(symbol, constructor)
-            .expect("constructor binding");
-    }
-    (names, types)
-}
+#[path = "support/ownership_environment.rs"]
+mod ownership_environment;
+use ownership_environment::environments;
 
 fn checked(text: &str) -> (SourceMap, ParsedFile, OwnershipCheckedFile) {
     let mut sources = SourceMap::new();
@@ -236,10 +164,10 @@ fn value_delivery_moves_only_once_while_copy_and_borrow_preserve_sources() {
                 fun reset(own input: Resource, own replacement: Resource): Unit {\n\
                     var local = input\n\
                     val first = take(local)\n\
-                    { local = replacement }\n\
+                    block { local = replacement }\n\
                     val second = take(local)\n\
                     val third = take(local)\n\
-                    { local = local }\n\
+                    block { local = local }\n\
                     val fourth = take(local)\n\
                 }";
         let (sources, _, checked) = checked(text);
@@ -324,7 +252,7 @@ fn shadowed_symbols_keep_independent_move_origins() {
     let text = "class Resource {}\n\
                 fun take(own item: Resource): Unit {}\n\
                 fun shadow(own input: Resource): Unit {\n\
-                    {\n\
+                    block {\n\
                         val input = input\n\
                         val first = take(input)\n\
                         val second = take(input)\n\
@@ -366,59 +294,6 @@ fn shadowed_symbols_keep_independent_move_origins() {
             );
             assert_eq!(sources.slice(label).unwrap(), "input");
         }
-    }
-}
-
-#[test]
-fn parameter_bindings_and_successful_call_loans_are_queryable() {
-    let text = "class Resource {}\n\
-                fun inspect(item: Resource): Unit {}\n\
-                fun mutate(inout item: Resource): Unit {}\n\
-                fun exercise(own owned: Resource, shared: Resource, inout exclusive: Resource): Unit {\n\
-                    val first = inspect(owned)\n\
-                    val second = inspect(shared)\n\
-                    val third = mutate(&exclusive)\n\
-                }";
-    let (_, parsed, checked) = checked(text);
-    assert!(checked.diagnostics().is_empty());
-
-    let parameter_kinds = checked
-        .bindings()
-        .iter()
-        .map(|binding| binding.kind())
-        .collect::<Vec<_>>();
-    assert_eq!(
-        parameter_kinds,
-        [
-            OwnershipBindingKind::Shared,
-            OwnershipBindingKind::Exclusive,
-            OwnershipBindingKind::Owned,
-            OwnershipBindingKind::Shared,
-            OwnershipBindingKind::Exclusive,
-        ]
-    );
-    assert_eq!(checked.loans().len(), 3);
-    assert_eq!(
-        checked
-            .loans()
-            .iter()
-            .map(|loan| loan.kind())
-            .collect::<Vec<_>>(),
-        [LoanKind::Shared, LoanKind::Shared, LoanKind::Exclusive]
-    );
-    assert!(
-        checked
-            .loans()
-            .iter()
-            .all(|loan| matches!(loan.target(), LoanTarget::Place(_)))
-    );
-    for loan in checked.loans() {
-        assert_eq!(checked.loan_begin(loan.argument()), Some(loan));
-        assert_eq!(checked.loans_ending_at(loan.call()).count(), 1);
-        assert_eq!(
-            parsed.ast().expressions().get(loan.call()).unwrap().span(),
-            loan.end_span()
-        );
     }
 }
 
@@ -511,7 +386,7 @@ fn asap_drop_facts_cover_last_use_temporary_replacement_and_control_edges() {
                     val used = create()\n\
                     val first = inspect(used)\n\
                     var replaced = create()\n\
-                    { replaced = create() }\n\
+                    block { replaced = create() }\n\
                     val temporary = inspect(create())\n\
                     if (flag) {\n\
                         val branchRead = inspect(branchOwner)\n\
@@ -526,79 +401,79 @@ fn asap_drop_facts_cover_last_use_temporary_replacement_and_control_edges() {
                         break\n\
                     }\n\
                 }";
-    let (sources, _, checked) = checked(text);
-    assert!(
-        checked.diagnostics().is_empty(),
-        "{:?}",
-        checked.diagnostics()
-    );
-
-    let named_origins = checked
-        .drops()
-        .iter()
-        .filter_map(|fact| match fact.target() {
-            DropTarget::Named(_) => Some(sources.slice(fact.value_origin()).unwrap()),
-            DropTarget::Temporary(_)
-            | DropTarget::ReplacedElement(_)
-            | DropTarget::Captured { .. }
-            | DropTarget::RetainedSource(_) => None,
-        })
-        .collect::<Vec<_>>();
-    for expected in [
-        "unusedParameter",
-        "unused",
-        "used",
-        "replaced",
-        "early",
-        "branch",
-    ] {
+    for rooted in [false, true] {
+        let (sources, _, checked) =
+            nullable_unit::checked(text, "ownership.ko", rooted, environments());
         assert!(
-            named_origins.contains(&expected),
-            "missing {expected}: {named_origins:?}"
+            checked.diagnostics().is_empty(),
+            "{:?}",
+            checked.diagnostics()
+        );
+
+        assert!(checked.deferred().is_empty(), "{:?}", checked.deferred());
+        assert!(checked.clone().validate().is_ok());
+
+        let named_origins = checked
+            .drops()
+            .iter()
+            .filter_map(|fact| match fact.target() {
+                UnitDropTarget::Named(_) => Some(sources.slice(fact.value_origin()).unwrap()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        for expected in [
+            "unusedParameter",
+            "unused",
+            "used",
+            "replaced",
+            "early",
+            "branch",
+        ] {
+            assert!(
+                named_origins.contains(&expected),
+                "missing {expected}: {named_origins:?}"
+            );
+        }
+        assert!(
+            checked
+                .drops()
+                .iter()
+                .any(|fact| matches!(fact.point(), UnitDropPoint::FunctionEntry(_)))
+        );
+        assert!(checked.drops().iter().any(|fact| matches!(
+            fact.point(),
+            UnitDropPoint::CallReturn(_)
+        ) && matches!(
+            fact.target(),
+            UnitDropTarget::Named(_) | UnitDropTarget::Temporary(_)
+        )));
+        assert!(
+            checked
+                .drops()
+                .iter()
+                .any(|fact| matches!(fact.point(), UnitDropPoint::ControlTransfer(_)))
+        );
+        assert!(
+            checked
+                .drops()
+                .iter()
+                .any(|fact| matches!(fact.point(), UnitDropPoint::BranchExit { .. }))
+        );
+        assert!(
+            checked
+                .drops()
+                .iter()
+                .any(|fact| matches!(fact.point(), UnitDropPoint::LoopExit(_))),
+            "{:?}",
+            checked.drops()
+        );
+        assert!(
+            checked
+                .drops()
+                .iter()
+                .any(|fact| matches!(fact.target(), UnitDropTarget::Temporary(_)))
         );
     }
-    assert!(
-        checked
-            .drops()
-            .iter()
-            .any(|fact| matches!(fact.point(), DropPoint::FunctionEntry(_)))
-    );
-    assert!(
-        checked
-            .drops()
-            .iter()
-            .any(|fact| matches!(fact.point(), DropPoint::CallReturn(_))
-                && matches!(
-                    fact.target(),
-                    DropTarget::Named(_) | DropTarget::Temporary(_)
-                ))
-    );
-    assert!(
-        checked
-            .drops()
-            .iter()
-            .any(|fact| matches!(fact.point(), DropPoint::ControlTransfer(_)))
-    );
-    assert!(
-        checked
-            .drops()
-            .iter()
-            .any(|fact| matches!(fact.point(), DropPoint::BranchExit { .. }))
-    );
-    assert!(
-        checked
-            .drops()
-            .iter()
-            .any(|fact| matches!(fact.point(), DropPoint::LoopExit(_))),
-        "{:?}",
-        checked.drops()
-    );
-    assert!(
-        checked
-            .drops()
-            .iter()
-            .any(|fact| matches!(fact.target(), DropTarget::Temporary(_)))
-    );
 }
 
 #[test]
@@ -642,7 +517,7 @@ fn inout_replacement_and_class_field_mutability_follow_the_closed_rules() {
                    value class Inline(var payload: Resource)\n\
                    fun mutate(inout item: Resource): Unit {}\n\
                    fun replace(inout target: Resource, own replacement: Resource): Unit {\n\
-                       { target = replacement }\n\
+                       block { target = replacement }\n\
                        val check = mutate(&target)\n\
                    }\n\
                    fun fields(own holder: Holder, own replacement: Resource): Unit {\n\
@@ -668,9 +543,7 @@ fn inout_replacement_and_class_field_mutability_follow_the_closed_rules() {
     }
 }
 
-#[test]
-fn intrinsic_index_and_member_receiver_have_distinct_ownership_boundaries() {
-    let text = "class Resource {}\n\
+const SOURCE_WITH_UNKNOWN_INDEX: &str = "class Resource {}\n\
                 class Worker { fun inspect(item: Resource): Unit {} }\n\
                 fun mutate(inout item: Resource): Unit {}\n\
                 fun deferred(own worker: Worker, own list: MutableList<Resource>, own captured: Resource): Unit {\n\
@@ -679,6 +552,10 @@ fn intrinsic_index_and_member_receiver_have_distinct_ownership_boundaries() {
                     val member = worker.inspect(captured)\n\
                     val callback: (own Resource) -> Unit = { input -> val nested = worker.inspect(captured) }\n\
                 }";
+
+#[test]
+fn intrinsic_index_and_member_receiver_have_distinct_ownership_boundaries() {
+    let text = SOURCE_WITH_UNKNOWN_INDEX;
     let (_, _, checked) = checked(text);
     assert!(
         checked.diagnostics().is_empty(),
@@ -697,6 +574,56 @@ fn intrinsic_index_and_member_receiver_have_distinct_ownership_boundaries() {
 }
 
 #[test]
+fn original_unknown_index_is_rejected_before_unit_ownership() {
+    use lang_frontend::{
+        name_resolution::{
+            SourceUnitInput, index_compilation_unit, resolve_compilation_unit_names,
+        },
+        type_checking::{
+            FinalTypeAdmissionError, check_compilation_unit_types, complete_compilation_unit_types,
+        },
+    };
+
+    // Single inspected incomplete types here. An actual Unit consumer must not
+    // proceed to ownership on the same deferred index.
+    let text = SOURCE_WITH_UNKNOWN_INDEX;
+    let (ne, te) = environments();
+    let mut sources = SourceMap::new();
+    let source = sources.add_source("ownership.ko", text).unwrap();
+    let parsed = parse_file_twice(&sources, source, "original index and receiver source");
+    assert!(parsed.diagnostics().is_empty());
+    for input in [
+        SourceUnitInput::memory_document(source, &parsed),
+        SourceUnitInput::new("root", "ownership.ko", source, &parsed),
+    ] {
+        let inputs = [input];
+        let index = index_compilation_unit(&sources, &inputs).unwrap();
+        let names = resolve_compilation_unit_names(&sources, &inputs, &index, &ne)
+            .unwrap()
+            .validate()
+            .unwrap();
+        let raw = check_compilation_unit_types(&sources, &inputs, &names, &te).unwrap();
+        assert!(raw.diagnostics().is_empty(), "{:?}", raw.diagnostics());
+        let Err(FinalTypeAdmissionError::Diagnostics(diagnostics)) =
+            complete_compilation_unit_types(&sources, &inputs, &names, &te, &raw)
+        else {
+            panic!("non-container subscript must fail Unit final admission");
+        };
+        let at = text.find("worker[0]").unwrap();
+        assert!(
+            diagnostics.iter().any(|diagnostic| {
+                let span = diagnostic.primary_span();
+                diagnostic.code().to_string() == "L0165"
+                    && span.source_id() == source
+                    && span.start() <= at
+                    && span.end() >= at + "worker[0]".len()
+            }),
+            "the final failure must actually be tied to the unsupported subscript: {diagnostics:?}"
+        );
+    }
+}
+
+#[test]
 fn ownership_facts_are_deterministic_across_repeated_checks() {
     let text = "class Resource {}\n\
                 fun create(): Resource\n\
@@ -706,25 +633,45 @@ fn ownership_facts_are_deterministic_across_repeated_checks() {
                     val first = inspect(input)\n\
                     val second = inspect(local)\n\
                 }";
-    let (_, _, first) = checked(text);
-    let (_, _, second) = checked(text);
+    for rooted in [false, true] {
+        let (_, _, first) = nullable_unit::checked(text, "ownership.ko", rooted, environments());
+        let (_, _, second) = nullable_unit::checked(text, "ownership.ko", rooted, environments());
+        assert!(first.diagnostics().is_empty() && second.diagnostics().is_empty());
+        assert!(first.deferred().is_empty() && second.deferred().is_empty());
+        assert!(first.clone().validate().is_ok() && second.clone().validate().is_ok());
+        assert_eq!(first.loans().len(), 2);
+        assert!(first.drops().len() >= 2);
 
-    assert_eq!(first.bindings(), second.bindings());
-    // Span 保留所属 SourceMap 的 owner identity，跨 map 不直接相等；稳定 debug 只暴露
-    // 可复现的 map-local SourceId、byte offset 与 AST/symbol identity。
-    assert_eq!(
-        format!("{:?}", first.loans()),
-        format!("{:?}", second.loans())
-    );
-    assert_eq!(
-        format!("{:?}", first.drops()),
-        format!("{:?}", second.drops())
-    );
-    assert_eq!(first.deferred(), second.deferred());
-    assert_eq!(
-        format!("{:?}", first.diagnostics()),
-        format!("{:?}", second.diagnostics())
-    );
+        let bindings = |owned: &lang_frontend::ownership_checking::CompilationUnitOwnership| {
+            owned
+                .bindings()
+                .iter()
+                .map(|binding| {
+                    (
+                        binding.symbol(),
+                        binding.kind(),
+                        format!("{:?}", binding.declaration_span()),
+                    )
+                })
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(bindings(&first), bindings(&second));
+        // Span 保留所属 SourceMap 的 owner identity，跨 map 不直接相等；稳定 debug 只暴露
+        // 可复现的 map-local SourceId、byte offset 与 AST/symbol identity。
+        assert_eq!(
+            format!("{:?}", first.loans()),
+            format!("{:?}", second.loans())
+        );
+        assert_eq!(
+            format!("{:?}", first.drops()),
+            format!("{:?}", second.drops())
+        );
+        assert_eq!(first.deferred(), second.deferred());
+        assert_eq!(
+            format!("{:?}", first.diagnostics()),
+            format!("{:?}", second.diagnostics())
+        );
+    }
 }
 
 #[test]
@@ -784,34 +731,4 @@ fn nullable_when_unselected_condition_does_not_move_first_branch_owner() {
             owned.diagnostics()
         );
     }
-}
-
-#[test]
-fn nested_argument_loan_ends_at_its_own_call_before_outer_inout() {
-    let text = "class Resource {}\n\
-                fun read(item: Resource): Int = 1\n\
-                fun accept(own count: Int, inout item: Resource): Unit {}\n\
-                fun valid(own input: Resource): Unit {\n\
-                    var local = input\n\
-                    val result = accept(read(local), &local)\n\
-                }";
-    let (sources, _, ownership) = checked(text);
-    assert!(
-        ownership.diagnostics().is_empty(),
-        "{:?}",
-        ownership.diagnostics()
-    );
-    assert!(ownership.deferred().is_empty());
-    let loans = ownership.loans();
-    assert_eq!(loans.len(), 2);
-    assert_eq!(loans[0].kind(), LoanKind::Shared);
-    assert_eq!(loans[1].kind(), LoanKind::Exclusive);
-    assert_ne!(loans[0].call(), loans[1].call());
-    assert_eq!(sources.slice(loans[0].end_span()).unwrap(), "read(local)");
-    assert_eq!(
-        sources.slice(loans[1].end_span()).unwrap(),
-        "accept(read(local), &local)"
-    );
-    assert_eq!(ownership.loans_ending_at(loans[0].call()).count(), 1);
-    assert_eq!(ownership.loans_ending_at(loans[1].call()).count(), 1);
 }

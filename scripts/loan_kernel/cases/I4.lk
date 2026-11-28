@@ -1,0 +1,23 @@
+// 载荷访问仍受借用规则约束：独占、读写冲突与来源合同照旧
+interface Shape
+class Circle(r: Int) is Shape
+class Square(s: Int) is Shape
+class Point(x: Int)
+fun area(borrow this: any Shape): Int trusted
+fun scale(inout this: any Shape): Unit trusted
+fun <T> overwrite(inout dst: T, own value: T): Unit { *dst = move value }
+fun pick(inout a: any Shape, inout b: any Shape): inout any Shape from a { return a }
+fun conflict(): Unit {
+  val c = Circle(1)
+  val r = &mut c
+  c.r = 2  // ERR K1
+  scale(r)
+}
+fun wrongSource(inout a: any Shape, inout b: any Shape): inout any Shape from a {
+  return b  // ERR K6
+}
+fun twice(): Unit {
+  val s = pack Shape(Circle(1))
+  val r = pick(&mut s, &mut s)  // ERR K1
+  scale(r)
+}

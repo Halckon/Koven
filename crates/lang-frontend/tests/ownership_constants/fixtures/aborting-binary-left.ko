@@ -1,0 +1,8 @@
+
+const val TEXT = "hi"
+fun stop(): Nothing = stop()
+fun view(text: String): Unit {}
+fun use(): Unit {
+    val stopped = stop() == TEXT
+    val unreachable = TEXT
+}

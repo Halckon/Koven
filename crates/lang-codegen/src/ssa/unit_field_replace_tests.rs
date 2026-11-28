@@ -658,3 +658,5 @@ fn unit_diverging_replace_initializer_returns_the_borrow_and_drops_the_local() {
 mod element_swap;
 mod field_swap;
 mod inout_primitive;
+
+mod conditional_root_cleanup;

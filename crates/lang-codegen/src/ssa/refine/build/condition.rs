@@ -157,12 +157,17 @@ impl Builder<'_, '_> {
                 return Err(error(LoweringErrorKind::MissingFact, span));
             };
             let inner = *inner;
-            let inner_ssa = self.ssa_type(inner, span)?;
             let (on_non_null, on_null) = if fact.non_null_when_true() {
                 (when_true, when_false)
             } else {
                 (when_false, when_true)
             };
+            if self.is_nothing(inner) {
+                self.emit_drops(&operand_drops)?;
+                self.finish_drops(&operand_drops);
+                return self.goto(on_null, span);
+            }
+            let inner_ssa = self.ssa_type(inner, span)?;
             if self.move_only(nullable_ty)
                 && let Some(&source) = self.borrowed.get(&fact.symbol())
             {
@@ -419,13 +424,7 @@ impl Builder<'_, '_> {
         let result = if self.is_unit(ty) || self.is_nothing(ty) {
             None
         } else {
-            let ssa_ty = if matches!(self.inputs.typed.types().get(ty), Some(UnitTypeKind::Nullable(inner)) if self.is_nothing(*inner))
-            {
-                self.expected_nullable
-                    .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?
-            } else {
-                self.expression_ssa_type(expression, ty, span)?
-            };
+            let ssa_ty = self.expression_ssa_type(expression, ty, span)?;
             Some(self.body.slot(EntityType::Value(ssa_ty)))
         };
         let when_true = self.body.block();

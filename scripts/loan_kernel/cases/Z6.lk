@@ -1,0 +1,33 @@
+// 只有拆解臂把本地 a 借给新建的 Holder；另一臂保有原接收者。
+class Arr(len: Int)
+class File(fd: Int) deinit
+view class Slice(borrow source: Arr)
+view class Holder(slice: Slice, file: File) deinit
+fun mayFail(): Unit trusted
+fun update(inout a: Arr): Unit trusted
+fun openSharedInOneArm(own this: Holder, own a: Arr, own f: File): Unit in Holder {
+  if (*) {
+    this = Holder(Slice(&a), move f)
+    open this as slice, file
+    mayFail()
+    use(slice.source.len)
+    update(&mut a)
+  } else {
+    mayFail()
+    use(this.slice.source.len)
+    update(&mut a)
+  }
+  update(&mut a)
+}
+fun writeBeforeArmLastUse(own this: Holder, own a: Arr, own f: File): Unit in Holder {
+  if (*) {
+    this = Holder(Slice(&a), move f)
+    open this as slice, file
+    update(&mut a)  // ERR K1
+    use(slice.source.len)
+  } else {
+    update(&mut a)
+    use(this.slice.source.len)
+  }
+  update(&mut a)
+}

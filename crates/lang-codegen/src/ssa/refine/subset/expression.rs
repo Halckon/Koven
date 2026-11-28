@@ -1,7 +1,83 @@
 //! Expression-level subset admission rules for `ssa::refine`.
 use super::*;
+use lang_frontend::{
+    ownership_checking::{LoanKind, UnitDropFact, UnitLoanFact, UnitLoanTarget},
+    type_checking::{ExpressionCategory, UnitDisplayTarget, UnitInterpolationPart},
+};
 
 impl Checker<'_, '_> {
+    /// A return in a concat's right operand can abandon its already evaluated
+    /// left temporary before the enclosing call can borrow the concatenated value.
+    pub(super) fn pending_string_concat_operand(
+        &self,
+        owner: UnitExpressionId,
+        transfer: UnitExpressionId,
+        drop: &UnitDropFact,
+        loan: &UnitLoanFact,
+    ) -> bool {
+        let argument = loan.argument();
+        let typed = self.inputs.typed;
+        if self.inputs.borrow_return.is_some()
+            || self.inputs.carrier_return.is_some()
+            || transfer.source_unit() != argument.source_unit()
+            || loan.kind() != LoanKind::Shared
+            || loan.target() != &UnitLoanTarget::Temporary(argument)
+            || drop.is_conditional_temporary()
+            || typed.expression_category(owner) != Some(ExpressionCategory::Temporary)
+            || typed.expression_falls_through(owner) != Some(true)
+        {
+            return false;
+        }
+        let nodes = self.inputs.parsed.ast().expressions();
+        let (Ok(origin), Ok(exit)) = (
+            nodes.get(owner.expression()),
+            nodes.get(transfer.expression()),
+        ) else {
+            return false;
+        };
+        if origin.span() != drop.value_origin()
+            || !matches!(exit.payload(), Expression::Return { .. })
+        {
+            return false;
+        }
+        let contains_exit = |id| {
+            nodes.get(id).is_ok_and(|node| {
+                let span = node.span();
+                span.start() <= exit.span().start() && exit.span().end() <= span.end()
+            })
+        };
+        let string = |id| self.expression_type(id).is_some_and(|ty| self.string(ty));
+        let mut current = argument.expression();
+        loop {
+            current = self.ungrouped(current);
+            let Ok(node) = nodes.get(current) else {
+                return false;
+            };
+            let Expression::Binary {
+                left,
+                operator: BinaryOperator::Add,
+                right,
+                ..
+            } = *node.payload()
+            else {
+                return false;
+            };
+            if !string(current) || !string(left) || !string(right) {
+                return false;
+            }
+            if contains_exit(right) {
+                if self.ungrouped(left) == owner.expression() {
+                    return true;
+                }
+                current = right;
+            } else if contains_exit(left) {
+                current = left;
+            } else {
+                return false;
+            }
+        }
+    }
+
     pub(super) fn expression(&mut self, expression: ExpressionId) -> bool {
         let Ok(node) = self.inputs.parsed.ast().expressions().get(expression) else {
             return false;
@@ -19,6 +95,9 @@ impl Checker<'_, '_> {
             return self.expression(subject);
         }
         let id = self.id(expression);
+        if let Some(descriptor) = self.inputs.abandoned_map_require_value(id) {
+            return self.abandoned_map_require_value(descriptor);
+        }
         if matches!(node.payload(), Expression::Call { .. })
             && let Some(receiver) =
                 crate::ssa::lowering_support::non_completing_call_receiver(self.inputs.typed, id)
@@ -27,6 +106,32 @@ impl Checker<'_, '_> {
             return receiver.source_unit() == self.inputs.source_unit
                 && self.expression(receiver.expression());
         }
+        if let Some(descriptor) = self.inputs.typed.call(id)
+            && let receiver = descriptor
+                .receiver()
+                .and_then(|r| self.inputs.concrete(r.ty()))
+            && let Some((operand, builtin)) = crate::ssa::lowering_support::builtin_display_call(
+                self.inputs.typed,
+                descriptor,
+                receiver,
+            )
+        {
+            if operand.source_unit() != self.inputs.source_unit
+                || crate::ssa::lowering_support::is_float_builtin(builtin)
+            {
+                return false;
+            }
+            let operand = operand.expression();
+            let ok = if builtin == BuiltinType::String {
+                receiver.is_some_and(|receiver| {
+                    self.string_clone_receiver(expression, operand, receiver)
+                })
+            } else {
+                self.expression(operand)
+            };
+            self.migrated |= ok;
+            return ok;
+        }
         // Jumps and abort calls are typed `Nothing`. An if or group can carry that
         // divergence; the inner expression still has to pass its own admission.
         let returns = (matches!(
@@ -34,6 +139,7 @@ impl Checker<'_, '_> {
             Expression::Return { .. }
                 | Expression::Break { .. }
                 | Expression::Continue { .. }
+                | Expression::NonNullAssert { .. }
                 | Expression::If { .. }
                 | Expression::Group { .. }
         ) || matches!(node.payload(), Expression::When { .. })
@@ -82,8 +188,19 @@ impl Checker<'_, '_> {
         if self.inputs.typed.range_size(id).is_some() {
             return self.storage_type(ty) && self.range_size(expression);
         }
-        if self.inputs.typed.nullable_when(id).is_some() {
-            return self.nullable_when(expression);
+        if let Some(descriptor) = self.inputs.typed.nullable_when(id) {
+            let accepted = self.nullable_when(expression);
+            self.has_refine_only_when |= accepted
+                && (!matches!(
+                    descriptor.source_category(),
+                    lang_frontend::type_checking::NullableWhenSubjectCategory::OwnedRoot
+                        | lang_frontend::type_checking::NullableWhenSubjectCategory::Temporary
+                ) || !crate::ssa::lowering_support::ordinary_nullable_when_heap_types(
+                    self.inputs.typed,
+                    self.c(descriptor.nullable_type()),
+                    self.c(descriptor.inner_type()),
+                ));
+            return accepted;
         }
         if self.view_or_function(ty)
             && matches!(
@@ -133,17 +250,57 @@ impl Checker<'_, '_> {
         match node.payload().clone() {
             Expression::Group { expression } => self.expression(expression),
             Expression::Literal(LiteralKind::Integer(_)) => self.integer_type(ty),
+            Expression::Literal(LiteralKind::Char) => {
+                self.kind(ty) == Some(&UnitTypeKind::Builtin(BuiltinType::Char))
+            }
+            Expression::Literal(LiteralKind::Float(_)) => matches!(
+                self.kind(ty),
+                Some(UnitTypeKind::Builtin(
+                    BuiltinType::Float | BuiltinType::Double
+                ))
+            ),
             Expression::Literal(LiteralKind::Boolean(_) | LiteralKind::Null) => true,
-            Expression::String { .. } => self
-                .inputs
-                .sources
-                .source_text(self.inputs.parsed.source_id())
-                .ok()
-                .and_then(|text| {
-                    string_literal::decode_plain(self.inputs.parsed, text, expression).ok()
-                })
-                .flatten()
-                .is_some(),
+            Expression::String { .. } => {
+                if let Some(parts) = self.inputs.typed.interpolation_plan(id) {
+                    let mut admitted = true;
+                    for part in parts {
+                        match *part {
+                            UnitInterpolationPart::Text(part_span) => {
+                                admitted = part_span.source_id() == node.span().source_id();
+                            }
+                            UnitInterpolationPart::Format { operand, target } => {
+                                if self.inputs.owned.interpolation_operand_completes(operand)
+                                    == Some(false)
+                                {
+                                    admitted = operand.source_unit() == self.inputs.source_unit
+                                        && self.expression(operand.expression());
+                                    break;
+                                }
+                                admitted = self.interpolation_operand(operand, target);
+                            }
+                            UnitInterpolationPart::Exit(operand) => {
+                                admitted = operand.source_unit() == self.inputs.source_unit
+                                    && self.expression(operand.expression());
+                                break;
+                            }
+                        }
+                        if !admitted {
+                            break;
+                        }
+                    }
+                    self.migrated |= admitted;
+                    return admitted;
+                }
+                self.inputs
+                    .sources
+                    .source_text(self.inputs.parsed.source_id())
+                    .ok()
+                    .and_then(|text| {
+                        string_literal::decode_plain(self.inputs.parsed, text, expression).ok()
+                    })
+                    .flatten()
+                    .is_some()
+            }
             Expression::Name => self.name(expression),
             Expression::This => self.this_expression(expression),
             Expression::TypeTest {
@@ -161,7 +318,8 @@ impl Checker<'_, '_> {
                 operand,
                 ..
             } => {
-                self.integer_type(ty)
+                (self.integer_type(ty)
+                    || matches!(self.kind(ty), Some(UnitTypeKind::Builtin(b)) if crate::ssa::lowering_support::is_float_builtin(*b)))
                     && self.expression_type(operand) == Some(ty)
                     && self.prefix_integer(operator, operand)
             }
@@ -214,12 +372,29 @@ impl Checker<'_, '_> {
                 subject: None,
                 entries,
                 ..
-            } => self.subjectless_when(ty, &entries, node.span()),
+            } => {
+                let accepted = self.subjectless_when(ty, &entries, node.span());
+                self.has_refine_only_when |= accepted;
+                accepted
+            }
             Expression::When {
                 subject: Some(subject),
                 entries,
                 ..
-            } => self.subject_when(expression, ty, subject, &entries),
+            } => {
+                let accepted = self.subject_when(expression, ty, subject, &entries);
+                self.has_refine_only_when |= accepted
+                    && (self.expression_type(subject).and_then(|ty| self.kind(ty))
+                        != Some(&UnitTypeKind::Builtin(BuiltinType::Boolean))
+                        || matches!(
+                            crate::ssa::lowering_support::boolean_literal_when_arms(
+                                self.inputs.parsed,
+                                &entries,
+                            ),
+                            Ok(None)
+                        ));
+                accepted
+            }
             Expression::Call { arguments, .. } => {
                 let values: Vec<_> = arguments.iter().map(|argument| argument.value).collect();
                 let function_value = self
@@ -227,9 +402,13 @@ impl Checker<'_, '_> {
                     .typed
                     .call(self.id(expression))
                     .is_some_and(|descriptor| descriptor.target() == UnitCallTarget::FunctionValue);
-                self.call(expression, &values)
+                let accepted = self.call(expression, &values)
                     && (!function_value || self.function_callee(expression, &values))
-                    && self.arguments(expression, &values)
+                    && self.arguments(expression, &values);
+                if accepted && let Some(proof) = self.whole_nominal_exit(expression, &values) {
+                    self.whole_nominal_exit = Some(proof);
+                }
+                accepted
             }
             Expression::Assignment {
                 target,
@@ -311,6 +490,97 @@ impl Checker<'_, '_> {
                     && !self.is_map_remove_symbol(symbol)))
     }
 
+    fn interpolation_operand(
+        &mut self,
+        operand: UnitExpressionId,
+        target: UnitDisplayTarget,
+    ) -> bool {
+        if operand.source_unit() != self.inputs.source_unit {
+            return false;
+        }
+        let expression = operand.expression();
+        let Some((ty, enum_case)) = self.inputs.display_receiver_type(operand) else {
+            return false;
+        };
+        let admitted = match self.inputs.builtin_display(target, ty) {
+            Some(BuiltinType::String) => {
+                self.borrowed_string_name(expression)
+                    || self
+                        .string_proof_operand(expression)
+                        .unwrap_or_else(|| self.expression(expression))
+            }
+            Some(builtin)
+                if matches!(builtin, BuiltinType::Boolean | BuiltinType::Char)
+                    || super::integer(builtin) =>
+            {
+                self.expression(expression)
+            }
+            _ if matches!(target, UnitDisplayTarget::Requirement(_)) => {
+                self.inputs
+                    .source_plan
+                    .display_site(self.inputs.source_token, operand)
+                    .is_some()
+                    && self.nominal_display_operand(expression, ty, enum_case)
+            }
+            _ => false,
+        };
+        if admitted {
+            self.interpolation_operands.insert(operand);
+            let root = self.id(self.ungrouped(expression));
+            if self
+                .inputs
+                .constant_owned
+                .is_some_and(|owned| owned.materialization_at(root).is_some())
+            {
+                self.interpolation_operands.insert(root);
+            }
+        }
+        admitted
+    }
+
+    fn nominal_display_operand(
+        &mut self,
+        expression: ExpressionId,
+        ty: UnitTypeId,
+        enum_case: bool,
+    ) -> bool {
+        if self
+            .inputs
+            .typed
+            .aggregate_projection(self.id(self.ungrouped(expression)))
+            .is_some_and(|projection| {
+                projection.kind()
+                    == lang_frontend::type_checking::UnitAggregateProjectionKind::Field
+            })
+        {
+            return self.shared_field_read_type(expression, None) == Some(ty);
+        }
+        if enum_case {
+            let name = self.ungrouped(expression);
+            return self.borrowed_move_only_name(name, ty)
+                || (self
+                    .reference(name)
+                    .and_then(|symbol| self.symbol_type(symbol))
+                    == Some(ty)
+                    && self.name(name));
+        }
+        self.borrowed_move_only_name(expression, ty)
+            || self.interpolation_proof_operand(expression, ty)
+            || self.expression(expression)
+    }
+
+    fn interpolation_proof_operand(&self, expression: ExpressionId, ty: UnitTypeId) -> bool {
+        let root = self.ungrouped(expression);
+        let id = self.id(root);
+        self.inputs.typed.nullable_when_use(id).is_none()
+            && self.inputs.typed.non_null_use(id).is_some_and(|fact| {
+                self.c(fact.narrowed_type()) == ty
+                    && self.reference(root) == Some(fact.symbol())
+                    && self.known.contains(&fact.symbol())
+                    && self.view_symbols.contains(&fact.symbol())
+            })
+    }
+
     fn name(&mut self, expression: ExpressionId) -> bool {
         if self.object_name(expression) || self.known_function(expression) {
             self.migrated = true;
@@ -389,25 +659,34 @@ impl Checker<'_, '_> {
             self.migrated |= admitted;
             return admitted;
         }
+        let char_operand = self.kind(operand) == Some(&UnitTypeKind::Builtin(BuiltinType::Char));
+        let float_operand = matches!(
+            self.kind(operand),
+            Some(UnitTypeKind::Builtin(
+                BuiltinType::Float | BuiltinType::Double
+            ))
+        );
         let supported = match operator {
             BinaryOperator::Add if self.string(operand) => true,
             BinaryOperator::Add
             | BinaryOperator::Subtract
             | BinaryOperator::Multiply
             | BinaryOperator::Divide
-            | BinaryOperator::Remainder
-            | BinaryOperator::BitwiseAnd
+            | BinaryOperator::Remainder => float_operand || self.integer_type(operand),
+            BinaryOperator::BitwiseAnd
             | BinaryOperator::BitwiseOr
             | BinaryOperator::BitwiseXor
             | BinaryOperator::Shl
             | BinaryOperator::Shr
-            | BinaryOperator::Ushr
-            | BinaryOperator::Less
+            | BinaryOperator::Ushr => self.integer_type(operand),
+            BinaryOperator::Less
             | BinaryOperator::LessEqual
             | BinaryOperator::Greater
-            | BinaryOperator::GreaterEqual => self.integer_type(operand),
+            | BinaryOperator::GreaterEqual => {
+                char_operand || float_operand || self.integer_type(operand)
+            }
             BinaryOperator::Equal | BinaryOperator::NotEqual => {
-                self.scalar(operand) || self.string(operand)
+                char_operand || float_operand || self.scalar(operand) || self.string(operand)
             }
             _ => false,
         };

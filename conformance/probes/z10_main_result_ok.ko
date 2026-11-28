@@ -1,0 +1,4 @@
+fun main(): Result<Unit, String> {
+    println("main-result")
+    return Ok(Unit)
+}

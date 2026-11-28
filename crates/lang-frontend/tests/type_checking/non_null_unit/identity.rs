@@ -117,3 +117,29 @@ fn non_null_assertion_abort_is_independent_of_shadowed_error() {
         );
     }
 }
+
+#[test]
+fn null_only_assertion_has_no_normal_completion() {
+    let (_, _, entries) = checked_entries(
+        "fun stop(value: Nothing?): Int { value!! }\nfun read(value: Int?): Int = value!!",
+    );
+    for (_, _, typed) in entries {
+        assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
+        let [stop, read] = typed.non_null_assertions() else {
+            panic!("one assertion in each body");
+        };
+        assert_eq!(
+            typed.types().get(stop.inner_type()),
+            Some(&UnitTypeKind::Builtin(BuiltinType::Nothing))
+        );
+        assert_eq!(typed.expression_falls_through(stop.operand()), Some(true));
+        assert_eq!(
+            typed.expression_falls_through(stop.expression()),
+            Some(false)
+        );
+        assert_eq!(
+            typed.expression_falls_through(read.expression()),
+            Some(true)
+        );
+    }
+}

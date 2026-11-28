@@ -3,7 +3,13 @@ use super::{
     AccessKind, Checker, Expression, ExpressionId, ExpressionUse, Flows, OwnershipCheckingError,
     State,
 };
-use crate::parser::StringPart;
+use crate::{
+    ownership_checking::callable_provenance::{
+        UnitInterpolationEvaluation, merge_interpolation_evaluations,
+    },
+    parser::StringPart,
+    type_checking::{UnitDisplayTarget, UnitInterpolationPart},
+};
 
 impl Checker<'_> {
     pub(super) fn check_expression_ast(
@@ -38,9 +44,44 @@ impl Checker<'_> {
             }
             Expression::String { parts } => {
                 let mut flows = Flows::next(state);
+                let mut planned = self
+                    .typed
+                    .interpolation_plan(self.unit_expression(id))
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|part| match *part {
+                        UnitInterpolationPart::Format { operand, target } => Some((
+                            operand,
+                            match target {
+                                UnitDisplayTarget::Requirement(target) => Some(target),
+                                UnitDisplayTarget::Builtin(_) => None,
+                            },
+                        )),
+                        UnitInterpolationPart::Exit(operand) => Some((operand, None)),
+                        UnitInterpolationPart::Text(_) => None,
+                    })
+                    .peekable();
                 for part in parts {
                     if let StringPart::Interpolation { expression, .. } = part {
                         flows = self.chain_expression(flows, expression, ExpressionUse::Read)?;
+                        let operand = self.unit_expression(expression);
+                        let completes = flows.next.is_some();
+                        if let Some(&(source, requirement)) = planned.peek()
+                            && source == operand
+                        {
+                            planned.next();
+                            merge_interpolation_evaluations(
+                                &mut self.interpolation_evaluations,
+                                [UnitInterpolationEvaluation {
+                                    operand,
+                                    requirement,
+                                    completes,
+                                }],
+                            );
+                        }
+                        if !completes {
+                            break;
+                        }
                     }
                 }
                 Ok(flows)

@@ -374,7 +374,16 @@ class DocsChecker:
             if base_path.is_file():
                 parse_tsv_matrix(
                     base_path.read_text(encoding="utf-8"),
-                    expected_names=set(data["probes"].keys()),
+                    expected_names={
+                        k
+                        for k, v in data["probes"].items()
+                        if v.get("baseline_marker") != "POST_BASELINE"
+                    },
+                    optional_names={
+                        k
+                        for k, v in data["probes"].items()
+                        if v.get("baseline_marker") == "POST_BASELINE"
+                    },
                 )
             is_prod_repo = (self.root / "docs" / "roadmap" / "v1.json").is_file()
             audit_md_path = corpus / "ORACLE_AUDIT.md"

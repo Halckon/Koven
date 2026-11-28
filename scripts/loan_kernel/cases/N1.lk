@@ -1,0 +1,96 @@
+// 闭包捕获：手工写出“环境是一个含借用字段的视图、函数体是以环境为参数的函数”，不引入任何新规则
+class Arr(len: Int)
+class Owned(a: Arr)
+view class ReadEnv(borrow a: Arr)
+view class WriteEnv(inout a: Arr)
+view class TwoEnv(borrow a: Arr, inout b: Arr)
+fun readBody(borrow env: ReadEnv): Int { return env.a.len }
+fun writeBody(inout env: WriteEnv): Unit { env.a.len = 1 }
+fun peekBody(borrow env: ReadEnv): borrow Int from env.a { return &env.a.len }
+fun ownedBody(borrow env: Owned): Int { return env.a.len }
+sig <view F> Call(borrow f: F): Int
+sig <view F> CallMut(inout f: F): Unit
+sig <F> CallOwned(borrow f: F): Int
+fun <view F> twice(borrow f: F, own call: fn Call): Int {
+  val x = call(f)
+  val y = call(f)
+  return y
+}
+fun <view F> twiceMut(inout f: F, own call: fn CallMut): Unit {
+  call(f)
+  call(f)
+}
+fun <F> spawn(own f: F, own call: fn CallOwned): Unit trusted
+fun nonEscaping(): Unit {
+  val arr = Arr(1)
+  val f = ReadEnv(&arr)
+  val n = twice(&f, readBody)
+  arr.len = 2
+  use(n)
+}
+fun writeWhileClosureAlive(): Unit {
+  val arr = Arr(1)
+  val f = ReadEnv(&arr)
+  arr.len = 2  // ERR K1
+  val n = twice(&f, readBody)
+}
+fun readWhileReadClosureAlive(): Unit {
+  val arr = Arr(1)
+  val f = ReadEnv(&arr)
+  use(arr.len)
+  val n = twice(&f, readBody)
+}
+fun mutating(): Unit {
+  val arr = Arr(1)
+  val f = WriteEnv(&mut arr)
+  twiceMut(&mut f, writeBody)
+  use(arr.len)
+}
+fun readWhileMutatingClosureAlive(): Unit {
+  val arr = Arr(1)
+  val f = WriteEnv(&mut arr)
+  use(arr.len)  // ERR K1
+  twiceMut(&mut f, writeBody)
+}
+fun mutatingIsNotCopyable(): Unit {
+  val arr = Arr(1)
+  val f = WriteEnv(&mut arr)
+  val g = f  // ERR K8
+}
+fun readingIsCopyable(): Unit {
+  val arr = Arr(1)
+  val f = ReadEnv(&arr)
+  val g = f
+  val n = twice(&f, readBody)
+  val m = twice(&g, readBody)
+}
+fun twoCaptures(): Unit {
+  val p = Arr(1)
+  val q = Arr(2)
+  val f = TwoEnv(&p, &mut q)
+  use(p.len)
+  use(q.len)  // ERR K1
+  val g = move f
+}
+fun escapeLocal(): ReadEnv {
+  val arr = Arr(1)
+  return ReadEnv(&arr)  // ERR K6
+}
+fun escapeParam(borrow a: Arr): ReadEnv from a {
+  return ReadEnv(a)
+}
+fun resultFromCapture(): Unit {
+  val arr = Arr(1)
+  val f = ReadEnv(&arr)
+  val e = peekBody(&f)
+  arr.len = 2  // ERR K1
+  use(e)
+}
+fun moveClosure(): Unit {
+  val f = Owned(Arr(1))
+  spawn(move f, ownedBody)
+}
+fun borrowedClosureCannotBeSpawned(): Unit {
+  val arr = Arr(1)
+  spawn(ReadEnv(&arr), readBody)  // ERR K17
+}

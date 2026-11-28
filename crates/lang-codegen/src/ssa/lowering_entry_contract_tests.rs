@@ -422,8 +422,8 @@ fn paired_statement_sequences_keep_empty_nested_blocks_and_cleanup_order() {
         };
         let text = format!(
             "package pair\n{declaration}fun entry(): Unit {{\n\
-             {{}}\nval unused = \"unused\"\nprintln(\"first\")\n\
-             {{ {{}}; println(\"nested\"); 7 }}\n\
+             block {{}}\nval unused = \"unused\"\nprintln(\"first\")\n\
+             block {{ block {{}}; println(\"nested\"); 7 }}\n\
              println(\"last\")\n}}"
         );
         let events = paired(&text, constants);
@@ -446,7 +446,7 @@ fn paired_statement_return_stops_inner_and_outer_sequences() {
         let text = format!(
             "package pair\n{declaration}fun entry(): Unit {{\n\
              println(\"before\")\n\
-             {{ return; println(\"inner-unreachable\") }}\n\
+             block {{ return; println(\"inner-unreachable\") }}\n\
              println(\"outer-unreachable\")\n}}"
         );
         assert_statement_events(&paired(&text, constants), &[b"before"]);
@@ -739,20 +739,17 @@ fn string_relations(
     relations
 }
 
-// Remaining old contracts retain Single analysis/lowering; interpolation keeps its
-// original test identity here but compares only MemoryDocument and package/root Unit.
-// Migrated products never call the Single entry or fall back to it.
+// Preserve the interpolation test identity for the two ordinary Unit layouts.
 mod legacy_only {
     use super::*;
     use crate::ssa::{
-        LoweringError, LoweringErrorKind, lower_scalar_file_with_entry,
+        LoweringError, LoweringErrorKind,
         unit_lower::lower_scalar_unit_with_entry,
         unit_lower_test_support::{analyze, declaration, parsed},
     };
     use lang_frontend::{
-        name_resolution::{SourceUnitInput, SymbolKind, resolve_names},
-        ownership_checking::check_ownership,
-        type_checking::{check_types, standard_environments},
+        name_resolution::{SourceUnitInput, SymbolKind},
+        type_checking::standard_environments,
     };
 
     fn error_key(
@@ -766,7 +763,7 @@ mod legacy_only {
     fn paired_interpolation_rejection_keeps_exact_unsupported_span() {
         use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
 
-        for literal in [r#""${17}""#, r#"(("before${17}after"))"#] {
+        for literal in [r#""${17.0}""#, r#"(("before${17.0}after"))"#] {
             let mut sources = SourceMap::new();
             let text = format!("package pair\nfun entry(): String = {literal}");
             let unit = UnitSource::analyze("pair/entry.ko", &text)
@@ -819,109 +816,6 @@ mod legacy_only {
                 )),
             );
             assert_eq!(error_key(&sources, unit), expected);
-        }
-    }
-
-    #[test]
-    fn unsupported_own_receiver_cannot_enter_legacy_lowering() {
-        let mut sources = SourceMap::new();
-        let text = "package pair\nclass Resource { own fun noop(): Unit {} }\nfun entry(): Unit {}";
-        let (_, file) = parsed(&mut sources, "pair/entry.ko", text);
-        let (name_environment, environment) = standard_environments();
-        let names = resolve_names(&sources, &file, &name_environment).unwrap();
-        let typed = check_types(&sources, &file, &names, &environment).unwrap();
-        assert!(names.diagnostics().is_empty() && typed.diagnostics().is_empty());
-        let owned = check_ownership(&sources, &file, &names, &typed).unwrap();
-        assert_eq!(owned.diagnostics().len(), 1);
-        assert_eq!(owned.diagnostics()[0].code().to_string(), "L0170");
-        let entry = names
-            .symbols()
-            .iter()
-            .find(|symbol| symbol.name() == "entry")
-            .unwrap()
-            .id();
-        let error = lower_scalar_file_with_entry(&sources, &file, &names, &typed, &owned, entry)
-            .err()
-            .expect("an unsupported legacy ownership product cannot generate SSA");
-        assert_eq!(
-            error_key(&sources, error),
-            (LoweringErrorKind::FrontendDiagnostics, None)
-        );
-    }
-
-    #[test]
-    fn recovery_stops_at_each_original_validation_boundary() {
-        for (body, code) in [("missing", "L0080"), ("17", "L0084")] {
-            let mut sources = SourceMap::new();
-            let text = format!("package pair\nfun entry(): String = {body}");
-            let (source, file) = parsed(&mut sources, "pair/entry.ko", &text);
-            let (name_environment, environment) = standard_environments();
-            let names = resolve_names(&sources, &file, &name_environment).unwrap();
-            let typed = check_types(&sources, &file, &names, &environment).unwrap();
-            let owned = check_ownership(&sources, &file, &names, &typed).unwrap();
-            let entry = names
-                .symbols()
-                .iter()
-                .find(|symbol| symbol.name() == "entry")
-                .unwrap()
-                .id();
-            let expected_span = SourceKey(
-                "pair/entry.ko".to_owned(),
-                text.len() - body.len(),
-                text.len(),
-            );
-            let diagnostic = if body == "missing" {
-                &names.diagnostics()[0]
-            } else {
-                &typed.diagnostics()[0]
-            };
-            assert_eq!(diagnostic.code().to_string(), code);
-            assert_eq!(
-                source_key(&sources, diagnostic.primary_span()),
-                expected_span
-            );
-            let error =
-                lower_scalar_file_with_entry(&sources, &file, &names, &typed, &owned, entry)
-                    .err()
-                    .expect("single-file diagnostics gate");
-            assert_eq!(
-                error_key(&sources, error),
-                (LoweringErrorKind::FrontendDiagnostics, None)
-            );
-            // Even when diagnostics are present, mismatched analysis is rejected first.
-            let foreign_names = resolve_names(&sources, &file, &name_environment).unwrap();
-            let error = lower_scalar_file_with_entry(
-                &sources,
-                &file,
-                &foreign_names,
-                &typed,
-                &owned,
-                entry,
-            )
-            .err()
-            .expect("analysis mismatch precedes diagnostics");
-            assert_eq!(
-                error_key(&sources, error),
-                (LoweringErrorKind::MismatchedAnalysis, None)
-            );
-            let (foreign_source, foreign_file) = parsed(&mut sources, "foreign.ko", &text);
-            assert_ne!(source, foreign_source);
-            let error = lower_scalar_file_with_entry(
-                &sources,
-                &foreign_file,
-                &foreign_names,
-                &typed,
-                &owned,
-                entry,
-            )
-            .err()
-            .expect("source mismatch precedes analysis and diagnostics");
-            assert_eq!(
-                error_key(&sources, error),
-                (LoweringErrorKind::MismatchedSource, None)
-            );
-            // Unit diagnostic gates are independently exercised without foreign products
-            // in unit_diagnostic_gates; retain the legacy precedence witness here.
         }
     }
 }

@@ -1,0 +1,68 @@
+// 携带来源的 empty 视图字段 replace：来源随取出值转移，唯一目标的原槽位清账。
+class Arr(len: Int)
+class File(fd: Int) deinit
+view class OptSlice(borrow source: Arr) empty
+view class OptMutSlice(inout source: Arr) empty
+view class OptGuardSlice(borrow source: Arr) empty deinit
+view class DualHolder(first: OptSlice, second: OptSlice) deinit
+view class MutDualHolder(first: OptMutSlice, second: OptSlice) deinit
+view class GuardDualHolder(first: OptGuardSlice, file: File) deinit
+fun mayFail(): Unit trusted
+fun update(inout a: Arr): Unit trusted
+fun releaseOptGuard(own g: OptGuardSlice): Unit trusted
+fun replaceSharedViewReleasesUniqueSlot(own a: Arr, own b: Arr): Unit {
+  val h = DualHolder(OptSlice(&a), OptSlice(&b))
+  val taken = replace h.first
+  update(&mut a)  // ERR K1
+  use(taken.source.len)
+  update(&mut a)
+  update(&mut b)  // ERR K1
+  use(h.second.source.len)
+}
+fun replaceExclusiveViewProtectsReadAndWrite(own a: Arr, own b: Arr): Unit {
+  val h = MutDualHolder(OptMutSlice(&mut a), OptSlice(&b))
+  val taken = replace h.first
+  use(a.len)  // ERR K1
+  update(&mut a)  // ERR K1
+  update(taken.source)
+  use(a.len)
+  update(&mut a)
+  use(h.second.source.len)
+}
+fun replaceDeinitViewStaysAliveUntilDrop(own a: Arr, own f: File): Unit {
+  val h = GuardDualHolder(OptGuardSlice(&a), move f)
+  val taken = replace h.first
+  use(taken.source.len)
+  update(&mut a)  // ERR K1
+}
+fun replaceDeinitViewReleasedAfterMove(own a: Arr, own f: File): Unit {
+  val h = GuardDualHolder(OptGuardSlice(&a), move f)
+  val taken = replace h.first
+  use(taken.source.len)
+  releaseOptGuard(move taken)
+  update(&mut a)
+}
+fun replaceDeinitViewFailureCleanup(own a: Arr, own f: File): Unit {
+  val h = GuardDualHolder(OptGuardSlice(&a), move f)
+  val taken = replace h.first
+  mayFail()
+  use(taken.source.len)
+}
+fun replaceViaInoutForwardsFirst(inout h: DualHolder): OptSlice from h.first {
+  return replace h.first
+}
+fun replaceViaInoutWrongContract(inout h: DualHolder): OptSlice from h.second {
+  return replace h.first  // ERR K6
+}
+fun replaceThroughJoinedAlias(own a: Arr, own b: Arr, own c: Arr): Unit {
+  val left = DualHolder(OptSlice(&a), OptSlice(&c))
+  val right = DualHolder(OptSlice(&b), OptSlice(&c))
+  val target = &mut left
+  if (*) {
+    target = &mut right
+  }
+  val taken = replace target.first
+  use(taken.source.len)
+  use(left.second.source.len)
+  use(right.second.source.len)
+}

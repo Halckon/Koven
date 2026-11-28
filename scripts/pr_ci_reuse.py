@@ -91,6 +91,8 @@ def required_job_names(flags):
         for host in ('macos-15', 'ubuntu-26.04'):
             names.add(f'Workspace Check & Clippy ({host})')
             names.add(f'Targeted Tests ({host})')
+            names.add(f'Targeted Tests D10 & Receipts ({host})')
+            names.add(f'Targeted Tests E2 ({host})')
     if flags['preview'] == 'true':
         for host in ('macos-15', 'ubuntu-24.04'):
             names.add(f'Preview Producer ({host})')

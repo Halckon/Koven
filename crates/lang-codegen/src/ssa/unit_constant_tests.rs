@@ -14,7 +14,9 @@ use super::{
     unit_lower_test_support::{declaration, parsed},
 };
 
+mod aborting_binary_left;
 pub(in crate::ssa) mod control_completion;
+mod owned_return;
 
 #[path = "unit_receiver_two_phase_control_tests.rs"]
 pub(in crate::ssa) mod receiver_two_phase_control;
@@ -415,27 +417,7 @@ fn try_lower_constant_fixture(
     .map(|(program, _)| program)
 }
 
-#[test]
-fn constant_native_lowering_rejects_interpolation_without_a_conversion_protocol() {
-    for literal in [
-        r#""${p.TEXT}""#,
-        r#""prefix ${p.TRUE} suffix""#,
-        r#""${"${p.TEXT}"}""#,
-        r#""${if (flag) { return p.TEXT } else { p.TEXT }}""#,
-        r#""${error(p.TEXT)}""#,
-    ] {
-        let consumer = format!("fun entry(own flag: Boolean): String = {literal}");
-        let source = format!("package q\n{consumer}");
-        for _ in 0..2 {
-            let error = try_lower_constant_fixture(&consumer).err().unwrap();
-            assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode, "{literal}");
-            let span = error
-                .span
-                .expect("rejection identifies the whole interpolation");
-            assert_eq!(&source[span.start()..span.end()], literal);
-        }
-    }
-}
+mod interpolation;
 
 #[test]
 fn pending_string_prefix_survives_short_circuit_exit_edges() {

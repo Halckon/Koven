@@ -22,7 +22,7 @@ fn range_carrier_gate_metadata_alias_crosses_normal_if() {
 fn range_carrier_gate_nested_alias_ends_before_the_parent() {
     let branch = "if(flag){read(child)}else{println(\"else\")}";
     let body = format!(
-        "borrow val parent=take(root,1)\n{{borrow val child=(parent);{branch};println(\"joined\");read(child)}}\nprintln(\"outer\");read(parent)"
+        "borrow val parent=take(root,1)\nblock {{borrow val child=(parent);{branch};println(\"joined\");read(child)}}\nprintln(\"outer\");read(parent)"
     );
     carrier_scope_layout(
         "nested-alias",
@@ -42,7 +42,7 @@ fun read(view:View<String>):Unit{}
 fun scan(flag:Boolean):Unit {
     val root=listOf("first","second")
     borrow val parent=take(root,1)
-    {
+    block {
         borrow val child=(parent)
         if(flag){read(child)}
         read((child))
@@ -103,7 +103,7 @@ fn range_carrier_gate_alias_inside_if_arm_keeps_the_outer_parent() {
         ("two-arm-blocks", 2),
         ("four-arm-blocks", 4),
     ] {
-        let arm = format!("{}{arm}{}", "{".repeat(depth), "}".repeat(depth));
+        let arm = format!("{}{arm}{}", "block {".repeat(depth), "}".repeat(depth));
         let source = format!(
             r#"
 class Item(val text:String){{deinit(){{println("drop");println(this.text)}}}}
@@ -131,8 +131,7 @@ fn range_carrier_gate_deep_arm_checks_intermediate_statements() {
     use super::{Pipeline, lower};
     use crate::ssa::LoweringErrorKind;
 
-    let outer =
-        "if(flag){{val unproved=0;{borrow val child=(parent);if(flag){read(child)};read(child)}}}";
+    let outer = "if(flag){val unproved=0;block {borrow val child=(parent);if(flag){read(child)};read(child)}}";
     let source = format!(
         r#"
 fun read(view:View<String>):Unit{{}}
@@ -159,12 +158,12 @@ fn range_carrier_gate_if_chain_keeps_live_parent_on_each_edge() {
     for depth in [0, 2] {
         let middle = format!(
             "if(middle){{{}{arm}{}}}else{{println(\"skip-middle\");read(parent)}}",
-            "{".repeat(depth),
+            "block {".repeat(depth),
             "}".repeat(depth),
         );
         let outer = format!(
             "if(outer){{{}{middle}{}}}else{{println(\"skip-outer\");read(parent)}}",
-            "{".repeat(depth),
+            "block {".repeat(depth),
             "}".repeat(depth),
         );
         let source = format!(
@@ -208,7 +207,7 @@ fun scan(outer:Boolean,middle:Boolean,inner:Boolean):Unit{{
 }}
 fun main():Unit{{scan(true,true,true);scan(true,true,false);scan(true,false,true);scan(false,true,true)}}
 "#,
-            "{".repeat(depth),
+            "block {".repeat(depth),
             "}".repeat(depth),
         );
         run_carrier_layouts(
@@ -233,7 +232,7 @@ fun scan(outer:Boolean,inner:Boolean):Unit {
     val root=listOf("first")
     if(outer) {
         borrow val parent=take(root,1)
-        {
+        block {
             borrow val child=(parent)
             if(inner){read(child)}
             read((child))
@@ -317,7 +316,7 @@ fun scan(left:Boolean,right:Boolean):Unit {
     val root=listOf(Item("item"))
     if(left && rhs(right)) {
         borrow val parent=take(root,count())
-        {
+        block {
             borrow val child=(parent)
             if(right){read(child)}
             read((child))

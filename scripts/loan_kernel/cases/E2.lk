@@ -1,0 +1,14 @@
+// 出借式可变迭代器：循环里每次用完再取下一个
+class Arr(len: Int)
+view class Iter(inout data: Arr, pos: Int)
+fun iter(inout a: Arr): Iter from a trusted
+fun next(inout it: Iter): inout Int from it trusted
+fun f(): Unit {
+  val arr = Arr(1)
+  val it = iter(&mut arr)
+  while (*) {
+    val x = next(&mut it)
+    use(x)
+  }
+  arr.len = 2
+}

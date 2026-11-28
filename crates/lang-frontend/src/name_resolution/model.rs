@@ -86,6 +86,7 @@ pub struct NameEnvironment {
     types: BTreeMap<String, ExternalBinding>,
     values: BTreeMap<String, ExternalBinding>,
     builtin_source: Option<SourceId>,
+    display_source: Option<SourceId>,
 }
 
 impl Default for NameEnvironment {
@@ -96,6 +97,7 @@ impl Default for NameEnvironment {
             types: BTreeMap::new(),
             values: BTreeMap::new(),
             builtin_source: None,
+            display_source: None,
         }
     }
 }
@@ -178,6 +180,21 @@ impl NameEnvironment {
     #[must_use]
     pub const fn builtin_source(&self) -> Option<SourceId> {
         self.builtin_source
+    }
+
+    /// Authorizes the standard source providing the predeclared Display interface.
+    pub(crate) fn authorize_display_source(
+        &mut self,
+        sources: &SourceMap,
+        source: SourceId,
+    ) -> Result<(), SourceError> {
+        sources.source_text(source)?;
+        self.display_source = Some(source);
+        Ok(())
+    }
+
+    pub(super) const fn display_source(&self) -> Option<SourceId> {
+        self.display_source
     }
 
     fn declare(

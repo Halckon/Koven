@@ -38,7 +38,7 @@ pub enum FinalTypeAdmissionInternalError {
         /// 所需事实类别，不冒充 DeferredReason。
         kind: &'static str,
     },
-    /// 原有单文件基础设施失败。
+    /// 单文件与编译单元共用的类型检查基础设施失败。
     Type(TypeCheckingError),
     /// 原有 compilation-unit 基础设施失败。
     Unit(CompilationUnitTypeError),

@@ -1,0 +1,9 @@
+// 结果存活期间移动 guard
+class Guard(n: Int) deinit
+fun value(borrow g: Guard): borrow Int from g { return &g.n }
+fun f(): Unit {
+  val g = Guard(1)
+  val r = value(&g)
+  val h = move g  // ERR K1
+  use(r)
+}

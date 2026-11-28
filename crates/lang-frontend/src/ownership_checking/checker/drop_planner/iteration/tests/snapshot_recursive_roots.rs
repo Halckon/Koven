@@ -9,7 +9,7 @@ fn snapshot_keeps_two_recursive_phi_roots_without_tree_origins() {
             "fun run(first: List<Int>, second: List<Int>, pick: Boolean) {
 var f: move () -> Unit = move {}
 var g: move () -> Unit = move {}
-for (_ in first) { { f = move { f() } }
+for (_ in first) { block { f = move { f() } }
 g = move { g() } }
 var h: move () -> Unit = if (pick) f else g
 for (_ in second) { h = move { h() } }

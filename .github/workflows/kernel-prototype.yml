@@ -1,0 +1,62 @@
+name: Kernel Prototype Tests
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'scripts/loan_kernel/**'
+      - 'scripts/tests/test_loan_kernel.py'
+      - 'scripts/tests/test_origin_accounting.py'
+      - 'scripts/tests/test_capability.py'
+      - 'scripts/tests/test_drop_plan.py'
+      - 'scripts/tests/test_failure_model.py'
+      - '.github/workflows/kernel-prototype.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'scripts/loan_kernel/**'
+      - 'scripts/tests/test_loan_kernel.py'
+      - 'scripts/tests/test_origin_accounting.py'
+      - 'scripts/tests/test_capability.py'
+      - 'scripts/tests/test_drop_plan.py'
+      - 'scripts/tests/test_failure_model.py'
+      - '.github/workflows/kernel-prototype.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  kernel-prototype:
+    name: Kernel Prototype Unittest (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version:
+          - '3.9'
+          - '3.12'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Run 5 kernel prototype unittest suites
+        run: |
+          set -euo pipefail
+          python3 --version
+          python3 -m unittest -v \
+            scripts.tests.test_loan_kernel \
+            scripts.tests.test_origin_accounting \
+            scripts.tests.test_capability \
+            scripts.tests.test_drop_plan \
+            scripts.tests.test_failure_model

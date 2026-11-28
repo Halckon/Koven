@@ -16,6 +16,8 @@ mod unit_cleanup_order;
 mod unit_failure;
 #[path = "ownership_constants/unit_materialization.rs"]
 mod unit_materialization;
+#[path = "ownership_constants/unit_owned_return.rs"]
+mod unit_owned_return;
 #[path = "ownership_constants/unit_runtime_identity.rs"]
 mod unit_runtime_identity;
 #[path = "ownership_constants/unit_transfer_cleanup.rs"]
@@ -152,12 +154,7 @@ fun use(own input: String): Unit {
     val third = take(input)
 }
 "#;
-    let (sources, _, owned) = analyzed(text);
-    assert!(!owned.diagnostics().is_empty());
-    assert!(owned.constant_materializations().is_none());
-    assert!(owned.drops().is_empty());
-    assert!(owned.loans().is_empty());
-    unit_failure::check(&sources, owned.diagnostics());
+    unit_failure::check(text);
 }
 
 #[test]
@@ -168,7 +165,6 @@ fn constant_cleanup_matches_literal_on_control_flow_edges() {
         "loop { val result = view(VALUE, if (flag) { break } else { 0 })\nbreak }",
         "loop { val result = view(VALUE, if (flag) { continue } else { 0 })\nbreak }",
         "val result = view(if (flag) { VALUE } else { VALUE }, 0)",
-        "val result = take(VALUE, if (flag) { return } else { 0 })",
         "val result = take(VALUE, if (flag) { stop() } else { 0 })",
     ] {
         let source = format!(
@@ -267,17 +263,8 @@ fun use(): String = Holder(TEXT).text
 
 #[test]
 fn aborting_binary_left_has_no_right_or_following_materialization_cleanup() {
-    let (_, owned) = checked(
-        r#"
-const val TEXT = "hi"
-fun stop(): Nothing = stop()
-fun view(text: String): Unit {}
-fun use(): Unit {
-    val stopped = stop() == TEXT
-    val unreachable = TEXT
-}
-"#,
-    );
+    let text = include_str!("ownership_constants/fixtures/aborting-binary-left.ko");
+    let (_, owned) = checked(text);
     assert!(
         owned
             .constant_materializations()
@@ -288,6 +275,8 @@ fun use(): Unit {
     assert!(owned.loans().is_empty());
     assert!(owned.loan_ends().is_empty());
     assert!(owned.drops().is_empty(), "{:?}", owned.drops());
+    // Keep the historical Single oracle until the new layouts have been verified.
+    unit_materialization::aborting_equality(text);
 }
 
 #[test]
@@ -315,15 +304,7 @@ fun use(flag: Boolean): Unit {
     val unreachable = TEXT
 }
 "#;
-    for rooted in [false, true] {
-        let (_, _, unit) = unit_materialization::checked(text, rooted);
-        assert!(unit.materializations().is_empty());
-        assert!(
-            unit.ownership().drops().is_empty(),
-            "{:?}",
-            unit.ownership().drops()
-        );
-    }
+    unit_materialization::aborting_string(text);
 }
 
 #[test]

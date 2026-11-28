@@ -1,0 +1,5 @@
+fun view(source: String): borrow String from source = source
+fun observe(item: String) { println(item) }
+fun consume(own item: String) {}
+fun <T> genericView(source: T): borrow T from source = source
+fun run() { val source = "kept"; observe(genericView(source)); consume(source) }

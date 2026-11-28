@@ -79,22 +79,69 @@ pub(in crate::ssa) fn validate_declarations(
 // the older whole-function CFG frontier, including RangeView and carrier aliases.
 fn has_dedicated_binding_path(
     file: &lang_frontend::parser::ParsedFile,
-    _names: &ValidatedCompilationUnitNames,
+    names: &ValidatedCompilationUnitNames,
     typed: &CompilationUnitTypes,
     owned: &dyn UnitPreflightFacts,
     fact: &BorrowBindingFact<UnitExpressionId, UnitSymbolId, UnitLoanTarget>,
+    observes_returned_field: bool,
 ) -> Result<bool, LoweringError> {
     let UnitLoanTarget::Place(place) = fact.origin() else {
         return Ok(false);
     };
-    if fact.storage() != BorrowBindingStorage::BorrowedStorage
-        || fact.source_loan().is_some()
-        || place.element().is_some()
-    {
+    if fact.storage() != BorrowBindingStorage::BorrowedStorage || place.element().is_some() {
         return Ok(false);
     }
     let source_unit = fact.binding().source_unit();
     let parent = fact.parent();
+    if let Some(source) = fact.source_loan() {
+        let call = source.call();
+        let initializer = fact.initializer();
+        return Ok(typed.map_require_value(call).is_some_and(|descriptor| {
+            descriptor.expression() == call
+                && descriptor.receiver() == source.argument()
+                && call.source_unit() == source_unit
+                && descriptor.receiver().source_unit() == source_unit
+                && descriptor.key().source_unit() == source_unit
+                && initializer.source_unit() == source_unit
+                && place.root().source_unit() == source_unit
+                && place.is_root()
+                && parent.is_none()
+                && crate::ssa::borrow_result_support::ungroup(
+                    file,
+                    initializer.expression(),
+                    fact.marker_span(),
+                ) == Ok(call.expression())
+        }));
+    }
+    if observes_returned_field
+        && let Some(parent) = parent
+        && parent.source_unit() == source_unit
+        && fact.initializer().source_unit() == source_unit
+        && let Some(ty) = typed.symbol_type(parent)
+        && matches!(typed.types().get(ty), Some(UnitTypeKind::Nominal { .. }))
+        && typed.symbol_type(fact.binding()) == Some(ty)
+    {
+        let expression = crate::ssa::borrow_result_support::ungroup(
+            file,
+            fact.initializer().expression(),
+            fact.marker_span(),
+        )?;
+        let bindings = owned.borrow_results().bindings();
+        // The parent already holds the returned storage. Its type may differ
+        // from the entire source lease when the callee returns a projection.
+        if typed.expression_type(UnitExpressionId::new(source_unit, expression)) == Some(ty)
+            && branch_declaration::is_symbol(file, names, expression, parent)
+            && bindings
+                .binary_search_by_key(&parent, |binding| binding.binding())
+                .is_ok_and(|index| {
+                    let parent = &bindings[index];
+                    parent.storage() == BorrowBindingStorage::BorrowedStorage
+                        && parent.origin() == fact.origin()
+                })
+        {
+            return Ok(true);
+        }
+    }
     if !place.is_root() {
         if parent.is_some() {
             return Ok(false);
@@ -394,7 +441,7 @@ fn validate_binding(
     owned: &dyn UnitPreflightFacts,
     fact: &BorrowBindingFact<UnitExpressionId, UnitSymbolId, UnitLoanTarget>,
     mut allowed_controls: Option<std::collections::BTreeSet<usize>>,
-    observer_whiles: &std::collections::BTreeSet<usize>,
+    observer_loops: &std::collections::BTreeSet<usize>,
 ) -> Result<(), LoweringError> {
     if file.source_id() != fact.marker_span().source_id() {
         return Err(lowering_error(
@@ -705,7 +752,7 @@ fn validate_binding(
             if experimental.is_some_and(|(_, approved)| approved == statement) {
                 return true;
             }
-            if observer_whiles.contains(&statement.index())
+            if observer_loops.contains(&statement.index())
                 || closed_whiles.contains(&statement)
                 || invariant == Some(statement)
                 || no_carry == Some(statement)
@@ -871,7 +918,7 @@ pub(crate) fn validate_bindings(
             Some((fact.initializer(), controls))
         })
         .collect();
-    let mut nullable = nullable_presence::Observers::new(typed, owned, &bindings);
+    let mut nullable = nullable_presence::Observers::new(names, typed, owned, &bindings);
     for (fact, file, policy) in bindings {
         let file =
             file.ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, fact.marker_span()))?;
@@ -895,7 +942,14 @@ pub(crate) fn validate_bindings(
                 ordinary_local::validate_narrowed_when_initializer(file, typed, owned, fact)?;
             }
             None if legacy_gate
-                && !has_dedicated_binding_path(file, names, typed, owned, fact)? =>
+                && !has_dedicated_binding_path(
+                    file,
+                    names,
+                    typed,
+                    owned,
+                    fact,
+                    nullable.uses_returned_field(fact.binding()),
+                )? =>
             {
                 let allowed = is_local_range_binding(file, names, typed, owned, fact).then(|| {
                     ordinary_local::allowed_controls(

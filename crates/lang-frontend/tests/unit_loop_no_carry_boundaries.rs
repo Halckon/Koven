@@ -71,7 +71,7 @@ fn ordinary_no_carry_rejects_unsealed_control_and_resource_boundaries() {
         (
             "nested-body-block",
             "",
-            "while(flag){{borrow val item=view(source);observe(item)}}",
+            "while(flag){block {borrow val item=view(source);observe(item)}}",
         ),
         (
             "nested-loop",
@@ -86,7 +86,7 @@ fn ordinary_no_carry_rejects_unsealed_control_and_resource_boundaries() {
         (
             "outer-block",
             "",
-            "{while(flag){borrow val item=view(source);observe(item)}}",
+            "block {while(flag){borrow val item=view(source);observe(item)}}",
         ),
         (
             "constant-condition",

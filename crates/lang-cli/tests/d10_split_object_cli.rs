@@ -220,6 +220,51 @@ mod enabled {
         }
     }
     #[test]
+    fn split_cli_rejects_unreachable_bad_member_in_other_source_before_selector() {
+        for callee_first in [false, true] {
+            let d = Directory::new();
+            let (callee, entry) = source_pair(&d, 0, callee_first, 1, 2);
+            let mut bad_callee = fs::read_to_string(&callee).unwrap();
+            bad_callee.push_str(
+                "\nfun unreachable(): Unit { val a = 5; val b = a.fooBar(); println(\"x\") }",
+            );
+            fs::write(&callee, &bad_callee).unwrap();
+            let original_entry = fs::read(&entry).unwrap();
+            let before = d.entries();
+            let object = d.0.join("entry.o");
+            let start = bad_callee.find("fooBar").unwrap();
+            for reversed in [false, true] {
+                let (first, second) = if reversed {
+                    (&entry, &callee)
+                } else {
+                    (&callee, &entry)
+                };
+                let selected = command(first, second, &object, "entry", true);
+                let absent = command(first, second, &object, "absentEntry", true);
+                for result in [&selected, &absent] {
+                    assert_eq!(result.status.code(), Some(1), "{result:?}");
+                    assert!(result.stdout.is_empty());
+                }
+                assert_eq!(selected.stderr, absent.stderr);
+                let diagnostics = std::str::from_utf8(&selected.stderr)
+                    .unwrap()
+                    .lines()
+                    .map(|line| serde_json::from_str::<serde_json::Value>(line).unwrap())
+                    .collect::<Vec<_>>();
+                let [diagnostic] = diagnostics.as_slice() else {
+                    panic!("only the unrelated source's final type diagnostic: {diagnostics:?}");
+                };
+                assert_eq!(diagnostic["code"], "L0080");
+                assert_eq!(diagnostic["primary"]["source"], callee.to_str().unwrap());
+                assert_eq!(diagnostic["primary"]["byte_start"], start);
+                assert_eq!(diagnostic["primary"]["byte_end"], start + "fooBar".len());
+                assert_eq!(d.entries(), before);
+                assert_eq!(fs::read_to_string(&callee).unwrap(), bad_callee);
+                assert_eq!(fs::read(&entry).unwrap(), original_entry);
+            }
+        }
+    }
+    #[test]
     fn split_cli_native_zero_and_multiple_rounds() {
         use std::{
             process::Stdio,

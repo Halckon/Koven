@@ -100,6 +100,8 @@ tar() { echo EXTRACTED; return 99; }
                    conclusion='success', run_attempt=2, html_url='https://github.com/example/run/17')
         names = ('Workspace Check & Clippy (macos-15)', 'Workspace Check & Clippy (ubuntu-26.04)',
                  'Targeted Tests (macos-15)', 'Targeted Tests (ubuntu-26.04)',
+                 'Targeted Tests D10 & Receipts (macos-15)', 'Targeted Tests D10 & Receipts (ubuntu-26.04)',
+                 'Targeted Tests E2 (macos-15)', 'Targeted Tests E2 (ubuntu-26.04)',
                  'Preview Producer (macos-15)', 'Preview Independent Consumer (macos-15)',
                  'Preview Producer (ubuntu-24.04)', 'Preview Independent Consumer (ubuntu-24.04)',
                  'CI Passed')
@@ -191,9 +193,10 @@ tar() { echo EXTRACTED; return 99; }
     def test_core_uses_one_immutable_non_root_linux_image(self):
         workflow = (ROOT / '.github/workflows/ci.yml').read_text()
         images = re.findall(r'image: (ghcr\.io/halckon/koven-ci-toolchain@sha256:[0-9a-f]{64})', workflow)
-        self.assertEqual(2, len(images))
+        self.assertEqual(4, len(images))
         self.assertEqual(1, len(set(images)))
-        for name, following in (('clippy', 'test'), ('test', 'preview-macos-produce')):
+        for name, following in (('clippy', 'test'), ('test', 'test-d10'),
+                                ('test-d10', 'test-e2'), ('test-e2', 'preview-macos-produce')):
             job = workflow.split('\n  ' + name + ':\n', 1)[1].split('\n  ' + following + ':\n', 1)[0]
             self.assertIn('          - os: ubuntu-26.04\n            container:\n', job)
             self.assertIn('              options: --user 1001:1001', job)
@@ -214,7 +217,7 @@ tar() { echo EXTRACTED; return 99; }
         preview = workflow.split('\n  preview-macos-produce:\n', 1)[1]
         self.assertNotIn('container:', preview)
         self.assertNotIn('ghcr.io/', preview)
-        self.assertEqual(2, workflow.count('os: [macos-15, ubuntu-26.04]'))
+        self.assertEqual(4, workflow.count('os: [macos-15, ubuntu-26.04]'))
         self.assertEqual(2, workflow.count('runs-on: ubuntu-24.04'))
         for group, following in (('docs', 'rust'), ('rust', 'editors'), ('preview', 'frontend')):
             block = workflow.split('            ' + group + ':\n', 1)[1].split('            ' + following + ':\n', 1)[0]
@@ -225,8 +228,8 @@ tar() { echo EXTRACTED; return 99; }
         workflow = (ROOT / '.github/workflows/ci.yml').read_text()
         blocks = re.findall(r'- name: Verify unprivileged container mounts\n(.*?)(?=\n      - )',
                             workflow, re.S)
-        self.assertEqual(2, len(blocks))
-        self.assertEqual(blocks[0], blocks[1])
+        self.assertEqual(4, len(blocks))
+        self.assertEqual(1, len(set(blocks)))
         self.assertIn("if: runner.os == 'Linux'", blocks[0])
         script = textwrap.dedent(blocks[0].split('        run: |\n', 1)[1])
         with tempfile.TemporaryDirectory() as temporary:

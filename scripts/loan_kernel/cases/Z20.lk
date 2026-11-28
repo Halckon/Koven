@@ -1,0 +1,77 @@
+// 拆出按值容器子视图与递归子视图：容器来源归到 "*"，递归子视图按折叠边界转发来源。
+class Arr(len: Int)
+class File(fd: Int) deinit
+view class Slice(borrow source: Arr)
+view class Bag<view T>(n: Int)
+view class BagHolder(bag: Bag, file: File) deinit
+view class Node(borrow next: Node, borrow data: Arr)
+view class NodeHolder(node: Node, file: File) deinit
+fun mayFail(): Unit trusted
+fun update(inout a: Arr): Unit trusted
+fun putBag(inout bag: Bag, own s: Slice): Unit flows s into bag trusted
+fun peekBag(borrow bag: Bag): borrow Int from bag.origins trusted
+fun peekBagSelf(borrow bag: Bag): borrow Int from bag trusted
+fun leaf(borrow a: Arr): Node from a trusted
+fun third(borrow n: Node): borrow Int from n.next {
+  return &n.next.next.data.len
+}
+fun openedBagProtectsItsSource(own this: BagHolder, own a: Arr, own f: File): Unit in BagHolder {
+  val b = Bag(0)
+  putBag(&mut b, Slice(&a))
+  this = BagHolder(move b, move f)
+  open this as bag, file
+  val e = peekBag(&bag)
+  update(&mut a)  // ERR K1
+  use(e)
+  update(&mut a)
+}
+fun forwardOpenedBag(own this: BagHolder): borrow Int from this.bag in BagHolder {
+  open this as bag, file
+  return peekBag(&bag)
+}
+fun cannotReturnSelfDependentBagBorrow(own this: BagHolder): borrow Int from this.bag in BagHolder {
+  open this as bag, file
+  return peekBagSelf(&bag)  // ERR K6
+}
+fun missingOpenedBagContract(own this: BagHolder): borrow Int in BagHolder {
+  open this as bag, file
+  return peekBag(&bag)  // ERR K6
+}
+fun localOpenedBagEscape(own this: BagHolder, own a: Arr, own f: File): borrow Int from this.bag in BagHolder {
+  val b = Bag(0)
+  putBag(&mut b, Slice(&a))
+  this = BagHolder(move b, move f)
+  open this as bag, file
+  return peekBag(&bag)  // ERR K6
+}
+fun dropsBagFieldsOnFailure(own this: BagHolder): Unit in BagHolder {
+  open this as bag, file
+  mayFail()
+  val e = peekBag(&bag)
+  use(e)
+}
+fun openedRecursiveProtectsDeepChain(own this: NodeHolder, own a: Arr, own b: Arr, own c: Arr, own f: File): Unit in NodeHolder {
+  val n1 = leaf(&a)
+  val n2 = Node(&n1, &b)
+  val n3 = Node(&n2, &c)
+  this = NodeHolder(n3, move f)
+  open this as node, file
+  val e = third(&node)
+  update(&mut c)
+  update(&mut a)  // ERR K1
+  use(e)
+  update(&mut a)
+}
+fun forwardOpenedNodeSecond(own this: NodeHolder): borrow Int from this.node.next in NodeHolder {
+  open this as node, file
+  return &node.next.data.len
+}
+fun wrongOpenedNodeContract(own this: NodeHolder): borrow Int from this.node.data in NodeHolder {
+  open this as node, file
+  return &node.next.data.len  // ERR K6
+}
+fun dropsNodeFieldsOnFailure(own this: NodeHolder): Unit in NodeHolder {
+  open this as node, file
+  mayFail()
+  use(node.data.len)
+}

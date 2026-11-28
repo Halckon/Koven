@@ -1,0 +1,326 @@
+// 递归闭包与捕获闭包的闭包（KB3 × KB5）：沿用 N1 的手工去糖形式，不引入新语法与新规则
+class Arr(len: Int)
+class Owned(a: Arr)
+class OuterOwned(inner: Owned)
+view class ReadEnv(borrow a: Arr)
+view class WriteEnv(inout a: Arr)
+view class OuterReadVal(inner: ReadEnv, borrow b: Arr)
+view class OuterReadRef(borrow inner: ReadEnv, borrow b: Arr)
+view class OuterMutVal(inner: WriteEnv, borrow b: Arr)
+view class OuterMutRef(inout inner: WriteEnv, borrow b: Arr)
+view class OuterRoOverMut(borrow inner: WriteEnv)
+
+fun readBody(borrow env: ReadEnv): Int { return env.a.len }
+fun writeBody(inout env: WriteEnv): Unit { env.a.len = 1 }
+fun outerReadValBody(borrow env: OuterReadVal): Int {
+  val x = readBody(&env.inner)
+  return env.b.len
+}
+fun outerReadRefBody(borrow env: OuterReadRef): Int {
+  val x = readBody(env.inner)
+  return env.b.len
+}
+fun outerMutValBody(inout env: OuterMutVal): Unit {
+  writeBody(&mut env.inner)
+  use(env.b.len)
+}
+fun outerMutRefBody(inout env: OuterMutRef): Unit {
+  writeBody(env.inner)
+  use(env.b.len)
+}
+fun peekInnerVal(borrow env: OuterReadVal): borrow Int from env.inner.a {
+  return &env.inner.a.len
+}
+fun peekInnerRef(borrow env: OuterReadRef): borrow Int from env.inner.a {
+  return &env.inner.a.len
+}
+fun peekInnerWrongFrom(borrow env: OuterReadVal): borrow Int from env.b {
+  return &env.inner.a.len  // ERR K6
+}
+fun peekSelf(borrow env: ReadEnv): borrow Int from env {
+  return &env.a.len
+}
+fun outerOwnedBody(borrow env: OuterOwned): Int { return env.inner.a.len }
+
+sig <view F> Call(borrow f: F): Int
+sig <view F> CallMut(inout f: F): Unit
+sig <F> CallOwned(borrow f: F): Int
+sig <view F> Peek(borrow f: F): borrow Int from f.origins
+
+fun <view F> twice(borrow f: F, own call: fn Call): Int {
+  val x = call(f)
+  val y = call(f)
+  return y
+}
+fun <view F> twiceMut(inout f: F, own call: fn CallMut): Unit {
+  call(f)
+  call(f)
+}
+fun <F> spawn(own f: F, own call: fn CallOwned): Unit trusted
+fun <view F> runPeek(borrow f: F, own call: fn Peek): borrow Int from f.origins {
+  return call(f)
+}
+
+// 一、捕获闭包的闭包（按值与按借用嵌套）
+fun nestedReadValWorks(): Unit {
+  val a = Arr(1)
+  val b = Arr(2)
+  val inner = ReadEnv(&a)
+  val outer = OuterReadVal(inner, &b)
+  val n = twice(&outer, outerReadValBody)
+  a.len = 3
+  b.len = 4
+  use(n)
+}
+fun nestedReadValBlocksWritesWhileAlive(): Unit {
+  val a = Arr(1)
+  val b = Arr(2)
+  val inner = ReadEnv(&a)
+  val outer = OuterReadVal(inner, &b)
+  a.len = 3  // ERR K1
+  b.len = 4  // ERR K1
+  val n = twice(&outer, outerReadValBody)
+}
+fun nestedReadValIsCopyable(): Unit {
+  val a = Arr(1)
+  val b = Arr(2)
+  val outer = OuterReadVal(ReadEnv(&a), &b)
+  val copy = outer
+  val n = twice(&outer, outerReadValBody)
+  val m = twice(&copy, outerReadValBody)
+  a.len = 3
+  b.len = 4
+}
+fun nestedReadRefProtectsInnerAndSources(): Unit {
+  val a = Arr(1)
+  val b = Arr(2)
+  val c = Arr(3)
+  val inner = ReadEnv(&a)
+  val outer = OuterReadRef(&inner, &b)
+  a.len = 4  // ERR K1
+  b.len = 5  // ERR K1
+  inner = ReadEnv(&c)  // ERR K1
+  val n = twice(&outer, outerReadRefBody)
+}
+fun nestedReadPeekForwardsOnlyInner(): Unit {
+  val a = Arr(1)
+  val b = Arr(2)
+  val outer = OuterReadVal(ReadEnv(&a), &b)
+  val e = peekInnerVal(&outer)
+  b.len = 3
+  a.len = 4  // ERR K1
+  use(e)
+}
+fun nestedReadPeekRefForwardsOnlyInner(): Unit {
+  val a = Arr(1)
+  val b = Arr(2)
+  val inner = ReadEnv(&a)
+  val outer = OuterReadRef(&inner, &b)
+  val e = peekInnerRef(&outer)
+  b.len = 3
+  a.len = 4  // ERR K1
+  use(e)
+}
+fun nestedReadPeekViaHigherOrderProtectsAllOrigins(): Unit {
+  val a = Arr(1)
+  val b = Arr(2)
+  val outer = OuterReadVal(ReadEnv(&a), &b)
+  val e = runPeek(&outer, peekInnerVal)
+  a.len = 3  // ERR K1
+  b.len = 4  // ERR K1
+  use(e)
+}
+fun nestedMutValWorks(): Unit {
+  val a = Arr(1)
+  val b = Arr(2)
+  val inner = WriteEnv(&mut a)
+  val outer = OuterMutVal(move inner, &b)
+  twiceMut(&mut outer, outerMutValBody)
+  use(a.len)
+  b.len = 3
+}
+fun nestedMutValIsNotCopyable(): Unit {
+  val a = Arr(1)
+  val b = Arr(2)
+  val outer = OuterMutVal(WriteEnv(&mut a), &b)
+  val copy = outer  // ERR K8
+}
+fun nestedMutValBlocksInnerReadWhileAlive(): Unit {
+  val a = Arr(1)
+  val b = Arr(2)
+  val outer = OuterMutVal(WriteEnv(&mut a), &b)
+  use(a.len)  // ERR K1
+  b.len = 3  // ERR K1
+  twiceMut(&mut outer, outerMutValBody)
+}
+fun nestedMutRefWorks(): Unit {
+  val a = Arr(1)
+  val b = Arr(2)
+  val inner = WriteEnv(&mut a)
+  val outer = OuterMutRef(&mut inner, &b)
+  twiceMut(&mut outer, outerMutRefBody)
+  use(a.len)
+  b.len = 3
+}
+fun nestedMutRefBlocksInnerReadWhileAlive(): Unit {
+  val a = Arr(1)
+  val b = Arr(2)
+  val inner = WriteEnv(&mut a)
+  val outer = OuterMutRef(&mut inner, &b)
+  use(a.len)  // ERR K1
+  twiceMut(&mut outer, outerMutRefBody)
+}
+fun outerRoOverMutCannotMutateInner(borrow env: OuterRoOverMut): Unit {
+  writeBody(env.inner)  // ERR K1
+}
+fun nestedOwnedCanBeSpawned(): Unit {
+  val f = OuterOwned(Owned(Arr(1)))
+  spawn(move f, outerOwnedBody)
+}
+fun nestedBorrowedCannotBeSpawned(): Unit {
+  val a = Arr(1)
+  val b = Arr(2)
+  spawn(OuterReadVal(ReadEnv(&a), &b), outerReadValBody)  // ERR K17
+}
+fun nestedClosureCannotEscapeLocal(): OuterReadVal {
+  val a = Arr(1)
+  val b = Arr(2)
+  return OuterReadVal(ReadEnv(&a), &b)  // ERR K6
+}
+
+// 二、递归闭包（直接递归、返回借用、可变递归、互相递归、经高阶调用与嵌套闭包组合）
+fun recRead(borrow env: ReadEnv): Int {
+  if (*) {
+    val n = recRead(env)
+    use(n)
+  }
+  return env.a.len
+}
+fun useRecRead(): Unit {
+  val a = Arr(1)
+  val f = ReadEnv(&a)
+  val n = twice(&f, recRead)
+  a.len = 2
+  use(n)
+}
+fun writeWhileRecReadAlive(): Unit {
+  val a = Arr(1)
+  val f = ReadEnv(&a)
+  a.len = 2  // ERR K1
+  val n = recRead(&f)
+}
+fun recPeek(borrow env: ReadEnv): borrow Int from env.a {
+  val r = &env.a.len
+  if (*) {
+    r = recPeek(env)
+  }
+  return r
+}
+fun recPeekMissingFrom(borrow env: ReadEnv): borrow Int {
+  val r = &env.a.len
+  if (*) {
+    r = recPeek(env)
+  }
+  return r  // ERR K6
+}
+fun useRecPeek(): Unit {
+  val a = Arr(1)
+  val f = ReadEnv(&a)
+  val e = runPeek(&f, recPeek)
+  a.len = 2  // ERR K1
+  use(e)
+}
+fun recPeekSelfRejectedByOriginsContract(): Unit {
+  val a = Arr(1)
+  val f = ReadEnv(&a)
+  val e = runPeek(&f, peekSelf)  // ERR K12
+  use(e)
+}
+fun recMut(inout env: WriteEnv): Unit {
+  env.a.len = 1
+  if (*) {
+    recMut(env)
+  }
+}
+fun useRecMut(): Unit {
+  val a = Arr(1)
+  val f = WriteEnv(&mut a)
+  twiceMut(&mut f, recMut)
+  use(a.len)
+}
+fun readWhileRecMutAlive(): Unit {
+  val a = Arr(1)
+  val f = WriteEnv(&mut a)
+  use(a.len)  // ERR K1
+  recMut(&mut f)
+}
+fun recMutWhileChildBorrowAlive(inout env: WriteEnv): Unit {
+  val r = &env.a.len
+  if (*) {
+    recMut(env)  // ERR K4
+  }
+  use(r)
+}
+fun recEven(inout env: WriteEnv): Unit {
+  env.a.len = 1
+  if (*) {
+    recOdd(env)
+  }
+}
+fun recOdd(inout env: WriteEnv): Unit {
+  env.a.len = 2
+  if (*) {
+    recEven(env)
+  }
+}
+fun useMutualRecMut(): Unit {
+  val a = Arr(1)
+  val f = WriteEnv(&mut a)
+  twiceMut(&mut f, recEven)
+  use(a.len)
+}
+fun recOuterMut(inout env: OuterMutVal): Unit {
+  writeBody(&mut env.inner)
+  use(env.b.len)
+  if (*) {
+    recOuterMut(env)
+  }
+}
+fun useRecOuterMut(): Unit {
+  val a = Arr(1)
+  val b = Arr(2)
+  val outer = OuterMutVal(WriteEnv(&mut a), &b)
+  twiceMut(&mut outer, recOuterMut)
+  use(a.len)
+  b.len = 3
+}
+fun recOuterMutWhileInnerBorrowed(inout env: OuterMutVal): Unit {
+  val r = &env.inner.a.len
+  if (*) {
+    recOuterMut(env)  // ERR K4
+  }
+  use(r)
+}
+fun peekMutEnv(borrow env: WriteEnv): Int { return env.a.len }
+fun localMutClosureWhileChildBorrowAlive(): Unit {
+  val a = Arr(1)
+  val f = WriteEnv(&mut a)
+  val r = &f.a.len
+  recMut(&mut f)  // ERR K4
+  use(r)
+}
+fun localMutClosureReadWhileExclChildAlive(): Unit {
+  val a = Arr(1)
+  val f = WriteEnv(&mut a)
+  val r = &mut f.a.len
+  val n = peekMutEnv(&f)  // ERR K4
+  use(r)
+}
+fun localMutClosureReadWhileSharedChildAlive(): Unit {
+  val a = Arr(1)
+  val f = WriteEnv(&mut a)
+  val r = &f.a.len
+  val n = peekMutEnv(&f)
+  use(r)
+  use(n)
+}

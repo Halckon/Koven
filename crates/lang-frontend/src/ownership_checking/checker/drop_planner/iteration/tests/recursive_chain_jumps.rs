@@ -20,7 +20,7 @@ fn alternating_recursive_capture_jump_edges_keep_the_formed_chain() {
         let source = sources
                 .add_source(
                     "alternating-recursive-jump.ko",
-                    format!("fun run(flags: List<Boolean>) {{ var f: move () -> Unit = move {{}}\nvar g: move () -> Unit = move {{}}\nfor (flag in flags) {{ {{ f = move {{ g() }} }}\ng = move {{ f() }}\n{tail} }}\nval used = g() }}"),
+                    format!("fun run(flags: List<Boolean>) {{ var f: move () -> Unit = move {{}}\nvar g: move () -> Unit = move {{}}\nfor (flag in flags) {{ block {{ f = move {{ g() }} }}\ng = move {{ f() }}\n{tail} }}\nval used = g() }}"),
                 )
                 .unwrap();
         let parsed =

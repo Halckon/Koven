@@ -55,7 +55,7 @@ fun entry(): Unit {
 fn borrowed_nullable_string_result_releases_child_and_source_before_writeback() {
     let source = r#"fun view(borrow source: String?): borrow String? from source = source
 fun inspect(inout slot: String?): Unit {
-    {
+    block {
         borrow val parent = view(slot)
         borrow val child = parent
         if (child == null) { println("null") } else { println(child) }
@@ -77,7 +77,7 @@ fun entry(): Unit {
 fn borrowed_nullable_string_result_lends_its_narrowed_payload() {
     let source = r#"fun view(borrow source: String?): borrow String? from source = source
 fun inspect(inout slot: String?): Unit {
-    {
+    block {
         borrow val result = view(slot)
         if (result != null) {
             borrow val child = (result)
@@ -157,7 +157,7 @@ fn borrowed_nullable_string_result_while_releases_each_iterations_payload() {
 fun view(borrow source: String?): borrow String? from source = source
 
 fun inspect(inout source: String?): Unit {
-    {
+    block {
         borrow val result = view(source)
         var remaining = 2
         while (result != null && remaining > 0) {
@@ -455,8 +455,8 @@ fun observe(borrow value: String?): Unit {
     if (value != null) { println(value) }
 }
 fun inspect(inout source: String?): Unit {
-    {
-        {
+    block {
+        block {
             borrow val other = view(source)
             observe(other)
         }
@@ -498,11 +498,11 @@ fn borrowed_nullable_string_result_while_in_sequential_block_with_live_sibling()
 fun view(borrow source: String?): borrow String? from source = source
 
 fun inspect(inout source: String?): Unit {
-    {
+    block {
         borrow val other = view(source)
         borrow val result = view(source)
         var first = true
-        {
+        block {
             while (result != null) {
                 val marker = Marker("iteration drop".clone())
                 println(result)
@@ -545,7 +545,7 @@ class Marker(val label: String) {
 fun view(borrow source: String?): borrow String? from source = source
 
 fun inspect(inout source: String?): Unit {
-    {
+    block {
         val second = "independent".clone()
         borrow val other = viewPlain(second)
         borrow val result = view(source)
@@ -587,8 +587,8 @@ class Marker(val label: String) {
 fun view(borrow source: String?): borrow String? from source = source
 
 fun inspect(inout source: String?): Unit {
-    {
-        {
+    block {
+        block {
             val second = "independent".clone()
             borrow val other = viewPlain(second)
             println(other)
@@ -632,7 +632,7 @@ class Marker(val label: String) {
 fun view(borrow source: String?): borrow String? from source = source
 
 fun inspect(inout source: String?): Unit {
-    {
+    block {
         val cleanup = Marker("scope drop".clone())
         val second = "independent".clone()
         borrow val other = viewPlain(second)
@@ -676,7 +676,7 @@ class Marker(val label: String) {
 fun view(borrow source: String?): borrow String? from source = source
 
 fun inspect(inout source: String?): Unit {
-    {
+    block {
         val cleanup = Marker("scope drop".clone())
         val second = "independent".clone()
         borrow val other = viewPlain(second)
@@ -720,7 +720,7 @@ class Marker(val label: String) {
 fun view(borrow source: String?): borrow String? from source = source
 
 fun inspect(inout source: String?, enabled: Boolean): Unit {
-    {
+    block {
         val cleanup = Marker("scope drop".clone())
         val second = "independent".clone()
         borrow val other = viewPlain(second)
@@ -765,7 +765,7 @@ class Marker(val label: String) {
     deinit() { println(label) }
 }
 fun inspect(inout source: String?, own discriminator: String?, early: Boolean): Unit {
-    {
+    block {
         val scope = Marker("scope drop".clone())
         val second = "independent".clone()
         borrow val other = viewPlain(second)

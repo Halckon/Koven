@@ -1,5 +1,6 @@
 //! Call evaluation, delivery and cleanup in the refined CFG.
 use super::{nullable_argument::WhenArgument, *};
+use lang_frontend::type_checking::BuiltinType;
 
 impl Builder<'_, '_> {
     pub(super) fn call(
@@ -31,6 +32,38 @@ impl Builder<'_, '_> {
                 self.unreachable_drop_scopes.push(self.span(argument.value));
             }
             return Ok(Lowered::Diverged);
+        }
+        let receiver = descriptor
+            .receiver()
+            .and_then(|receiver| self.inputs.concrete(receiver.ty()));
+        if let Some((operand, builtin)) = crate::ssa::lowering_support::builtin_display_call(
+            self.inputs.typed,
+            &descriptor,
+            receiver,
+        ) {
+            if operand.source_unit() != self.inputs.source_unit {
+                return Err(error(LoweringErrorKind::MissingFact, span));
+            }
+            if crate::ssa::lowering_support::is_float_builtin(builtin) {
+                return Err(error(LoweringErrorKind::UnsupportedNode, span));
+            }
+            let operand = operand.expression();
+            if builtin == BuiltinType::String {
+                let receiver =
+                    receiver.ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+                return self.clone_borrowed_string(expression, operand, receiver, span);
+            }
+            let Some(value) = self.required(operand)? else {
+                return Ok(Lowered::Diverged);
+            };
+            let string = self.ssa_type(self.expression_type(expression)?, span)?;
+            let result = self.value(
+                ROp::StringFromScalar { scalar: value },
+                EntityType::Value(string),
+                span,
+            )?;
+            self.drops(UnitDropPoint::CallReturn(call))?;
+            return Ok(Lowered::Value(result));
         }
         let is_extension = match descriptor.target() {
             UnitCallTarget::Declaration(id) => self
@@ -97,8 +130,14 @@ impl Builder<'_, '_> {
         let mut loans = Vec::new();
         let mut writebacks = Vec::new();
         let mut reserved_inout = Vec::new();
+        let mut deferred_null_values = Vec::new();
         let mut view_reads = Vec::new();
         let mut delivered = Vec::new();
+        let prefix_only = self
+            .inputs
+            .source_plan
+            .call_site(self.inputs.source_token, call)
+            .is_some_and(|site| site.dispatch_key().is_none());
         let mut call_args = call_args.into_iter();
         while let Some((param_slot, value_expression, call_arg_span, mode, parameter_type)) =
             call_args.next()
@@ -315,7 +354,50 @@ impl Builder<'_, '_> {
             } else {
                 self.expected_nullable = None;
             }
-            let value = self.required(value_expression);
+            let omit_unit = prefix_only
+                && crate::ssa::lowering_support::unit_argument_in_nondispatching_call(
+                    self.inputs.typed,
+                    self.inputs.owned,
+                    &descriptor,
+                    mode,
+                    self.c(parameter_type),
+                    self.expression_type_of(self.unit(value_expression)),
+                );
+            if omit_unit {
+                let result = self.expression(value_expression);
+                self.expected_nullable = saved_expected;
+                match result? {
+                    Lowered::Unit => continue,
+                    Lowered::Diverged => {
+                        for (_, skipped, ..) in call_args {
+                            self.unreachable_drop_scopes.push(self.span(skipped));
+                        }
+                        return Ok(Lowered::Diverged);
+                    }
+                    Lowered::Value(_) => {
+                        return Err(error(LoweringErrorKind::InvalidModel, call_arg_span));
+                    }
+                }
+            }
+            let direct_unit = mode != ParameterMode::Inout
+                && self
+                    .inputs
+                    .source_plan
+                    .call_site(self.inputs.source_token, call)
+                    .is_some_and(|site| {
+                        self.inputs.owned.call_may_dispatch(call)
+                            == Some(site.dispatch_key().is_some())
+                    })
+                && self.inputs.direct_unit_argument(
+                    &descriptor,
+                    self.unit(value_expression),
+                    self.c(parameter_type),
+                );
+            let value = if direct_unit {
+                self.required_unit(value_expression)
+            } else {
+                self.required(value_expression)
+            };
             self.expected_nullable = saved_expected;
             let Some(value) = value? else {
                 for (_, skipped, ..) in call_args {
@@ -325,7 +407,25 @@ impl Builder<'_, '_> {
             };
             match mode {
                 ParameterMode::Value => {
-                    let mut value = self.adapt(value, value_expression, self.c(parameter_type))?;
+                    let parameter = self.c(parameter_type);
+                    if self.move_only(parameter)
+                        && matches!(
+                            self.inputs.typed.types().get(parameter),
+                            Some(UnitTypeKind::Nullable(_))
+                        )
+                        && crate::ssa::lowering_support::is_null_only(
+                            self.inputs.typed,
+                            self.expression_type(value_expression)?,
+                        )
+                    {
+                        let target = self.ssa_type(parameter, call_arg_span)?;
+                        if self.body.slots[value.0] != EntityType::Value(target) {
+                            // The operand was evaluated, but its owning wrapper belongs to the call edge.
+                            deferred_null_values.push((param_slot, target, call_arg_span));
+                            continue;
+                        }
+                    }
+                    let mut value = self.adapt(value, value_expression, parameter)?;
                     value = self.snapshot_binding_if_name(value_expression, value)?;
                     // Delivered at the call: a later argument's jump still drops it.
                     self.repoint_temporary(value_expression, value);
@@ -363,6 +463,13 @@ impl Builder<'_, '_> {
                 loans.push(loan);
                 writebacks.push(writeback);
             }
+        }
+        for (param_slot, nullable, span) in deferred_null_values {
+            lowered_slots[param_slot] = Some(self.value(
+                ROp::NullableNull { nullable },
+                EntityType::Value(nullable),
+                span,
+            )?);
         }
         let lowered = lowered_slots
             .into_iter()

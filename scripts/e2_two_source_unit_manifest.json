@@ -1,0 +1,1714 @@
+{
+  "schema": "koven.e2-two-source-shadow-manifest.v1",
+  "suite_id": "e2-two-source-unit",
+  "source_script": "scripts/check_e2_two_source_unit_ci.sh",
+  "formal_ci_step_name": "Verify opt-in two-source Unit capability and atomicity",
+  "cargo_jobs": 1,
+  "total_configs": 5,
+  "total_entries": 179,
+  "configs": [
+    {
+      "config_id": "cfg1-codegen-lib-two-source-unit",
+      "package": "lang-codegen",
+      "target_name": "lang_codegen",
+      "target_kind": [
+        "lib"
+      ],
+      "cargo_target_args": [
+        "--lib"
+      ],
+      "cargo_features_arg": "two-source-unit",
+      "expected_features": [
+        "two-source-unit"
+      ],
+      "entries": [
+        {
+          "global_index": 0,
+          "test_name": "ssa::two_source_unit::tests::multi_file_entries::split_shared_entries_preserve_source_and_selection_identity",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 1,
+          "test_name": "ssa::two_source_unit::tests::different_late_temp_shared::different_late_temp_shared_original_facts_preserve_second_temporary",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 2,
+          "test_name": "ssa::two_source_unit::tests::different_late_temp_shared::different_late_temp_shared_closed_facts_prepare_asymmetric_lifetime",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 3,
+          "test_name": "ssa::two_source_unit::tests::different_late_temp_shared::different_late_temp_shared_rejects_reverse_and_uncovered_shapes",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 4,
+          "test_name": "ssa::two_source_unit::tests::early_temp_shared::early_temp_shared_original_facts_preserve_first_temporary",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 5,
+          "test_name": "ssa::two_source_unit::tests::early_temp_shared::early_temp_shared_closed_facts_prepare_asymmetric_lifetime",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 6,
+          "test_name": "ssa::two_source_unit::tests::early_temp_shared::early_temp_shared_rejects_uncovered_shapes",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 7,
+          "test_name": "ssa::two_source_unit::tests::late_temp_shared::late_temp_shared_original_facts_preserve_second_temporary",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 8,
+          "test_name": "ssa::two_source_unit::tests::late_temp_shared::late_temp_shared_closed_facts_prepare_asymmetric_lifetime",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 9,
+          "test_name": "ssa::two_source_unit::tests::late_temp_shared::late_temp_shared_rejects_reverse_and_uncovered_shapes",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 10,
+          "test_name": "ssa::two_source_unit::tests::joint_final_distinct::joint_final_distinct_original_facts_preserve_joint_last_use",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 11,
+          "test_name": "ssa::two_source_unit::tests::joint_final_distinct::joint_final_distinct_closed_facts_prepare_joint_retirement",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 12,
+          "test_name": "ssa::two_source_unit::tests::joint_final_distinct::joint_final_distinct_rejects_other_shapes_and_unclaimed_shells",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 13,
+          "test_name": "ssa::two_source_unit::tests::joint_final_named::joint_final_named_original_facts_preserve_joint_last_use",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 14,
+          "test_name": "ssa::two_source_unit::tests::joint_final_named::joint_final_named_closed_facts_prepare_joint_retirement",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 15,
+          "test_name": "ssa::two_source_unit::tests::joint_final_named::joint_final_named_rejects_outside_bounded_domain",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 16,
+          "test_name": "ssa::two_source_unit::tests::late_distinct::late_distinct_original_facts_keep_formation_between_calls",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 17,
+          "test_name": "ssa::two_source_unit::tests::late_distinct::late_distinct_closed_facts_prepare_late_owner",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 18,
+          "test_name": "ssa::two_source_unit::tests::late_distinct::late_distinct_rejects_other_shapes_and_unclaimed_shells",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 19,
+          "test_name": "ssa::two_source_unit::tests::staggered_distinct::staggered_distinct_original_facts_preserve_separate_last_use",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 20,
+          "test_name": "ssa::two_source_unit::tests::staggered_distinct::staggered_distinct_closed_facts_prepare_two_owner_root",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 21,
+          "test_name": "ssa::two_source_unit::tests::staggered_distinct::staggered_distinct_rejects_other_shapes_and_unclaimed_shells",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 22,
+          "test_name": "ssa::two_source_unit::tests::shared_mixed_distinct::shared_mixed_distinct_original_facts_preserve_interleaved_cleanup",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 23,
+          "test_name": "ssa::two_source_unit::tests::shared_mixed_distinct::shared_mixed_distinct_closed_facts_prepare_interleaved_root",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 24,
+          "test_name": "ssa::two_source_unit::tests::shared_mixed_distinct::shared_mixed_distinct_reject_other_shapes_and_unclaimed_shells",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 25,
+          "test_name": "ssa::two_source_unit::tests::shared_distinct_callees::shared_distinct_callees_original_facts_preserve_one_final_owner_drop",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 26,
+          "test_name": "ssa::two_source_unit::tests::shared_distinct_callees::shared_distinct_callees_closed_facts_prepare_shared_root",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 27,
+          "test_name": "ssa::two_source_unit::tests::shared_distinct_callees::shared_distinct_callees_reject_other_shapes_and_unclaimed_shells",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 28,
+          "test_name": "ssa::two_source_unit::tests::distinct_callees::distinct_callees_preserve_original_instances_and_call_lifetimes",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 29,
+          "test_name": "ssa::two_source_unit::tests::distinct_callees::distinct_callees_keep_other_lifetime_and_shape_boundaries",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 30,
+          "test_name": "ssa::two_source_unit::tests::distinct_callees::distinct_callees_reject_unclosed_and_unclaimed_definitions",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 31,
+          "test_name": "ssa::two_source_unit::tests::occurrence_bindings::occurrence_bindings_preserve_pure_multi_entry_mapping",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 32,
+          "test_name": "ssa::two_source_unit::tests::occurrence_bindings::occurrence_bindings_keep_single_callee_and_repeated_occurrences",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 33,
+          "test_name": "ssa::two_source_unit::tests::occurrence_bindings::occurrence_bindings_reject_computed_scalar_with_named_distinct_callees",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 34,
+          "test_name": "ssa::two_source_unit::tests::occurrence_bindings::occurrence_bindings_distinct_callers_keep_original_temporary_cleanup",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 35,
+          "test_name": "ssa::two_source_unit::tests::late_initialization::late_initialization_original_facts_keep_formation_between_calls",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 36,
+          "test_name": "ssa::two_source_unit::tests::late_initialization::late_initialization_emits_after_first_cleanup_before_second_acquisition",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 37,
+          "test_name": "ssa::two_source_unit::tests::late_initialization::late_initialization_rejects_other_formation_and_call_shapes",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 38,
+          "test_name": "ssa::two_source_unit::tests::scalar_origin::scalar_literal_loans_supply_original_observed_direct_call_ends",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 39,
+          "test_name": "ssa::two_source_unit::tests::direct_scalars::direct_scalar_arguments_preserve_real_constants_and_cleanup",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 40,
+          "test_name": "ssa::two_source_unit::tests::direct_scalars::direct_scalar_arguments_keep_restricted_expression_boundary",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 41,
+          "test_name": "ssa::two_source_unit::tests::direct_scalars::direct_scalars_do_not_leave_unused_locals_or_accept_boolean_expressions",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 42,
+          "test_name": "ssa::two_source_unit::tests::expression_entry::expression_entry_original_call_finishes_all_loans_and_string_owners",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 43,
+          "test_name": "ssa::two_source_unit::tests::expression_entry::expression_entry_lowers_only_the_original_direct_call",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 44,
+          "test_name": "ssa::two_source_unit::tests::two_call_entry::two_call_entry_original_facts_keep_call_local_cleanup",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 45,
+          "test_name": "ssa::two_source_unit::tests::two_call_entry::two_call_entry_finishes_first_lifetime_before_second_acquisition",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 46,
+          "test_name": "ssa::two_source_unit::tests::two_call_entry::two_call_entry_preserves_second_named_argument_order_and_values",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 47,
+          "test_name": "ssa::two_source_unit::tests::two_call_entry::two_call_entry_rejects_distinct_callees_with_computed_scalar",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 48,
+          "test_name": "ssa::two_source_unit::tests::two_call_entry::two_call_entry_rejects_uncovered_statements_and_shared_named_lifetimes",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 49,
+          "test_name": "ssa::two_source_unit::tests::shared_owner_pair::shared_owner_pair_original_facts_keep_owner_until_last_call",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 50,
+          "test_name": "ssa::two_source_unit::tests::shared_owner_pair::shared_owner_pair_emits_one_owner_across_two_complete_lifetimes",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 51,
+          "test_name": "ssa::two_source_unit::tests::shared_owner_pair::shared_owner_pair_rejects_other_lifetime_shapes",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 52,
+          "test_name": "ssa::two_source_unit::tests::shared_mixed_pair::shared_mixed_pair_original_facts_order_temporary_before_final_named_drop",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 53,
+          "test_name": "ssa::two_source_unit::tests::shared_mixed_pair::shared_mixed_pair_replays_interleaved_owner_lifetimes",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 54,
+          "test_name": "ssa::two_source_unit::tests::shared_mixed_pair::shared_mixed_pair_rejects_asymmetric_or_uncovered_lifetimes",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 55,
+          "test_name": "ssa::two_source_unit::tests::staggered_owners::staggered_owners_original_facts_observe_each_roots_last_call",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 56,
+          "test_name": "ssa::two_source_unit::tests::staggered_owners::staggered_owners_emit_distinct_initializations_and_original_last_use_drops",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 57,
+          "test_name": "ssa::two_source_unit::tests::staggered_owners::staggered_owners_reject_other_root_and_call_shapes",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 58,
+          "test_name": "ssa::two_source_unit::tests::integer_literals::entry_integer_spellings_preserve_value_and_source_span",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 59,
+          "test_name": "ssa::two_source_unit::tests::integer_literals::entry_integer_spellings_keep_expression_and_type_boundaries",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 60,
+          "test_name": "ssa::two_source_unit::tests::named_arguments::named_arguments_preserve_source_borrows_and_signature_delivery",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 61,
+          "test_name": "ssa::two_source_unit::tests::parameter_roles::entry_arguments_preserve_all_signature_role_permutations",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 62,
+          "test_name": "ssa::two_source_unit::tests::parameter_roles::entry_role_permutations_reject_grouped_scalar_arguments",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 63,
+          "test_name": "ssa::two_source_unit::tests::declaration_order::entry_declarations_preserve_source_order_and_scalar_roles",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 64,
+          "test_name": "ssa::two_source_unit::tests::declaration_order::entry_declaration_permutations_do_not_admit_extra_or_computed_locals",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 65,
+          "test_name": "ssa::two_source_unit::tests::static_strings::static_string_escapes_preserve_bytes_in_every_owner_shape",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 66,
+          "test_name": "ssa::two_source_unit::tests::static_strings::static_string_entries_still_reject_real_interpolation",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 67,
+          "test_name": "ssa::two_source_unit::tests::explicit_capability_checks_whole_unit_and_source_identity",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 68,
+          "test_name": "ssa::two_source_unit::tests::explicit_capability_executes_original_object",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 69,
+          "test_name": "ssa::two_source_unit::tests::explicit_capability_commit_failure_is_atomic",
+          "exact": true,
+          "ignored": true,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 70,
+          "test_name": "ssa::two_source_unit::tests::multiple_entries_preserve_complete_selection_and_mapping",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 71,
+          "test_name": "ssa::two_source_unit::tests::multiple_entries_commit_failure_is_atomic",
+          "exact": true,
+          "ignored": true,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 72,
+          "test_name": "ssa::two_source_unit::tests::multiple_entries_reject_unsupported_entry",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 73,
+          "test_name": "ssa::two_source_unit::tests::shared_entries::shared_caller_entries_use_exact_fact_set_and_independent_roots",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 74,
+          "test_name": "ssa::two_source_unit::tests::named_shared_owner_entry_is_closed_and_unique",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 75,
+          "test_name": "ssa::two_source_unit::tests::distinct_named::distinct_named_owners_preserve_argument_identity_and_cleanup",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 76,
+          "test_name": "ssa::two_source_unit::tests::mixed_owner::mixed_owner_entry_preserves_temporary_argument_and_named_cleanup",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 77,
+          "test_name": "ssa::two_source_unit::tests::final_types::final_types_reject_unreachable_member_in_complete_source_set",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 78,
+          "test_name": "ssa::two_source_unit::tests::validation_errors::ownership_validation_errors_are_not_unsupported_selection",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 79,
+          "test_name": "ssa::two_source_unit::tests::validation_errors::deferred_rejection_is_distinct_from_valid_unsupported_subset",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 80,
+          "test_name": "ssa::two_source_unit::tests::combined_entries::named_shared_entries_keep_cleanup_and_whole_unit_diagnostics",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        }
+      ]
+    },
+    {
+      "config_id": "cfg2-codegen-test-two-source-unit",
+      "package": "lang-codegen",
+      "target_name": "two_source_unit",
+      "target_kind": [
+        "test"
+      ],
+      "cargo_target_args": [
+        "--test",
+        "two_source_unit"
+      ],
+      "cargo_features_arg": "two-source-unit",
+      "expected_features": [
+        "two-source-unit"
+      ],
+      "entries": [
+        {
+          "global_index": 81,
+          "test_name": "public_capability_emits_and_executes_without_test_observers",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 82,
+          "test_name": "public_multiple_entries_execute_one_common_program",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 83,
+          "test_name": "public_named_shared_owner_executes_exact_source",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 84,
+          "test_name": "public_distinct_named_owners_execute_reversed_arguments",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 85,
+          "test_name": "public_mixed_owner_entry_executes_temporary_first",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 86,
+          "test_name": "public_shared_caller_entries_execute_distinct_roots",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 87,
+          "test_name": "public_shared_named_entries_execute_distinct_owners",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        }
+      ]
+    },
+    {
+      "config_id": "cfg3-codegen-lib-two-source-full-support",
+      "package": "lang-codegen",
+      "target_name": "lang_codegen",
+      "target_kind": [
+        "lib"
+      ],
+      "cargo_target_args": [
+        "--lib"
+      ],
+      "cargo_features_arg": "two-source-unit e2-two-source-test-support loan-observation-test-support",
+      "expected_features": [
+        "e2-two-source-test-support",
+        "loan-observation-test-support",
+        "two-source-unit"
+      ],
+      "entries": [
+        {
+          "global_index": 88,
+          "test_name": "ssa::two_source_unit::tests::multi_file_entries::split_shared_entries_preserve_source_and_selection_identity",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 89,
+          "test_name": "ssa::two_source_unit::tests::different_late_temp_shared::different_late_temp_shared_original_facts_preserve_second_temporary",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 90,
+          "test_name": "ssa::two_source_unit::tests::different_late_temp_shared::different_late_temp_shared_closed_facts_prepare_asymmetric_lifetime",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 91,
+          "test_name": "ssa::two_source_unit::tests::different_late_temp_shared::different_late_temp_shared_rejects_reverse_and_uncovered_shapes",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 92,
+          "test_name": "ssa::two_source_unit::tests::early_temp_shared::early_temp_shared_original_facts_preserve_first_temporary",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 93,
+          "test_name": "ssa::two_source_unit::tests::early_temp_shared::early_temp_shared_closed_facts_prepare_asymmetric_lifetime",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 94,
+          "test_name": "ssa::two_source_unit::tests::early_temp_shared::early_temp_shared_rejects_uncovered_shapes",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 95,
+          "test_name": "ssa::two_source_unit::tests::late_temp_shared::late_temp_shared_original_facts_preserve_second_temporary",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 96,
+          "test_name": "ssa::two_source_unit::tests::late_temp_shared::late_temp_shared_closed_facts_prepare_asymmetric_lifetime",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 97,
+          "test_name": "ssa::two_source_unit::tests::late_temp_shared::late_temp_shared_rejects_reverse_and_uncovered_shapes",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 98,
+          "test_name": "ssa::two_source_unit::tests::joint_final_distinct::joint_final_distinct_original_facts_preserve_joint_last_use",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 99,
+          "test_name": "ssa::two_source_unit::tests::joint_final_distinct::joint_final_distinct_closed_facts_prepare_joint_retirement",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 100,
+          "test_name": "ssa::two_source_unit::tests::joint_final_distinct::joint_final_distinct_rejects_other_shapes_and_unclaimed_shells",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 101,
+          "test_name": "ssa::two_source_unit::tests::joint_final_named::joint_final_named_original_facts_preserve_joint_last_use",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 102,
+          "test_name": "ssa::two_source_unit::tests::joint_final_named::joint_final_named_closed_facts_prepare_joint_retirement",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 103,
+          "test_name": "ssa::two_source_unit::tests::joint_final_named::joint_final_named_rejects_outside_bounded_domain",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 104,
+          "test_name": "ssa::two_source_unit::tests::late_distinct::late_distinct_original_facts_keep_formation_between_calls",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 105,
+          "test_name": "ssa::two_source_unit::tests::late_distinct::late_distinct_closed_facts_prepare_late_owner",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 106,
+          "test_name": "ssa::two_source_unit::tests::late_distinct::late_distinct_rejects_other_shapes_and_unclaimed_shells",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 107,
+          "test_name": "ssa::two_source_unit::tests::staggered_distinct::staggered_distinct_original_facts_preserve_separate_last_use",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 108,
+          "test_name": "ssa::two_source_unit::tests::staggered_distinct::staggered_distinct_closed_facts_prepare_two_owner_root",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 109,
+          "test_name": "ssa::two_source_unit::tests::staggered_distinct::staggered_distinct_rejects_other_shapes_and_unclaimed_shells",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 110,
+          "test_name": "ssa::two_source_unit::tests::shared_mixed_distinct::shared_mixed_distinct_original_facts_preserve_interleaved_cleanup",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 111,
+          "test_name": "ssa::two_source_unit::tests::shared_mixed_distinct::shared_mixed_distinct_closed_facts_prepare_interleaved_root",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 112,
+          "test_name": "ssa::two_source_unit::tests::shared_mixed_distinct::shared_mixed_distinct_reject_other_shapes_and_unclaimed_shells",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 113,
+          "test_name": "ssa::two_source_unit::tests::shared_distinct_callees::shared_distinct_callees_original_facts_preserve_one_final_owner_drop",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 114,
+          "test_name": "ssa::two_source_unit::tests::shared_distinct_callees::shared_distinct_callees_closed_facts_prepare_shared_root",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 115,
+          "test_name": "ssa::two_source_unit::tests::shared_distinct_callees::shared_distinct_callees_reject_other_shapes_and_unclaimed_shells",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 116,
+          "test_name": "ssa::two_source_unit::tests::distinct_callees::distinct_callees_preserve_original_instances_and_call_lifetimes",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 117,
+          "test_name": "ssa::two_source_unit::tests::distinct_callees::distinct_callees_keep_other_lifetime_and_shape_boundaries",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 118,
+          "test_name": "ssa::two_source_unit::tests::distinct_callees::distinct_callees_reject_unclosed_and_unclaimed_definitions",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 119,
+          "test_name": "ssa::two_source_unit::tests::occurrence_bindings::occurrence_bindings_preserve_pure_multi_entry_mapping",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 120,
+          "test_name": "ssa::two_source_unit::tests::occurrence_bindings::occurrence_bindings_keep_single_callee_and_repeated_occurrences",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 121,
+          "test_name": "ssa::two_source_unit::tests::occurrence_bindings::occurrence_bindings_reject_computed_scalar_with_named_distinct_callees",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 122,
+          "test_name": "ssa::two_source_unit::tests::occurrence_bindings::occurrence_bindings_distinct_callers_keep_original_temporary_cleanup",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 123,
+          "test_name": "ssa::two_source_unit::tests::late_initialization::late_initialization_original_facts_keep_formation_between_calls",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 124,
+          "test_name": "ssa::two_source_unit::tests::late_initialization::late_initialization_emits_after_first_cleanup_before_second_acquisition",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 125,
+          "test_name": "ssa::two_source_unit::tests::late_initialization::late_initialization_rejects_other_formation_and_call_shapes",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 126,
+          "test_name": "ssa::two_source_unit::tests::scalar_origin::scalar_literal_loans_supply_original_observed_direct_call_ends",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 127,
+          "test_name": "ssa::two_source_unit::tests::direct_scalars::direct_scalar_arguments_preserve_real_constants_and_cleanup",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 128,
+          "test_name": "ssa::two_source_unit::tests::direct_scalars::direct_scalar_arguments_keep_restricted_expression_boundary",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 129,
+          "test_name": "ssa::two_source_unit::tests::direct_scalars::direct_scalars_do_not_leave_unused_locals_or_accept_boolean_expressions",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 130,
+          "test_name": "ssa::two_source_unit::tests::expression_entry::expression_entry_original_call_finishes_all_loans_and_string_owners",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 131,
+          "test_name": "ssa::two_source_unit::tests::expression_entry::expression_entry_lowers_only_the_original_direct_call",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 132,
+          "test_name": "ssa::two_source_unit::tests::two_call_entry::two_call_entry_original_facts_keep_call_local_cleanup",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 133,
+          "test_name": "ssa::two_source_unit::tests::two_call_entry::two_call_entry_finishes_first_lifetime_before_second_acquisition",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 134,
+          "test_name": "ssa::two_source_unit::tests::two_call_entry::two_call_entry_preserves_second_named_argument_order_and_values",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 135,
+          "test_name": "ssa::two_source_unit::tests::two_call_entry::two_call_entry_rejects_distinct_callees_with_computed_scalar",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 136,
+          "test_name": "ssa::two_source_unit::tests::two_call_entry::two_call_entry_rejects_uncovered_statements_and_shared_named_lifetimes",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 137,
+          "test_name": "ssa::two_source_unit::tests::shared_owner_pair::shared_owner_pair_original_facts_keep_owner_until_last_call",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 138,
+          "test_name": "ssa::two_source_unit::tests::shared_owner_pair::shared_owner_pair_emits_one_owner_across_two_complete_lifetimes",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 139,
+          "test_name": "ssa::two_source_unit::tests::shared_owner_pair::shared_owner_pair_rejects_other_lifetime_shapes",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 140,
+          "test_name": "ssa::two_source_unit::tests::shared_mixed_pair::shared_mixed_pair_original_facts_order_temporary_before_final_named_drop",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 141,
+          "test_name": "ssa::two_source_unit::tests::shared_mixed_pair::shared_mixed_pair_replays_interleaved_owner_lifetimes",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 142,
+          "test_name": "ssa::two_source_unit::tests::shared_mixed_pair::shared_mixed_pair_rejects_asymmetric_or_uncovered_lifetimes",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 143,
+          "test_name": "ssa::two_source_unit::tests::staggered_owners::staggered_owners_original_facts_observe_each_roots_last_call",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 144,
+          "test_name": "ssa::two_source_unit::tests::staggered_owners::staggered_owners_emit_distinct_initializations_and_original_last_use_drops",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 145,
+          "test_name": "ssa::two_source_unit::tests::staggered_owners::staggered_owners_reject_other_root_and_call_shapes",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 146,
+          "test_name": "ssa::two_source_unit::tests::integer_literals::entry_integer_spellings_preserve_value_and_source_span",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 147,
+          "test_name": "ssa::two_source_unit::tests::integer_literals::entry_integer_spellings_keep_expression_and_type_boundaries",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 148,
+          "test_name": "ssa::two_source_unit::tests::named_arguments::named_arguments_preserve_source_borrows_and_signature_delivery",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 149,
+          "test_name": "ssa::two_source_unit::tests::parameter_roles::entry_arguments_preserve_all_signature_role_permutations",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 150,
+          "test_name": "ssa::two_source_unit::tests::parameter_roles::entry_role_permutations_reject_grouped_scalar_arguments",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 151,
+          "test_name": "ssa::two_source_unit::tests::declaration_order::entry_declarations_preserve_source_order_and_scalar_roles",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 152,
+          "test_name": "ssa::two_source_unit::tests::declaration_order::entry_declaration_permutations_do_not_admit_extra_or_computed_locals",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 153,
+          "test_name": "ssa::two_source_unit::tests::static_strings::static_string_escapes_preserve_bytes_in_every_owner_shape",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 154,
+          "test_name": "ssa::two_source_unit::tests::static_strings::static_string_entries_still_reject_real_interpolation",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 155,
+          "test_name": "ssa::two_source_unit::tests::explicit_capability_checks_whole_unit_and_source_identity",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 156,
+          "test_name": "ssa::two_source_unit::tests::explicit_capability_executes_original_object",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 157,
+          "test_name": "ssa::two_source_unit::tests::explicit_capability_commit_failure_is_atomic",
+          "exact": true,
+          "ignored": true,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 158,
+          "test_name": "ssa::two_source_unit::tests::multiple_entries_preserve_complete_selection_and_mapping",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 159,
+          "test_name": "ssa::two_source_unit::tests::multiple_entries_commit_failure_is_atomic",
+          "exact": true,
+          "ignored": true,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 160,
+          "test_name": "ssa::two_source_unit::tests::multiple_entries_reject_unsupported_entry",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 161,
+          "test_name": "ssa::two_source_unit::tests::shared_entries::shared_caller_entries_use_exact_fact_set_and_independent_roots",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 162,
+          "test_name": "ssa::two_source_unit::tests::named_shared_owner_entry_is_closed_and_unique",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 163,
+          "test_name": "ssa::two_source_unit::tests::distinct_named::distinct_named_owners_preserve_argument_identity_and_cleanup",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 164,
+          "test_name": "ssa::two_source_unit::tests::mixed_owner::mixed_owner_entry_preserves_temporary_argument_and_named_cleanup",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 165,
+          "test_name": "ssa::two_source_unit::tests::final_types::final_types_reject_unreachable_member_in_complete_source_set",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 166,
+          "test_name": "ssa::two_source_unit::tests::validation_errors::ownership_validation_errors_are_not_unsupported_selection",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 167,
+          "test_name": "ssa::two_source_unit::tests::validation_errors::deferred_rejection_is_distinct_from_valid_unsupported_subset",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 168,
+          "test_name": "ssa::two_source_unit::tests::combined_entries::named_shared_entries_keep_cleanup_and_whole_unit_diagnostics",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        }
+      ]
+    },
+    {
+      "config_id": "cfg4-codegen-test-two-source-full-support",
+      "package": "lang-codegen",
+      "target_name": "two_source_unit",
+      "target_kind": [
+        "test"
+      ],
+      "cargo_target_args": [
+        "--test",
+        "two_source_unit"
+      ],
+      "cargo_features_arg": "two-source-unit e2-two-source-test-support loan-observation-test-support",
+      "expected_features": [
+        "e2-two-source-test-support",
+        "loan-observation-test-support",
+        "two-source-unit"
+      ],
+      "entries": [
+        {
+          "global_index": 169,
+          "test_name": "public_capability_emits_and_executes_without_test_observers",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 170,
+          "test_name": "public_multiple_entries_execute_one_common_program",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 171,
+          "test_name": "public_named_shared_owner_executes_exact_source",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 172,
+          "test_name": "public_distinct_named_owners_execute_reversed_arguments",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 173,
+          "test_name": "public_mixed_owner_entry_executes_temporary_first",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 174,
+          "test_name": "public_shared_caller_entries_execute_distinct_roots",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 175,
+          "test_name": "public_shared_named_entries_execute_distinct_owners",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        }
+      ]
+    },
+    {
+      "config_id": "cfg5-frontend-lib-e2-support",
+      "package": "lang-frontend",
+      "target_name": "lang_frontend",
+      "target_kind": [
+        "lib"
+      ],
+      "cargo_target_args": [
+        "--lib"
+      ],
+      "cargo_features_arg": "e2-two-source-test-support loan-observation-test-support",
+      "expected_features": [
+        "e2-two-source-test-support",
+        "loan-observation-test-support"
+      ],
+      "entries": [
+        {
+          "global_index": 176,
+          "test_name": "ownership_checking::compilation_unit::loop_no_carry::two_source_candidate::tests::named_shared_string_entry_cleanup_evidence",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 177,
+          "test_name": "ownership_checking::compilation_unit::loop_no_carry::two_source_candidate::tests::process_entry_argument_end_evidence_distinguishes_literals_and_named_scalars",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        },
+        {
+          "global_index": 178,
+          "test_name": "ownership_checking::compilation_unit::loop_no_carry::two_source_candidate::tests::parameter_print_retains_real_shared_argument_contract_without_ending_input",
+          "exact": true,
+          "ignored": false,
+          "ci_only": true,
+          "expected_outcome": "pass",
+          "expected_failure_substrings": []
+        }
+      ]
+    }
+  ]
+}

@@ -28,7 +28,7 @@ def check_results(needs, event, ref, reuse_verified=False):
     full = rust and (event in ("pull_request", "workflow_dispatch") or ref == "refs/heads/main")
     preview = (outputs["preview"] == "true" or force) and full
     required = {"rust-size": True, "dependencies": True, "docs": outputs["docs"] == "true" or force or event == "pull_request", "fmt": rust,
-                "clippy": full, "test": full, "editors": outputs["editors"] == "true" or force}
+                "clippy": full, "test": full, "test-d10": full, "test-e2": full, "editors": outputs["editors"] == "true" or force}
     required.update(dict.fromkeys(("preview-macos-produce", "preview-linux-produce",
                                    "preview-macos-consume", "preview-linux-consume"), preview))
     if reused:

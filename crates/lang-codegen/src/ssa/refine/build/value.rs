@@ -297,12 +297,23 @@ impl Builder<'_, '_> {
         span: Span,
     ) -> Result<Lowered, LoweringError> {
         let symbol = self.reference(self.span(target))?;
-        let Some(slot) = self.required(value)? else {
-            return Ok(Lowered::Diverged);
-        };
         let declared = self
             .symbol_type(symbol)
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        let slot = if self.is_unit(declared) {
+            if self.expression(value)? == Lowered::Diverged {
+                return Ok(Lowered::Diverged);
+            }
+            self.typed_value(
+                ROp::Constant(crate::ssa::model::ScalarConstant::Unit),
+                value,
+            )?
+        } else {
+            let Some(slot) = self.required(value)? else {
+                return Ok(Lowered::Diverged);
+            };
+            slot
+        };
         let slot = self.adapt(slot, value, declared)?;
         self.deliver(value);
         if let Some(loan) = self.inout_loan(symbol) {
@@ -647,6 +658,7 @@ pub(in crate::ssa::refine::build) mod field {
                     self.receiver
                 }
                 OwnerRef::Expression(mut expression) => {
+                    let original = expression;
                     while let (Expression::Group { expression: inner }, _) =
                         self.node(expression)?
                     {
@@ -688,7 +700,7 @@ pub(in crate::ssa::refine::build) mod field {
                         }
                         _ => {
                             let owner = self
-                                .required(expression)?
+                                .required(original)?
                                 .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
                             return self.lend(owner, kind, span);
                         }
@@ -832,6 +844,15 @@ pub(in crate::ssa::refine::build) mod field {
                 if self.expression(initializer)? == Lowered::Diverged {
                     return Ok(Lowered::Diverged);
                 }
+                // Reusing the initializer slot would merge two local roots
+                // when the initializer is a read of another Unit binding.
+                let ty = self.ssa_type(declared, span)?;
+                let binding = self.value(
+                    ROp::Constant(crate::ssa::model::ScalarConstant::Unit),
+                    EntityType::Value(ty),
+                    span,
+                )?;
+                self.bindings.insert(symbol, binding);
                 return Ok(Lowered::Unit);
             }
             let saved_expected = self.expected_nullable;

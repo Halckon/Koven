@@ -408,32 +408,47 @@ impl Builder<'_, '_> {
             .typed
             .non_null_assertion(id)
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        let plan = self
-            .inputs
-            .owned
-            .non_null_assertion(id)
-            .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-        if plan.descriptor() != &descriptor
+        let plan = self.inputs.owned.non_null_assertion(id);
+        let inner_ty = self.c(descriptor.inner_type());
+        let null_only = self.is_nothing(inner_ty);
+        if plan.is_some_and(|plan| plan.descriptor() != &descriptor)
             || descriptor.operand().source_unit() != self.inputs.source_unit
-            || !matches!(
-                plan.non_null_transfer(),
-                NonNullAssertionTransferKind::Consume | NonNullAssertionTransferKind::Copy
-            )
+            || (plan.is_none()
+                && !(null_only
+                    && self
+                        .inputs
+                        .typed
+                        .expression_falls_through(descriptor.operand())
+                        == Some(false)))
             || !matches!(
                 self.inputs.typed.types().get(self.c(descriptor.nullable_type())),
-                Some(UnitTypeKind::Nullable(inner)) if *inner == self.c(descriptor.inner_type())
+                Some(UnitTypeKind::Nullable(inner)) if *inner == inner_ty
             )
         {
             return Err(error(LoweringErrorKind::MissingFact, span));
         }
         let operand = descriptor.operand().expression();
-        let owner = match self.expression_inner(operand)? {
+        let lowered = if null_only {
+            // Complete the operand's own evaluation, including temporary receivers.
+            self.expression(operand)?
+        } else {
+            self.expression_inner(operand)?
+        };
+        let owner = match lowered {
             Lowered::Value(owner) => owner,
             Lowered::Diverged => return Ok(Lowered::Diverged),
             Lowered::Unit => return Err(error(LoweringErrorKind::MissingFact, span)),
         };
         let nullable_ssa = self.ssa_type(self.c(descriptor.nullable_type()), span)?;
-        let inner = self.ssa_type(self.c(descriptor.inner_type()), span)?;
+        let plan = plan.ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+        if null_only {
+            if self.body.slots[owner.0] != EntityType::Value(nullable_ssa) {
+                return Err(error(LoweringErrorKind::MissingFact, span));
+            }
+            self.terminate(RTerm::Abort(RAbort::NullAssertion), span)?;
+            return Ok(Lowered::Diverged);
+        }
+        let inner = self.ssa_type(inner_ty, span)?;
         if plan.non_null_transfer() == NonNullAssertionTransferKind::Copy
             && self.types.map_results.contains_key(&nullable_ssa)
         {

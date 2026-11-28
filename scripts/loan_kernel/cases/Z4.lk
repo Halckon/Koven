@@ -1,0 +1,39 @@
+// 回边必须在每条能到达它的路径上都恢复 this。
+class Socket(fd: Int) deinit
+class Buffer(n: Int) deinit
+class Conn(sock: Socket, buf: Buffer) deinit
+fun mayFail(): Unit trusted
+fun restoreOnlyLeft(own this: Conn): Unit in Conn {
+  while (*) {
+    open this as sock, buf  // ERR K8
+    if (*) {
+      this = Conn(move sock, move buf)
+    } else {
+      mayFail()
+    }
+  }
+}
+fun restoreOnlyRight(own this: Conn): Unit in Conn {
+  while (*) {
+    open this as sock, buf  // ERR K8
+    if (*) {
+      mayFail()
+    } else {
+      this = Conn(move sock, move buf)
+    }
+  }
+}
+fun restoreEitherArm(own this: Conn): Unit in Conn {
+  while (*) {
+    open this as sock, buf
+    if (*) {
+      mayFail()
+      this = Conn(move sock, move buf)
+    } else {
+      this = Conn(move sock, move buf)
+      mayFail()
+    }
+  }
+  mayFail()
+  use(this)
+}

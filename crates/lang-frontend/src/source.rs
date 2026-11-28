@@ -1,4 +1,5 @@
 //! 源码身份、字节范围与展示位置的统一基础设施。
+#![allow(unexpected_cfgs)]
 
 use std::{
     error::Error,
@@ -68,6 +69,23 @@ impl Span {
     #[must_use]
     pub const fn is_empty(self) -> bool {
         self.start == self.end
+    }
+
+    #[cfg(any(test, kani))]
+    pub(crate) const fn synthetic_for_verification() -> Self {
+        Self::synthetic_range_for_verification(0, 0)
+    }
+
+    #[cfg(any(test, kani))]
+    pub(crate) const fn synthetic_range_for_verification(start: usize, end: usize) -> Self {
+        Self {
+            source_id: SourceId {
+                map_id: 0,
+                index: 0,
+            },
+            start,
+            end,
+        }
     }
 }
 
@@ -331,6 +349,18 @@ impl SourceMap {
         Ok(&source.text[span.start..span.end])
     }
 
+    /// True if the span contains an LF, including the LF in a CRLF pair.
+    pub(crate) fn span_has_line_break(&self, span: Span) -> Result<bool, SourceError> {
+        let source = self.source_for_span(span)?;
+        let next = source
+            .line_starts
+            .partition_point(|&start| start <= span.start);
+        Ok(source
+            .line_starts
+            .get(next)
+            .is_some_and(|&start| start <= span.end))
+    }
+
     /// 把字节偏移转换为统一的 1-based 行列位置。
     ///
     /// `\n` 后的第一个字节开始新行；在 `\r\n` 中，`\r` 与 `\n` 的 offset 都仍属于前一
@@ -445,4 +475,31 @@ fn line_starts(text: &str) -> Vec<usize> {
     }
 
     starts
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SourceMap;
+
+    #[test]
+    fn indexed_line_break_query_matches_lf_in_a_checked_slice() {
+        let text = "甲\r\n乙\r丙\n";
+        let mut map = SourceMap::new();
+        let root = map.add_source("lines.ko", text).unwrap();
+        let offsets: Vec<_> = text
+            .char_indices()
+            .map(|(offset, _)| offset)
+            .chain(std::iter::once(text.len()))
+            .collect();
+        for (first, &start) in offsets.iter().enumerate() {
+            for &end in &offsets[first..] {
+                let span = map.span(root, start, end).unwrap();
+                assert_eq!(
+                    map.span_has_line_break(span).unwrap(),
+                    text[start..end].contains('\n'),
+                    "{start}..{end}"
+                );
+            }
+        }
+    }
 }

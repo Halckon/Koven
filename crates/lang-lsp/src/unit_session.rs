@@ -5,11 +5,11 @@ use std::{collections::BTreeMap, error::Error, fmt};
 use lang_frontend::{
     analysis::{
         UnitNameAnalysisError, UnitSourceDescriptor, analyze_basic_unit_ownership,
-        analyze_unit_names,
+        analyze_unit_names, append_builtin_display, complete_unit_display_types,
     },
     lexer::LexerInternalError,
     name_resolution::{
-        CompilationUnitInputError, CompilationUnitNameError, UnitDiagnosticOrderError,
+        CompilationUnitInputError, CompilationUnitNameError, SourceUnitId, UnitDiagnosticOrderError,
     },
     ownership_checking::OwnershipCheckingError,
     parser::ParserInternalError,
@@ -18,19 +18,31 @@ use lang_frontend::{
         CompilationUnitTypeError, check_compilation_unit_types, standard_environments,
     },
 };
-use lsp_types::{Location, Position, Uri};
+use lsp_types::{
+    CompletionItem, DocumentSymbol, Hover, InlayHint, Location, Position, PrepareRenameResponse,
+    Range, SignatureHelp, SymbolInformation, Uri, WorkspaceEdit,
+};
 
 use crate::{
-    definition::DefinitionIndexError,
-    diagnostic_adapter::{DiagnosticMappingError, convert_unit_diagnostics},
+    completion,
+    definition::{DefinitionIndexError, UnitDefinitionTarget},
+    diagnostic_adapter::{DiagnosticMappingError, convert_unit_diagnostics_with_context},
+    ide_features,
     position_adapter::{PositionMappingError, byte_offset, span_range},
+    rename::{
+        RenameError, RenameSourceInput, build_workspace_edit, verify_rename_preserves_bindings,
+    },
     source_set::SourceSetConfig,
+    symbols,
     unit_analysis_snapshot::{UnitAnalysisSnapshot, UnitAnalysisSnapshotError},
+    workspace_manifest,
 };
 
 // The independent cfg(test) manual chain keeps its original direct producer imports.
 #[cfg(test)]
 use crate::definition::UnitDefinitionIndex;
+#[cfg(test)]
+use crate::diagnostic_adapter::convert_unit_diagnostics;
 #[cfg(test)]
 use lang_frontend::{
     diagnostic::Diagnostic, name_resolution::ordered_unit_diagnostics,
@@ -62,23 +74,59 @@ pub(crate) struct UnitSession {
     config: SourceSetConfig,
     overlays: BTreeMap<String, Overlay>,
     snapshot: UnitSnapshot,
+    enrich_diagnostics: bool,
+    disk_backed_uris: std::collections::BTreeSet<String>,
 }
 
 impl UnitSession {
     /// 从已验证 base 构造首个 snapshot。
+    #[allow(dead_code)]
     pub(crate) fn new(config: SourceSetConfig) -> Result<Self, UnitSessionError> {
+        Self::new_with_options(config, false, false)
+    }
+
+    /// 从已验证 base 构造首个 snapshot，可选开启诊断源码片段上下文与磁盘快照校验。
+    pub(crate) fn new_with_options(
+        config: SourceSetConfig,
+        enrich_diagnostics: bool,
+        workspace_manifest: bool,
+    ) -> Result<Self, UnitSessionError> {
         let overlays = BTreeMap::new();
         let snapshot = UnitSnapshot::analyze(&config, &overlays)?;
+        let disk_backed_uris = config
+            .sources()
+            .iter()
+            .filter(|source| {
+                workspace_manifest
+                    || workspace_manifest::file_uri_to_path(source.uri())
+                        .is_some_and(|path| path.exists())
+            })
+            .map(|source| source.uri().as_str().to_owned())
+            .collect();
         Ok(Self {
             config,
             overlays,
             snapshot,
+            enrich_diagnostics,
+            disk_backed_uris,
         })
+    }
+
+    /// 判断 URI 是否属于当前 source-set base。
+    pub(crate) fn contains_uri(&self, uri: &Uri) -> bool {
+        self.config
+            .sources()
+            .iter()
+            .any(|source| source.uri().as_str() == uri.as_str())
     }
 
     /// 返回首个 base-only publication 集合。
     pub(crate) fn publications(&self) -> Result<Vec<UnitPublication>, UnitSessionError> {
-        self.snapshot.publications(&self.config, &self.overlays)
+        self.snapshot.publications_with_options(
+            &self.config,
+            &self.overlays,
+            self.enrich_diagnostics,
+        )
     }
 
     /// 为已知、尚未打开的 URI 准备 overlay open。
@@ -154,6 +202,97 @@ impl UnitSession {
             .definition_locations(&self.config, uri, position)
     }
 
+    /// 查询当前 last-good snapshot 中的跨文件 references locations。
+    pub(crate) fn reference_locations(
+        &self,
+        uri: &Uri,
+        position: Position,
+        include_declaration: bool,
+    ) -> Result<Vec<Location>, UnitDefinitionQueryError> {
+        self.snapshot
+            .reference_locations(&self.config, uri, position, include_declaration)
+    }
+
+    /// 查询当前 last-good snapshot 中的 hover 信息。
+    pub(crate) fn hover(
+        &self,
+        uri: &Uri,
+        position: Position,
+    ) -> Result<Option<Hover>, UnitDefinitionQueryError> {
+        self.snapshot.hover(&self.config, uri, position)
+    }
+
+    /// 查询当前 last-good snapshot 中指定文档范围的 inlay hints。
+    pub(crate) fn inlay_hints(
+        &self,
+        uri: &Uri,
+        range: Range,
+    ) -> Result<Vec<InlayHint>, UnitDefinitionQueryError> {
+        self.snapshot.inlay_hints(&self.config, uri, range)
+    }
+
+    /// 校验当前光标位置是否支持跨文件重命名。
+    pub(crate) fn prepare_rename(
+        &self,
+        uri: &Uri,
+        position: Position,
+    ) -> Result<Option<PrepareRenameResponse>, RenameError> {
+        self.snapshot.prepare_rename(&self.config, uri, position)
+    }
+
+    /// 计算当前 last-good snapshot 中的跨文件安全重命名 `WorkspaceEdit`。
+    pub(crate) fn rename(
+        &self,
+        uri: &Uri,
+        position: Position,
+        new_name: &str,
+        supports_document_changes: bool,
+    ) -> Result<Option<WorkspaceEdit>, RenameError> {
+        self.snapshot.rename(
+            &self.config,
+            &self.overlays,
+            &self.disk_backed_uris,
+            uri,
+            position,
+            new_name,
+            supports_document_changes,
+        )
+    }
+
+    /// 查询当前 last-good snapshot 中的补全候选。
+    pub(crate) fn completions(
+        &self,
+        uri: &Uri,
+        position: Position,
+    ) -> Result<Vec<CompletionItem>, UnitDefinitionQueryError> {
+        self.snapshot.completions(&self.config, uri, position)
+    }
+
+    /// 查询当前 last-good snapshot 中的签名帮助。
+    pub(crate) fn signature_help(
+        &self,
+        uri: &Uri,
+        position: Position,
+    ) -> Result<Option<SignatureHelp>, UnitDefinitionQueryError> {
+        self.snapshot.signature_help(&self.config, uri, position)
+    }
+
+    /// 查询当前 last-good snapshot 中单个文档的层级符号树。
+    pub(crate) fn document_symbols(
+        &self,
+        uri: &Uri,
+    ) -> Result<Vec<DocumentSymbol>, UnitDefinitionQueryError> {
+        self.snapshot.document_symbols(&self.config, uri)
+    }
+
+    /// 在整个编译单元内按子串查询工作区符号。
+    pub(crate) fn workspace_symbols(
+        &self,
+        query: &str,
+    ) -> Result<Vec<SymbolInformation>, UnitDefinitionQueryError> {
+        self.snapshot.workspace_symbols(&self.config, query)
+    }
+
     /// 只为当前打开的 overlay 提供编辑，不能把关闭后的 base 当作编辑器文本。
     pub(crate) fn formatting_edits(
         &self,
@@ -178,7 +317,8 @@ impl UnitSession {
         overlays: BTreeMap<String, Overlay>,
     ) -> Result<UnitUpdate, UnitSessionError> {
         let snapshot = UnitSnapshot::analyze(&self.config, &overlays)?;
-        let publications = snapshot.publications(&self.config, &overlays)?;
+        let publications =
+            snapshot.publications_with_options(&self.config, &overlays, self.enrich_diagnostics)?;
         Ok(UnitUpdate {
             overlays,
             snapshot,
@@ -235,7 +375,13 @@ impl UnitSnapshot {
             ));
             source_ids.push(source_id);
         }
-        let (name_environment, type_environment) = standard_environments();
+        let (mut name_environment, type_environment) = standard_environments();
+        append_builtin_display(
+            &mut sources,
+            &mut descriptors,
+            &mut name_environment,
+            "koven-std",
+        )?;
         let name_snapshot = analyze_unit_names(sources, descriptors, name_environment)?;
         let mut diagnostics = name_snapshot.names().diagnostics().to_vec();
         let (typed, owned) = if let Some(validated_names) = name_snapshot.validated_names() {
@@ -246,20 +392,48 @@ impl UnitSnapshot {
                 validated_names,
                 &type_environment,
             )?;
-            diagnostics.extend_from_slice(typed.diagnostics());
             let outcome = analyze_basic_unit_ownership(
                 name_snapshot.sources(),
                 &inputs,
                 validated_names,
                 &type_environment,
                 typed,
-            )?;
-            match outcome.into_result() {
+            )?
+            .into_result();
+            let outcome = match outcome {
                 Ok((typed, owned)) => {
+                    if let Some(completed) = complete_unit_display_types(
+                        name_snapshot.sources(),
+                        &inputs,
+                        validated_names,
+                        &type_environment,
+                        typed.types(),
+                        &owned,
+                    )? {
+                        analyze_basic_unit_ownership(
+                            name_snapshot.sources(),
+                            &inputs,
+                            validated_names,
+                            &type_environment,
+                            completed,
+                        )?
+                        .into_result()
+                    } else {
+                        Ok((typed, owned))
+                    }
+                }
+                Err(typed) => Err(typed),
+            };
+            match outcome {
+                Ok((typed, owned)) => {
+                    diagnostics.extend_from_slice(typed.types().diagnostics());
                     diagnostics.extend_from_slice(owned.diagnostics());
                     (Some(typed.into_types()), Some(owned))
                 }
-                Err(typed) => (Some(*typed), None),
+                Err(typed) => {
+                    diagnostics.extend_from_slice(typed.diagnostics());
+                    (Some(*typed), None)
+                }
             }
         } else {
             (None, None)
@@ -271,10 +445,20 @@ impl UnitSnapshot {
         })
     }
 
+    #[cfg(test)]
     fn publications(
         &self,
         config: &SourceSetConfig,
         overlays: &BTreeMap<String, Overlay>,
+    ) -> Result<Vec<UnitPublication>, UnitSessionError> {
+        self.publications_with_options(config, overlays, false)
+    }
+
+    fn publications_with_options(
+        &self,
+        config: &SourceSetConfig,
+        overlays: &BTreeMap<String, Overlay>,
+        enrich_diagnostics: bool,
     ) -> Result<Vec<UnitPublication>, UnitSessionError> {
         let uris = self
             .source_ids
@@ -282,10 +466,15 @@ impl UnitSnapshot {
             .copied()
             .zip(config.sources().iter().map(|source| source.uri().clone()))
             .collect::<Vec<_>>();
-        let diagnostics = convert_unit_diagnostics(
+        let diagnostics = convert_unit_diagnostics_with_context(
             self.analysis.name_snapshot().sources(),
             &uris,
             self.analysis.diagnostics(),
+            enrich_diagnostics,
+            self.analysis
+                .name_snapshot()
+                .names()
+                .builtin_display_source(),
         )?;
         Ok(config
             .sources()
@@ -302,18 +491,17 @@ impl UnitSnapshot {
             .collect())
     }
 
-    fn definition_locations(
+    fn resolve_source_unit(
         &self,
         config: &SourceSetConfig,
         uri: &Uri,
-        position: Position,
-    ) -> Result<Vec<Location>, UnitDefinitionQueryError> {
+    ) -> Result<Option<(SourceId, SourceUnitId)>, UnitDefinitionQueryError> {
         let Some(source_index) = config
             .sources()
             .iter()
             .position(|source| source.uri() == uri)
         else {
-            return Ok(Vec::new());
+            return Ok(None);
         };
         let source_id = self.source_ids[source_index];
         let source_unit = self
@@ -326,8 +514,70 @@ impl UnitSnapshot {
             .find(|source| source.source_id() == source_id)
             .ok_or(UnitDefinitionQueryError::UnknownSource(source_id))?
             .id();
+        Ok(Some((source_id, source_unit)))
+    }
+
+    fn resolve_source_and_offset(
+        &self,
+        config: &SourceSetConfig,
+        uri: &Uri,
+        position: Position,
+    ) -> Result<Option<(SourceId, SourceUnitId, usize)>, UnitDefinitionQueryError> {
+        let Some((source_id, source_unit)) = self.resolve_source_unit(config, uri)? else {
+            return Ok(None);
+        };
         let Some(offset) =
             byte_offset(self.analysis.name_snapshot().sources(), source_id, position)?
+        else {
+            return Ok(None);
+        };
+        Ok(Some((source_id, source_unit, offset)))
+    }
+
+    fn target_to_location(
+        &self,
+        config: &SourceSetConfig,
+        target: UnitDefinitionTarget,
+    ) -> Result<Location, UnitDefinitionQueryError> {
+        let target_source = self
+            .analysis
+            .name_snapshot()
+            .names()
+            .index()
+            .source_units()
+            .get(target.source_unit.index())
+            .filter(|source| source.id() == target.source_unit)
+            .ok_or(UnitDefinitionQueryError::UnknownSource(
+                target.span.source_id(),
+            ))?;
+        if target.span.source_id() != target_source.source_id() {
+            return Err(UnitDefinitionQueryError::MismatchedTargetSource {
+                expected: target_source.source_id(),
+                actual: target.span.source_id(),
+            });
+        }
+        let target_index = self
+            .source_ids
+            .iter()
+            .position(|source_id| *source_id == target_source.source_id())
+            .ok_or(UnitDefinitionQueryError::UnknownSource(
+                target_source.source_id(),
+            ))?;
+        let range = span_range(self.analysis.name_snapshot().sources(), target.span)?;
+        Ok(Location::new(
+            config.sources()[target_index].uri().clone(),
+            range,
+        ))
+    }
+
+    fn definition_locations(
+        &self,
+        config: &SourceSetConfig,
+        uri: &Uri,
+        position: Position,
+    ) -> Result<Vec<Location>, UnitDefinitionQueryError> {
+        let Some((_, source_unit, offset)) =
+            self.resolve_source_and_offset(config, uri, position)?
         else {
             return Ok(Vec::new());
         };
@@ -335,38 +585,263 @@ impl UnitSnapshot {
             .definitions()
             .targets_at(source_unit, offset)
             .iter()
-            .map(|target| {
-                let target_source = self
-                    .analysis
-                    .name_snapshot()
-                    .names()
-                    .index()
-                    .source_units()
-                    .get(target.source_unit.index())
-                    .filter(|source| source.id() == target.source_unit)
-                    .ok_or(UnitDefinitionQueryError::UnknownSource(
-                        target.span.source_id(),
-                    ))?;
-                if target.span.source_id() != target_source.source_id() {
-                    return Err(UnitDefinitionQueryError::MismatchedTargetSource {
-                        expected: target_source.source_id(),
-                        actual: target.span.source_id(),
-                    });
-                }
-                let target_index = self
-                    .source_ids
-                    .iter()
-                    .position(|source_id| *source_id == target_source.source_id())
-                    .ok_or(UnitDefinitionQueryError::UnknownSource(
-                        target_source.source_id(),
-                    ))?;
-                let range = span_range(self.analysis.name_snapshot().sources(), target.span)?;
-                Ok(Location::new(
-                    config.sources()[target_index].uri().clone(),
-                    range,
-                ))
-            })
+            .map(|target| self.target_to_location(config, *target))
             .collect()
+    }
+
+    fn reference_locations(
+        &self,
+        config: &SourceSetConfig,
+        uri: &Uri,
+        position: Position,
+        include_declaration: bool,
+    ) -> Result<Vec<Location>, UnitDefinitionQueryError> {
+        let Some((_, source_unit, offset)) =
+            self.resolve_source_and_offset(config, uri, position)?
+        else {
+            return Ok(Vec::new());
+        };
+        self.analysis
+            .definitions()
+            .references_at(source_unit, offset, include_declaration)
+            .into_iter()
+            .map(|target| self.target_to_location(config, target))
+            .collect()
+    }
+
+    fn hover(
+        &self,
+        config: &SourceSetConfig,
+        uri: &Uri,
+        position: Position,
+    ) -> Result<Option<Hover>, UnitDefinitionQueryError> {
+        let Some((_, source_unit, offset)) =
+            self.resolve_source_and_offset(config, uri, position)?
+        else {
+            return Ok(None);
+        };
+        Ok(ide_features::hover_at(&self.analysis, source_unit, offset)?)
+    }
+
+    fn inlay_hints(
+        &self,
+        config: &SourceSetConfig,
+        uri: &Uri,
+        range: Range,
+    ) -> Result<Vec<InlayHint>, UnitDefinitionQueryError> {
+        let Some((source_id, source_unit)) = self.resolve_source_unit(config, uri)? else {
+            return Ok(Vec::new());
+        };
+        Ok(ide_features::inlay_hints_for_source(
+            &self.analysis,
+            source_unit,
+            source_id,
+            range,
+        )?)
+    }
+
+    fn prepare_rename(
+        &self,
+        config: &SourceSetConfig,
+        uri: &Uri,
+        position: Position,
+    ) -> Result<Option<PrepareRenameResponse>, RenameError> {
+        let Some((_, source_unit, offset)) = self
+            .resolve_source_and_offset(config, uri, position)
+            .map_err(|e| match e {
+                UnitDefinitionQueryError::Position(p) => RenameError::Position(p),
+                other => RenameError::Internal(other.to_string()),
+            })?
+        else {
+            return Ok(None);
+        };
+        ide_features::prepare_rename_at(&self.analysis, source_unit, offset)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn rename(
+        &self,
+        config: &SourceSetConfig,
+        overlays: &BTreeMap<String, Overlay>,
+        disk_backed_uris: &std::collections::BTreeSet<String>,
+        uri: &Uri,
+        position: Position,
+        new_name: &str,
+        supports_document_changes: bool,
+    ) -> Result<Option<WorkspaceEdit>, RenameError> {
+        let Some(typed) = self.analysis.typed() else {
+            return Err(RenameError::IncompleteAnalysis);
+        };
+        let Some((_, source_unit, offset)) = self
+            .resolve_source_and_offset(config, uri, position)
+            .map_err(|e| match e {
+                UnitDefinitionQueryError::Position(p) => RenameError::Position(p),
+                other => RenameError::Internal(other.to_string()),
+            })?
+        else {
+            return Ok(None);
+        };
+        let sources = self.analysis.name_snapshot().sources();
+        let Some(plan) =
+            self.analysis
+                .definitions()
+                .plan_rename_at(source_unit, offset, sources)?
+        else {
+            return Ok(None);
+        };
+        if plan.occurrences.is_empty() {
+            return Ok(None);
+        }
+
+        // Build current unit inputs and verify post-rename diagnostics and bindings remain sound.
+        let index_units = self.analysis.name_snapshot().names().index().source_units();
+        let mut verify_inputs = Vec::with_capacity(config.sources().len());
+        for (source, &sid) in config.sources().iter().zip(self.source_ids.iter()) {
+            let su = index_units
+                .iter()
+                .find(|u| u.source_id() == sid)
+                .ok_or_else(|| RenameError::Internal("source absent from snapshot".to_owned()))?
+                .id();
+            let text = sources
+                .source_text(sid)
+                .map_err(|e| RenameError::Internal(e.to_string()))?;
+            verify_inputs.push(RenameSourceInput {
+                source_id: sid,
+                source_unit: su,
+                name: source.uri().as_str(),
+                root: Some(source.root()),
+                logical_path: Some(source.logical_path()),
+                text,
+            });
+        }
+        verify_rename_preserves_bindings(
+            &verify_inputs,
+            self.analysis.name_snapshot().names().diagnostics(),
+            typed.diagnostics(),
+            &plan,
+            new_name,
+        )?;
+
+        // Map edits with document version (for open overlays) and verify closed disk files are not stale.
+        let mut checked_closed = std::collections::BTreeSet::new();
+        let mut edits_by_doc = Vec::with_capacity(plan.occurrences.len());
+        for occurrence in plan.occurrences {
+            let location = self
+                .target_to_location(config, occurrence)
+                .map_err(|e| match e {
+                    UnitDefinitionQueryError::Position(p) => RenameError::Position(p),
+                    other => RenameError::Internal(other.to_string()),
+                })?;
+            let version = if let Some(overlay) = overlays.get(location.uri.as_str()) {
+                Some(overlay.version)
+            } else {
+                if checked_closed.insert(location.uri.as_str().to_owned()) {
+                    let expected = sources
+                        .source_text(occurrence.span.source_id())
+                        .map_err(|e| RenameError::Internal(e.to_string()))?;
+                    let is_disk_backed = disk_backed_uris.contains(location.uri.as_str());
+                    if let Some(path) = workspace_manifest::file_uri_to_path(&location.uri) {
+                        if is_disk_backed || path.exists() {
+                            let disk_text = std::fs::read_to_string(&path).map_err(|_| {
+                                RenameError::StaleClosedFile(location.uri.as_str().to_owned())
+                            })?;
+                            if disk_text != expected {
+                                return Err(RenameError::StaleClosedFile(
+                                    location.uri.as_str().to_owned(),
+                                ));
+                            }
+                        }
+                    } else if is_disk_backed {
+                        return Err(RenameError::StaleClosedFile(
+                            location.uri.as_str().to_owned(),
+                        ));
+                    }
+                }
+                None
+            };
+            edits_by_doc.push((location.uri, version, location.range));
+        }
+
+        Ok(build_workspace_edit(
+            edits_by_doc,
+            new_name,
+            supports_document_changes,
+        ))
+    }
+
+    fn completions(
+        &self,
+        config: &SourceSetConfig,
+        uri: &Uri,
+        position: Position,
+    ) -> Result<Vec<CompletionItem>, UnitDefinitionQueryError> {
+        let Some((source_id, source_unit, offset)) =
+            self.resolve_source_and_offset(config, uri, position)?
+        else {
+            return Ok(Vec::new());
+        };
+        Ok(completion::completions_at(
+            &self.analysis,
+            source_unit,
+            source_id,
+            offset,
+        ))
+    }
+
+    fn signature_help(
+        &self,
+        config: &SourceSetConfig,
+        uri: &Uri,
+        position: Position,
+    ) -> Result<Option<SignatureHelp>, UnitDefinitionQueryError> {
+        let Some((source_id, source_unit, offset)) =
+            self.resolve_source_and_offset(config, uri, position)?
+        else {
+            return Ok(None);
+        };
+        Ok(crate::signature_help::signature_help_at(
+            &self.analysis,
+            source_unit,
+            source_id,
+            offset,
+        ))
+    }
+
+    fn document_symbols(
+        &self,
+        config: &SourceSetConfig,
+        uri: &Uri,
+    ) -> Result<Vec<DocumentSymbol>, UnitDefinitionQueryError> {
+        let Some((source_id, source_unit)) = self.resolve_source_unit(config, uri)? else {
+            return Ok(Vec::new());
+        };
+        Ok(symbols::document_symbols(
+            &self.analysis,
+            source_unit,
+            source_id,
+        )?)
+    }
+
+    fn workspace_symbols(
+        &self,
+        config: &SourceSetConfig,
+        query: &str,
+    ) -> Result<Vec<SymbolInformation>, UnitDefinitionQueryError> {
+        let mut uris = BTreeMap::new();
+        for (source, &source_id) in config.sources().iter().zip(self.source_ids.iter()) {
+            if let Some(su) = self
+                .analysis
+                .name_snapshot()
+                .names()
+                .index()
+                .source_units()
+                .iter()
+                .find(|u| u.source_id() == source_id)
+            {
+                uris.insert(su.id(), source.uri().clone());
+            }
+        }
+        Ok(symbols::workspace_symbols(&self.analysis, &uris, query)?)
     }
 }
 

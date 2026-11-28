@@ -21,6 +21,8 @@ pub(super) fn apply_operation(
         Operation::Constant(_)
         | Operation::PrintLiteral { .. }
         | Operation::StringLiteral { .. }
+        | Operation::StringFromScalar { .. }
+        | Operation::FloatArithmetic { .. }
         | Operation::Binary { .. }
         | Operation::CheckedArithmetic { .. }
         | Operation::IntegerRangeConstruct { .. }
@@ -31,46 +33,17 @@ pub(super) fn apply_operation(
         | Operation::IntegerNot { .. }
         | Operation::Compare { .. }
         | Operation::BooleanNot { .. } => {}
-        Operation::StringConcat { left, right } | Operation::StringEqual { left, right } => {
-            require_string_view(
-                module,
-                function,
-                *left,
-                aliases,
-                state,
-                location.clone(),
-                origin,
-                errors,
-            );
-            require_string_view(
-                module, function, *right, aliases, state, location, origin, errors,
-            );
-        }
-        Operation::StringClone { source }
-        | Operation::StringByteLength { source }
-        | Operation::StringByteAt { source, .. }
-        | Operation::StringCopySlice { source, .. } => {
-            require_string_view(
-                module,
-                function,
-                EntityId::Loan(*source),
-                aliases,
-                state,
-                location,
-                origin,
-                errors,
-            );
-        }
-        Operation::PrintString { value }
-        | Operation::Utf8ErrorOffset { source: value }
-        | Operation::StringCopyBytes { source: value } => {
-            if !state.loans.contains(value) {
-                errors.push(error(
-                    VerifyErrorKind::LoanInactive { loan: *value },
-                    location,
-                    origin,
-                ));
-            }
+        Operation::StringAppend { .. }
+        | Operation::StringConcat { .. }
+        | Operation::StringEqual { .. }
+        | Operation::StringClone { .. }
+        | Operation::StringByteLength { .. }
+        | Operation::StringByteAt { .. }
+        | Operation::StringCopySlice { .. }
+        | Operation::PrintString { .. }
+        | Operation::Utf8ErrorOffset { .. }
+        | Operation::StringCopyBytes { .. } => {
+            string::apply(module, function, instruction, aliases, state, errors)
         }
         Operation::DirectCall {
             receiver,

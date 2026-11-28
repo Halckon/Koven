@@ -158,6 +158,24 @@ pub(crate) mod constant {
                 ScalarConstant::Boolean(value) => Some((u64::from(*value), false)),
                 ScalarConstant::Char(value) => Some((u64::from(*value), false)),
                 ScalarConstant::Integer(value) => Some((*value as u64, *value < 0)),
+                ScalarConstant::Float32(bits) => {
+                    let value = self.builder.build_bit_cast(
+                        self.context.i32_type().const_int(u64::from(*bits), false),
+                        self.context.f32_type(),
+                        "float.literal",
+                    )?;
+                    self.values.insert(*result, value);
+                    return Ok(());
+                }
+                ScalarConstant::Float64(bits) => {
+                    let value = self.builder.build_bit_cast(
+                        self.context.i64_type().const_int(*bits, false),
+                        self.context.f64_type(),
+                        "float.literal",
+                    )?;
+                    self.values.insert(*result, value);
+                    return Ok(());
+                }
                 #[cfg(test)]
                 ScalarConstant::SyntheticZero => None,
                 ScalarConstant::Unit => None,
@@ -678,7 +696,7 @@ pub(crate) mod root_exchange {
 
     use inkwell::types::BasicTypeEnum;
 
-    use crate::ssa::model::{SsaTypeId, SsaTypeKind};
+    use crate::ssa::model::SsaTypeId;
 
     use super::super::{
         FunctionLowerer, LlvmAdapterError, LoanId, PlaceAccess, ValueId, invalid_result_count,
@@ -688,17 +706,17 @@ pub(crate) mod root_exchange {
     impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
         FunctionLowerer<'ctx, 'llvm, 'ssa, 'functions, 'sources>
     {
-        /// Unit has local zero-sized storage for root exchange and CFG values. Function signatures
-        /// still use TypeMap directly, so this does not introduce a non-void Unit ABI.
+        /// Unit has zero-sized storage for local values and direct parameters.
         pub(crate) fn local_storage_type(
             &self,
             ty: SsaTypeId,
         ) -> Result<BasicTypeEnum<'ctx>, LlvmAdapterError> {
-            if matches!(self.module.type_kind(ty), Some(SsaTypeKind::Unit)) {
-                Ok(self.context.struct_type(&[], false).into())
-            } else {
-                self.dependencies.type_map.basic_type(ty)
-            }
+            super::super::local_value_type(
+                self.context,
+                self.module,
+                self.dependencies.type_map,
+                ty,
+            )
         }
 
         pub(crate) fn lower_root_replace(
@@ -860,6 +878,9 @@ pub(crate) mod nullable {
         ) -> Result<IntValue<'ctx>, LlvmAdapterError> {
             let source = PlaceAccess::Loan(source);
             let ty = access_type(self.function, source)?;
+            if self.module.is_null_only(ty) {
+                return Ok(self.context.bool_type().const_int(1, false));
+            }
             let storage = self.access(source)?;
             let llvm_type = self.dependencies.type_map.basic_type(ty)?;
             let presence_niche = self
