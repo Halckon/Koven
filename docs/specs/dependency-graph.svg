@@ -1,13 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="4848" height="712" viewBox="0 0 4848 712" font-family="PingFang SC, Microsoft YaHei, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="4848" height="868" viewBox="0 0 4848 868" font-family="PingFang SC, Microsoft YaHei, sans-serif">
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
     </marker>
   </defs>
-  <rect width="4848" height="712" fill="#ffffff"/>
+  <rect width="4848" height="868" fill="#ffffff"/>
   <rect x="40" y="30" width="280" height="106" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="180" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，486 份）</text>
-  <rect x="384" y="30" width="2128" height="610" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+  <rect x="384" y="30" width="2128" height="766" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="1448" y="50" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
   <rect x="2576" y="186" width="280" height="124" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="2716" y="206" text-anchor="middle" font-size="13" fill="#64748b">v0.43（draft）</text>
@@ -15,6 +15,7 @@
   <text x="3852" y="206" text-anchor="middle" font-size="13" fill="#64748b">v0.44（draft）</text>
   <path d="M 1052 312 C 1052 344, 524 344, 524 376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 524 468 C 524 500, 524 500, 524 532" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 524 624 C 524 656, 524 656, 524 688" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 300 92 C 1448 92, 1448 257, 2596 257" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 300 92 C 352 92, 352 257, 404 257" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 300 92 C 1620 92, 1620 266, 2940 266" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -119,6 +120,11 @@
   <text x="524" y="573" text-anchor="middle" font-size="13">F6 第二十一片 decla</text>
   <text x="524" y="591" text-anchor="middle" font-size="13">ration 常量恢复、函数</text>
   <text x="524" y="609" text-anchor="middle" font-size="13">返回分派、参数模式前瞻与值…</text>
+  <rect x="404" y="688" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="524" y="711" text-anchor="middle" font-size="13" font-weight="600">SPEC-0522</text>
+  <text x="524" y="729" text-anchor="middle" font-size="13">F6 第二十二片 opera</text>
+  <text x="524" y="747" text-anchor="middle" font-size="13">tor 非法相邻运算符、表达</text>
+  <text x="524" y="765" text-anchor="middle" font-size="13">式/类型起始、毒化层级与中…</text>
   <rect x="60" y="64" width="240" height="56" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">已完成 Spec</text>
   <text x="180" y="105" text-anchor="middle" font-size="13">archive，486 份</text>

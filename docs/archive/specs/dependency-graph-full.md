@@ -510,6 +510,7 @@ subgraph Gactive["现行 active"]
   S0519["S0519<br/>F6 第十九片 lambda 块体循环分派、分号跳过、缺失闭合与 const val 守卫双轨证明"]
   S0520["S0520<br/>F6 第二十片 borrow_result 与 declaration_head 借用返回、局部借用守卫与扩展接收者前瞻双轨证明"]
   S0521["S0521<br/>F6 第二十一片 declaration 常量恢复、函数返回分派、参数模式前瞻与值参数守卫双轨证明"]
+  S0522["S0522<br/>F6 第二十二片 operator 非法相邻运算符、表达式/类型起始、毒化层级与中缀规则表双轨证明"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -1600,6 +1601,7 @@ S0517 --> S0518
 S0518 --> S0519
 S0519 --> S0520
 S0520 --> S0521
+S0521 --> S0522
 ```
 
 ## 节点链接
@@ -2105,6 +2107,7 @@ S0520 --> S0521
 | SPEC-0519 | active | [0519-f6-lambda-body-machine-proof.md](../../specs/active/0519-f6-lambda-body-machine-proof.md) |
 | SPEC-0520 | active | [0520-f6-borrow-result-and-head-machine-proof.md](../../specs/active/0520-f6-borrow-result-and-head-machine-proof.md) |
 | SPEC-0521 | active | [0521-f6-declaration-machine-proof.md](../../specs/active/0521-f6-declaration-machine-proof.md) |
+| SPEC-0522 | active | [0522-f6-operator-machine-proof.md](../../specs/active/0522-f6-operator-machine-proof.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](../../specs/drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](../../specs/drafts/v0.44/0335-map-borrow-caller-proof.md) |

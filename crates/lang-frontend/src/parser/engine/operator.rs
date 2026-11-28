@@ -1,5 +1,93 @@
 use super::*;
 
+#[inline]
+pub(super) const fn is_unsupported_adjacent_operator_pair(
+    first: LexemeKind,
+    second: LexemeKind,
+    adjacent: bool,
+) -> bool {
+    if !adjacent {
+        return false;
+    }
+    let first_symbol = match first {
+        LexemeKind::Token(TokenKind::Symbol(symbol)) => symbol,
+        _ => return false,
+    };
+    let second_symbol = match second {
+        LexemeKind::Token(TokenKind::Symbol(symbol)) => symbol,
+        _ => return false,
+    };
+    matches!(
+        (first_symbol, second_symbol),
+        (Symbol::Plus, Symbol::Plus)
+            | (Symbol::Minus, Symbol::Minus)
+            | (Symbol::Less, Symbol::Less)
+            | (Symbol::Greater, Symbol::Greater)
+            | (Symbol::DotDot, Symbol::Dot)
+    )
+}
+
+#[inline]
+pub(super) const fn can_start_expression_kind(kind: LexemeKind) -> bool {
+    matches!(
+        kind,
+        LexemeKind::Token(
+            TokenKind::Identifier
+                | TokenKind::IntegerLiteral(_)
+                | TokenKind::FloatLiteral(_)
+                | TokenKind::CharLiteral
+                | TokenKind::StringStart
+        ) | LexemeKind::Token(TokenKind::Keyword(
+            Keyword::True
+                | Keyword::False
+                | Keyword::Null
+                | Keyword::This
+                | Keyword::If
+                | Keyword::When
+                | Keyword::Return
+                | Keyword::Break
+                | Keyword::Continue
+                | Keyword::Super
+        )) | LexemeKind::Token(TokenKind::Symbol(
+            Symbol::LeftParen
+                | Symbol::LeftBrace
+                | Symbol::ColonColon
+                | Symbol::Bang
+                | Symbol::Plus
+                | Symbol::Minus
+        )) | LexemeKind::Invalid(_)
+            | LexemeKind::Token(TokenKind::ReservedWord(_))
+    )
+}
+
+#[inline]
+pub(super) const fn can_start_type_ref_kind(kind: LexemeKind) -> bool {
+    matches!(
+        kind,
+        LexemeKind::Token(TokenKind::Identifier)
+            | LexemeKind::Token(TokenKind::Symbol(Symbol::LeftParen))
+    )
+}
+
+#[inline]
+pub(super) const fn is_poison_lexeme_kind(kind: LexemeKind) -> bool {
+    matches!(
+        kind,
+        LexemeKind::Invalid(_) | LexemeKind::Token(TokenKind::ReservedWord(_))
+    )
+}
+
+#[inline]
+pub(super) const fn is_declaration_trailing_poison_decision(
+    kind: LexemeKind,
+    has_string_recovery: bool,
+    has_lexical_poison_string_recovery: bool,
+) -> bool {
+    is_poison_lexeme_kind(kind)
+        || (matches!(kind, LexemeKind::Token(TokenKind::StringStart))
+            && (has_string_recovery || has_lexical_poison_string_recovery))
+}
+
 impl Parser<'_> {
     pub(super) fn unsupported_operator(&self) -> Result<Option<Span>, ParserInternalError> {
         let Some(first) = self.peek(0) else {
@@ -8,91 +96,53 @@ impl Parser<'_> {
         let Some(second) = self.peek(1) else {
             return Ok(None);
         };
-        if first.span().end() != second.span().start() {
-            return Ok(None);
-        }
-        let first_symbol = match first.kind() {
-            LexemeKind::Token(TokenKind::Symbol(symbol)) => symbol,
-            _ => return Ok(None),
-        };
-        let second_symbol = match second.kind() {
-            LexemeKind::Token(TokenKind::Symbol(symbol)) => symbol,
-            _ => return Ok(None),
-        };
-        let unsupported = matches!(
-            (first_symbol, second_symbol),
-            (Symbol::Plus, Symbol::Plus)
-                | (Symbol::Minus, Symbol::Minus)
-                | (Symbol::Less, Symbol::Less)
-                | (Symbol::Greater, Symbol::Greater)
-                | (Symbol::DotDot, Symbol::Dot)
-        );
-        if !unsupported {
+        if !is_unsupported_adjacent_operator_pair(
+            first.kind(),
+            second.kind(),
+            first.span().end() == second.span().start(),
+        ) {
             return Ok(None);
         }
         Ok(Some(self.span(first.span().start(), second.span().end())?))
     }
 
     pub(super) fn can_start_expression(&self, lexeme: Lexeme) -> bool {
-        matches!(
-            lexeme.kind(),
-            LexemeKind::Token(
-                TokenKind::Identifier
-                    | TokenKind::IntegerLiteral(_)
-                    | TokenKind::FloatLiteral(_)
-                    | TokenKind::CharLiteral
-                    | TokenKind::StringStart
-            ) | LexemeKind::Token(TokenKind::Keyword(
-                Keyword::True
-                    | Keyword::False
-                    | Keyword::Null
-                    | Keyword::This
-                    | Keyword::If
-                    | Keyword::When
-                    | Keyword::Return
-                    | Keyword::Break
-                    | Keyword::Continue
-                    | Keyword::Super
-            )) | LexemeKind::Token(TokenKind::Symbol(
-                Symbol::LeftParen
-                    | Symbol::LeftBrace
-                    | Symbol::ColonColon
-                    | Symbol::Bang
-                    | Symbol::Plus
-                    | Symbol::Minus
-            )) | LexemeKind::Invalid(_)
-                | LexemeKind::Token(TokenKind::ReservedWord(_))
-        )
+        can_start_expression_kind(lexeme.kind())
     }
 
     pub(super) fn can_start_type_ref(&self, lexeme: Lexeme) -> bool {
-        matches!(
-            lexeme.kind(),
-            LexemeKind::Token(TokenKind::Identifier)
-                | LexemeKind::Token(TokenKind::Symbol(Symbol::LeftParen))
-        )
+        can_start_type_ref_kind(lexeme.kind())
     }
 
     pub(super) fn is_poison_kind(&self, kind: LexemeKind) -> bool {
-        matches!(
-            kind,
-            LexemeKind::Invalid(_) | LexemeKind::Token(TokenKind::ReservedWord(_))
-        )
+        is_poison_lexeme_kind(kind)
     }
 
     /// 声明尾随恢复必须让 Lexer 已拥有的错误区域保持唯一根因。
     pub(super) fn is_declaration_trailing_poison(&self, lexeme: Lexeme) -> bool {
-        self.is_poison_kind(lexeme.kind())
-            || (matches!(lexeme.kind(), LexemeKind::Token(TokenKind::StringStart))
-                && self
+        let kind = lexeme.kind();
+        let (has_string_recovery, has_lexical_poison_string_recovery) =
+            if !is_poison_lexeme_kind(kind)
+                && matches!(kind, LexemeKind::Token(TokenKind::StringStart))
+            {
+                let has_string = self
                     .lexical_recoveries
                     .string_recovery_end(lexeme.span().start())
-                    .is_some())
-            || (matches!(lexeme.kind(), LexemeKind::Token(TokenKind::StringStart))
-                && self
-                    .lexical_recoveries
-                    .lexical_poison_string_recovery_end(lexeme.span().start())
-                    .is_some())
+                    .is_some();
+                let has_lexical_poison = !has_string
+                    && self
+                        .lexical_recoveries
+                        .lexical_poison_string_recovery_end(lexeme.span().start())
+                        .is_some();
+                (has_string, has_lexical_poison)
+            } else {
+                (false, false)
+            };
+        is_declaration_trailing_poison_decision(
+            kind,
+            has_string_recovery,
+            has_lexical_poison_string_recovery,
+        )
     }
 
     pub(super) fn infix_rule(

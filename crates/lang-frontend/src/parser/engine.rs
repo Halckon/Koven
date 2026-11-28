@@ -38,6 +38,10 @@ mod lexeme_stream_kani;
 #[cfg(test)]
 mod lexeme_stream_tests;
 mod operator;
+#[cfg(kani)]
+mod operator_kani;
+#[cfg(test)]
+mod operator_tests;
 mod postfix;
 #[cfg(kani)]
 mod postfix_kani;

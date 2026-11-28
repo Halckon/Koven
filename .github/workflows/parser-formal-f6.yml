@@ -26,6 +26,7 @@ on:
       - 'formal/parser/f6_lambda_body/**'
       - 'formal/parser/f6_borrow_result/**'
       - 'formal/parser/f6_declaration/**'
+      - 'formal/parser/f6_operator/**'
       - 'crates/lang-frontend/src/parser/lambda_trial.rs'
       - 'crates/lang-frontend/src/parser/trial.rs'
       - 'crates/lang-frontend/src/parser/trial/kernel.rs'
@@ -52,6 +53,7 @@ on:
       - 'crates/lang-frontend/src/parser/engine/lexeme_stream_kani.rs'
       - 'crates/lang-frontend/src/parser/engine/boundary.rs'
       - 'crates/lang-frontend/src/parser/engine/operator.rs'
+      - 'crates/lang-frontend/src/parser/engine/operator_kani.rs'
       - 'crates/lang-frontend/src/parser/engine/pratt_kani.rs'
       - 'crates/lang-frontend/src/parser/engine/stops_kani.rs'
       - 'crates/lang-frontend/src/parser/engine/when_boundary.rs'
@@ -99,6 +101,7 @@ on:
       - 'formal/parser/f6_lambda_body/**'
       - 'formal/parser/f6_borrow_result/**'
       - 'formal/parser/f6_declaration/**'
+      - 'formal/parser/f6_operator/**'
       - 'crates/lang-frontend/src/parser/lambda_trial.rs'
       - 'crates/lang-frontend/src/parser/trial.rs'
       - 'crates/lang-frontend/src/parser/trial/kernel.rs'
@@ -125,6 +128,7 @@ on:
       - 'crates/lang-frontend/src/parser/engine/lexeme_stream_kani.rs'
       - 'crates/lang-frontend/src/parser/engine/boundary.rs'
       - 'crates/lang-frontend/src/parser/engine/operator.rs'
+      - 'crates/lang-frontend/src/parser/engine/operator_kani.rs'
       - 'crates/lang-frontend/src/parser/engine/pratt_kani.rs'
       - 'crates/lang-frontend/src/parser/engine/stops_kani.rs'
       - 'crates/lang-frontend/src/parser/engine/when_boundary.rs'
@@ -158,7 +162,7 @@ concurrency:
 
 jobs:
   lean4-model-proof:
-    name: F6 Lean 4 Model Proofs (all 21 F6 slices, 137 theorems)
+    name: F6 Lean 4 Model Proofs (all 22 F6 slices, 142 theorems)
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -189,7 +193,8 @@ jobs:
             formal/parser/f6_lambda_body/.lake
             formal/parser/f6_borrow_result/.lake
             formal/parser/f6_declaration/.lake
-          key: f6-lean4-${{ hashFiles('formal/parser/f6_angle_groups/lean-toolchain', 'formal/parser/f6_ordinary_groups/lean-toolchain', 'formal/parser/f6_group_owners/lean-toolchain', 'formal/parser/f6_adjacent_poison/lean-toolchain', 'formal/parser/f6_pratt_precedence/lean-toolchain', 'formal/parser/f6_stops_lattice/lean-toolchain', 'formal/parser/f6_lambda_trial/lean-toolchain', 'formal/parser/f6_lexeme_stream/lean-toolchain', 'formal/parser/f6_diagnostic_anchor/lean-toolchain', 'formal/parser/f6_strict_call_trial/lean-toolchain', 'formal/parser/f6_owner_events/lean-toolchain', 'formal/parser/f6_when_boundary/lean-toolchain', 'formal/parser/f6_supertypes/lean-toolchain', 'formal/parser/f6_block_boundary/lean-toolchain', 'formal/parser/f6_postfix_boundary/lean-toolchain', 'formal/parser/f6_file_modifiers/lean-toolchain', 'formal/parser/f6_destructuring/lean-toolchain', 'formal/parser/f6_type_ref/lean-toolchain', 'formal/parser/f6_lambda_body/lean-toolchain', 'formal/parser/f6_borrow_result/lean-toolchain', 'formal/parser/f6_declaration/lean-toolchain') }}
+            formal/parser/f6_operator/.lake
+          key: f6-lean4-${{ hashFiles('formal/parser/f6_angle_groups/lean-toolchain', 'formal/parser/f6_ordinary_groups/lean-toolchain', 'formal/parser/f6_group_owners/lean-toolchain', 'formal/parser/f6_adjacent_poison/lean-toolchain', 'formal/parser/f6_pratt_precedence/lean-toolchain', 'formal/parser/f6_stops_lattice/lean-toolchain', 'formal/parser/f6_lambda_trial/lean-toolchain', 'formal/parser/f6_lexeme_stream/lean-toolchain', 'formal/parser/f6_diagnostic_anchor/lean-toolchain', 'formal/parser/f6_strict_call_trial/lean-toolchain', 'formal/parser/f6_owner_events/lean-toolchain', 'formal/parser/f6_when_boundary/lean-toolchain', 'formal/parser/f6_supertypes/lean-toolchain', 'formal/parser/f6_block_boundary/lean-toolchain', 'formal/parser/f6_postfix_boundary/lean-toolchain', 'formal/parser/f6_file_modifiers/lean-toolchain', 'formal/parser/f6_destructuring/lean-toolchain', 'formal/parser/f6_type_ref/lean-toolchain', 'formal/parser/f6_lambda_body/lean-toolchain', 'formal/parser/f6_borrow_result/lean-toolchain', 'formal/parser/f6_declaration/lean-toolchain', 'formal/parser/f6_operator/lean-toolchain') }}
       - name: Install elan if missing
         run: |
           if ! command -v elan >/dev/null 2>&1; then
@@ -1436,9 +1441,65 @@ jobs:
               sys.exit(f"error: missing axiom reports for: {sorted(missing)}")
           print("all 5 F6Declaration theorems depend only on allowed core Lean axioms")
           PY
+      - name: Build F6Operator with warnings as errors
+        working-directory: formal/parser/f6_operator
+        run: |
+          lake build
+          lake env lean -DwarningAsError=true F6Operator.lean
+      - name: Verify F6Operator theorem axiom dependencies
+        working-directory: formal/parser/f6_operator
+        run: |
+          set -euo pipefail
+          axioms_out="$(lake env lean --stdin <<'EOF'
+          import F6Operator
+          #print axioms F6Operator.unsupportedAdjacentOperatorPair_spec
+          #print axioms F6Operator.starter_and_poison_hierarchy_spec
+          #print axioms F6Operator.declarationTrailingPoison_spec
+          #print axioms F6Operator.infixRule_precedence_and_associativity_spec
+          #print axioms F6Operator.infixRule_operand_and_soft_keyword_spec
+          EOF
+          )"
+          printf '%s\n' "$axioms_out"
+          python3 - "$axioms_out" <<'PY'
+          import re, sys
+
+          expected = {
+              "F6Operator.unsupportedAdjacentOperatorPair_spec",
+              "F6Operator.starter_and_poison_hierarchy_spec",
+              "F6Operator.declarationTrailingPoison_spec",
+              "F6Operator.infixRule_precedence_and_associativity_spec",
+              "F6Operator.infixRule_operand_and_soft_keyword_spec",
+          }
+          allowed = {"propext", "Quot.sound", "Classical.choice"}
+          seen = set()
+
+          for raw_line in sys.argv[1].splitlines():
+              line = raw_line.strip()
+              if not line:
+                  continue
+              m_none = re.fullmatch(r"'([^']+)' does not depend on any axioms", line)
+              if m_none:
+                  seen.add(m_none.group(1))
+                  continue
+              m_deps = re.fullmatch(r"'([^']+)' depends on axioms: \[([^\]]*)\]", line)
+              if m_deps:
+                  thm = m_deps.group(1)
+                  deps = {a.strip() for a in m_deps.group(2).split(",") if a.strip()}
+                  bad = deps - allowed
+                  if bad:
+                      sys.exit(f"error: theorem {thm} depends on disallowed axioms: {sorted(bad)}")
+                  seen.add(thm)
+                  continue
+              sys.exit(f"error: unexpected #print axioms output line: {line}")
+
+          missing = expected - seen
+          if missing:
+              sys.exit(f"error: missing axiom reports for: {sorted(missing)}")
+          print("all 5 F6Operator theorems depend only on allowed core Lean axioms")
+          PY
 
   kani-bounded-rust:
-    name: F6 Kani Bounded Rust Proofs (all 21 F6 slices, 56 harnesses)
+    name: F6 Kani Bounded Rust Proofs (all 22 F6 slices, 59 harnesses)
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -1520,4 +1581,7 @@ jobs:
             --harness verify_extension_receiver_head_exhaustive \
             --harness verify_const_val_recovery_and_function_form_dispatch \
             --harness verify_parameter_mode_follow_and_value_param_guards \
-            --harness verify_declaration_tail_guard_exhaustive
+            --harness verify_declaration_tail_guard_exhaustive \
+            --harness verify_unsupported_adjacent_operator_pair_exhaustive \
+            --harness verify_expression_type_poison_and_trailing_poison_exhaustive \
+            --harness verify_infix_rule_from_parts_exhaustive
