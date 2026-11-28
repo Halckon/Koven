@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 
 use lang_frontend::{
-    name_resolution::{SourceUnitId, SymbolKind as FrontSymbolKind},
+    name_resolution::{Namespace, SourceUnitId, SymbolKind as FrontSymbolKind, UnitDeclaration},
     source::SourceId,
     type_checking::{CompilationUnitTypes, UnitCallableSignature, UnitFieldSignature},
 };
@@ -14,6 +14,25 @@ use crate::{
     position_adapter::{PositionMappingError, span_range},
     unit_analysis_snapshot::UnitAnalysisSnapshot,
 };
+
+/// 去重同一 `object` 在 Type/Value 双命名空间产生的重复声明，优先保留 `Namespace::Type` 以保留成员树。
+fn deduplicated_declarations(declarations: &[UnitDeclaration]) -> Vec<&UnitDeclaration> {
+    let mut by_span: BTreeMap<(SourceUnitId, usize, usize), &UnitDeclaration> = BTreeMap::new();
+    for decl in declarations {
+        let key = (
+            decl.source_unit(),
+            decl.name_span().start(),
+            decl.name_span().end(),
+        );
+        match by_span.get(&key) {
+            Some(existing) if existing.namespace() == Namespace::Type => {}
+            _ => {
+                by_span.insert(key, decl);
+            }
+        }
+    }
+    by_span.into_values().collect()
+}
 
 /// 为单个源码文件构造确定性的层级 `DocumentSymbol` 树。
 pub(crate) fn document_symbols(
@@ -31,7 +50,7 @@ pub(crate) fn document_symbols(
         .find(|p| p.source_id() == source_id);
 
     let mut out = Vec::new();
-    for decl in names.index().declarations() {
+    for decl in deduplicated_declarations(names.index().declarations()) {
         if decl.source_unit() != source_unit {
             continue;
         }
@@ -147,7 +166,7 @@ pub(crate) fn workspace_symbols(
     let needle = query.to_ascii_lowercase();
 
     let mut out = Vec::new();
-    for decl in names.index().declarations() {
+    for decl in deduplicated_declarations(names.index().declarations()) {
         let Some(uri) = uris_by_source_unit.get(&decl.source_unit()) else {
             continue;
         };

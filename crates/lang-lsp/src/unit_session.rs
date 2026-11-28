@@ -799,7 +799,7 @@ impl UnitSnapshot {
         else {
             return Ok(None);
         };
-        Ok(completion::signature_help_at(
+        Ok(crate::signature_help::signature_help_at(
             &self.analysis,
             source_unit,
             source_id,

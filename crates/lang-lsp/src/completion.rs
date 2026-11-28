@@ -1,22 +1,22 @@
-//! `textDocument/completion` 与 `textDocument/signatureHelp` 实现。
+//! `textDocument/completion` 实现：支持真实输入 `.` 错误恢复、词法作用域与导入可见性。
 
 use std::collections::BTreeMap;
 
 use lang_frontend::{
+    analysis::{UnitSourceDescriptor, analyze_unit_names},
     lexer::{Lexeme, LexemeKind, Symbol, TokenKind, lex},
     name_resolution::{
-        CompilationUnitNames, DeclarationVisibility, SourceUnitId, SymbolKind as FrontSymbolKind,
-        UnitSymbolId,
+        CompilationUnitNames, DeclarationVisibility, Namespace, ScopeId, SourceUnitId,
+        SymbolKind as FrontSymbolKind, UnitDeclaration, UnitSymbolId,
     },
+    parser::ParsedFile,
     source::{SourceId, SourceMap},
     type_checking::{
-        CompilationUnitTypes, UnitCallableSignature, UnitDeclarationSignature, UnitTypeKind,
+        CompilationUnitTypes, UnitTypeId, UnitTypeKind, check_compilation_unit_types,
+        standard_environments,
     },
 };
-use lsp_types::{
-    CompletionItem, CompletionItemKind, ParameterInformation, ParameterLabel, SignatureHelp,
-    SignatureInformation,
-};
+use lsp_types::{CompletionItem, CompletionItemKind};
 
 use crate::{
     ide_features::format_unit_type, symbols::format_callable_detail,
@@ -30,9 +30,11 @@ const BUILTIN_TYPES: &[&str] = &[
     "Box",
     "Byte",
     "Char",
+    "Copyable",
     "Double",
     "Err",
     "Float",
+    "Hashable",
     "Int",
     "Int8",
     "Int16",
@@ -52,6 +54,7 @@ const BUILTIN_TYPES: &[&str] = &[
     "Result",
     "Short",
     "String",
+    "Transferable",
     "UInt",
     "UInt8",
     "UInt16",
@@ -62,7 +65,7 @@ const BUILTIN_TYPES: &[&str] = &[
 ];
 
 const BUILTIN_FUNCTIONS: &[(&str, &str)] = &[
-    ("println", "(value: Any) -> Unit"),
+    ("println", "(value: String) -> Unit"),
     ("error", "(message: String) -> Nothing"),
     ("listOf", "(vararg elements: T) -> List<T>"),
     ("mutableListOf", "(vararg elements: T) -> MutableList<T>"),
@@ -74,9 +77,10 @@ const BUILTIN_FUNCTIONS: &[(&str, &str)] = &[
     ("arrayOf", "(vararg elements: T) -> Array<T>"),
     ("replace", "(inout place: T, own value: T) -> T"),
     ("swap", "(inout a: T, inout b: T) -> Unit"),
+    ("rangeView", "(range: IntRange) -> View<Int>"),
 ];
 
-/// 计算给定位置的补全候选（支持 `.` / `?.` 成员与包补全，以及作用域内标识符补全）。
+/// 计算给定位置的补全候选（支持 `.` / `?.` 成员与多段包补全，以及作用域/导入感知标识符补全）。
 pub(crate) fn completions_at(
     snapshot: &UnitAnalysisSnapshot,
     source_unit: SourceUnitId,
@@ -84,18 +88,17 @@ pub(crate) fn completions_at(
     offset: usize,
 ) -> Vec<CompletionItem> {
     let sources = snapshot.name_snapshot().sources();
-    let names = snapshot.name_snapshot().names();
-    let typed = snapshot.typed();
     let Ok(text) = sources.source_text(source_id) else {
         return Vec::new();
     };
     let clamped = offset.min(text.len());
-    let tokens = non_trivia_tokens_before(sources, source_id, clamped);
+    let tokens = non_trivia_tokens_through(sources, source_id, clamped);
 
-    // Detect `prefix` being typed right at cursor.
-    let (prefix, before_prefix) = match tokens.last() {
+    // Detect `prefix` even when cursor sits inside an existing identifier (e.g. `origin.no|rm()`).
+    let (prefix, before_prefix, erase_end) = match tokens.last() {
         Some(last)
-            if last.span().end() == clamped
+            if last.span().start() <= clamped
+                && clamped <= last.span().end()
                 && matches!(
                     last.kind(),
                     LexemeKind::Token(TokenKind::Identifier | TokenKind::Keyword(_))
@@ -104,12 +107,13 @@ pub(crate) fn completions_at(
             (
                 &text[last.span().start()..clamped],
                 &tokens[..tokens.len() - 1],
+                last.span().end(),
             )
         }
-        _ => ("", tokens.as_slice()),
+        _ => ("", tokens.as_slice(), clamped),
     };
 
-    // Check if preceded by `.` or `?.` -> member / companion / package completion.
+    // Check if preceded by `.` or `?.` -> member / companion / enum / package completion.
     if let Some(dot) = before_prefix.last()
         && matches!(
             dot.kind(),
@@ -117,23 +121,125 @@ pub(crate) fn completions_at(
         )
     {
         let receiver_tokens = &before_prefix[..before_prefix.len() - 1];
-        return dot_completions(snapshot, source_unit, text, receiver_tokens, prefix);
+        if snapshot.typed().is_some() {
+            return dot_completions(
+                snapshot,
+                source_unit,
+                source_id,
+                text,
+                receiver_tokens,
+                prefix,
+            );
+        }
+        // P1: When typing `origin.` or `Color.` or `MyGreeter.` caused a parse error so `typed()`
+        // is `None`, replace the incomplete `<receiver>.<prefix>` with a same-length dummy literal
+        // (`0   `) in memory so surrounding declarations/locals type-check cleanly.
+        let replace_start = receiver_tokens
+            .last()
+            .map_or(dot.span().start(), |tok| tok.span().start());
+        if let Some((repaired, repaired_su, repaired_sid)) =
+            recover_snapshot_for_dot(snapshot, source_unit, source_id, replace_start, erase_end)
+        {
+            return dot_completions(
+                &repaired,
+                repaired_su,
+                repaired_sid,
+                text,
+                receiver_tokens,
+                prefix,
+            );
+        }
+        return dot_completions(
+            snapshot,
+            source_unit,
+            source_id,
+            text,
+            receiver_tokens,
+            prefix,
+        );
     }
 
-    scope_completions(
-        snapshot,
-        source_unit,
-        source_id,
-        clamped,
-        names,
-        typed,
-        prefix,
-    )
+    scope_completions(snapshot, source_unit, source_id, clamped, prefix)
+}
+
+fn recover_snapshot_for_dot(
+    snapshot: &UnitAnalysisSnapshot,
+    target_unit: SourceUnitId,
+    target_source_id: SourceId,
+    dot_start: usize,
+    erase_end: usize,
+) -> Option<(UnitAnalysisSnapshot, SourceUnitId, SourceId)> {
+    let orig_sources = snapshot.name_snapshot().sources();
+    let orig_units = snapshot.name_snapshot().names().index().source_units();
+    let mut new_sources = SourceMap::new();
+    let mut descriptors = Vec::with_capacity(orig_units.len());
+    let mut new_target_sid = None;
+
+    for su in orig_units {
+        let sid = su.source_id();
+        let name = orig_sources.source_name(sid).ok()?;
+        let orig_text = orig_sources.source_text(sid).ok()?;
+        let text = if su.id() == target_unit && sid == target_source_id {
+            if dot_start > erase_end || erase_end > orig_text.len() {
+                return None;
+            }
+            let mut repaired = String::with_capacity(orig_text.len());
+            repaired.push_str(&orig_text[..dot_start]);
+            let mut wrote_placeholder = false;
+            for ch in orig_text[dot_start..erase_end].chars() {
+                if ch == '\n' {
+                    repaired.push('\n');
+                } else if !wrote_placeholder {
+                    repaired.push('0');
+                    wrote_placeholder = true;
+                } else {
+                    repaired.push(' ');
+                }
+            }
+            repaired.push_str(&orig_text[erase_end..]);
+            repaired
+        } else {
+            orig_text.to_owned()
+        };
+        let new_sid = new_sources.add_source(name, text).ok()?;
+        if su.id() == target_unit {
+            new_target_sid = Some(new_sid);
+        }
+        let desc = match su.key() {
+            lang_frontend::name_resolution::SourceUnitKey::Rooted { root, logical_path } => {
+                UnitSourceDescriptor::new(root.as_str(), logical_path.as_str(), new_sid)
+            }
+            lang_frontend::name_resolution::SourceUnitKey::MemoryDocument => {
+                UnitSourceDescriptor::memory_document(new_sid)
+            }
+        };
+        descriptors.push(desc);
+    }
+
+    let (name_env, type_env) = standard_environments();
+    let name_snapshot = analyze_unit_names(new_sources, descriptors, name_env).ok()?;
+    let validated = name_snapshot.validated_names()?;
+    let inputs = name_snapshot.inputs();
+    let typed =
+        check_compilation_unit_types(name_snapshot.sources(), &inputs, validated, &type_env)
+            .ok()?;
+    let new_sid = new_target_sid?;
+    let new_su = name_snapshot
+        .names()
+        .index()
+        .source_units()
+        .iter()
+        .find(|u| u.source_id() == new_sid)?
+        .id();
+    let recovered =
+        UnitAnalysisSnapshot::finish(name_snapshot, Some(typed), None, Vec::new()).ok()?;
+    Some((recovered, new_su, new_sid))
 }
 
 fn dot_completions(
     snapshot: &UnitAnalysisSnapshot,
     source_unit: SourceUnitId,
+    source_id: SourceId,
     text: &str,
     receiver_tokens: &[Lexeme],
     prefix: &str,
@@ -146,100 +252,229 @@ fn dot_completions(
     let prefix_lower = prefix.to_ascii_lowercase();
     let mut items: BTreeMap<String, CompletionItem> = BTreeMap::new();
 
-    // 1. Check if receiver is a package qualifier (e.g. `demo.`).
-    let recv_name = &text[recv_tok.span().start()..recv_tok.span().end()];
-    let current_pkg = names
-        .index()
-        .source_units()
-        .iter()
-        .find(|u| u.id() == source_unit)
-        .map(|u| u.package());
-    for decl in names.index().declarations() {
-        let matches_pkg = names
-            .index()
-            .packages()
-            .get(decl.package().index())
-            .and_then(|p| p.name())
-            .is_some_and(|name| name.segments().last().map(String::as_str) == Some(recv_name));
-        if matches_pkg
-            && (decl.visibility() == DeclarationVisibility::Public
-                || Some(decl.package()) == current_pkg)
-            && matches_prefix(decl.name(), &prefix_lower)
-        {
-            let detail = typed.and_then(|t| decl_detail(decl.id(), t, names));
-            insert_item(
-                &mut items,
-                decl.name(),
-                map_completion_kind(decl.kind()),
-                detail,
-                "1",
-            );
+    // 1. Multi-segment package qualifier completion (e.g. `a.shared.`).
+    let qualifier = collect_qualifier_segments(text, receiver_tokens);
+    if !qualifier.is_empty() {
+        for pkg in names.index().packages() {
+            let Some(pkg_name) = pkg.name() else {
+                continue;
+            };
+            let segs = pkg_name.segments();
+            if segs.len() > qualifier.len()
+                && segs
+                    .iter()
+                    .zip(qualifier.iter())
+                    .all(|(a, b)| a.as_str() == *b)
+            {
+                let next_seg = &segs[qualifier.len()];
+                if matches_prefix(next_seg, &prefix_lower) {
+                    insert_item(
+                        &mut items,
+                        next_seg,
+                        CompletionItemKind::MODULE,
+                        Some("package".to_owned()),
+                        "0",
+                    );
+                }
+            }
+        }
+        for decl in names.index().declarations() {
+            let matches_pkg = names
+                .index()
+                .packages()
+                .get(decl.package().index())
+                .and_then(|p| p.name())
+                .is_some_and(|name| {
+                    name.segments().len() == qualifier.len()
+                        && name
+                            .segments()
+                            .iter()
+                            .zip(qualifier.iter())
+                            .all(|(a, b)| a.as_str() == *b)
+                });
+            let accessible = decl.source_unit() == source_unit
+                || matches!(
+                    decl.visibility(),
+                    DeclarationVisibility::Public | DeclarationVisibility::Internal
+                );
+            if matches_pkg && accessible && matches_prefix(decl.name(), &prefix_lower) {
+                let detail = typed.and_then(|t| decl_detail(decl.id(), t, names));
+                insert_item(
+                    &mut items,
+                    decl.name(),
+                    map_completion_kind(decl.kind()),
+                    detail,
+                    "1",
+                );
+            }
         }
     }
 
-    // 2. Resolve receiver symbol or expression type for nominal members / companion / enum cases.
-    if let Some(typed) = typed
-        && let Some((_, targets)) = snapshot
-            .definitions()
-            .entry_at(source_unit, recv_tok.span().start())
+    // 2. Resolve receiver via definition index, or fall back to scope-aware lookup when parser
+    // recovered an incomplete `origin.` / `Color.` into `Expression::Error`.
+    let Some(typed) = typed else {
+        return items.into_values().collect();
+    };
+    let parsed_files = snapshot.name_snapshot().parsed_files();
+    if let Some((_, targets)) = snapshot
+        .definitions()
+        .entry_at(source_unit, recv_tok.span().start())
         && let Some(target) = targets.first().copied()
     {
-        // Case A: receiver is a type/nominal declaration itself (static companion or enum case).
-        if let Some(decl) = names
-            .index()
-            .declarations()
-            .iter()
-            .find(|d| d.source_unit() == target.source_unit && d.name_span() == target.span)
-            && let Some(sig) = typed.signatures().declaration(decl.id())
-            && let Some(nominal) = sig.nominal()
-        {
-            for member in nominal.companion_members() {
-                if matches_prefix(member.name(), &prefix_lower) {
-                    insert_item(
-                        &mut items,
-                        member.name(),
-                        CompletionItemKind::METHOD,
-                        Some(format_callable_detail(member, typed, names)),
-                        "0",
-                    );
-                }
-            }
-            for case in nominal.enum_cases() {
-                if matches_prefix(case.name(), &prefix_lower) {
-                    insert_item(
-                        &mut items,
-                        case.name(),
-                        CompletionItemKind::ENUM_MEMBER,
-                        Some(decl.name().to_owned()),
-                        "0",
-                    );
-                }
-            }
-        }
+        add_target_dot_completions(
+            names,
+            typed,
+            parsed_files,
+            source_unit,
+            target.source_unit,
+            target.span,
+            &prefix_lower,
+            &mut items,
+        );
+        return items.into_values().collect();
+    }
 
-        // Case B: receiver is a value symbol whose type is a Nominal class/interface/enum.
-        if let Some(unit_names) = names
-            .source_units()
-            .iter()
-            .find(|u| u.source_unit() == target.source_unit)
-            && let Some(sym) = unit_names
-                .resolution()
-                .symbols()
-                .iter()
-                .find(|s| s.span() == target.span)
-            && let Some(ty_id) = typed.symbol_type(UnitSymbolId::new(target.source_unit, sym.id()))
-        {
-            add_type_member_completions(ty_id, typed, names, &prefix_lower, &mut items);
+    // Fallback for Expression::Error recovery: resolve receiver name in lexical scope or imports.
+    let recv_name = &text[recv_tok.span().start()..recv_tok.span().end()];
+    if let Some((sym_id, _)) = find_local_symbol_in_scope(
+        names,
+        source_unit,
+        source_id,
+        recv_tok.span().start(),
+        recv_name,
+    ) && let Some(ty_id) = typed.symbol_type(UnitSymbolId::new(source_unit, sym_id))
+    {
+        add_type_member_completions(ty_id, typed, names, source_unit, &prefix_lower, &mut items);
+        return items.into_values().collect();
+    }
+
+    let parsed_file = parsed_files.iter().find(|p| p.source_id() == source_id);
+    for (visible_name, decl) in visible_declarations(
+        names,
+        parsed_file,
+        snapshot.name_snapshot().sources(),
+        source_unit,
+    ) {
+        if visible_name == recv_name {
+            add_target_dot_completions(
+                names,
+                typed,
+                parsed_files,
+                source_unit,
+                decl.source_unit(),
+                decl.name_span(),
+                &prefix_lower,
+                &mut items,
+            );
         }
     }
 
     items.into_values().collect()
 }
 
+#[allow(clippy::too_many_arguments)]
+fn add_target_dot_completions(
+    names: &CompilationUnitNames,
+    typed: &CompilationUnitTypes,
+    parsed_files: &[ParsedFile],
+    caller_unit: SourceUnitId,
+    target_unit: SourceUnitId,
+    target_span: lang_frontend::source::Span,
+    prefix_lower: &str,
+    items: &mut BTreeMap<String, CompletionItem>,
+) {
+    // Case A: target is a nominal type declaration (static companion / constants / enum cases).
+    if let Some(decl) = names.index().declarations().iter().find(|d| {
+        d.source_unit() == target_unit
+            && d.name_span() == target_span
+            && d.namespace() == Namespace::Type
+    }) && let Some(sig) = typed.signatures().declaration(decl.id())
+        && let Some(nominal) = sig.nominal()
+    {
+        let same_file = caller_unit == decl.source_unit();
+        for member in nominal.companion_members() {
+            if (same_file || member.visibility() != DeclarationVisibility::Private)
+                && matches_prefix(member.name(), prefix_lower)
+            {
+                insert_item(
+                    items,
+                    member.name(),
+                    CompletionItemKind::METHOD,
+                    Some(format_callable_detail(member, typed, names)),
+                    "0",
+                );
+            }
+        }
+        // Companion constants declared inside this nominal type's AST span.
+        if let Some(decl_ast_span) = parsed_files
+            .iter()
+            .find(|p| p.source_id() == decl.name_span().source_id())
+            .and_then(|p| p.ast().items().get(decl.root()).ok())
+            .map(|item| item.span())
+            && let Some(unit_names) = names
+                .source_units()
+                .iter()
+                .find(|u| u.source_unit() == decl.source_unit())
+        {
+            for sym in unit_names.resolution().symbols() {
+                if sym.kind() == FrontSymbolKind::Constant
+                    && sym.span().start() >= decl_ast_span.start()
+                    && sym.span().end() <= decl_ast_span.end()
+                    && matches_prefix(sym.name(), prefix_lower)
+                {
+                    let detail = typed
+                        .symbol_type(UnitSymbolId::new(decl.source_unit(), sym.id()))
+                        .and_then(|ty| format_unit_type(ty, typed, names));
+                    insert_item(items, sym.name(), CompletionItemKind::CONSTANT, detail, "0");
+                }
+            }
+        }
+        for case in nominal.enum_cases() {
+            if matches_prefix(case.name(), prefix_lower) {
+                insert_item(
+                    items,
+                    case.name(),
+                    CompletionItemKind::ENUM_MEMBER,
+                    Some(decl.name().to_owned()),
+                    "0",
+                );
+            }
+        }
+        // If this is a singleton `object`, also expose its instance members directly.
+        if nominal.kind() == lang_frontend::type_checking::NominalKind::Object {
+            add_nominal_instance_members(
+                decl.source_unit(),
+                nominal,
+                typed,
+                names,
+                caller_unit,
+                prefix_lower,
+                items,
+            );
+        }
+    }
+
+    // Case B: target is a value symbol (local/param/const/field) whose type is a Nominal type.
+    if let Some(unit_names) = names
+        .source_units()
+        .iter()
+        .find(|u| u.source_unit() == target_unit)
+        && let Some(sym) = unit_names
+            .resolution()
+            .symbols()
+            .iter()
+            .find(|s| s.span() == target_span)
+        && let Some(ty_id) = typed.symbol_type(UnitSymbolId::new(target_unit, sym.id()))
+    {
+        add_type_member_completions(ty_id, typed, names, caller_unit, prefix_lower, items);
+    }
+}
+
 fn add_type_member_completions(
-    ty_id: lang_frontend::type_checking::UnitTypeId,
+    ty_id: UnitTypeId,
     typed: &CompilationUnitTypes,
     names: &CompilationUnitNames,
+    caller_unit: SourceUnitId,
     prefix_lower: &str,
     items: &mut BTreeMap<String, CompletionItem>,
 ) {
@@ -250,14 +485,45 @@ fn add_type_member_completions(
     let Some(UnitTypeKind::Nominal { declaration, .. }) = typed.types().get(inner) else {
         return;
     };
+    let Some(decl) = names
+        .index()
+        .declarations()
+        .iter()
+        .find(|d| d.id() == *declaration)
+    else {
+        return;
+    };
     let Some(sig) = typed.signatures().declaration(*declaration) else {
         return;
     };
     let Some(nominal) = sig.nominal() else {
         return;
     };
+    add_nominal_instance_members(
+        decl.source_unit(),
+        nominal,
+        typed,
+        names,
+        caller_unit,
+        prefix_lower,
+        items,
+    );
+}
+
+fn add_nominal_instance_members(
+    owner_unit: SourceUnitId,
+    nominal: &lang_frontend::type_checking::UnitNominalSignature,
+    typed: &CompilationUnitTypes,
+    names: &CompilationUnitNames,
+    caller_unit: SourceUnitId,
+    prefix_lower: &str,
+    items: &mut BTreeMap<String, CompletionItem>,
+) {
+    let same_file = caller_unit == owner_unit;
     for field in nominal.fields() {
-        if matches_prefix(field.name(), prefix_lower) {
+        if (same_file || field.visibility() != DeclarationVisibility::Private)
+            && matches_prefix(field.name(), prefix_lower)
+        {
             insert_item(
                 items,
                 field.name(),
@@ -268,7 +534,9 @@ fn add_type_member_completions(
         }
     }
     for member in nominal.members() {
-        if matches_prefix(member.name(), prefix_lower) {
+        if (same_file || member.visibility() != DeclarationVisibility::Private)
+            && matches_prefix(member.name(), prefix_lower)
+        {
             insert_item(
                 items,
                 member.name(),
@@ -278,6 +546,41 @@ fn add_type_member_completions(
             );
         }
     }
+    // Inherited interface methods (transitive closure).
+    for &iface_ty in nominal.interfaces() {
+        let Some(UnitTypeKind::Nominal { declaration, .. }) = typed.types().get(iface_ty) else {
+            continue;
+        };
+        let Some(iface_decl) = names
+            .index()
+            .declarations()
+            .iter()
+            .find(|d| d.id() == *declaration)
+        else {
+            continue;
+        };
+        let Some(iface_nominal) = typed
+            .signatures()
+            .declaration(*declaration)
+            .and_then(|s| s.nominal())
+        else {
+            continue;
+        };
+        let iface_same_file = caller_unit == iface_decl.source_unit();
+        for member in iface_nominal.members() {
+            if (iface_same_file || member.visibility() != DeclarationVisibility::Private)
+                && matches_prefix(member.name(), prefix_lower)
+            {
+                insert_item(
+                    items,
+                    member.name(),
+                    CompletionItemKind::METHOD,
+                    Some(format_callable_detail(member, typed, names)),
+                    "2",
+                );
+            }
+        }
+    }
 }
 
 fn scope_completions(
@@ -285,82 +588,64 @@ fn scope_completions(
     source_unit: SourceUnitId,
     source_id: SourceId,
     offset: usize,
-    names: &CompilationUnitNames,
-    typed: Option<&CompilationUnitTypes>,
     prefix: &str,
 ) -> Vec<CompletionItem> {
+    let names = snapshot.name_snapshot().names();
+    let typed = snapshot.typed();
+    let sources = snapshot.name_snapshot().sources();
+    let parsed_file = snapshot
+        .name_snapshot()
+        .parsed_files()
+        .iter()
+        .find(|p| p.source_id() == source_id);
     let prefix_lower = prefix.to_ascii_lowercase();
     let mut items: BTreeMap<String, CompletionItem> = BTreeMap::new();
 
-    // 1. Local symbols declared before cursor in current file.
-    if let Some(unit_names) = names
-        .source_units()
-        .iter()
-        .find(|u| u.source_unit() == source_unit)
-    {
-        for sym in unit_names.resolution().symbols() {
-            if sym.is_synthetic() || sym.span().source_id() != source_id {
-                continue;
-            }
-            if sym.span().start() >= offset {
-                continue;
-            }
-            if !matches!(
-                sym.kind(),
-                FrontSymbolKind::Variable
-                    | FrontSymbolKind::ValueParameter
-                    | FrontSymbolKind::ForBinding
-                    | FrontSymbolKind::LambdaParameter
-                    | FrontSymbolKind::Constant
-                    | FrontSymbolKind::TypeParameter
-            ) {
-                continue;
-            }
-            if !matches_prefix(sym.name(), &prefix_lower) {
-                continue;
-            }
-            let detail = typed.and_then(|t| {
-                t.symbol_type(UnitSymbolId::new(source_unit, sym.id()))
-                    .and_then(|ty| format_unit_type(ty, t, names))
-            });
-            insert_item(
-                &mut items,
-                sym.name(),
-                map_completion_kind(sym.kind()),
-                detail,
-                "0",
-            );
+    // 1. Lexically enclosing local scopes (innermost -> outermost so shadowing shows inner type).
+    for (sym_id, sym) in local_symbols_in_scope(names, source_unit, source_id, offset) {
+        if !matches_prefix(sym.name(), &prefix_lower) {
+            continue;
         }
+        let detail = typed.and_then(|t| {
+            t.symbol_type(UnitSymbolId::new(source_unit, sym_id))
+                .and_then(|ty| format_unit_type(ty, t, names))
+        });
+        insert_item(
+            &mut items,
+            sym.name(),
+            map_completion_kind(sym.kind()),
+            detail,
+            "0",
+        );
     }
 
-    // 2. Visible top-level declarations (same package + public in other packages).
+    // 2. Visible top-level declarations (same file, same package non-private, and imports/aliases).
     let current_pkg = names
         .index()
         .source_units()
         .iter()
         .find(|u| u.id() == source_unit)
         .map(|u| u.package());
-    for decl in names.index().declarations() {
-        let same_pkg = Some(decl.package()) == current_pkg;
-        let same_file = decl.source_unit() == source_unit;
-        if !same_file && !same_pkg && decl.visibility() != DeclarationVisibility::Public {
-            continue;
-        }
-        if !matches_prefix(decl.name(), &prefix_lower) {
+    for (visible_name, decl) in visible_declarations(names, parsed_file, sources, source_unit) {
+        if !matches_prefix(&visible_name, &prefix_lower) {
             continue;
         }
         let detail = typed.and_then(|t| decl_detail(decl.id(), t, names));
-        let rank = if same_pkg { "1" } else { "2" };
+        let rank = if Some(decl.package()) == current_pkg {
+            "1"
+        } else {
+            "2"
+        };
         insert_item(
             &mut items,
-            decl.name(),
+            &visible_name,
             map_completion_kind(decl.kind()),
             detail,
             rank,
         );
     }
 
-    // 3. Builtin functions and types.
+    // 3. Builtin functions and types from standard_environments().
     for &(name, sig) in BUILTIN_FUNCTIONS {
         if matches_prefix(name, &prefix_lower) {
             insert_item(
@@ -384,179 +669,217 @@ fn scope_completions(
         }
     }
 
-    let _ = snapshot;
     items.into_values().collect()
 }
 
-/// 在给定位置计算 `textDocument/signatureHelp`。
-pub(crate) fn signature_help_at(
-    snapshot: &UnitAnalysisSnapshot,
+/// 返回在 `offset` 处可见的局部符号列表（按词法作用域由内向外排列，排除已退出块和兄弟函数）。
+fn local_symbols_in_scope(
+    names: &CompilationUnitNames,
     source_unit: SourceUnitId,
     source_id: SourceId,
     offset: usize,
-) -> Option<SignatureHelp> {
-    let typed = snapshot.typed()?;
-    let sources = snapshot.name_snapshot().sources();
-    let names = snapshot.name_snapshot().names();
-    let text = sources.source_text(source_id).ok()?;
-    let clamped = offset.min(text.len());
-    let tokens = non_trivia_tokens_before(sources, source_id, clamped);
+) -> Vec<(
+    lang_frontend::name_resolution::SymbolId,
+    &lang_frontend::name_resolution::Symbol,
+)> {
+    let Some(unit_names) = names
+        .source_units()
+        .iter()
+        .find(|u| u.source_unit() == source_unit)
+    else {
+        return Vec::new();
+    };
+    let resolution = unit_names.resolution();
+    let scopes = resolution.scopes();
+    let enclosing = scopes
+        .iter()
+        .filter_map(|scope| {
+            let span = scope.span()?;
+            (span.source_id() == source_id && span.start() <= offset && offset <= span.end())
+                .then_some((scope.id(), span.len()))
+        })
+        .min_by_key(|(_, len)| *len)
+        .map(|(id, _)| id);
 
-    // Walk backwards to locate the innermost unclosed `(` and count top-level commas.
-    let mut paren_depth = 0usize;
-    let mut bracket_depth = 0usize;
-    let mut brace_depth = 0usize;
-    let mut comma_count = 0u32;
-    let mut open_paren_idx = None;
-    for (idx, tok) in tokens.iter().enumerate().rev() {
-        match tok.kind() {
-            LexemeKind::Token(TokenKind::Symbol(Symbol::RightParen)) => paren_depth += 1,
-            LexemeKind::Token(TokenKind::Symbol(Symbol::LeftParen)) => {
-                if paren_depth == 0 && bracket_depth == 0 && brace_depth == 0 {
-                    open_paren_idx = Some(idx);
-                    break;
-                }
-                paren_depth = paren_depth.saturating_sub(1);
+    let mut scope_chain: Vec<ScopeId> = Vec::new();
+    let mut current = enclosing;
+    while let Some(sid) = current {
+        scope_chain.push(sid);
+        current = scopes
+            .iter()
+            .find(|s| s.id() == sid)
+            .and_then(|s| s.parent());
+    }
+
+    let mut out = Vec::new();
+    for sid in scope_chain {
+        for sym in resolution.symbols() {
+            if sym.is_synthetic() || sym.span().source_id() != source_id {
+                continue;
             }
-            LexemeKind::Token(TokenKind::Symbol(Symbol::RightBracket)) => bracket_depth += 1,
-            LexemeKind::Token(TokenKind::Symbol(Symbol::LeftBracket)) => {
-                bracket_depth = bracket_depth.saturating_sub(1);
+            if sym.scope() != sid || sym.span().start() >= offset {
+                continue;
             }
-            LexemeKind::Token(TokenKind::Symbol(Symbol::RightBrace)) => brace_depth += 1,
-            LexemeKind::Token(TokenKind::Symbol(Symbol::LeftBrace)) => {
-                brace_depth = brace_depth.saturating_sub(1);
+            if !matches!(
+                sym.kind(),
+                FrontSymbolKind::Variable
+                    | FrontSymbolKind::ValueParameter
+                    | FrontSymbolKind::ForBinding
+                    | FrontSymbolKind::LambdaParameter
+                    | FrontSymbolKind::Constant
+                    | FrontSymbolKind::TypeParameter
+            ) {
+                continue;
             }
-            LexemeKind::Token(TokenKind::Symbol(Symbol::Comma))
-                if paren_depth == 0 && bracket_depth == 0 && brace_depth == 0 =>
-            {
-                comma_count += 1;
-            }
-            _ => {}
+            out.push((sym.id(), sym));
         }
     }
-    let open_idx = open_paren_idx?;
-    let callee_tok = tokens.get(open_idx.checked_sub(1)?)?;
-    let callee_name = &text[callee_tok.span().start()..callee_tok.span().end()];
+    out
+}
 
-    let mut signatures = Vec::new();
-    // 1. Resolve via definition index at callee token (covers functions, overloads, methods, constructors).
-    if let Some((_, targets)) = snapshot
-        .definitions()
-        .entry_at(source_unit, callee_tok.span().start())
+fn find_local_symbol_in_scope<'a>(
+    names: &'a CompilationUnitNames,
+    source_unit: SourceUnitId,
+    source_id: SourceId,
+    offset: usize,
+    name: &str,
+) -> Option<(
+    lang_frontend::name_resolution::SymbolId,
+    &'a lang_frontend::name_resolution::Symbol,
+)> {
+    local_symbols_in_scope(names, source_unit, source_id, offset)
+        .into_iter()
+        .find(|(_, sym)| sym.name() == name)
+}
+
+/// 计算当前文件内裸名可见的全部顶层声明（同文件全部声明、同包非 private 声明、显式导入/别名与通配导入）。
+pub(crate) fn visible_declarations<'a>(
+    names: &'a CompilationUnitNames,
+    parsed_file: Option<&ParsedFile>,
+    sources: &SourceMap,
+    source_unit: SourceUnitId,
+) -> Vec<(String, &'a UnitDeclaration)> {
+    let current_pkg = names
+        .index()
+        .source_units()
+        .iter()
+        .find(|u| u.id() == source_unit)
+        .map(|u| u.package());
+    let mut out = Vec::new();
+
+    // 1. Same file (including private) & same package (Public/Internal only).
+    for decl in names.index().declarations() {
+        let same_file = decl.source_unit() == source_unit;
+        let same_pkg = Some(decl.package()) == current_pkg;
+        if same_file
+            || (same_pkg
+                && matches!(
+                    decl.visibility(),
+                    DeclarationVisibility::Public | DeclarationVisibility::Internal
+                ))
+        {
+            out.push((decl.name().to_owned(), decl));
+        }
+    }
+
+    // 2. Explicit imports, aliases, and wildcard imports from the current file.
+    if let Some(parsed) = parsed_file
+        && let Ok(text) = sources.source_text(parsed.source_id())
     {
-        for target in targets {
-            if let Some(decl) = names
-                .index()
-                .declarations()
+        for import in parsed.imports() {
+            let segs: Vec<&str> = import
+                .segments
                 .iter()
-                .find(|d| d.source_unit() == target.source_unit && d.name_span() == target.span)
-                && let Some(sig) = typed.signatures().declaration(decl.id())
-            {
-                push_decl_signature(decl.name(), sig, typed, names, &mut signatures);
-            } else {
-                // Member method target inside a nominal type.
-                for decl_sig in typed.signatures().declarations() {
-                    if let Some(nominal) = decl_sig.nominal() {
-                        for member in nominal
-                            .members()
-                            .iter()
-                            .chain(nominal.companion_members().iter())
-                        {
-                            if member.name_span() == target.span {
-                                signatures.push(callable_signature_info(member, typed, names));
-                            }
-                        }
+                .filter_map(|s| {
+                    (s.span.start() <= s.span.end() && s.span.end() <= text.len())
+                        .then_some(&text[s.span.start()..s.span.end()])
+                })
+                .collect();
+            if segs.is_empty() {
+                continue;
+            }
+            if import.wildcard_span.is_some() {
+                for decl in names.index().declarations() {
+                    let pkg_matches = names
+                        .index()
+                        .packages()
+                        .get(decl.package().index())
+                        .and_then(|p| p.name())
+                        .is_some_and(|p| {
+                            p.segments().len() == segs.len()
+                                && p.segments().iter().zip(segs.iter()).all(|(a, b)| a == b)
+                        });
+                    if pkg_matches
+                        && matches!(
+                            decl.visibility(),
+                            DeclarationVisibility::Public | DeclarationVisibility::Internal
+                        )
+                    {
+                        out.push((decl.name().to_owned(), decl));
+                    }
+                }
+            } else if segs.len() >= 2 {
+                let (pkg_segs, target_name) = (&segs[..segs.len() - 1], segs[segs.len() - 1]);
+                let alias_name = import.alias.and_then(|a| {
+                    (!a.name_span.is_empty() && a.name_span.end() <= text.len())
+                        .then_some(&text[a.name_span.start()..a.name_span.end()])
+                });
+                let exposed_name = alias_name.unwrap_or(target_name);
+                for decl in names.index().declarations() {
+                    let pkg_matches = names
+                        .index()
+                        .packages()
+                        .get(decl.package().index())
+                        .and_then(|p| p.name())
+                        .is_some_and(|p| {
+                            p.segments().len() == pkg_segs.len()
+                                && p.segments()
+                                    .iter()
+                                    .zip(pkg_segs.iter())
+                                    .all(|(a, b)| a == b)
+                        });
+                    if pkg_matches
+                        && decl.name() == target_name
+                        && matches!(
+                            decl.visibility(),
+                            DeclarationVisibility::Public | DeclarationVisibility::Internal
+                        )
+                    {
+                        out.push((exposed_name.to_owned(), decl));
                     }
                 }
             }
         }
     }
 
-    // 2. Fallback: match by name in visible declarations (helpful while typing incomplete call arguments).
-    if signatures.is_empty() {
-        for decl in names.index().declarations() {
-            if decl.name() == callee_name
-                && let Some(sig) = typed.signatures().declaration(decl.id())
-            {
-                push_decl_signature(decl.name(), sig, typed, names, &mut signatures);
+    out
+}
+
+fn collect_qualifier_segments<'a>(text: &'a str, receiver_tokens: &[Lexeme]) -> Vec<&'a str> {
+    let mut segs = Vec::new();
+    let mut expect_ident = true;
+    for tok in receiver_tokens.iter().rev() {
+        if expect_ident {
+            if matches!(tok.kind(), LexemeKind::Token(TokenKind::Identifier)) {
+                segs.push(&text[tok.span().start()..tok.span().end()]);
+                expect_ident = false;
+            } else {
+                break;
             }
+        } else if matches!(
+            tok.kind(),
+            LexemeKind::Token(TokenKind::Symbol(Symbol::Dot))
+        ) {
+            expect_ident = true;
+        } else {
+            break;
         }
     }
-
-    if signatures.is_empty() {
-        return None;
-    }
-    Some(SignatureHelp {
-        signatures,
-        active_signature: Some(0),
-        active_parameter: Some(comma_count),
-    })
+    segs.reverse();
+    segs
 }
 
-fn push_decl_signature(
-    name: &str,
-    sig: &UnitDeclarationSignature,
-    typed: &CompilationUnitTypes,
-    names: &CompilationUnitNames,
-    out: &mut Vec<SignatureInformation>,
-) {
-    if let Some(callable) = sig.callable() {
-        out.push(callable_signature_info(callable, typed, names));
-    } else if let Some(nominal) = sig.nominal()
-        && !nominal.fields().is_empty()
-    {
-        let mut params = Vec::with_capacity(nominal.fields().len());
-        let mut param_labels = Vec::with_capacity(nominal.fields().len());
-        for field in nominal.fields() {
-            let ty = format_unit_type(field.ty(), typed, names).unwrap_or_else(|| "?".to_owned());
-            let label = format!("{}: {ty}", field.name());
-            param_labels.push(label.clone());
-            params.push(ParameterInformation {
-                label: ParameterLabel::Simple(label),
-                documentation: None,
-            });
-        }
-        out.push(SignatureInformation {
-            label: format!("{name}({})", param_labels.join(", ")),
-            documentation: None,
-            parameters: Some(params),
-            active_parameter: None,
-        });
-    }
-}
-
-fn callable_signature_info(
-    callable: &UnitCallableSignature,
-    typed: &CompilationUnitTypes,
-    names: &CompilationUnitNames,
-) -> SignatureInformation {
-    let mut params = Vec::with_capacity(callable.parameters().len());
-    let mut param_labels = Vec::with_capacity(callable.parameters().len());
-    for param in callable.parameters() {
-        let pname = param.name().unwrap_or("_");
-        let ty = format_unit_type(param.ty(), typed, names).unwrap_or_else(|| "?".to_owned());
-        let label = format!("{pname}: {ty}");
-        param_labels.push(label.clone());
-        params.push(ParameterInformation {
-            label: ParameterLabel::Simple(label),
-            documentation: None,
-        });
-    }
-    let ret =
-        format_unit_type(callable.return_type(), typed, names).unwrap_or_else(|| "Unit".to_owned());
-    SignatureInformation {
-        label: format!(
-            "fun {}({}): {ret}",
-            callable.name(),
-            param_labels.join(", ")
-        ),
-        documentation: None,
-        parameters: Some(params),
-        active_parameter: None,
-    }
-}
-
-fn non_trivia_tokens_before(
+pub(crate) fn non_trivia_tokens_through(
     sources: &SourceMap,
     source_id: SourceId,
     offset: usize,

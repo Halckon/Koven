@@ -9,6 +9,7 @@ mod ide_features;
 mod position_adapter;
 mod rename;
 mod server;
+mod signature_help;
 mod source_set;
 mod symbols;
 mod unit_analysis_snapshot;

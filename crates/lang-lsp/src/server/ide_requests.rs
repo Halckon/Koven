@@ -414,7 +414,7 @@ pub(super) fn signature_help_response(
                 else {
                     return Ok(None);
                 };
-                Ok(completion::signature_help_at(
+                Ok(crate::signature_help::signature_help_at(
                     &document.analysis,
                     source_unit,
                     document.source_id,
@@ -432,7 +432,7 @@ pub(super) fn signature_help_response(
             else {
                 return Ok(None);
             };
-            Ok(completion::signature_help_at(
+            Ok(crate::signature_help::signature_help_at(
                 &document.analysis,
                 source_unit,
                 document.source_id,
