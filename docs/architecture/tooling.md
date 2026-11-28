@@ -32,7 +32,7 @@ bodyless single 保 lowering UnsupportedNode，project 保 entry unsupported pro
 JSON schema 与完整操作错误文本不变。这些 driver 差异不计作类型、ownership 或程序行为不一致。
 
 CLI 以参数数组调用 macOS `/usr/bin/clang` 或 Linux `/usr/bin/cc` 链接 native object，不调用 shell 或重新编译 LLVM IR。
-macOS build 在私有 staging 收集 dSYM 后依次 no-clobber 发布调试包和 executable；Linux 发布带行表 ELF。链接失败保留结构化错误，目标在 codegen 边界校验。
+单文件和项目 build 从预留到清理持有私有 staging 目录句柄。清理前仍校验路径身份。macOS build 在私有 staging 收集 dSYM 后依次 no-clobber 发布调试包和 executable；Linux 发布带行表 ELF。链接失败保留结构化错误，目标在 codegen 边界校验。
 `run` 的链接工具与程序复用进程组取消，回收及私有目录清理后恢复原信号状态；进程内编译仍同步运行，取消在下一外部进程边界阻止启动。
 
 实现入口是 `crates/lang-cli/src/main.rs`、`native_command.rs`、`check_command.rs`、`project/`、`project_build.rs` 和
@@ -71,11 +71,12 @@ typed diagnostics 先由宿主收集，再调用同一 `analyze_basic_unit_owner
 不进入基础 ownership；raw ownership 即使有诊断或 deferred 仍保留，typed recovery 继续导航。
 同轮产物交内部 `UnitAnalysisSnapshot`：先排序完整诊断再建 definition，不增加 CLI 最终类型准入门。
 完整 snapshot 与全部诊断 payload 准备成功、逐项发布成功后才替换内存状态；分析、映射或发送
-失败保留 last-good。已发消息不能撤回，此边界不是 wire 事务。诊断按 target URI 分组并稳定
-发布，definition 直接消费已保存的 name/type target，不重新解析 package/import 或 overload。
+失败保留 last-good。已发消息不能撤回，此边界不是 wire 事务。非空诊断批次按 SourceId 建立
+URI 查找索引，主位置和关联位置共享索引。发布仍按配置的 URI 顺序分组，组内保留诊断顺序。
+definition 直接消费已保存的 name/type target，不重新解析 package/import 或 overload。
 
 全文格式化读取已打开 snapshot，复用 frontend 固定样式并返回 UTF-16 编辑；语法错误或未打开文档返回 null，不应用结果或改变既有版本合同。
-`position_adapter` 集中处理 Span 与 UTF-16 的双向映射，拒绝 surrogate pair 中间位置和越界 cursor。
+`position_adapter` 使用 SourceMap 的行首与列索引进行 Span 和 UTF-16 的双向映射，拒绝 surrogate pair 中间位置和越界 cursor。
 实现入口位于 `crates/lang-lsp/src/analysis.rs`、`source_set.rs`、`unit_session.rs`、`definition.rs` 和
 `diagnostic_adapter.rs`；`single_file_oracle` 以已审 Unit JSON 硬比十一原源完整诊断与逐 UTF-8 边界有序导航，旧基线只留历史，坐标变换独立核验。
 
