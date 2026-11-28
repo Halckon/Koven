@@ -442,14 +442,7 @@ mod e2_main429_combination_tests;
 #[cfg(feature = "two-source-unit")]
 pub(crate) mod two_source_unit;
 
-#[cfg(all(
-    test,
-    any(
-        feature = "two-source-unit",
-        feature = "e2-two-source-test-support",
-        feature = "d10-catalog-experiment"
-    )
-))]
+#[cfg(test)]
 mod native_bounded;
 
 #[cfg(all(test, feature = "d10-catalog-experiment"))]

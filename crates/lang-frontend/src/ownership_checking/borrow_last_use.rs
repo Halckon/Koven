@@ -18,7 +18,16 @@ impl<S: Copy + Ord> StraightLineBorrowUses<S> {
     pub(crate) fn build(
         parsed: &ParsedFile,
         elements: &[StatementId],
+        root: impl FnMut(ExpressionId) -> Result<Option<S>, OwnershipCheckingError>,
+    ) -> Result<Option<Self>, OwnershipCheckingError> {
+        Self::build_with_named_range_loop(parsed, elements, root, None)
+    }
+
+    pub(crate) fn build_with_named_range_loop(
+        parsed: &ParsedFile,
+        elements: &[StatementId],
         mut root: impl FnMut(ExpressionId) -> Result<Option<S>, OwnershipCheckingError>,
+        named_loop: Option<(StatementId, ExpressionId, StatementId)>,
     ) -> Result<Option<Self>, OwnershipCheckingError> {
         let mut declares_borrow = false;
         for &statement in elements {
@@ -52,9 +61,18 @@ impl<S: Copy + Ord> StraightLineBorrowUses<S> {
                     };
                     *initializer
                 }
+                Statement::For { source, .. }
+                    if named_loop.is_some_and(|(loop_statement, operand, _)| {
+                        loop_statement == statement && operand == *source
+                    }) =>
+                {
+                    *source
+                }
                 _ => return Ok(None),
             };
-            after.insert(statement.index(), future.clone());
+            if named_loop.is_none_or(|(_, _, last_read)| statement == last_read) {
+                after.insert(statement.index(), future.clone());
+            }
             let Some(uses) = expression_uses(parsed, expression, &mut root)? else {
                 return Ok(None);
             };

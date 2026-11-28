@@ -918,6 +918,7 @@ pub(crate) fn validate_bindings(
             Some((fact.initializer(), controls))
         })
         .collect();
+    let range_loop_reuses = owned.named_range_loop_reuse_controls();
     let mut nullable = nullable_presence::Observers::new(names, typed, owned, &bindings);
     for (fact, file, policy) in bindings {
         let file =
@@ -952,14 +953,27 @@ pub(crate) fn validate_bindings(
                 )? =>
             {
                 let allowed = is_local_range_binding(file, names, typed, owned, fact).then(|| {
-                    ordinary_local::allowed_controls(
+                    let mut allowed = ordinary_local::allowed_controls(
                         file,
                         typed,
                         owned,
                         fact,
                         &argument_controls,
                         &Default::default(),
-                    )
+                    );
+                    if let Some(receipt) = range_loop_reuses.get(&fact.binding()).copied()
+                        && let Some(control) = crate::ssa::borrow_result_support::verified_named_range_loop_reuse_control(
+                            file,
+                            fact.binding().source_unit(),
+                            receipt.loop_statement(),
+                            receipt.body_control(),
+                            receipt.end_statement(),
+                            receipt.observer(),
+                        )
+                    {
+                        allowed.insert(control);
+                    }
+                    allowed
                 });
                 validate_binding(
                     file,

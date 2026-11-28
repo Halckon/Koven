@@ -255,3 +255,5 @@ fn original_named_range_receivers_preserve_each_semantic_loan_until_its_own_end(
         }
     }
 }
+
+mod named_range_exhaustion;

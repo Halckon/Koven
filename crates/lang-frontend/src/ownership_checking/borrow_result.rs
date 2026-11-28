@@ -303,11 +303,27 @@ impl<E: Copy, S: Copy, T, P: Copy> BorrowCallUseFact<E, S, T, P> {
     }
 }
 
+/// A candidate to verify against actual provider exit/end and value delivery.
+/// Kept distinct from a closed if or a declaration-scope lifetime.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct NamedRangeLoopReuse<E, S, P> {
+    pub(crate) loop_exit: P,
+    pub(crate) source: E,
+    pub(crate) body_control: E,
+    pub(crate) binding: S,
+    pub(crate) root: S,
+    pub(crate) observer: E,
+    pub(crate) end: P,
+    pub(crate) consume: E,
+    pub(crate) consumed_operand: E,
+}
+
 /// 只读、原子发布的 caller continuation 与转发合同。
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BorrowResultFacts<E, S, T, P> {
     pub(crate) bindings: Vec<BorrowBindingFact<E, S, T>>,
     pub(crate) ends: Vec<BorrowBindingEndFact<S, P>>,
+    pub(crate) named_range_loop_reuses: Vec<NamedRangeLoopReuse<E, S, P>>,
     pub(crate) forwarded: Vec<BorrowSourceLoan<E>>,
     pub(crate) range_returns: Vec<RangeReturnOriginFact<E, T>>,
     pub(crate) range_uses: Vec<RangeUseFact<E, T>>,
@@ -318,6 +334,7 @@ impl<E, S, T, P> Default for BorrowResultFacts<E, S, T, P> {
         Self {
             bindings: Vec::new(),
             ends: Vec::new(),
+            named_range_loop_reuses: Vec::new(),
             forwarded: Vec::new(),
             range_returns: Vec::new(),
             range_uses: Vec::new(),
@@ -326,6 +343,18 @@ impl<E, S, T, P> Default for BorrowResultFacts<E, S, T, P> {
     }
 }
 impl<E, S, T, P> BorrowResultFacts<E, S, T, P> {
+    /// Merge checker-side facts for one source. The planner publishes the
+    /// authoritative end rows separately after validating actual exits.
+    pub(crate) fn append_checked_source(&mut self, source: Self) {
+        self.range_returns.extend(source.range_returns);
+        self.range_uses.extend(source.range_uses);
+        self.call_uses.extend(source.call_uses);
+        self.bindings.extend(source.bindings);
+        self.forwarded.extend(source.forwarded);
+        self.named_range_loop_reuses
+            .extend(source.named_range_loop_reuses);
+    }
+
     /// 源码求值顺序的普通借用结果同步消费及明确终止证明。
     pub fn call_uses(&self) -> &[BorrowCallUseFact<E, S, T, P>] {
         &self.call_uses
