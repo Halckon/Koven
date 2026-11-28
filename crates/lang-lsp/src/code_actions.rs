@@ -3,9 +3,10 @@
 use std::collections::{BTreeSet, HashMap};
 
 use lang_frontend::{
+    lexer::{LexemeKind, Symbol, TokenKind},
     name_resolution::{
         CompilationUnitNames, DeclarationId, DeclarationVisibility, Namespace, SourceUnitId,
-        UnitSymbolId,
+        UnitReferenceTarget, UnitSymbolId,
     },
     parser::{ClassifierKind, Item, NameMarker, ParsedFile},
     source::SourceId,
@@ -20,7 +21,7 @@ use lsp_types::{
 use crate::{
     position_adapter::{PositionMappingError, span_range, utf16_position},
     rename::is_valid_rename_identifier,
-    scope_query::visible_declarations,
+    scope_query::{non_trivia_tokens_through, visible_declarations},
     unit_analysis_snapshot::UnitAnalysisSnapshot,
 };
 
@@ -80,21 +81,43 @@ pub(crate) fn code_actions(
                 continue;
             }
 
-            // Determine whether the unresolved reference is in Type or Value namespace.
-            let expected_ns = names
-                .references()
-                .iter()
-                .find(|r| r.source_unit() == source_unit && r.span() == diag.primary_span())
-                .and_then(|r| r.namespace())
-                .or_else(|| {
-                    parsed_file.and_then(|p| {
-                        let in_type = p.ast().type_refs().iter().any(|(_, n)| {
-                            n.span().start() <= diag.primary_span().start()
-                                && diag.primary_span().end() <= n.span().end()
-                        });
-                        in_type.then_some(Namespace::Type)
-                    })
+            // Only offer auto-import for genuine bare unresolved name/type references (never for
+            // missing/inaccessible members like `x.foo()`, qualified paths `a.foo`, or `import` paths).
+            let span = diag.primary_span();
+            let inside_import = parsed_file.is_some_and(|p| {
+                p.imports()
+                    .iter()
+                    .any(|imp| imp.span.start() <= span.start() && span.end() <= imp.span.end())
+            });
+            if inside_import {
+                continue;
+            }
+            let preceded_by_dot = non_trivia_tokens_through(sources, source_id, span.start())
+                .last()
+                .is_some_and(|tok| {
+                    matches!(
+                        tok.kind(),
+                        LexemeKind::Token(TokenKind::Symbol(Symbol::Dot | Symbol::QuestionDot))
+                    )
                 });
+            if preceded_by_dot {
+                continue;
+            }
+            let Some(unresolved_ref) = names.references().iter().find(|r| {
+                r.source_unit() == source_unit
+                    && r.span() == span
+                    && matches!(r.target(), UnitReferenceTarget::Unresolved)
+            }) else {
+                continue;
+            };
+            let expected_ns = unresolved_ref.namespace().or_else(|| {
+                parsed_file.and_then(|p| {
+                    let in_type = p.ast().type_refs().iter().any(|(_, n)| {
+                        n.span().start() <= span.start() && span.end() <= n.span().end()
+                    });
+                    in_type.then_some(Namespace::Type)
+                })
+            });
 
             // Collect all unique importable FQNs matching `ident` and namespace in other packages.
             let mut candidates: BTreeSet<String> = BTreeSet::new();

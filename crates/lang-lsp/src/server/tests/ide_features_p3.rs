@@ -805,6 +805,59 @@ fun main(h: Holder<P>) {
         "unresolved member `x.println()` must not get DEFAULT_LIBRARY token: {decoded_t:?}"
     );
 
+    // 2f. Missing member `p.computeBonus()` reports L0080, but MUST NOT suggest importing top-level `extra.computeBonus`!
+    let member_err_src = "\
+package app
+
+import model.Point
+
+fun testMember(p: Point) {
+    val bad = p.computeBonus()
+}
+";
+    send_notification(
+        &client,
+        DidChangeTextDocument::METHOD,
+        serde_json::to_value(DidChangeTextDocumentParams {
+            text_document: VersionedTextDocumentIdentifier::new(app_uri.clone(), 2),
+            content_changes: vec![TextDocumentContentChangeEvent {
+                range: None,
+                range_length: None,
+                text: member_err_src.to_owned(),
+            }],
+        })
+        .expect("change"),
+    );
+    let _ = receive_diagnostics(&client);
+    let _ = receive_diagnostics(&client);
+    let _ = receive_diagnostics(&client);
+
+    let member_pos = position_of(member_err_src, "computeBonus", 0);
+    send_request(
+        &client,
+        RequestId::from(707_i32),
+        CodeActionRequest::METHOD,
+        serde_json::to_value(CodeActionParams {
+            text_document: TextDocumentIdentifier::new(app_uri.clone()),
+            range: Range::new(member_pos, member_pos),
+            context: CodeActionContext {
+                diagnostics: Vec::new(),
+                only: Some(vec![CodeActionKind::QUICKFIX]),
+                trigger_kind: None,
+            },
+            work_done_progress_params: Default::default(),
+            partial_result_params: Default::default(),
+        })
+        .expect("member ca"),
+    );
+    let member_actions: CodeActionResponse =
+        serde_json::from_value(receive_response(&client).response_result.expect("ok"))
+            .expect("resp");
+    assert!(
+        member_actions.is_empty(),
+        "missing member `p.computeBonus()` must NOT suggest auto-importing top-level `extra.computeBonus`: {member_actions:?}"
+    );
+
     shutdown(&client);
     server_thread
         .join()
