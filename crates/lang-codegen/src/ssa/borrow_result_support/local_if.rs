@@ -665,6 +665,7 @@ pub(in crate::ssa) mod ordinary_local {
                 Statement::Block { elements } | Statement::ControlBody { elements } => {
                     pending.extend_from_slice(elements)
                 }
+                Statement::For { body, .. } if range => pending.push(*body),
                 Statement::Expression { expression } => {
                     let Ok(expression) = ungroup(file, *expression, node.span()) else {
                         continue;

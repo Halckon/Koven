@@ -20,7 +20,7 @@ use super::{Builder, Lowered};
 use crate::ssa::{
     borrow_result_support::ordinary_local::Policy,
     lowering_support::{LoweringError, LoweringErrorKind, error},
-    model::{EntityType, LoanKind, SsaTypeKind},
+    model::{EntityType, LoanKind, SsaTypeId, SsaTypeKind},
     refine::body::{BlockRef, ROp, RTerm, Slot},
 };
 
@@ -881,10 +881,27 @@ impl Builder<'_, '_> {
         let Some((view, protecting, continued)) = self.lower_range_call(actual, span)? else {
             return Ok(None);
         };
-        self.short_ranges
-            .insert(id, (view, protecting, continued.clone()));
+        let metadata =
+            self.attach_short_range_metadata(id, (view, protecting, continued.clone()), ty, span)?;
+        let mut loans = continued;
+        loans.push(protecting);
+        loans.push(metadata);
+        Ok(Some((metadata, loans, None)))
+    }
+
+    /// Bind metadata to actual lowered Range slots. The caller must already
+    /// have obtained these slots through a checked Range acquisition.
+    pub(super) fn attach_short_range_metadata(
+        &mut self,
+        id: UnitExpressionId,
+        slots: (Slot, Slot, Vec<Slot>),
+        ty: SsaTypeId,
+        span: Span,
+    ) -> Result<Slot, LoweringError> {
+        let view = slots.0;
+        self.short_ranges.insert(id, slots);
         let place = self.value(ROp::RootPlace { owner: view }, EntityType::Place(ty), span)?;
-        let metadata = self.value(
+        self.value(
             ROp::BorrowBegin {
                 place,
                 kind: LoanKind::Shared,
@@ -894,11 +911,7 @@ impl Builder<'_, '_> {
                 target: ty,
             },
             span,
-        )?;
-        let mut loans = continued;
-        loans.push(protecting);
-        loans.push(metadata);
-        Ok(Some((metadata, loans, None)))
+        )
     }
 
     pub(super) fn end_short_call_loan(

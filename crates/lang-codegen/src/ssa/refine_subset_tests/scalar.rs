@@ -479,11 +479,52 @@ fn nested_primitive_range_view_consumption_routes_and_verifies_in_refine() {
 }
 
 #[test]
-fn borrowed_map_alias_and_reassigned_nullable_container_loop_route_to_refine() {
-    for source in [
-        "fun f(m: Map<String, Int>): Int { borrow val m2 = m; return m2.size }",
-        // Nullable Map has an existing Unit ABI; nullable List does not.
-        r#"fun f(own xs: MutableMap<String, Int>?): Int {
+fn borrowed_map_alias_routes_without_local_map_operations() {
+    // Keep the Map family trigger in readSize, not in f. The route helper
+    // specifically checks the real caller f, never a sibling's route.
+    assert_refines_map_route(
+        "fun readSize(m: Map<String, Int>): Int = m.size\nfun f(m: Map<String, Int>): Int { borrow val alias = m; return readSize(alias) }",
+    );
+}
+
+#[test]
+fn reassigned_nullable_map_loop_routes_without_construction_or_size() {
+    // A Boolean loop avoids an integer arithmetic trigger. The outer null
+    // proof is invalidated by assigning null; verify the post-loop comparison
+    // rather than triggering refine through a new Map or its size.
+    let source = r#"fun f(own xs: MutableMap<String, Int>?, run: Boolean): Boolean {
+            var cur: MutableMap<String, Int>? = xs
+            var repeat = run
+            if (cur != null) {
+                while (repeat) {
+                    cur = null
+                    repeat = false
+                }
+            }
+            return cur == null
+        }"#;
+    assert_refines_map_route(source);
+
+    // Keep construction in the entry, not in f, so it cannot mask a
+    // regression in the standalone routing assertion above.
+    let source = format!(
+        "{source}\n{}",
+        r#"fun main(): Unit {
+            if (f(mutableMapOf<String, Int>(), true)) { println("cleared") }
+            else { println("stale non-null state") }
+            if (!f(mutableMapOf<String, Int>(), false)) { println("preserved") }
+            else { println("unexpected null") }
+            if (f(null, true)) { println("absent") }
+            else { println("unexpected map") }
+        }"#
+    );
+    let run = crate::native_tests::emit_link_and_run("nullable_map_loop.ko", &source, "main");
+    crate::native_tests::boxed_enum_tests::assert_success(&run, b"cleared\npreserved\nabsent\n");
+}
+
+#[test]
+fn reassigned_nullable_map_loop_reads_size_after_fresh_null_check() {
+    let source = r#"fun f(own xs: MutableMap<String, Int>?): Int {
             var cur: MutableMap<String, Int>? = xs
             if (cur != null) {
                 var i = 0
@@ -493,21 +534,22 @@ fn borrowed_map_alias_and_reassigned_nullable_container_loop_route_to_refine() {
                 }
             }
             return if (cur != null) cur.size else 0
-        }"#,
-    ] {
-        let (res, routed) = route(source);
-        let program = res.unwrap_or_else(|e| panic!("{source}: {e:?}"));
-        assert!(routed, "expected refine routing for:\n{source}");
-        crate::ssa::verify::verify_program(&program)
-            .unwrap_or_else(|e| panic!("SSA verify failed for {source}: {e:?}"));
-        let llvm = crate::llvm::render_verified_program(&program)
-            .unwrap_or_else(|e| panic!("verified LLVM failed for {source}: {e:?}"));
-        assert!(!llvm.is_empty());
-    }
+        }"#;
+    assert_refines_map_route(source);
+}
+
+fn assert_refines_map_route(source: &str) {
+    let (res, routed) = route(source);
+    let program = res.unwrap_or_else(|e| panic!("{source}: {e:?}"));
+    assert!(routed, "expected refine routing for:\n{source}");
+    crate::ssa::verify::verify_program(&program)
+        .unwrap_or_else(|e| panic!("SSA verify failed for {source}: {e:?}"));
+    crate::llvm::render_verified_program(&program)
+        .unwrap_or_else(|e| panic!("verified LLVM failed for {source}: {e:?}"));
 }
 
 #[test]
-fn retired_map_operations_route_directly_to_refine() {
+fn default_map_operations_route_to_refine() {
     for source in [
         "fun f(): Int { val m = mapOf<String, Int>(); return m.size }",
         "fun f(): Boolean { val m = mutableMapOf<Int, Int>(); return m.contains(1) }",
@@ -525,7 +567,7 @@ fn retired_map_operations_route_directly_to_refine() {
 }
 
 #[test]
-fn retired_rc_construction_and_container_size_route_directly_to_refine() {
+fn default_rc_construction_and_container_size_route_to_refine() {
     for source in [
         "fun f(): Int { val r = Rc(7); return r.value }",
         "fun f(xs: List<Int>): Int = xs.size",
@@ -540,4 +582,67 @@ fn retired_rc_construction_and_container_size_route_directly_to_refine() {
             .unwrap_or_else(|e| panic!("verified LLVM failed for {source}: {e:?}"));
         assert!(!llvm.is_empty());
     }
+}
+
+#[test]
+fn mixed_nullable_replacement_retains_compatibility_map_rc_and_size() {
+    use crate::ssa::model::Operation;
+    let source = r#"
+class Node {}
+fun observe(value: Node): Unit { println("node") }
+fun observeSize(own size: Int): Unit { if (size == 0) { println("map-empty") }; if (size == 2) { println("list-two") } }
+fun f(own input: Node?, own replacement: Node?): Unit {
+    val map = mapOf<String, Int>()
+    val list = listOf(1, 2)
+    val retained = Rc(7)
+    val mapSize = map.size
+    val listSize = list.size
+    observeSize(mapSize)
+    observeSize(listSize)
+    var x = input
+    when (x) {
+        null -> {}
+        else -> {
+            x = replacement
+            if (((x) != null)) { observe((x)) }
+        }
+    }
+}
+fun main(): Unit { f(Node(), Node()); f(Node(), null); f(null, Node()) }
+"#;
+    let (result, routed) = super::routing::routes_from_entry(source, "main");
+    let program = result.expect("ordinary mixed source lowers");
+    let function = program.modules[0]
+        .functions
+        .iter()
+        .find(|f| f.name.starts_with("koven.p.f.d"))
+        .expect("the mixed caller is really emitted");
+    assert!(!routed.contains(&function.name), "{routed:?}");
+    let ops = &function.instructions;
+    for (operation, matches) in [
+        (
+            "MapConstruct",
+            (|op| matches!(op, Operation::MapConstruct { .. })) as fn(&Operation) -> bool,
+        ),
+        ("MapSize", |op| matches!(op, Operation::MapSize { .. })),
+        ("ContainerLength", |op| {
+            matches!(op, Operation::ContainerLength { .. })
+        }),
+        ("SharedAllocate", |op| {
+            matches!(op, Operation::SharedAllocate { .. })
+        }),
+    ] {
+        assert_eq!(
+            ops.iter().filter(|i| matches(&i.operation)).count(),
+            1,
+            "the compatible function still emits exactly one {operation}"
+        );
+    }
+    crate::ssa::verify::verify_program(&program).unwrap();
+    crate::llvm::render_verified_program(&program).unwrap();
+    let output = crate::native_tests::emit_link_and_run("mixed-families.ko", source, "main");
+    crate::native_tests::boxed_enum_tests::assert_success(
+        &output,
+        b"map-empty\nlist-two\nnode\nmap-empty\nlist-two\nmap-empty\nlist-two\n",
+    );
 }

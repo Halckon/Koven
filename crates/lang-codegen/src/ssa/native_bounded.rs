@@ -3,7 +3,7 @@ use std::{
     process::{Command, Stdio},
     time::{Duration, Instant},
 };
-pub(super) fn execute_binary(executable: &std::path::Path, expected: &[u8]) {
+pub(crate) fn execute_binary(executable: &std::path::Path, expected: &[u8]) {
     let mut child = Command::new(executable)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())

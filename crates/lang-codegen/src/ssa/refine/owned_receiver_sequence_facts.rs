@@ -1,4 +1,4 @@
-//! Lazy Unit-owned exact-key indices for the bounded paired receiver gate.
+//! Lazy exact-key indices for same-owner sequences of shared receiver calls.
 //! Never authorizes a call or changes ordering of the original fact tables.
 use lang_frontend::{
     name_resolution::UnitSymbolId,
@@ -11,30 +11,34 @@ use lang_frontend::{
 use std::{cell::OnceCell, collections::HashMap, hash::Hash};
 
 #[derive(Default)]
-pub(in crate::ssa) struct TwoReceiverFacts(OnceCell<Index>);
+pub(in crate::ssa) struct OwnedReceiverSequenceFacts(OnceCell<Index>);
 
-impl TwoReceiverFacts {
+impl OwnedReceiverSequenceFacts {
     pub(super) fn validates(
         &self,
         owned: &dyn UnitLoweringFacts,
         root: UnitSymbolId,
-        first: (UnitExpressionId, &UnitReceiverOwnershipFact),
-        second: (UnitExpressionId, &UnitReceiverOwnershipFact),
+        checks: &[Option<(UnitExpressionId, &UnitReceiverOwnershipFact)>],
     ) -> bool {
+        let Some(Some((last, _))) = checks.last().copied() else {
+            return false;
+        };
         let index = self.0.get_or_init(|| Index::build(owned));
         index
             .bindings
             .unique(root)
             .is_some_and(|slot| owned.bindings()[slot].kind() == OwnershipBindingKind::Owned)
-            && [first, second].into_iter().all(|(call, fact)| {
-                index
-                    .ends
-                    .unique(call)
-                    .is_some_and(|slot| owned.receiver_call_return_ends()[slot].receiver() == fact)
+            && checks.iter().all(|check| {
+                check.is_some_and(|(call, fact)| {
+                    index.ends.unique(call).is_some_and(|slot| {
+                        owned.receiver_call_return_ends()[slot].receiver() == fact
+                    })
+                })
             })
-            && index.drops.unique(root).is_some_and(|slot| {
-                owned.drops()[slot].point() == UnitDropPoint::CallReturn(second.0)
-            })
+            && index
+                .drops
+                .unique(root)
+                .is_some_and(|slot| owned.drops()[slot].point() == UnitDropPoint::CallReturn(last))
     }
 }
 

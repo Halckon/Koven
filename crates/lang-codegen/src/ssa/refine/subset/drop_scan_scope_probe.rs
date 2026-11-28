@@ -56,7 +56,12 @@ fn same_offset_cleanup_facts_obey_the_real_scoped_refine_predicate() {
     );
     let roster = names.names().index().source_units();
     let decls = names.names().index().declarations();
-    for (source, file, should_accept) in [(left, &left_file, true), (right, &right_file, false)] {
+    let index = Default::default();
+    for (position, (source, file, should_accept)) in
+        [(left, &left_file, true), (right, &right_file, false)]
+            .into_iter()
+            .enumerate()
+    {
         let unit = roster
             .iter()
             .find(|s| s.source_id() == source)
@@ -130,10 +135,10 @@ fn same_offset_cleanup_facts_obey_the_real_scoped_refine_predicate() {
             names: &names,
             typed: typed_unit,
             owned: owned.ownership(),
-            two_receiver_facts: None,
+            owned_receiver_sequence_facts: None,
             single_receiver_receipts: None,
             single_receiver_facts: None,
-            subset_drop_index: Some(&Default::default()),
+            subset_drop_index: Some(&index),
             constant_owned: None,
             function_ids: &Default::default(),
             source_plan: &Default::default(), // not queried by these verified drop shapes
@@ -166,8 +171,14 @@ fn same_offset_cleanup_facts_obey_the_real_scoped_refine_predicate() {
             "scoped predicate expected={should_accept}, decision={decision}, counts={counts:?}"
         );
         assert_eq!(decision, should_accept);
-        assert_eq!(counts.subset_drop_index_rows, 0);
-        assert_eq!(counts.subset_drop_rows, 4);
+        assert_eq!(
+            counts.subset_drop_index_rows,
+            if position == 0 { drops.len() } else { 0 }
+        );
+        assert_eq!(
+            counts.subset_drop_rows, 2,
+            "only the original two rows of this source"
+        );
 
         // This is *not* a public Refine success: ordinary lowering refuses the mutable
         // capture before the cleanup query. Its separately observed result must stay so.

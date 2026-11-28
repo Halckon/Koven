@@ -1,6 +1,8 @@
 //! Callback identity belongs to a concrete source instance, never just its Function signature.
 
+mod borrowed_argument_index;
 mod original_routes;
+mod runtime_callback_index;
 
 mod factory_return_queries {
     //! A direct constructor still needs the reachable factory's frozen return ABI.

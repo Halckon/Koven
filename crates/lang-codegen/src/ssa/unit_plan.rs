@@ -2,6 +2,7 @@
 use lang_frontend::ownership_checking::UnitLoweringFacts;
 
 mod call_routes;
+mod call_scope_index;
 mod callable_instances;
 mod concrete_types;
 mod interpolation;
@@ -44,6 +45,7 @@ pub(crate) use call_routes::{callable_static_self_receiver, resolve_unit_call_in
 pub(super) use call_routes::{
     resolve_delegated_dispatch_owner_argument, resolve_inherited_dispatch_owner_argument,
 };
+use call_scope_index::index_calls;
 use callable_instances::CallablePlanner;
 pub(crate) use callable_instances::UnitCallablePlan;
 use concrete_types::contains_type_parameter;
@@ -806,45 +808,6 @@ fn callable_item(
             _ => None,
         })
         .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, callable.name_span()))
-}
-
-fn index_calls(
-    typed: &CompilationUnitTypes,
-    owned: &dyn UnitLoweringFacts,
-    parsed_by_source: &[&ParsedFile],
-    templates: &[UnitFunctionTemplate],
-) -> Result<Vec<Vec<(usize, Span)>>, LoweringError> {
-    let mut calls = vec![Vec::new(); templates.len()];
-    for (call_index, call) in typed.calls().iter().enumerate() {
-        let expression = call.expression();
-        let span = parsed_by_source
-            .get(expression.source_unit().index())
-            .ok_or(LoweringError {
-                kind: LoweringErrorKind::MissingFact,
-                span: None,
-            })?
-            .ast()
-            .expressions()
-            .get(expression.expression())
-            .map_err(|_| LoweringError {
-                kind: LoweringErrorKind::MissingFact,
-                span: None,
-            })?
-            .span();
-        if !owned.call_site_was_entered(expression) {
-            continue;
-        }
-        let mut owners = templates.iter().enumerate().filter(|(_, template)| {
-            template.source_unit == expression.source_unit() && span_contains(template.span, span)
-        });
-        if let Some((owner, _)) = owners.next() {
-            if owners.next().is_some() {
-                return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
-            }
-            calls[owner].push((call_index, span));
-        }
-    }
-    Ok(calls)
 }
 
 pub(crate) fn unit_callable_signature(
