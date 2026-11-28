@@ -411,6 +411,18 @@ impl OpenDocument {
             analysis,
         })
     }
+
+    fn version(&self) -> i32 {
+        self.version
+    }
+
+    fn text(&self) -> Option<&str> {
+        self.analysis
+            .name_snapshot()
+            .sources()
+            .source_text(self.source_id)
+            .ok()
+    }
 }
 
 fn handle_notification(

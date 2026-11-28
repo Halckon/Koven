@@ -572,3 +572,326 @@ fn p4_workspace_manifest_incremental_sync_did_save_and_watched_files_hot_reload(
         .expect("clean exit");
     let _ = std::fs::remove_dir_all(&tmp_dir);
 }
+
+#[test]
+fn p4_watched_files_adopting_open_doc_preserves_unsaved_text_and_version() {
+    let tmp_dir = std::env::temp_dir().join(format!("koven_lsp_p4_adopt_{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&tmp_dir);
+    std::fs::create_dir_all(tmp_dir.join("src")).expect("mkdir");
+    let tmp_dir = std::fs::canonicalize(&tmp_dir).expect("canonical tmp");
+
+    let a_path = tmp_dir.join("src/a.ko");
+    let disk_a = "fun main() {\n    val x = 1\n}\n";
+    std::fs::write(&a_path, disk_a).expect("write a");
+
+    let root_uri: lsp_types::Uri = format!("file://{}", tmp_dir.display())
+        .parse()
+        .expect("uri");
+    let a_uri: lsp_types::Uri = format!("file://{}", a_path.display()).parse().expect("uri");
+    let manifest_path = tmp_dir.join("project.toml");
+    let manifest_uri: lsp_types::Uri = format!("file://{}", manifest_path.display())
+        .parse()
+        .expect("uri");
+
+    let (server, client) = Connection::memory();
+    let server_thread = thread::spawn(|| {
+        super::super::run_with_options(
+            server,
+            super::super::ServerOptions {
+                workspace_manifest: true,
+                diagnostic_context: false,
+            },
+        )
+    });
+
+    client
+        .sender
+        .send(Message::Request(Request {
+            id: RequestId::from(1_i32),
+            method: Initialize::METHOD.to_owned(),
+            params: serde_json::to_value(InitializeParams {
+                workspace_folders: Some(vec![WorkspaceFolder {
+                    uri: root_uri,
+                    name: "adopt".to_owned(),
+                }]),
+                ..InitializeParams::default()
+            })
+            .expect("params"),
+        }))
+        .expect("init");
+    let _ = receive_response(&client);
+    send_notification(
+        &client,
+        Initialized::METHOD,
+        serde_json::to_value(InitializedParams {}).expect("initialized"),
+    );
+
+    // 1. Open `src/a.ko` in SingleDocument mode and apply an unsaved incremental edit (`1` -> `helper()`).
+    send_notification(
+        &client,
+        DidOpenTextDocument::METHOD,
+        serde_json::to_value(DidOpenTextDocumentParams {
+            text_document: TextDocumentItem::new(
+                a_uri.clone(),
+                "koven".to_owned(),
+                1,
+                disk_a.to_owned(),
+            ),
+        })
+        .expect("open"),
+    );
+    let d_open = receive_diagnostics(&client);
+    assert_eq!(d_open.version, Some(1));
+    assert!(d_open.diagnostics.is_empty());
+
+    send_notification(
+        &client,
+        DidChangeTextDocument::METHOD,
+        serde_json::to_value(DidChangeTextDocumentParams {
+            text_document: VersionedTextDocumentIdentifier::new(a_uri.clone(), 2),
+            content_changes: vec![TextDocumentContentChangeEvent {
+                range: Some(Range::new(Position::new(1, 12), Position::new(1, 13))),
+                range_length: None,
+                text: "helper()".to_owned(),
+            }],
+        })
+        .expect("unsaved change"),
+    );
+    let d_unsaved = receive_diagnostics(&client);
+    assert_eq!(d_unsaved.version, Some(2));
+    assert!(
+        !d_unsaved.diagnostics.is_empty(),
+        "unsaved `helper()` should fail in SingleDocument mode"
+    );
+
+    // 2. Create `src/helper.ko` and `project.toml` on disk, then notify watched files.
+    let helper_path = tmp_dir.join("src/helper.ko");
+    std::fs::write(&helper_path, "public fun helper(): Int = 42\n").expect("write helper");
+    std::fs::write(
+        &manifest_path,
+        "schema = \"koven.project\"\nversion = 1\n\n[project]\nname = \"adopt\"\nsource-roots = [\"src\"]\n",
+    )
+    .expect("write manifest");
+    send_notification(
+        &client,
+        DidChangeWatchedFiles::METHOD,
+        serde_json::to_value(DidChangeWatchedFilesParams {
+            changes: vec![FileEvent::new(manifest_uri, FileChangeType::CREATED)],
+        })
+        .expect("watched"),
+    );
+    let pubs = receive_publications(&client, 2);
+    let a_pub = pubs
+        .iter()
+        .find(|p| p.uri == a_uri)
+        .expect("adopted a.ko publication");
+    assert_eq!(
+        a_pub.version,
+        Some(2),
+        "adopted open document must retain its version"
+    );
+    assert!(
+        a_pub.diagnostics.is_empty(),
+        "adopted unsaved `helper()` should resolve against workspace helper.ko: {:?}",
+        a_pub.diagnostics
+    );
+
+    // 3. Next incremental `didChange` on `a.ko` must succeed against the preserved unsaved text (`helper()`).
+    send_notification(
+        &client,
+        DidChangeTextDocument::METHOD,
+        serde_json::to_value(DidChangeTextDocumentParams {
+            text_document: VersionedTextDocumentIdentifier::new(a_uri.clone(), 3),
+            content_changes: vec![TextDocumentContentChangeEvent {
+                range: Some(Range::new(Position::new(1, 12), Position::new(1, 20))),
+                range_length: None,
+                text: "helper() + 1".to_owned(),
+            }],
+        })
+        .expect("next inc change"),
+    );
+    let pubs_v3 = receive_publications(&client, 2);
+    let a_pub_v3 = pubs_v3
+        .iter()
+        .find(|p| p.uri == a_uri)
+        .expect("v3 a.ko publication");
+    assert_eq!(a_pub_v3.version, Some(3));
+    assert!(
+        a_pub_v3.diagnostics.is_empty(),
+        "incremental change after adoption should succeed cleanly: {:?}",
+        a_pub_v3.diagnostics
+    );
+
+    shutdown(&client);
+    server_thread
+        .join()
+        .expect("server thread")
+        .expect("clean exit");
+    let _ = std::fs::remove_dir_all(&tmp_dir);
+}
+
+#[test]
+fn p4_watched_files_deleting_manifest_exits_unit_clears_stale_diags_and_keeps_open_docs() {
+    let tmp_dir =
+        std::env::temp_dir().join(format!("koven_lsp_p4_del_manifest_{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&tmp_dir);
+    std::fs::create_dir_all(tmp_dir.join("src")).expect("mkdir");
+    let tmp_dir = std::fs::canonicalize(&tmp_dir).expect("canonical tmp");
+
+    let manifest_path = tmp_dir.join("project.toml");
+    std::fs::write(
+        &manifest_path,
+        "schema = \"koven.project\"\nversion = 1\n\n[project]\nname = \"del\"\nsource-roots = [\"src\"]\n",
+    )
+    .expect("manifest");
+    let a_path = tmp_dir.join("src/a.ko");
+    let a_src = "fun main() {\n    val x = helper()\n}\n";
+    std::fs::write(&a_path, a_src).expect("write a");
+    let helper_path = tmp_dir.join("src/helper.ko");
+    std::fs::write(&helper_path, "public fun helper(): Int = 42\n").expect("write helper");
+    let broken_path = tmp_dir.join("src/broken.ko");
+    std::fs::write(&broken_path, "fun broken() {\n    val y = missing_sym\n}\n")
+        .expect("write broken");
+
+    let root_uri: lsp_types::Uri = format!("file://{}", tmp_dir.display())
+        .parse()
+        .expect("uri");
+    let manifest_uri: lsp_types::Uri = format!("file://{}", manifest_path.display())
+        .parse()
+        .expect("uri");
+    let a_uri: lsp_types::Uri = format!("file://{}", a_path.display()).parse().expect("uri");
+    let helper_uri: lsp_types::Uri = format!("file://{}", helper_path.display())
+        .parse()
+        .expect("uri");
+    let broken_uri: lsp_types::Uri = format!("file://{}", broken_path.display())
+        .parse()
+        .expect("uri");
+
+    let (server, client) = Connection::memory();
+    let server_thread = thread::spawn(|| {
+        super::super::run_with_options(
+            server,
+            super::super::ServerOptions {
+                workspace_manifest: true,
+                diagnostic_context: false,
+            },
+        )
+    });
+
+    client
+        .sender
+        .send(Message::Request(Request {
+            id: RequestId::from(1_i32),
+            method: Initialize::METHOD.to_owned(),
+            params: serde_json::to_value(InitializeParams {
+                workspace_folders: Some(vec![WorkspaceFolder {
+                    uri: root_uri,
+                    name: "del".to_owned(),
+                }]),
+                ..InitializeParams::default()
+            })
+            .expect("params"),
+        }))
+        .expect("init");
+    let _ = receive_response(&client);
+    send_notification(
+        &client,
+        Initialized::METHOD,
+        serde_json::to_value(InitializedParams {}).expect("initialized"),
+    );
+    let init_pubs = receive_publications(&client, 3);
+    assert!(
+        !init_pubs
+            .iter()
+            .find(|p| p.uri == broken_uri)
+            .expect("broken init")
+            .diagnostics
+            .is_empty(),
+        "broken.ko should initially report diagnostics in Unit mode"
+    );
+
+    // 1. Open `src/a.ko` while in Unit mode.
+    send_notification(
+        &client,
+        DidOpenTextDocument::METHOD,
+        serde_json::to_value(DidOpenTextDocumentParams {
+            text_document: TextDocumentItem::new(
+                a_uri.clone(),
+                "koven".to_owned(),
+                1,
+                a_src.to_owned(),
+            ),
+        })
+        .expect("open"),
+    );
+    let _ = receive_publications(&client, 3);
+
+    // 2. Delete `project.toml` and send watched files DELETED -> exits Unit, clears closed diags, keeps open `a.ko`.
+    std::fs::remove_file(&manifest_path).expect("remove manifest");
+    send_notification(
+        &client,
+        DidChangeWatchedFiles::METHOD,
+        serde_json::to_value(DidChangeWatchedFilesParams {
+            changes: vec![FileEvent::new(manifest_uri, FileChangeType::DELETED)],
+        })
+        .expect("watched delete"),
+    );
+    let exit_pubs = receive_publications(&client, 3);
+    let broken_cleared = exit_pubs
+        .iter()
+        .find(|p| p.uri == broken_uri)
+        .expect("broken cleared");
+    assert!(
+        broken_cleared.diagnostics.is_empty() && broken_cleared.version.is_none(),
+        "deleting project.toml must clear stale diagnostics for closed files: {broken_cleared:?}"
+    );
+    let helper_cleared = exit_pubs
+        .iter()
+        .find(|p| p.uri == helper_uri)
+        .expect("helper cleared");
+    assert!(helper_cleared.diagnostics.is_empty() && helper_cleared.version.is_none());
+
+    let a_fallback = exit_pubs
+        .iter()
+        .find(|p| p.uri == a_uri)
+        .expect("a.ko retained");
+    assert_eq!(
+        a_fallback.version,
+        Some(1),
+        "open document must remain open after exiting Unit"
+    );
+    assert!(
+        !a_fallback.diagnostics.is_empty(),
+        "without workspace helper.ko, single-document `a.ko` should report unresolved `helper()`"
+    );
+
+    // 3. Subsequent incremental `didChange` on retained `a.ko` succeeds in SingleDocument mode.
+    send_notification(
+        &client,
+        DidChangeTextDocument::METHOD,
+        serde_json::to_value(DidChangeTextDocumentParams {
+            text_document: VersionedTextDocumentIdentifier::new(a_uri.clone(), 2),
+            content_changes: vec![TextDocumentContentChangeEvent {
+                range: Some(Range::new(Position::new(1, 12), Position::new(1, 20))),
+                range_length: None,
+                text: "1".to_owned(),
+            }],
+        })
+        .expect("inc change in fallback"),
+    );
+    let d_fixed = receive_diagnostics(&client);
+    assert_eq!(d_fixed.uri, a_uri);
+    assert_eq!(d_fixed.version, Some(2));
+    assert!(
+        d_fixed.diagnostics.is_empty(),
+        "incremental change on retained open doc should resolve cleanly: {:?}",
+        d_fixed.diagnostics
+    );
+
+    shutdown(&client);
+    server_thread
+        .join()
+        .expect("server thread")
+        .expect("clean exit");
+    let _ = std::fs::remove_dir_all(&tmp_dir);
+}
