@@ -368,6 +368,12 @@ class Parser:
             place = self.place()
             self.expect(")")
             return Stmt("use", line, place=place)
+        if tok in ("raw_read", "raw_write") and self.peek(1) == "(":
+            self.next()
+            self.expect("(")
+            name = self.next()
+            self.expect(")")
+            return Stmt(tok, line, name=name)
         if tok == "{":
             body, end = self.block()
             return Stmt("block", line, body=body, end_line=end)
@@ -427,6 +433,15 @@ class Parser:
         if tok == "replace":
             self.next()
             return Expr("replace", line, site, place=self.place())
+        if tok == "addressOf" and self.peek(1) == "(":
+            self.next()
+            self.expect("(")
+            mut = None
+            if self.accept("&"):
+                mut = self.accept("mut")
+            place = self.place()
+            self.expect(")")
+            return Expr("addressOf", line, site, place=place, mut=mut)
         if tok == "start":  # 创建一个任务：实参已求值并存进它的帧，函数体尚未开始执行
             self.next()
             inner = self.expr()
@@ -466,7 +481,7 @@ class Parser:
 # ---------------------------------------------------------------- 活性（K3 的“还会被使用”）
 
 def expr_uses(expr):
-    if expr.kind in ("place", "move", "replace") or (expr.kind == "ref" and expr.place is not None):
+    if expr.kind in ("place", "move", "replace", "addressOf") or (expr.kind == "ref" and expr.place is not None):
         return {expr.place.root}
     return set().union(*(expr_uses(a) for a in expr.args)) if expr.args else set()
 
@@ -476,7 +491,7 @@ def stmt_uses(stmt):
     uses = expr_uses(stmt.expr) if stmt.expr else set()
     if stmt.kind == "use" or (stmt.kind == "assign" and stmt.place.fields):
         uses.add(stmt.place.root)
-    if stmt.kind in ("store", "poll", "await", "open"):
+    if stmt.kind in ("store", "poll", "await", "open", "raw_read", "raw_write"):
         uses.add(stmt.name)
     return uses
 
@@ -534,6 +549,8 @@ class Var:
     payload: bool = False  # 对存在类型的载荷访问：只能调用方法，不能整体替换
     pinned: bool = False  # 任务已开始执行：帧不可再移动，离开作用域前须等它结束
     gone: dict = field(default_factory=dict)  # 已移出的按值字段：(字段名,) -> M | MM
+    drop_barrier: bool = False  # U1 R1.2 / AL2：addressOf 建立的 place 级析构屏障
+    raw_meta: object = None  # RawPtr 元数据：(targets, via, mode, is_cell)
 
 
 @dataclass
@@ -541,6 +558,7 @@ class Value:
     ty: Type
     loans: dict = field(default_factory=dict)
     payload: bool = False
+    raw_meta: object = None
 
     def all_loans(self):
         return set().union(*self.loans.values()) if self.loans else set()
@@ -561,7 +579,8 @@ def copy_loans(loans):
 
 
 def copy_state(state):
-    return {name: Var(var.ty, var.init, copy_loans(var.loans), var.payload, var.pinned, dict(var.gone))
+    return {name: Var(var.ty, var.init, copy_loans(var.loans), var.payload, var.pinned, dict(var.gone),
+                      var.drop_barrier, var.raw_meta)
             for name, var in state.items()}
 
 
@@ -642,7 +661,7 @@ class Checker:
 
     def has(self, cap, ty):
         """类型 ty 的值是否满足能力 cap。类型参数只凭它声明的上界；任务一律不满足。"""
-        if ty.kind in ("int", "unit", "fn"):
+        if ty.kind in ("int", "unit", "fn", "raw"):
             return True
         if ty.kind == "closure":
             if ty.name == "Closure":
@@ -1377,6 +1396,8 @@ class Checker:
             return self.move(expr, state)
         if expr.kind == "replace":
             return self.replace_field(expr, state)
+        if expr.kind == "addressOf":
+            return self.address_of_raw(expr, state)
         if expr.kind == "ref":
             return self.borrow(expr, expr.place, expr.mut, state)
         if expr.kind == "call":
@@ -1400,6 +1421,8 @@ class Checker:
         self.access(state, res.targets, res.via, "read", expr.line)
         if res.ty.kind == "int":
             return Value(INT)
+        if res.ty.kind == "raw":
+            return Value(res.ty, {}, raw_meta=state[place.root].raw_meta)
         if not self.has("Copyable", res.ty) or place.fields:
             self.error("K8", expr.line, f"{place.root} 不可隐式复制，须写 move")
         return Value(res.ty, copy_loans(res.field_loans or {}))
@@ -2040,11 +2063,86 @@ class Checker:
         self.live = set(stmt.live_out)
         self.drop_unneeded(state, stmt.line, {name for _, name, _ in self.fun.params})
 
+    def address_of_raw(self, expr, state):
+        """U0 AL1 / AL2 / U1 R1.2：从借用或位置派生裸指针，不建立持久 loan，并在目标 owner 上建立 place 级析构屏障。"""
+        place = expr.place
+        var = state.get(place.root)
+        if var is None:
+            raise SyntaxProblem(f"第 {place.line} 行：未声明的变量 {place.root}")
+        if expr.mut is None:
+            if not place.fields and var.ty.kind in ("borrow", "inout"):
+                self.resolve(state, place)
+                self.access(state, {(place.root, ())}, set(), "read", expr.line)
+                via = set(var.loans.get("", ()))
+                targets = self.places(via)
+                mode = "excl" if var.ty.kind == "inout" else "shared"
+                decl = self.classes.get(var.ty.name)
+            else:
+                res = self.resolve(state, place)
+                targets, via = set(res.targets), set(res.via)
+                mode = "excl" if res.writable else "shared"
+                decl = self.classes.get(res.ty.name)
+        else:
+            res = self.resolve(state, place)
+            if expr.mut and not res.writable:
+                self.error("AL1", expr.line, "不能经共享借用派生独占裸指针")
+            access_kind = "excl" if expr.mut else "shared"
+            self.access(state, res.targets, res.via, access_kind, expr.line)
+            targets, via = set(res.targets), set(res.via)
+            mode = "excl" if expr.mut else "shared"
+            decl = self.classes.get(res.ty.name)
+        is_cell = bool(decl and decl.cell)
+        for root, _ in targets:
+            if root in state:
+                state[root].drop_barrier = True
+        return Value(Type("raw", "RawPtr"), {}, raw_meta=(frozenset(targets), frozenset(via), mode, is_cell))
+
+    def raw_access(self, stmt, state):
+        """U0 AL1 / AL2 / AL7：在路线 L 参考检查器中直接检验裸指针读写的活跃性、派生权限与存活 loan 冲突。"""
+        var = state.get(stmt.name)
+        if var is None or var.ty.kind != "raw":
+            raise SyntaxProblem(f"第 {stmt.line} 行：{stmt.name} 不是裸指针")
+        if var.init != "A" or var.raw_meta is None:
+            self.error("AL2", stmt.line, f"裸指针 {stmt.name} 缺少有效来源元数据")
+            return
+        targets, via, mode, is_cell = var.raw_meta
+        is_write = stmt.kind == "raw_write"
+        for root, path in sorted(targets):
+            if root.startswith("*"):
+                continue
+            owner = state.get(root)
+            if owner is None:
+                self.error("AL2", stmt.line, f"裸指针 {stmt.name} 指向的 {root} 已离开作用域析构")
+                return
+            if owner.init != "A":
+                self.error("AL2", stmt.line, f"裸指针 {stmt.name} 指向的 {root} 已被移动或可能已被移动")
+                return
+            if owner.gone and any(prefix_related(path, g) for g in owner.gone):
+                self.error("AL2", stmt.line, f"裸指针 {stmt.name} 指向的位置已被部分移出")
+                return
+        if is_write and mode != "excl" and not is_cell:
+            self.error("AL1", stmt.line, f"非 RawCell 的共享派生裸指针 {stmt.name} 不得写入")
+            return
+        skip = set(via) | self.ancestors(via)
+        for loan in sorted(self.live_loans(state) - skip):
+            info = self.loans[loan]
+            if info.kind == "shared" and (not is_write or is_cell):
+                continue
+            if not any(r == r2 and prefix_related(p, p2) for r, p in targets for r2, p2 in info.places):
+                continue
+            op = "写入" if is_write else "读取"
+            self.error("AL1", stmt.line, f"裸指针 {stmt.name} {op}与第 {info.line} 行建立的 {info.kind} loan 冲突")
+            return
+        if not self.quiet:
+            for root, path in sorted(targets):
+                if self.tracked(state.get(root)):
+                    self.emit("use", stmt.line, root, fld=".".join(path))
+
     def drop_unneeded(self, state, line, keep):
-        """析构此刻不再被用到、名下没有存活 loan、析构不可观察的局部值；keep 里的变量不动。"""
+        """析构此刻不再被用到、名下没有存活 loan、析构不可观察且无析构屏障的局部值；keep 里的变量不动。"""
         for name in reversed(list(state)):
             var = state[name]
-            if name in self.live or name in keep or var.init != "A" or var.ty.kind != "cls":
+            if name in self.live or name in keep or var.init != "A" or var.ty.kind != "cls" or var.drop_barrier:
                 continue
             if not self.has("EarlyDrop", var.ty):  # 析构可观察：声明了 deinit，或按值含有这样的字段
                 continue
@@ -2067,7 +2165,7 @@ class Checker:
                 var = state[name]
                 if var.init != "A" or gone != "M" or name in self.live or name in params:
                     continue
-                if var.ty.kind != "cls" or not self.has("EarlyDrop", var.ty) or self.borrowed_from(name, state):
+                if var.ty.kind != "cls" or var.drop_barrier or not self.has("EarlyDrop", var.ty) or self.borrowed_from(name, state):
                     continue
                 self.access(state, {(name, ())}, set(), "kill", stmt.line)
                 if out is not None:
@@ -2092,7 +2190,7 @@ class Checker:
             prev_out, self.out, self.temps = self.out, [] if self.out is not None else None, []
             value = (self.move(stmt.expr, state, local_binding=True) if stmt.expr.kind == "move"
                      else self.value(stmt.expr, state))
-            var = Var(value.ty, "A", value.loans, value.payload)
+            var = Var(value.ty, "A", value.loans, value.payload, raw_meta=value.raw_meta)
             # 直接构造的独占字段若取自 &mut local，所指视图有确切的账，不保存会过期的字段副本。
             # 调用结果的 from 只指明来源，不一定指明所指存储；不裁剪它的合同记录。
             if value.ty.kind == "view" and stmt.expr.kind == "call" and stmt.expr.name in self.classes:
@@ -2157,6 +2255,8 @@ class Checker:
                 self.materialize_temp(value, state, stmt.line, site=stmt.expr.site)
             self.drop_temps(state, stmt.live_out, stmt.line)
             self.flush_temps(prev_out, stmt.line)
+        elif stmt.kind in ("raw_read", "raw_write"):
+            self.raw_access(stmt, state)
         elif stmt.kind == "use":
             res = self.resolve(state, stmt.place)
             self.access(state, res.targets, res.via, "read", stmt.line)
@@ -2377,7 +2477,7 @@ class Checker:
             self.error("X1", stmt.line, f"不能把 {value.ty.name} 赋给 {var.ty.name}")
         if var.ty.kind == "closure" and value.ty.kind == "closure":
             var.ty = value.ty
-        var.init, var.loans, var.payload, var.pinned, var.gone = "A", value.loans, value.payload, False, {}
+        var.init, var.loans, var.payload, var.pinned, var.gone, var.raw_meta = "A", value.loans, value.payload, False, {}, value.raw_meta
 
     def scope(self, stmts, state, live_after, end_line):
         """K9：作用域结束时按声明逆序析构；析构与仍存活的 loan 冲突即拒绝。"""
@@ -2407,7 +2507,17 @@ class Checker:
                 loans.setdefault(key, set()).update(held)
             gone = {path: x.gone[path] if x.gone.get(path) == y.gone.get(path) else "MM"
                     for path in sorted(set(x.gone) | set(y.gone))}
-            merged[name] = Var(self.merge_closure_ty(x.ty, y.ty), x.init if x.init == y.init else "MM", loans, x.payload or y.payload, x.pinned or y.pinned, gone)
+            if x.raw_meta == y.raw_meta:
+                raw_meta = x.raw_meta
+            elif x.raw_meta is not None and y.raw_meta is not None:
+                tx, vx, mx, cx = x.raw_meta
+                ty, vy, my, cy = y.raw_meta
+                raw_meta = (tx | ty, vx & vy, "excl" if mx == "excl" and my == "excl" else "shared", cx and cy)
+            else:
+                raw_meta = None
+            merged[name] = Var(self.merge_closure_ty(x.ty, y.ty), x.init if x.init == y.init else "MM", loans,
+                               x.payload or y.payload, x.pinned or y.pinned, gone,
+                               x.drop_barrier or y.drop_barrier, raw_meta)
         return merged
 
 

@@ -1,29 +1,31 @@
 # U0 迁入前硬门槛证据账本：AL1/AL2 前提映射与 UB1–UB11 捕获实测
 
-> **性质**：非规范迁入前验证账本 · **状态**：未启用（进行中；AL1/AL2 独立原型与 C/消毒器代理套件均已固化入仓可复跑，路线 L 参考检查器口径待评审确认，U0 合同继续留在 `docs/proposals/`） · **读取时机**：核对 [U0 合同 §9](unsafe-aliasing-contract-outline.md#9-验证与检测矩阵) 与 [OD5 收口条件](kernel-open-decisions-2026-11.md#5-2026-11-27-koven-design-三轮讨论收口纪要od3od6) 两条迁入硬门槛的当前进展、待补前置与后续 U1/FF1 验收项时 · **唯一真源**：本页维护 AL1/AL2 独立参考解释器原型、预 U1 阶段可复跑 C/消毒器代理套件登记，以及 U0 迁入前待补项与 U1/FF1 阶段验收的分界
+> **性质**：非规范迁入前验证账本 · **状态**：未启用（AL1/AL2 已直接接入路线 L 主参考检查器 `checker.py` 与独立原型 `u0_raw_model.py`，C/消毒器代理套件均已固化入仓可复跑，待团队正式评审签核；U0 合同继续留在 `docs/proposals/`） · **读取时机**：核对 [U0 合同 §9](unsafe-aliasing-contract-outline.md#9-验证与检测矩阵) 与 [OD5 收口条件](kernel-open-decisions-2026-11.md#5-2026-11-27-koven-design-三轮讨论收口纪要od3od6) 两条迁入硬门槛的当前进展、待补前置与后续 U1/FF1 验收项时 · **唯一真源**：本页维护路线 L 主参考检查器（`checker.py` + `cases/Z48.lk`）与 AL1/AL2 独立参考解释器原型、预 U1 阶段可复跑 C/消毒器代理套件登记，以及 U0 迁入前待补项与 U1/FF1 阶段验收的分界
 
 本文不修改或启用任何 Guide 规则，不批准 Spec/ADR，不将 [U0 合同](unsafe-aliasing-contract-outline.md) 提前迁入 `docs/compiler-specs/`，也不修改 `crates/`。
 
-## 1. 硬门槛一：AL1 / AL2 附加前提的独立原型验证（是否满足路线 L 门槛待评审确认）
+## 1. 硬门槛一：AL1 / AL2 附加前提已接入路线 L 主参考检查器与独立原型
 
-U0 §9 第一条硬门槛要求“路线 L 的参考检查器能把 AL1、AL2 表述为对其模型的附加前提”。现已在独立模块 `scripts/loan_kernel/u0_raw_model.py` 补齐最小可执行参考解释器原型，并由 `scripts/tests/test_u0_raw_model.py`（18 条单测）验证下列附加前提。**边界说明**：该模块目前独立于主参考检查器 `scripts/loan_kernel/checker.py`，尚未接入 `checker.py` 语法与检查管线；独立原型是否足以满足 U0 §9 第一条门槛，或须先接入 `checker.py`，留待评审确认。
+U0 §9 第一条硬门槛要求“路线 L 的参考检查器能把 AL1、AL2 表述为对其模型的附加前提”。目前已在两个层级完成可执行建模与回归验证：
+1. **路线 L 主参考检查器（`scripts/loan_kernel/checker.py` + `scripts/loan_kernel/cases/Z48.lk` + `scripts/tests/test_loan_kernel.py`）**：直接在主检查器中接入 `addressOf(&x)` / `addressOf(&mut x)` / `addressOf(p)`（在目标 owner 上建立 place 级析构屏障 `drop_barrier`，于 `drop_unneeded` / `settle` 中阻止 `early_drop` 提前析构，与 `DP.Verifier` 联合验证）及 `raw_read(p)` / `raw_write(p)`（按派生权限、`RawCell` AL7 例外、重叠存活 loan 与 owner 存活/移出/作用域析构/部分移出字段状态产出 `AL1` / `AL2` 诊断，并配有关闭 `drop_barrier` 的变异回归测试）。
+2. **独立参考解释器原型（`scripts/loan_kernel/u0_raw_model.py` + `scripts/tests/test_u0_raw_model.py`，18 条单测）**：进一步覆盖分配实例 `alloc_id` 复用、完整借用派生历史 `loan_history`、聚合与嵌套字段双向 `ptr_read`/`ptr_write` 初始化状态机与 FS8 失败注入双析构（`UB4`）。
 
 | U0 条款 | 形式化附加前提（表述为参考检查器约束） | 对应原型模块与单测 | 当前状态 |
 |---|---|---|---|
-| **AL1（不与存活 loan 冲突 + AL7 `RawCell` 例外）** | 对裸指针解引用事件 `raw_read(p)` / `raw_write(p)`（逻辑来历绑定至 place `π`、分配实例 `alloc_id`、派生借用范围校验与沿完整借用派生历史 `loan_history` 核对后的真实派生权限 `provenance_kind`）：① 冲突检查按同一 `alloc_id` 隔离，旧实例残留借用不与同名新分配误冲突；② `raw_read(p)` 要求 `π` 位于派生借用范围内且不存在**其他**重叠存活的 `Exclusive` loan（对应 `K1`）；③ `raw_write(p)` 按完整派生链核对权限与存活状态，源自 `Shared` loan（含父 `Shared` loan 已结束的情形）或祖先独占借用已结束时均报 `UB1`；仅当 `RawCell`（`is_cell=True`，整值移交时保留，对应 `K19`）允许经 `Shared`/`Cell` 路径写入，且两条路径共用重叠 `Exclusive` loan 冲突检查 | `u0_raw_model.py`（`U0RawInterpreter`）+ `test_u0_raw_model.py`（`test_al1_*` 共 10 条） | **独立原型可复跑**（是否接入 `checker.py` 待评审确认） |
-| **AL2（不晚于 owner 析构/释放 + `addressOf` 屏障 + `ptr_read`/`ptr_write` 未初始化槽）** | `address_of(π)` 记录当前分配实例 `alloc_id` 并在根 owner 上设置 place 级析构屏障 `drop_barrier`（阻止提前析构并报 `AL2_BARRIER`，将其析构点提升至至少词法作用域结束）；owner 析构、整体移出或**析构后重新分配同名存储**后经旧 `RawPtr` 读写均报 `UB2`；`ptr_read(p)` 将槽位及其后代置为 `Uninit` 并在移交时保留字段布局与析构义务，`ptr_write(p)` 恢复目标槽位（含后代）为 `Init`、沿祖先链自底向上同步已完整初始化的中间/根聚合，并为资源槽位分配新析构义务；**读取判据**：读取已显式初始化的目标字段（如 `pair.a` 或写齐后的 `r.inner`）即使兄弟字段与外层聚合仍为 `Uninit` 也合法，而读取任何未初始化字段或含未初始化后代的聚合、以及析构存在 `Uninit` 槽位的 owner 均报 `UB5` | `u0_raw_model.py` + `test_u0_raw_model.py`（`test_al2_*` 共 7 条） | **独立原型可复跑**（是否接入 `checker.py` 待评审确认） |
+| **AL1（不与存活 loan 冲突 + AL7 `RawCell` 例外）** | 对裸指针解引用事件 `raw_read(p)` / `raw_write(p)`：① 在 `checker.py` 中核对裸指针派生模式（`shared` vs `excl`）、`RawCell`（`cell class`，对应 `K19`）例外与 `live_loans(state)` 重叠冲突，报 `AL1`；② 在 `u0_raw_model.py` 中进一步校验 `alloc_id` 隔离、派生借用范围与完整 `loan_history` 祖先存活状态，报 `UB1` | `checker.py` + `cases/Z48.lk` + `test_loan_kernel.py`（`test_u0_al1_al2_premises_in_reference_checker`）；`u0_raw_model.py` + `test_u0_raw_model.py`（`test_al1_*` 共 10 条） | **已接入主参考检查器与独立原型，均可复跑** |
+| **AL2（不晚于 owner 析构/释放 + `addressOf` 屏障 + `ptr_read`/`ptr_write` 未初始化槽）** | ① 在 `checker.py` 中 `addressOf(...)` 为目标 owner 设置 `drop_barrier=True`（阻止 `early_drop` 提前析构，经 `DP.Verifier` 与变异测试验证），owner 整体移出、离开内层作用域析构或字段部分移出后经 `raw_read`/`raw_write` 访问报 `AL2`；② 在 `u0_raw_model.py` 中进一步覆盖同名重分配 `alloc_id` 失效（`UB2`）、`ptr_read`/`ptr_write` 双向初始化状态机与析构义务归属（`UB5`） | `checker.py` + `cases/Z48.lk` + `test_loan_kernel.py`；`u0_raw_model.py` + `test_u0_raw_model.py`（`test_al2_*` 共 7 条） | **已接入主参考检查器与独立原型，均可复跑** |
 | **AL3 / FS3 / FS8（析构义务恰好一次与失败注入）** | 在每个 FS1 操作处注入可展开失败并按词法逆序运行待执行析构，复现 U0 §4 列表中部插入的错误次序（先搬移制造重复句柄再 `clone()` 失败 → `UB4`）与正确次序（先 `clone()` 再仅用 FS4 搬移 → 零违规） | `u0_raw_model.py`（`simulate_fs8_insert_order`）+ `test_u0_raw_model.py`（`test_fs8_ub4_double_drop_and_safe_insert_order`） | **独立原型可复跑** |
 
 ## 2. 硬门槛二：UB1–UB6、UB9–UB11 预 U1 可复跑反例与捕获实测
 
 **证据边界声明**：现行 Koven v0.47 尚无用户可写的 `unsafe` / `RawPtr` / `extern "C"` 表面。本表登记的两套预 U1 证据均已**固化入仓且可一键复跑**：
-1. **`scripts/loan_kernel/u0_raw_model.py` + `scripts/tests/test_u0_raw_model.py`**（10 条单测）：覆盖 `UB1`、`UB2`、`UB4`、`UB5`、`FS8`。
+1. **`scripts/loan_kernel/checker.py`（`cases/Z48.lk`）与 `scripts/loan_kernel/u0_raw_model.py` + `scripts/tests/test_u0_raw_model.py`**（18 条单测）：覆盖 `AL1`/`AL2`/`AL7`、`UB1`、`UB2`、`UB4`、`UB5`、`FS8`。
 2. **`scripts/loan_kernel/u0_sanitizer_harness.py` + `scripts/tests/test_u0_sanitizer_harness.py`**（10 组 C ABI / `clang` ASan/UBSan/TSan/终止基线用例；缺少 `clang` 时自动跳过）：覆盖 `UB2`、`UB3`、`UB4`、`UB6`（TSan 数据竞争）、`UB9`（FFI2/FFI4 及 FFI5 终止基线对照）、`UB10`（越界/未对齐）与 `UB11`，一键复跑命令为 `python3 -m unittest scripts.tests.test_u0_sanitizer_harness`（或直接执行 `python3 scripts/loan_kernel/u0_sanitizer_harness.py`）。
 
 | UB 编号 | 违反场景（对齐 U0 §6 / §8） | 捕获器与仓库可复跑入口 | 实测结果（macOS AArch64） | 阶段验收状态 |
 |---|---|---|---|---|
-| **UB1** | 持有存活 `Shared` loan 时经裸指针写非 `RawCell` 对象；`Shared` 派生链（含父借用已结束）提权写；`Exclusive` 派生写与存活子 loan 冲突；`RawCell`（`Shared`/`Cell` 路径）与存活 `Exclusive` loan 冲突 | `u0_raw_model.py` / `test_u0_raw_model.py` | 6 条 AL1/AL7 单测全部通过，稳定捕获 `UB1` | **预 U1 原型可复跑**（U1 后接入 W13 解释器复跑） |
-| **UB2** | 释放后解引用（`free(p)` 后读 `*p`）；以及 owner 析构、整体移出或同名重分配后经悬垂 `RawPtr` 读写 | `u0_sanitizer_harness.py`（`UB2_uaf_asan`）+ `u0_raw_model.py` | ASan `exit=-6` 捕获 `heap-use-after-free`；原型单测捕获 `AL2_BARRIER` 与 `UB2` | **预 U1 代理+原型可复跑** |
+| **UB1** | 持有存活 `Shared` loan 时经裸指针写非 `RawCell` 对象；`Shared` 派生链（含父借用已结束）提权写；`Exclusive` 派生写与存活子 loan 冲突；`RawCell`（`Shared`/`Cell` 路径）与存活 `Exclusive` loan 冲突 | `checker.py`（`cases/Z48.lk`）+ `u0_raw_model.py` / `test_u0_raw_model.py` | 主参考检查器 `Z48.lk` 捕获 `AL1`；独立原型 10 条 AL1/AL7 单测全部通过，稳定捕获 `UB1` | **预 U1 主检查器+原型可复跑**（U1 后接入 W13 解释器复跑） |
+| **UB2** | 释放后解引用（`free(p)` 后读 `*p`）；以及 owner 析构、整体移出或同名重分配后经悬垂 `RawPtr` 读写 | `u0_sanitizer_harness.py`（`UB2_uaf_asan`）+ `checker.py`（`cases/Z48.lk`）+ `u0_raw_model.py` | ASan `exit=-6` 捕获 `heap-use-after-free`；主检查器与原型捕获 `drop_barrier`/`AL2`/`UB2` | **预 U1 代理+主检查器+原型可复跑** |
 | **UB3** | 有效性不变量破坏（向 `_Bool` 槽位写入字节 `2` 后按 `bool` 读取） | `u0_sanitizer_harness.py`（`UB3_invalid_bool_ubsan`） | UBSan `exit=-6` 捕获 `load of value 2, which is not a valid value for type '_Bool'` | **预 U1 代理可复跑** |
 | **UB4** | 同一析构/释放义务履行两次（双释放 + FS8 失败展开双析构） | `u0_sanitizer_harness.py`（`UB4_double_free_asan`）+ `u0_raw_model.py` | ASan `exit=-6` 捕获 `attempting double-free`；原型 FS8 注入单测捕获 `UB4` | **预 U1 代理+原型可复跑** |
 | **UB5** | 读取刚分配未初始化存储、`ptr_read` 移出后未 `ptr_write` 即读取/析构，以及聚合根与子字段的双向未初始化访问 | `u0_raw_model.py` / `test_u0_raw_model.py` | 原型单测通过，稳定捕获单槽与聚合双向 `UB5`，合法 `ptr_read -> ptr_write` 零违规（注：macOS AArch64 无 LLVM MSan） | **预 U1 原型可复跑**（U1 后在 Linux x86_64 补 MSan 交叉复跑） |
@@ -40,9 +42,8 @@ U0 §9 第一条硬门槛要求“路线 L 的参考检查器能把 AL1、AL2 �
 
 为避免“U0 迁入要求先跑真实 Koven `unsafe` 源码，而启动 U1 又要求 U0 先迁入”的循环前置，同时如实反映当前状态，明确区分两个阶段：
 
-1. **U0 迁入 `docs/compiler-specs/` 前仍待确认/完成的前置**：
-   - **确认路线 L 参考检查器前提口径**：评审确认独立原型 `scripts/loan_kernel/u0_raw_model.py` 是否足以满足 U0 §9 第一条门槛，或须先将 AL1/AL2 接入主参考检查器 `scripts/loan_kernel/checker.py`；
-   - **团队正式定稿评审与签核**：结合已固化可复跑的 `u0_raw_model.py` 与 `u0_sanitizer_harness.py`，由团队正式评审并决定何时将 [U0 合同](unsafe-aliasing-contract-outline.md) 从 `docs/proposals/` 迁入 `docs/compiler-specs/`。
+1. **U0 迁入 `docs/compiler-specs/` 前仍待完成的前置**：
+   - **团队正式定稿评审与签核**：硬门槛一（`checker.py` + `cases/Z48.lk` 与 `u0_raw_model.py`）与硬门槛二预 U1 代理套件（`u0_sanitizer_harness.py`）均已固化入仓可复跑；由团队正式评审并决定何时将 [U0 合同](unsafe-aliasing-contract-outline.md) 从 `docs/proposals/` 迁入 `docs/compiler-specs/`。
 2. **U0 迁入并启动 U1 / FF1 / FD2 之后的阶段验收项（不阻塞 U0 迁入）**：
    - **真实 Koven 源码复跑**：待 U1 / FF1 引入 `unsafe`、`RawPtr` 与 `extern "C"` 后，将 §2 的 C 代理与原型用例替换为 Koven 源码用例（补齐 FFI1/FFI3），在双宿主 CI（含 Linux x86_64 MSan）下复跑登记；
    - **FFI5 跨 C 帧阻断展开边界测试**：待 FD2/FF1 引入可展开路径后，构造回调内普通失败并在 C 边界验证阻断展开、直接终止进程；
@@ -51,7 +52,6 @@ U0 §9 第一条硬门槛要求“路线 L 的参考检查器能把 AL1、AL2 �
 ## 4. 验证与未运行项
 
 - **已运行**：
-  - `/opt/homebrew/bin/python3 -m unittest scripts.tests.test_u0_raw_model scripts.tests.test_u0_sanitizer_harness scripts.tests.test_f5_od4_grammar_probe`：`Ran 22 tests ... OK`（覆盖 18 条 `u0_raw_model`、10 组 `u0_sanitizer_harness` + 真实 FFI5 派生 `exit(1)` 负例与 9 组 Bison 文法 + 22 组 OD4 编译见证）。
-  - `/usr/bin/python3 -m unittest scripts.tests.test_u0_raw_model scripts.tests.test_u0_sanitizer_harness scripts.tests.test_f5_od4_grammar_probe`：`Ran 22 tests ... OK`（Python 3.9 兼容）。
+  - `/opt/homebrew/bin/python3 -m unittest scripts.tests.test_loan_kernel scripts.tests.test_failure_model scripts.tests.test_u0_raw_model scripts.tests.test_u0_sanitizer_harness scripts.tests.test_f5_od4_grammar_probe`（及 `/usr/bin/python3` Python 3.9 兼容复跑）。
   - `/opt/homebrew/bin/python3 scripts/check_docs.py && /opt/homebrew/bin/python3 -m unittest scripts.tests.test_check_docs`。
 - **未运行**：未运行 Linux x86_64 MSan、FFI5 跨 C 帧阻断展开测试或弱内存模型检查（Loom/GenMC）；未修改 `crates/` 或 `docs/guide/`；未运行 `cargo test`。

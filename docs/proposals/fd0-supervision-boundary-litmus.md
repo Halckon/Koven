@@ -240,7 +240,7 @@ fun runEchoServer(
 2. **主循环内的 `recordCompleted`（失败连接分支的 `withLock` 与 `println`）**：若在运行中回收失败连接时无界阻塞，会挡住下一次 `shutdownSignal.tryReceive()`，推迟置位 `shutdownFlag`，进而使 `joinAll()` 的起点本身无界；
 3. **停机后 `joinAll()` 之后的 `recordCompleted`（`withLock` 与 `println`）**：只挡住 `runEchoServer` 最终返回，不回溯改变 `joinAll()` 已返回的事实。
 
-上述测试须分别记录四个独立截止检查点：**① 收到停机信号 → 实际开始停机（置位 `shutdownFlag`）**、**② 工作线程排空**、**③ `joinAll()` 返回**、**④ 服务函数最终返回**。
+上述测试须分别记录四个独立截止检查点：**① 收到停机信号 → 实际开始停机（置位 `shutdownFlag`）**、**② 工作线程排空**、**③ `joinAll()` 返回**、**④ 服务函数最终返回**。上述三条阻塞边与四个检查点及“锁中毒 vs 活持有者卡滞”的区分，现已由独立状态模型 `scripts/loan_kernel/failure_model.py`（模型 G：`fd0_bounded_shutdown_model`，`scripts/tests/test_failure_model.py`）穷举验证。
 
 ### 5.3 其余跨阶段遗留项
 

@@ -378,5 +378,27 @@ class LockChannelModel(unittest.TestCase):
                 self.assertEqual(self.EXPECTED[name], outcome(MODEL.lock_channel_model(policy)))
 
 
+class Fd0BoundedShutdownModel(unittest.TestCase):
+    """OD6 FD0 有界停机（模型 G）：区分锁中毒与活持有者卡滞，独立检验三条阻塞边与四个计时检查点。"""
+
+    EXPECTED = {
+        "不标中毒且三边无界": (set(), {MODEL.FD0_SHUTDOWN_START_STALLED}, set()),
+        "仅靠LockError.Poisoned（活持有者三边无界）": (
+            set(), {MODEL.FD0_SHUTDOWN_START_STALLED}, {MODEL.FD0_ALL_CHECKPOINTS_BOUNDED}),
+        "主循环有界但工作线程withLock无界": (
+            set(), {MODEL.FD0_JOIN_ALL_STALLED}, {MODEL.FD0_ALL_CHECKPOINTS_BOUNDED}),
+        "主循环与工作线程有界但停机后recordCompleted无界": (
+            set(), {MODEL.FD0_POST_JOIN_RETURN_STALLED}, {MODEL.FD0_ALL_CHECKPOINTS_BOUNDED}),
+        "标中毒且三条阻塞边均有界（OD6目标）": (
+            set(), set(), {MODEL.FD0_ALL_CHECKPOINTS_BOUNDED}),
+    }
+
+    def test_each_policy_has_the_expected_outcome(self):
+        self.assertEqual(set(self.EXPECTED), set(MODEL.FD0_SHUTDOWN_POLICIES))
+        for name, policy in MODEL.FD0_SHUTDOWN_POLICIES.items():
+            with self.subTest(policy=name):
+                self.assertEqual(self.EXPECTED[name], outcome(MODEL.fd0_bounded_shutdown_model(policy)))
+
+
 if __name__ == "__main__":
     unittest.main()

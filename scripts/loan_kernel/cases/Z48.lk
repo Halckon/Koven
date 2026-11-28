@@ -1,0 +1,101 @@
+// U0 §9 硬门槛一：路线 L 主参考检查器中的 AL1 / AL2 / AL7 附加前提验收用例
+
+class Item(n: Int)
+class Pair(a: Item, b: Item)
+cell class Cell(n: Int)
+
+fun consume(own x: Item): Unit trusted
+fun read_item(borrow x: Item): Unit trusted
+fun write_item(inout x: Item): Unit trusted
+
+// 1. AL2 / U1 R1.2 析构屏障：addressOf(&mut x) 阻止 x 在 early_drop 下提前析构，作用域内 raw_write/raw_read 合法
+fun al2_drop_barrier_keeps_owner_alive(): Unit {
+    val x = Item(1)
+    val p = addressOf(&mut x)
+    val other = Item(2)
+    read_item(&other)
+    raw_write(p)
+    raw_read(p)
+}
+
+// 2. AL1 + AL7：RawCell 允许经共享借用派生裸指针写入，但活跃独占借用下仍报 AL1
+fun al1_al7_rawcell_shared_write_ok(): Unit {
+    val c = Cell(1)
+    val p = addressOf(&c)
+    raw_write(p)
+    raw_read(p)
+}
+
+fun al1_al7_rawcell_conflicts_with_exclusive_loan(): Unit {
+    val c = Cell(1)
+    val p = addressOf(&c)
+    val m = &mut c
+    raw_write(p) // ERR AL1
+    use(m)
+}
+
+// 3. AL1：非 RawCell 经共享借用派生裸指针写入报 AL1；读合法
+fun al1_shared_derived_write_rejected(): Unit {
+    val x = Item(1)
+    val p = addressOf(&x)
+    raw_read(p)
+    raw_write(p) // ERR AL1
+}
+
+// 4. AL1：经 borrow 形参派生裸指针写入非 RawCell 报 AL1；经 inout 形参派生写入合法
+fun al1_param_borrow_vs_inout(borrow ro: Item, inout rw: Item): Unit {
+    val pro = addressOf(ro)
+    val prw = addressOf(rw)
+    raw_read(pro)
+    raw_write(pro) // ERR AL1
+    raw_write(prw)
+}
+
+// 5. AL1：独占派生裸指针在活跃共享/独占 loan 期间写入报 AL1，loan 结束后恢复合法
+fun al1_conflicts_with_live_shared_and_excl_loans(): Unit {
+    val x = Item(1)
+    val p = addressOf(&mut x)
+    val r = &x
+    raw_write(p) // ERR AL1
+    use(r)
+    raw_write(p)
+}
+
+fun al1_read_conflicts_with_live_excl_loan(): Unit {
+    val x = Item(1)
+    val p = addressOf(&x)
+    val m = &mut x
+    raw_read(p) // ERR AL1
+    use(m)
+}
+
+// 6. AL2：owner 整体移出或离开内层作用域析构后，经悬垂裸指针读写报 AL2
+fun al2_use_after_move_rejected(): Unit {
+    val x = Item(1)
+    val p = addressOf(&mut x)
+    consume(move x)
+    raw_read(p) // ERR AL2
+    raw_write(p) // ERR AL2
+}
+
+fun al2_use_after_inner_scope_drop_rejected(): Unit {
+    val x = Item(1)
+    val p = addressOf(&x)
+    {
+        val inner = Item(2)
+        val q = addressOf(&inner)
+        p = q
+        raw_read(q)
+    }
+    raw_read(p) // ERR AL2
+}
+
+// 7. AL2：部分移出字段后经裸指针访问已移出字段报 AL2，访问兄弟字段合法
+fun al2_partial_move_field_rejected(): Unit {
+    val pair = Pair(Item(1), Item(2))
+    val pa = addressOf(&mut pair.a)
+    val pb = addressOf(&mut pair.b)
+    consume(move pair.a)
+    raw_read(pa) // ERR AL2
+    raw_write(pb)
+}

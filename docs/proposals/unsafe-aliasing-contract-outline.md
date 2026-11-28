@@ -178,7 +178,7 @@
 
 | 条款 | 违反编号 | 自动化检测手段 | 迁入前实测登记状态（用例 / 捕获器 / 结果，详见[硬门槛证据账本](u0-ub-harness-evidence.md)） | 未覆盖边界（人工审查） |
 |---|---|---|---|---|
-| 借用、来历与配对释放 | UB1、UB2、UB10、UB11 | ASan（堆/栈越界、释放后使用、非法/重复释放与布局不匹配）、参考解释器（[之十](evolution-10-coverage-gaps.md) W13）带借用栈/来历与分配表追踪（类似 Miri/Tree Borrows） | 进行中：UB1 与 AL1/AL2 已建可复跑独立原型 `u0_raw_model.py`（是否须接入 `checker.py` 待确认）；UB2/UB10/UB11 预 U1 代理已固化至 `u0_sanitizer_harness.py` 并实跑通过 | 原生发布构建中的静态优化假设违背 |
+| 借用、来历与配对释放 | UB1、UB2、UB10、UB11 | ASan（堆/栈越界、释放后使用、非法/重复释放与布局不匹配）、参考解释器（[之十](evolution-10-coverage-gaps.md) W13）带借用栈/来历与分配表追踪（类似 Miri/Tree Borrows） | 预 U1 已固化可复跑：AL1/AL2/AL7 已直接接入主参考检查器 `checker.py`（`cases/Z48.lk`）与独立原型 `u0_raw_model.py`；UB2/UB10/UB11 预 U1 代理已固化至 `u0_sanitizer_harness.py` 并实跑通过（待团队正式评审签核） | 原生发布构建中的静态优化假设违背 |
 | 有效性、初始化与析构 | UB3、UB4、UB5 | UBSan、MSan / 参考解释器逐字节初始化位图与析构计数校验；FS8 在每个 FS1 操作处注入失败 | 进行中：UB4（FS8 原型）/UB5（槽位状态机原型）与 UB3（UBSan）/UB4（ASan）预 U1 代理均已固化可复跑（U1 后在 Linux 补 MSan） | 外部 C 库内部构造的非法位模式 |
 | 并发内存模型（真实数据竞争） | UB6（数据竞争） | TSan（运行时数据竞争检测） | 预 U1 TSan 代理已固化至 `u0_sanitizer_harness.py` 并实跑捕获（`ThreadSanitizer: data race`）；U1 后换 Koven 源码复跑 | — |
 | 并发内存模型（弱内存交错） | UB6（弱内存重排） | 内存模型级并发模型检查（Loom / GenMC 风格，建模普通内存位置、原子操作与 happens-before；注：[失败与清理模型](failure-cleanup-model.md)仅建模任务失败、析构与在途 IO，不表达数据竞争） | 待补 / **U1 验收欠项**（不挡 U0 迁入，亦不得与 TSan 互代） | 弱内存序（`Relaxed`/`Acquire`/`Release`）在特定硬件架构上的罕见重排 |
