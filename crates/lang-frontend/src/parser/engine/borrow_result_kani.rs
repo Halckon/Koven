@@ -253,24 +253,28 @@ fn verify_borrow_local_start_tail_exhaustive() {
 #[kani::proof]
 fn verify_extension_receiver_head_exhaustive() {
     let current_is_identifier: bool = kani::any();
-    let next1 = any_lexeme_kind();
+    let next1 = any_opt_lexeme_kind();
 
     let expected_follow = matches!(
         next1,
-        LexemeKind::Token(TokenKind::Symbol(
+        Some(LexemeKind::Token(TokenKind::Symbol(
             Symbol::Dot | Symbol::Less | Symbol::Question
-        ))
+        )))
     );
-    assert_eq!(is_extension_receiver_follow_kind(next1), expected_follow);
+    if let Some(kind) = next1 {
+        assert_eq!(is_extension_receiver_follow_kind(kind), expected_follow);
+    }
     assert_eq!(
         is_extension_receiver_head_kind(current_is_identifier, next1),
         current_is_identifier && expected_follow
     );
 
-    if matches!(
-        next1,
-        LexemeKind::Token(TokenKind::Keyword(Keyword::Val | Keyword::Var))
-    ) {
-        assert!(!is_extension_receiver_follow_kind(next1));
+    if let Some(kind) = next1 {
+        if matches!(
+            kind,
+            LexemeKind::Token(TokenKind::Keyword(Keyword::Val | Keyword::Var))
+        ) {
+            assert!(!is_extension_receiver_follow_kind(kind));
+        }
     }
 }

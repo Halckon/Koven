@@ -11,13 +11,16 @@ pub(super) const fn is_extension_receiver_follow_kind(kind: LexemeKind) -> bool 
     )
 }
 
-#[cfg(any(test, kani))]
 #[inline]
 pub(super) const fn is_extension_receiver_head_kind(
     current_is_identifier: bool,
-    next1: LexemeKind,
+    next1: Option<LexemeKind>,
 ) -> bool {
-    current_is_identifier && is_extension_receiver_follow_kind(next1)
+    current_is_identifier
+        && match next1 {
+            Some(kind) => is_extension_receiver_follow_kind(kind),
+            None => false,
+        }
 }
 
 impl Parser<'_> {
@@ -25,11 +28,13 @@ impl Parser<'_> {
         &mut self,
         stops: Stops,
     ) -> Result<(NameMarker, Option<ExtensionReceiverSyntax>), ParserInternalError> {
-        let extension = self.current_is_identifier()
-            && self
-                .peek(1)
-                .map(Lexeme::kind)
-                .is_some_and(is_extension_receiver_follow_kind);
+        let current_is_identifier = self.current_is_identifier();
+        let next1 = if current_is_identifier {
+            self.peek(1).map(Lexeme::kind)
+        } else {
+            None
+        };
+        let extension = is_extension_receiver_head_kind(current_is_identifier, next1);
         if !extension {
             let name = self.parse_name_marker(
                 codes::EXPECTED_DECLARATION_NAME,

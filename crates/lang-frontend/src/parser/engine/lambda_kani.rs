@@ -1,6 +1,6 @@
 use super::lambda::{
     LambdaBodyLoopAction, is_lambda_body_unsupported_symbol_kind, lambda_body_loop_action,
-    lambda_body_missing_closer_emits_diagnostic, skip_lambda_body_semicolons_in,
+    lambda_body_missing_closer_emits_diagnostic, skip_lambda_body_semicolons_with,
     unsupported_lambda_body_consumes_val_kind,
 };
 use crate::lexer::{
@@ -278,7 +278,19 @@ fn verify_lambda_body_semicolon_skip_len_6() {
     let len: usize = kani::any();
     kani::assume(len <= 6);
 
-    let stopped = skip_lambda_body_semicolons_in(&entries[..len], |e| e.0, |e| e.1);
+    let slice = &entries[..len];
+    let mut pos = 0usize;
+    let outcome = skip_lambda_body_semicolons_with(
+        &mut pos,
+        |idx| slice.get(*idx).copied().ok_or(()),
+        |idx| {
+            *idx += 1;
+            Ok(())
+        },
+        |e| e.0,
+        |e| e.1,
+    );
+    let stopped = pos;
     assert!(stopped <= len);
 
     let mut i = 0usize;
@@ -287,9 +299,14 @@ fn verify_lambda_body_semicolon_skip_len_6() {
         i += 1;
     }
     if stopped < len {
+        let (stopped_item, action) = outcome.expect("non-empty tail must yield stopping item");
+        assert_eq!(stopped_item, entries[stopped]);
+        assert!(action != LambdaBodyLoopAction::SkipSemicolon);
         assert!(!expected_is_skippable_semicolon(
             entries[stopped].0,
             entries[stopped].1
         ));
+    } else {
+        assert!(outcome.is_err());
     }
 }

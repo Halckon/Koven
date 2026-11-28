@@ -103,13 +103,18 @@ impl Parser<'_> {
                 NameContext::Declaration,
             )?)
         };
-        let result_source = match borrow {
-            Some(borrow_span) => FunctionResultSource::Borrow(BorrowReturnSyntax {
-                borrow_span,
-                from_span,
-                source,
-            }),
-            None => FunctionResultSource::Carrier(CarrierReturnSyntax { from_span, source }),
+        let result_source = match (action, borrow) {
+            (ExplicitResultAction::ParseBorrowSource, Some(borrow_span)) => {
+                FunctionResultSource::Borrow(BorrowReturnSyntax {
+                    borrow_span,
+                    from_span,
+                    source,
+                })
+            }
+            (ExplicitResultAction::ParseCarrierSource, None) => {
+                FunctionResultSource::Carrier(CarrierReturnSyntax { from_span, source })
+            }
+            _ => return Err(ParserInternalError::InvalidLexemeStream),
         };
         Ok((target, Some(result_source)))
     }

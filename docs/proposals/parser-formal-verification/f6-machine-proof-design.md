@@ -80,7 +80,7 @@
 
 ## 5. 实施收口账本（18 片全量归档）
 
-截至 `main@a899841c`（PR #477 [F6 Lean 4 作业](https://github.com/Halckon/Koven/actions/runs/45797758634/job/139832703151) 与 [F6 Kani 作业](https://github.com/Halckon/Koven/actions/runs/45797758634/job/139832703749)，以及 PR #483、PR #486、PR #490、PR #491 与 PR #496 连续扩展至 `main@f7ad5fd7`），全部 **18 个高价值纯解析内核切片（共 121 条 Lean 4 机器检查模型定理 + 47 条 Kani 直接 Rust harness）** 已完成实现、接入 [.github/workflows/parser-formal-f6.yml](../../../.github/workflows/parser-formal-f6.yml) 并验收归档。其中 96 条定理为 `proved (model, unbounded)`、8 条为 `proved (model, complete finite lattice)`（Slice 6 `SPEC-0508`）、17 条为 `proved (model, complete finite domain)`（Slice 15–18 有限枚举/布尔定理）；Kani 轨道保持 `validated (bounded Rust)`，二者均不升级为全输入生产 G4：
+截至 `main@a899841c`（PR #477 [F6 Lean 4 作业](https://github.com/Halckon/Koven/actions/runs/45797758634/job/139832703151) 与 [F6 Kani 作业](https://github.com/Halckon/Koven/actions/runs/45797758634/job/139832703749)，以及 PR #483、PR #486、PR #490、PR #491 与 PR #496 连续扩展至 `main@f7ad5fd7`），全部 **18 个高价值纯解析内核切片（共 121 条 Lean 4 机器检查模型定理 + 47 条 Kani 直接 Rust harness）** 已完成实现、接入 [.github/workflows/parser-formal-f6.yml](../../../.github/workflows/parser-formal-f6.yml) 并验收归档。其中 86 条定理为 `proved (model, unbounded)`、8 条为 `proved (model, complete finite lattice)`（Slice 6 `SPEC-0508`）、27 条为 `proved (model, complete finite domain)`（Slice 12–18 有限枚举/布尔定理）；Kani 轨道保持 `validated (bounded Rust)`，二者均不升级为全输入生产 G4：
 
 | 切片 | 归档 Spec | 证明对象 | Lean 4 定理数（证据等级） | Kani Harness 数 |
 |---|---|---|---|---|
@@ -95,9 +95,9 @@
 | Slice 9 | [SPEC-0506](../../archive/specs/0506-f6-diagnostic-anchor-machine-proof.md) | `diagnostic_anchor_prefix` 前缀和单调与区间查询 | 5 (`unbounded`) | 2 |
 | Slice 10 | [SPEC-0507](../../archive/specs/0507-f6-strict-call-trial-machine-proof.md) | `StrictCallTrialIndex` 索引、反向 DP 与递归预算 | 6 (`unbounded`) | 2 |
 | Slice 11 | [SPEC-0510](../../archive/specs/0510-f6-lexical-owner-events-machine-proof.md) | `LexicalRecoveryIndex` 词法 owner 栈与 `verified_events` 构造 | 11 (`unbounded`) | 2 |
-| Slice 12 | [SPEC-0512](../../archive/specs/0512-f6-when-boundary-machine-proof.md) | `WhenEntryBody` / `SelectorScanState` 换行新选择器与 `if`/`else` 平衡 | 7 (`unbounded`) | 3 |
-| Slice 13 | [SPEC-0513](../../archive/specs/0513-f6-supertypes-boundary-machine-proof.md) | `supertypes` 委托边界、`deinit` 后缀决策与 Lambda 尾扫描 | 6 (`unbounded`) | 3 |
-| Slice 14 | [SPEC-0514](../../archive/specs/0514-f6-block-boundary-machine-proof.md) | `block` 块语句分隔符、换行边界、显式 `block {` 与缺失块根扫描 | 7 (`unbounded`) | 3 |
+| Slice 12 | [SPEC-0512](../../archive/specs/0512-f6-when-boundary-machine-proof.md) | `WhenEntryBody` / `SelectorScanState` 换行新选择器与 `if`/`else` 平衡 | 6 `unbounded` + 1 `finite domain` | 3 |
+| Slice 13 | [SPEC-0513](../../archive/specs/0513-f6-supertypes-boundary-machine-proof.md) | `supertypes` 委托边界、`deinit` 后缀决策与 Lambda 尾扫描 | 2 `unbounded` + 4 `finite domain` | 3 |
+| Slice 14 | [SPEC-0514](../../archive/specs/0514-f6-block-boundary-machine-proof.md) | `block` 块语句分隔符、换行边界、显式 `block {` 与缺失块根扫描 | 2 `unbounded` + 5 `finite domain` | 3 |
 | Slice 15 | [SPEC-0515](../../archive/specs/0515-f6-postfix-boundary-machine-proof.md) | `postfix` 后缀起始、带类型调用延续、实参边界与 callee 尾逆向扫描 | 2 `unbounded` + 5 `finite domain` | 3 |
 | Slice 16 | [SPEC-0516](../../archive/specs/0516-f6-file-modifiers-machine-proof.md) | `file` 声明修饰符顺序状态机与文件头/顶层分隔符 | 2 `unbounded` + 5 `finite domain` | 3 |
 | Slice 17 | [SPEC-0517](../../archive/specs/0517-f6-destructuring-machine-proof.md) | `destructuring` 局部解构起始、绑定循环防重报状态机与边界初始化器守卫 | 1 `unbounded` + 5 `finite domain` | 3 |

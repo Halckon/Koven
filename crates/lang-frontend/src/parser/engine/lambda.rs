@@ -28,24 +28,32 @@ pub(super) const fn lambda_body_loop_action(
     }
 }
 
-#[cfg(any(test, kani))]
-pub(super) fn skip_lambda_body_semicolons_in<T: Copy>(
-    items: &[T],
+pub(super) fn skip_lambda_body_semicolons_with<S, T: Copy, E>(
+    state: &mut S,
+    mut current: impl FnMut(&S) -> Result<T, E>,
+    mut advance: impl FnMut(&mut S) -> Result<(), E>,
     kind_of: impl Fn(T) -> LexemeKind,
     is_outer_hard_stop: impl Fn(T) -> bool,
-) -> usize {
-    let mut index = 0usize;
-    while index < items.len() {
-        let item = items[index];
-        if lambda_body_loop_action(kind_of(item), is_outer_hard_stop(item))
-            == LambdaBodyLoopAction::SkipSemicolon
-        {
-            index += 1;
+) -> Result<(T, LambdaBodyLoopAction), E> {
+    loop {
+        let item = current(state)?;
+        let kind = kind_of(item);
+        let outer_hard_stop = if matches!(
+            kind,
+            LexemeKind::Token(TokenKind::Symbol(Symbol::RightBrace))
+        ) {
+            false
         } else {
-            break;
+            is_outer_hard_stop(item)
+        };
+        let action = lambda_body_loop_action(kind, outer_hard_stop);
+        match action {
+            LambdaBodyLoopAction::SkipSemicolon => advance(state)?,
+            LambdaBodyLoopAction::Stop | LambdaBodyLoopAction::ParseElement => {
+                return Ok((item, action));
+            }
         }
     }
-    index
 }
 
 pub(super) const fn is_lambda_body_unsupported_symbol_kind(kind: LexemeKind) -> bool {
@@ -152,22 +160,15 @@ impl Parser<'_> {
         let expression_stops = Stops::lambda_expression(outer_stops);
 
         let current = loop {
-            let current = self.current()?;
-            let action = if matches!(
-                current.kind(),
-                LexemeKind::Token(TokenKind::Symbol(Symbol::RightBrace))
-            ) {
-                lambda_body_loop_action(current.kind(), false)
-            } else {
-                lambda_body_loop_action(current.kind(), outer_stops.contains_hard(current))
-            };
-            match action {
-                LambdaBodyLoopAction::Stop => break current,
-                LambdaBodyLoopAction::SkipSemicolon => {
-                    self.bump()?;
-                    continue;
-                }
-                LambdaBodyLoopAction::ParseElement => {}
+            let (current, action) = skip_lambda_body_semicolons_with(
+                self,
+                |parser| parser.current(),
+                |parser| parser.bump().map(|_| ()),
+                Lexeme::kind,
+                |lexeme| outer_stops.contains_hard(lexeme),
+            )?;
+            if action == LambdaBodyLoopAction::Stop {
+                break current;
             }
             #[cfg(test)]
             {
