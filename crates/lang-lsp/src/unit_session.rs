@@ -1,40 +1,37 @@
 //! source-set base/overlay 生命周期与原子 compilation-unit diagnostic snapshot。
 
-use std::{collections::BTreeMap, error::Error, fmt};
+mod errors;
+
+use std::collections::BTreeMap;
 
 use lang_frontend::{
     analysis::{
-        UnitNameAnalysisError, UnitSourceDescriptor, analyze_basic_unit_ownership,
-        analyze_unit_names, append_builtin_display, complete_unit_display_types,
+        UnitSourceDescriptor, analyze_basic_unit_ownership, analyze_unit_names,
+        append_builtin_display, complete_unit_display_types,
     },
-    lexer::LexerInternalError,
-    name_resolution::{
-        CompilationUnitInputError, CompilationUnitNameError, SourceUnitId, UnitDiagnosticOrderError,
-    },
-    ownership_checking::OwnershipCheckingError,
-    parser::ParserInternalError,
-    source::{SourceError, SourceId, SourceMap},
-    type_checking::{
-        CompilationUnitTypeError, check_compilation_unit_types, standard_environments,
-    },
+    name_resolution::SourceUnitId,
+    source::{SourceId, SourceMap},
+    type_checking::{check_compilation_unit_types, standard_environments},
 };
 use lsp_types::{
     CompletionItem, DocumentSymbol, Hover, InlayHint, Location, Position, PrepareRenameResponse,
     Range, SignatureHelp, SymbolInformation, Uri, WorkspaceEdit,
 };
 
+pub(crate) use self::errors::{UnitDefinitionQueryError, UnitSessionError};
+
 use crate::{
     completion,
-    definition::{DefinitionIndexError, UnitDefinitionTarget},
-    diagnostic_adapter::{DiagnosticMappingError, convert_unit_diagnostics_with_context},
+    definition::UnitDefinitionTarget,
+    diagnostic_adapter::convert_unit_diagnostics_with_context,
     ide_features,
-    position_adapter::{PositionMappingError, byte_offset, span_range},
+    position_adapter::{byte_offset, span_range},
     rename::{
         RenameError, RenameSourceInput, build_workspace_edit, verify_rename_preserves_bindings,
     },
     source_set::SourceSetConfig,
     symbols,
-    unit_analysis_snapshot::{UnitAnalysisSnapshot, UnitAnalysisSnapshotError},
+    unit_analysis_snapshot::UnitAnalysisSnapshot,
     workspace_manifest,
 };
 
@@ -45,9 +42,18 @@ use crate::definition::UnitDefinitionIndex;
 use crate::diagnostic_adapter::convert_unit_diagnostics;
 #[cfg(test)]
 use lang_frontend::{
-    diagnostic::Diagnostic, name_resolution::ordered_unit_diagnostics,
-    ownership_checking::CompilationUnitOwnership, type_checking::CompilationUnitTypes,
+    diagnostic::Diagnostic,
+    lexer::LexerInternalError,
+    name_resolution::{
+        CompilationUnitInputError, CompilationUnitNameError, ordered_unit_diagnostics,
+    },
+    ownership_checking::CompilationUnitOwnership,
+    parser::ParserInternalError,
+    source::SourceError,
+    type_checking::CompilationUnitTypes,
 };
+#[cfg(test)]
+use std::error::Error;
 
 #[derive(Clone)]
 struct Overlay {
@@ -291,6 +297,47 @@ impl UnitSession {
         query: &str,
     ) -> Result<Vec<SymbolInformation>, UnitDefinitionQueryError> {
         self.snapshot.workspace_symbols(&self.config, query)
+    }
+
+    /// 返回给定 URI 在当前快照中的只读分析句柄、source unit 与 source ID。
+    pub(crate) fn query_context(
+        &self,
+        uri: &Uri,
+    ) -> Option<(&UnitAnalysisSnapshot, SourceUnitId, SourceId)> {
+        let index = self.config.sources().iter().position(|s| s.uri() == uri)?;
+        let source_id = *self.snapshot.source_ids.get(index)?;
+        let source_unit = self
+            .snapshot
+            .analysis
+            .name_snapshot()
+            .names()
+            .index()
+            .source_units()
+            .iter()
+            .find(|u| u.source_id() == source_id)?
+            .id();
+        Some((&self.snapshot.analysis, source_unit, source_id))
+    }
+
+    /// 根据 `SourceUnitId` 反查对应的文档 URI。
+    pub(crate) fn uri_for_source_unit(&self, source_unit: SourceUnitId) -> Option<Uri> {
+        let sid = self
+            .snapshot
+            .analysis
+            .name_snapshot()
+            .names()
+            .index()
+            .source_units()
+            .iter()
+            .find(|u| u.id() == source_unit)?
+            .source_id();
+        let idx = self.snapshot.source_ids.iter().position(|&id| id == sid)?;
+        self.config.sources().get(idx).map(|s| s.uri().clone())
+    }
+
+    /// 返回当前打开 overlay 的文档版本号（关闭文件返回 `None`）。
+    pub(crate) fn open_document_version(&self, uri: &Uri) -> Option<i32> {
+        self.overlays.get(uri.as_str()).map(|o| o.version)
     }
 
     /// 只为当前打开的 overlay 提供编辑，不能把关闭后的 base 当作编辑器文本。
@@ -842,129 +889,6 @@ impl UnitSnapshot {
             }
         }
         Ok(symbols::workspace_symbols(&self.analysis, &uris, query)?)
-    }
-}
-
-/// source-set lifecycle 的协议拒绝或内部 snapshot 失败。
-#[derive(Debug)]
-pub(crate) enum UnitSessionError {
-    Protocol(String),
-    Source(SourceError),
-    Lexer(LexerInternalError),
-    Parser(ParserInternalError),
-    Input(CompilationUnitInputError),
-    Name(CompilationUnitNameError),
-    Type(CompilationUnitTypeError),
-    Ownership(OwnershipCheckingError),
-    Diagnostic(UnitDiagnosticOrderError),
-    Mapping(DiagnosticMappingError),
-    Definition(DefinitionIndexError),
-}
-
-impl fmt::Display for UnitSessionError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Protocol(message) => formatter.write_str(message),
-            Self::Source(error) => write!(formatter, "unit source registration failed: {error}"),
-            Self::Lexer(error) => write!(formatter, "unit lexer failed internally: {error}"),
-            Self::Parser(error) => write!(formatter, "unit parser failed internally: {error}"),
-            Self::Input(error) => write!(formatter, "unit input validation failed: {error}"),
-            Self::Name(error) => write!(formatter, "unit name analysis failed internally: {error}"),
-            Self::Type(error) => write!(formatter, "unit type analysis failed internally: {error}"),
-            Self::Ownership(error) => {
-                write!(
-                    formatter,
-                    "unit ownership analysis failed internally: {error}"
-                )
-            }
-            Self::Diagnostic(error) => {
-                write!(formatter, "unit diagnostic ordering failed: {error}")
-            }
-            Self::Mapping(error) => write!(formatter, "unit diagnostic mapping failed: {error}"),
-            Self::Definition(error) => {
-                write!(formatter, "unit definition indexing failed: {error}")
-            }
-        }
-    }
-}
-
-impl Error for UnitSessionError {}
-
-impl From<UnitAnalysisSnapshotError> for UnitSessionError {
-    fn from(error: UnitAnalysisSnapshotError) -> Self {
-        match error {
-            UnitAnalysisSnapshotError::Diagnostic(error) => Self::Diagnostic(error),
-            UnitAnalysisSnapshotError::Definition(error) => Self::Definition(error),
-        }
-    }
-}
-
-impl From<UnitNameAnalysisError> for UnitSessionError {
-    fn from(error: UnitNameAnalysisError) -> Self {
-        match error {
-            UnitNameAnalysisError::Lexer(error) => Self::Lexer(error),
-            UnitNameAnalysisError::Parser(error) => Self::Parser(error),
-            UnitNameAnalysisError::Input(error) => Self::Input(error),
-            UnitNameAnalysisError::Name(error) => Self::Name(error),
-        }
-    }
-}
-
-macro_rules! unit_session_error_from {
-    ($source:ty, $variant:ident) => {
-        impl From<$source> for UnitSessionError {
-            fn from(error: $source) -> Self {
-                Self::$variant(error)
-            }
-        }
-    };
-}
-
-unit_session_error_from!(SourceError, Source);
-unit_session_error_from!(LexerInternalError, Lexer);
-unit_session_error_from!(ParserInternalError, Parser);
-unit_session_error_from!(CompilationUnitInputError, Input);
-unit_session_error_from!(CompilationUnitNameError, Name);
-unit_session_error_from!(CompilationUnitTypeError, Type);
-unit_session_error_from!(OwnershipCheckingError, Ownership);
-unit_session_error_from!(UnitDiagnosticOrderError, Diagnostic);
-unit_session_error_from!(DiagnosticMappingError, Mapping);
-unit_session_error_from!(DefinitionIndexError, Definition);
-
-/// definition request 的 position 映射或 snapshot source identity 错误。
-#[derive(Debug)]
-pub(crate) enum UnitDefinitionQueryError {
-    Position(PositionMappingError),
-    UnknownSource(SourceId),
-    MismatchedTargetSource {
-        expected: SourceId,
-        actual: SourceId,
-    },
-}
-
-impl fmt::Display for UnitDefinitionQueryError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Position(error) => write!(formatter, "unit definition position failed: {error}"),
-            Self::UnknownSource(source) => {
-                write!(
-                    formatter,
-                    "unit definition references unknown source {source:?}"
-                )
-            }
-            Self::MismatchedTargetSource { expected, actual } => write!(
-                formatter,
-                "unit definition target source mismatch: expected {expected:?}, got {actual:?}"
-            ),
-        }
-    }
-}
-
-impl Error for UnitDefinitionQueryError {}
-
-impl From<PositionMappingError> for UnitDefinitionQueryError {
-    fn from(error: PositionMappingError) -> Self {
-        Self::Position(error)
     }
 }
 

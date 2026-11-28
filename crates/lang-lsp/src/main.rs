@@ -1,14 +1,17 @@
 //! Koven 语言服务器入口。
 
 mod analysis;
+mod code_actions;
 mod completion;
 mod definition;
 mod diagnostic_adapter;
 mod formatting;
 mod ide_features;
+mod navigation_extras;
 mod position_adapter;
 mod rename;
 mod scope_query;
+mod semantic_tokens;
 mod server;
 mod signature_help;
 mod source_set;

@@ -194,6 +194,17 @@ impl UnitDefinitionIndex {
             .map_or(&[], |entry| entry.targets.as_slice())
     }
 
+    /// 遍历单个 `source_unit` 内的全部定义与引用映射（供语义高亮使用）。
+    pub(crate) fn entries_in_unit(
+        &self,
+        source_unit: SourceUnitId,
+    ) -> impl Iterator<Item = (Span, &[UnitDefinitionTarget])> {
+        self.entries
+            .iter()
+            .filter(move |entry| entry.source_unit == source_unit)
+            .map(|entry| (entry.reference, entry.targets.as_slice()))
+    }
+
     pub(crate) fn entry_at(
         &self,
         source_unit: SourceUnitId,
