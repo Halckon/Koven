@@ -13,6 +13,10 @@ mod class;
 mod core;
 mod declaration;
 mod declaration_head;
+#[cfg(kani)]
+mod declaration_kani;
+#[cfg(test)]
+mod declaration_tests;
 mod destructuring;
 #[cfg(kani)]
 mod destructuring_kani;

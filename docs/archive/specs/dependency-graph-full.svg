@@ -1089,6 +1089,7 @@
   <path d="M 1500 624 C 1500 656, 972 656, 972 688" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1092 734 C 25432 734, 25432 890, 49772 890" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 49892 936 C 49892 968, 49892 968, 49892 1000" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 49892 1092 C 49892 1124, 49892 1124, 49892 1156" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <rect x="60" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">SPEC-0001</text>
   <text x="180" y="105" text-anchor="middle" font-size="13">建立可检查的 Cargo w</text>
@@ -3279,4 +3280,9 @@
   <text x="49892" y="1041" text-anchor="middle" font-size="13">F6 第二十片 borrow</text>
   <text x="49892" y="1059" text-anchor="middle" font-size="13">_result 与 decl</text>
   <text x="49892" y="1077" text-anchor="middle" font-size="13">aration_head …</text>
+  <rect x="49772" y="1156" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="49892" y="1179" text-anchor="middle" font-size="13" font-weight="600">SPEC-0521</text>
+  <text x="49892" y="1197" text-anchor="middle" font-size="13">F6 第二十一片 decla</text>
+  <text x="49892" y="1215" text-anchor="middle" font-size="13">ration 常量恢复、函数</text>
+  <text x="49892" y="1233" text-anchor="middle" font-size="13">返回分派、参数模式前瞻与值…</text>
 </svg>
