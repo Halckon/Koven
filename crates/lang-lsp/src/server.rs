@@ -8,18 +8,20 @@ use lang_frontend::source::SourceId;
 
 use lsp_server::{Connection, ErrorCode, Message, Notification, Request, Response};
 use lsp_types::{
-    DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
-    GotoDefinitionParams, GotoDefinitionResponse, HoverProviderCapability, InitializeParams,
-    InitializeResult, Location, LogMessageParams, MessageType, OneOf, PositionEncodingKind,
-    PublishDiagnosticsParams, RenameOptions, ServerCapabilities, ServerInfo,
-    TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions, Uri,
+    CompletionOptions, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
+    DidOpenTextDocumentParams, GotoDefinitionParams, GotoDefinitionResponse,
+    HoverProviderCapability, InitializeParams, InitializeResult, Location, LogMessageParams,
+    MessageType, OneOf, PositionEncodingKind, PublishDiagnosticsParams, RenameOptions,
+    ServerCapabilities, ServerInfo, SignatureHelpOptions, TextDocumentSyncCapability,
+    TextDocumentSyncKind, TextDocumentSyncOptions, Uri,
     notification::{
         DidChangeTextDocument, DidCloseTextDocument, DidOpenTextDocument, LogMessage,
         Notification as LspNotification, PublishDiagnostics,
     },
     request::{
-        Formatting, GotoDefinition, HoverRequest, InlayHintRequest, PrepareRenameRequest,
-        References, Rename, Request as LspRequest,
+        Completion, DocumentSymbolRequest, Formatting, GotoDefinition, HoverRequest,
+        InlayHintRequest, PrepareRenameRequest, References, Rename, Request as LspRequest,
+        SignatureHelpRequest, WorkspaceSymbolRequest,
     },
 };
 
@@ -72,6 +74,13 @@ pub(crate) fn run_with_options(
         .as_ref()
         .and_then(|w| w.workspace_edit.as_ref())
         .and_then(|e| e.document_changes)
+        .unwrap_or(false);
+    let hierarchical_document_symbols = initialize_params
+        .capabilities
+        .text_document
+        .as_ref()
+        .and_then(|t| t.document_symbol.as_ref())
+        .and_then(|d| d.hierarchical_document_symbol_support)
         .unwrap_or(false);
     let source_set = match SourceSetConfig::from_initialization_options(
         initialize_params.initialization_options.as_ref(),
@@ -190,6 +199,22 @@ pub(crate) fn run_with_options(
                     InlayHintRequest::METHOD => {
                         dispatch_json!(ide_requests::inlay_hint_response(params, &state))
                     }
+                    Completion::METHOD => {
+                        dispatch_json!(ide_requests::completion_response(params, &state))
+                    }
+                    SignatureHelpRequest::METHOD => {
+                        dispatch_json!(ide_requests::signature_help_response(params, &state))
+                    }
+                    DocumentSymbolRequest::METHOD => {
+                        dispatch_json!(ide_requests::document_symbol_response(
+                            params,
+                            &state,
+                            hierarchical_document_symbols
+                        ))
+                    }
+                    WorkspaceSymbolRequest::METHOD => {
+                        dispatch_json!(ide_requests::workspace_symbol_response(params, &state))
+                    }
                     PrepareRenameRequest::METHOD => {
                         dispatch_json!(ide_requests::prepare_rename_response(params, &state))
                     }
@@ -240,6 +265,16 @@ fn capabilities() -> ServerCapabilities {
         references_provider: Some(OneOf::Left(true)),
         hover_provider: Some(HoverProviderCapability::Simple(true)),
         inlay_hint_provider: Some(OneOf::Left(true)),
+        completion_provider: Some(CompletionOptions {
+            trigger_characters: Some(vec![".".to_owned()]),
+            ..CompletionOptions::default()
+        }),
+        signature_help_provider: Some(SignatureHelpOptions {
+            trigger_characters: Some(vec!["(".to_owned(), ",".to_owned()]),
+            ..SignatureHelpOptions::default()
+        }),
+        document_symbol_provider: Some(OneOf::Left(true)),
+        workspace_symbol_provider: Some(OneOf::Left(true)),
         rename_provider: Some(OneOf::Right(RenameOptions {
             prepare_provider: Some(true),
             work_done_progress_options: Default::default(),

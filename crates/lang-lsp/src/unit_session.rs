@@ -19,10 +19,12 @@ use lang_frontend::{
     },
 };
 use lsp_types::{
-    Hover, InlayHint, Location, Position, PrepareRenameResponse, Range, Uri, WorkspaceEdit,
+    CompletionItem, DocumentSymbol, Hover, InlayHint, Location, Position, PrepareRenameResponse,
+    Range, SignatureHelp, SymbolInformation, Uri, WorkspaceEdit,
 };
 
 use crate::{
+    completion,
     definition::{DefinitionIndexError, UnitDefinitionTarget},
     diagnostic_adapter::{DiagnosticMappingError, convert_unit_diagnostics_with_context},
     ide_features,
@@ -31,6 +33,7 @@ use crate::{
         RenameError, RenameSourceInput, build_workspace_edit, verify_rename_preserves_bindings,
     },
     source_set::SourceSetConfig,
+    symbols,
     unit_analysis_snapshot::{UnitAnalysisSnapshot, UnitAnalysisSnapshotError},
     workspace_manifest,
 };
@@ -254,6 +257,40 @@ impl UnitSession {
             new_name,
             supports_document_changes,
         )
+    }
+
+    /// 查询当前 last-good snapshot 中的补全候选。
+    pub(crate) fn completions(
+        &self,
+        uri: &Uri,
+        position: Position,
+    ) -> Result<Vec<CompletionItem>, UnitDefinitionQueryError> {
+        self.snapshot.completions(&self.config, uri, position)
+    }
+
+    /// 查询当前 last-good snapshot 中的签名帮助。
+    pub(crate) fn signature_help(
+        &self,
+        uri: &Uri,
+        position: Position,
+    ) -> Result<Option<SignatureHelp>, UnitDefinitionQueryError> {
+        self.snapshot.signature_help(&self.config, uri, position)
+    }
+
+    /// 查询当前 last-good snapshot 中单个文档的层级符号树。
+    pub(crate) fn document_symbols(
+        &self,
+        uri: &Uri,
+    ) -> Result<Vec<DocumentSymbol>, UnitDefinitionQueryError> {
+        self.snapshot.document_symbols(&self.config, uri)
+    }
+
+    /// 在整个编译单元内按子串查询工作区符号。
+    pub(crate) fn workspace_symbols(
+        &self,
+        query: &str,
+    ) -> Result<Vec<SymbolInformation>, UnitDefinitionQueryError> {
+        self.snapshot.workspace_symbols(&self.config, query)
     }
 
     /// 只为当前打开的 overlay 提供编辑，不能把关闭后的 base 当作编辑器文本。
@@ -730,6 +767,81 @@ impl UnitSnapshot {
             new_name,
             supports_document_changes,
         ))
+    }
+
+    fn completions(
+        &self,
+        config: &SourceSetConfig,
+        uri: &Uri,
+        position: Position,
+    ) -> Result<Vec<CompletionItem>, UnitDefinitionQueryError> {
+        let Some((source_id, source_unit, offset)) =
+            self.resolve_source_and_offset(config, uri, position)?
+        else {
+            return Ok(Vec::new());
+        };
+        Ok(completion::completions_at(
+            &self.analysis,
+            source_unit,
+            source_id,
+            offset,
+        ))
+    }
+
+    fn signature_help(
+        &self,
+        config: &SourceSetConfig,
+        uri: &Uri,
+        position: Position,
+    ) -> Result<Option<SignatureHelp>, UnitDefinitionQueryError> {
+        let Some((source_id, source_unit, offset)) =
+            self.resolve_source_and_offset(config, uri, position)?
+        else {
+            return Ok(None);
+        };
+        Ok(crate::signature_help::signature_help_at(
+            &self.analysis,
+            source_unit,
+            source_id,
+            offset,
+        ))
+    }
+
+    fn document_symbols(
+        &self,
+        config: &SourceSetConfig,
+        uri: &Uri,
+    ) -> Result<Vec<DocumentSymbol>, UnitDefinitionQueryError> {
+        let Some((source_id, source_unit)) = self.resolve_source_unit(config, uri)? else {
+            return Ok(Vec::new());
+        };
+        Ok(symbols::document_symbols(
+            &self.analysis,
+            source_unit,
+            source_id,
+        )?)
+    }
+
+    fn workspace_symbols(
+        &self,
+        config: &SourceSetConfig,
+        query: &str,
+    ) -> Result<Vec<SymbolInformation>, UnitDefinitionQueryError> {
+        let mut uris = BTreeMap::new();
+        for (source, &source_id) in config.sources().iter().zip(self.source_ids.iter()) {
+            if let Some(su) = self
+                .analysis
+                .name_snapshot()
+                .names()
+                .index()
+                .source_units()
+                .iter()
+                .find(|u| u.source_id() == source_id)
+            {
+                uris.insert(su.id(), source.uri().clone());
+            }
+        }
+        Ok(symbols::workspace_symbols(&self.analysis, &uris, query)?)
     }
 }
 
