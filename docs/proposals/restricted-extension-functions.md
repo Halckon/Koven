@@ -255,3 +255,5 @@ receiver mode 语义、调用点标注规则与 overload shape 规则必须与 0
 - 容器迁为库类型后，“内建类型无法声明成员”的动机消失，保留扩展函数的理由变为模块化；两个动机得出同一设计。
 - 扩展函数永不使类型满足某 interface；“为不属于自己的类型声明 interface 实现”需要独立的一致性规则，须在 owned existential 之前裁决（之六 J10）。
 - §8 第 3 点：`Type::name` 引用把接收者视为第一个参数。
+
+**离线原型验证（2026-11-28）**：步骤 1→2→3 诊断式放开、按编译器身份区分 intrinsic 与同名用户类型、member 优先与同形扩展歧义（J9）、`receiver_mode` 不参与 overload shape、禁访 `private` 成员及扩展函数永不满足 interface（J10），已在非规范原型 `scripts/loan_kernel/extension_resolution_model.py` 与 `scripts/tests/test_extension_resolution_model.py`（3 组单测）中固化可复跑。

@@ -222,3 +222,5 @@ Koven 经 LLVM 发射，顶层函数就是按 package 修饰的符号。本提�
 - G2 的类型约束在 `Shareable` 可用后统一为“`Shareable` 且析构不可观察”。
 
 本页 §9 的步骤 S1–S5 与总纲的“路线 S（并发与挂起）”编号无关。
+
+**离线原型验证（2026-11-28）**：G0–G4 分期接纳、J6 静态可构造与循环依赖检测、G2 纯内存/能力/访问限制与 `Static(decl)` origin（J5）、G3 `Lazy` 单次初始化与重入终止及 G4 全局 `var` 禁令，已在非规范原型 `scripts/loan_kernel/static_state_model.py` 与 `scripts/tests/test_static_state_model.py`（4 组单测）中固化可复跑。
