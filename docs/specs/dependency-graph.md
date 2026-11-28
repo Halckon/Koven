@@ -25,6 +25,7 @@ subgraph Gactive["现行 active"]
   S0521["S0521<br/>F6 第二十一片 declaration 常量恢复、函数返回分派、参数模式前瞻与值参数守卫双轨证明"]
   S0522["S0522<br/>F6 第二十二片 operator 非法相邻运算符、表达式/类型起始、毒化层级与中缀规则表双轨证明"]
   S0523["S0523<br/>F6 第二十三片 expression 前缀运算符、when 条件分派、return 守卫、括号分组尾与字符串闭合双轨证明"]
+  S0524["S0524<br/>F6 第二十四片 class 分类器策略、成员上下文规则、名称/枚举边界与非法前缀双轨证明"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -42,6 +43,7 @@ S0519 --> S0520
 S0520 --> S0521
 S0521 --> S0522
 S0522 --> S0523
+S0523 --> S0524
 ARCH --> S0292
 ARCH --> S0333
 ARCH --> S0334
@@ -74,6 +76,7 @@ ARCH --> S0519
 | SPEC-0521 | active | [0521-f6-declaration-machine-proof.md](active/0521-f6-declaration-machine-proof.md) |
 | SPEC-0522 | active | [0522-f6-operator-machine-proof.md](active/0522-f6-operator-machine-proof.md) |
 | SPEC-0523 | active | [0523-f6-expression-machine-proof.md](active/0523-f6-expression-machine-proof.md) |
+| SPEC-0524 | active | [0524-f6-class-machine-proof.md](active/0524-f6-class-machine-proof.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](drafts/v0.44/0335-map-borrow-caller-proof.md) |

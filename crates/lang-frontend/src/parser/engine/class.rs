@@ -1,8 +1,14 @@
+mod kernel;
+#[cfg(kani)]
+mod kernel_kani;
+#[cfg(test)]
+mod kernel_tests;
 mod supertypes;
 #[cfg(kani)]
 mod supertypes_kani;
 
 use super::*;
+use kernel::*;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum ClassifierHeaderOwner {
@@ -73,7 +79,10 @@ impl Parser<'_> {
         };
         let (type_parameters, type_parameter_list_span) =
             self.parse_type_parameters(parameter_owner)?;
-        if let (ClassifierKind::Object { .. }, Some(list_span)) = (kind, type_parameter_list_span) {
+        let kind_tag = classifier_kind_tag(kind);
+        if let Some(list_span) = type_parameter_list_span
+            && classifier_forbids_type_parameters(kind_tag)
+        {
             self.emit(
                 codes::UNSUPPORTED_CLASS_FAMILY_FORM,
                 "unsupported class-family form",
@@ -81,13 +90,10 @@ impl Parser<'_> {
             )?;
         }
 
-        let supports_constructor = matches!(
-            kind,
-            ClassifierKind::ValueClass { .. } | ClassifierKind::Class { .. }
-        );
+        let supports_constructor = classifier_supports_constructor(kind_tag);
         let primary_constructor = if self.current_is_symbol(Symbol::LeftParen) {
             let constructor = self.parse_primary_constructor(
-                matches!(kind, ClassifierKind::ValueClass { .. }),
+                classifier_requires_constructor(kind_tag),
                 file_header,
             )?;
             if !supports_constructor {
@@ -99,7 +105,7 @@ impl Parser<'_> {
             }
             supports_constructor.then_some(constructor)
         } else {
-            if matches!(kind, ClassifierKind::ValueClass { .. }) {
+            if classifier_requires_constructor(kind_tag) {
                 self.emit(
                     codes::UNSUPPORTED_CLASS_FAMILY_FORM,
                     "unsupported class-family form",
@@ -113,7 +119,7 @@ impl Parser<'_> {
         let body = if self.current_is_symbol(Symbol::LeftBrace) {
             Some(self.parse_classifier_body(kind)?)
         } else {
-            if matches!(kind, ClassifierKind::EnumClass { .. }) {
+            if classifier_requires_body(kind_tag) {
                 self.emit(
                     codes::UNSUPPORTED_CLASS_FAMILY_FORM,
                     "unsupported class-family form",
@@ -171,17 +177,7 @@ impl Parser<'_> {
             }
         }
         let is_boundary = file_boundary
-            || matches!(current.kind(), LexemeKind::Eof)
-            || matches!(
-                current.kind(),
-                LexemeKind::Token(TokenKind::Symbol(
-                    Symbol::Less
-                        | Symbol::LeftParen
-                        | Symbol::Colon
-                        | Symbol::LeftBrace
-                        | Symbol::RightBrace
-                ))
-            )
+            || is_classifier_name_boundary_kind(current.kind())
             || self.is_file_declaration_boundary(current);
         let primary = if is_boundary {
             self.empty_at(current.span().start())?
@@ -305,16 +301,15 @@ impl Parser<'_> {
         let visibility = modifiers.visibility;
         let current_start = self.current()?.span().start();
         let start = declaration_modifier_start(modifiers).unwrap_or(current_start);
-        let is_invalid_mode_modifier = (self.current_identifier_is("borrow")?
+        let is_mode_ident = self.current_identifier_is("borrow")?
             || self.current_identifier_is("inout")?
-            || self.current_identifier_is("own")?)
-            && (self.peek_is_keyword(1, Keyword::Val) || self.peek_is_keyword(1, Keyword::Var));
-        if is_invalid_mode_modifier
-            || matches!(
-                self.current()?.kind(),
-                LexemeKind::Token(TokenKind::Keyword(Keyword::Vararg))
-            )
-        {
+            || self.current_identifier_is("own")?;
+        let next1 = if is_mode_ident {
+            self.peek(1).map(Lexeme::kind)
+        } else {
+            None
+        };
+        if is_class_field_invalid_prefix_kind(self.current()?.kind(), is_mode_ident, next1) {
             let primary = self.bump()?.span();
             self.emit(
                 codes::UNSUPPORTED_CLASS_FAMILY_FORM,
@@ -489,11 +484,7 @@ impl Parser<'_> {
         companion_seen: &mut bool,
     ) -> Result<ItemId, ParserInternalError> {
         let member_stops = self.root_expression_stops().with(Stops::RIGHT_BRACE);
-        let receiver_policy = if matches!(context, ClassMemberContext::Companion) {
-            ReceiverModifierPolicy::Rejected
-        } else {
-            ReceiverModifierPolicy::Allowed
-        };
+        let receiver_policy = member_receiver_policy(context);
         let mut modifiers =
             self.parse_declaration_modifiers(context.allows_override(), receiver_policy)?;
         let primary = self.current()?.span();
@@ -506,11 +497,15 @@ impl Parser<'_> {
                 parameter_mode_span(receiver),
             )?;
         }
-        if matches!(context, ClassMemberContext::Interface)
-            && self.current_is_keyword(Keyword::Fun)
-            && let Some(
-                visibility @ (VisibilityModifier::Internal(_) | VisibilityModifier::Private(_)),
-            ) = modifiers.visibility
+        if let Some(visibility) = modifiers.visibility
+            && member_visibility_invalid_for_fun(
+                context,
+                self.current_is_keyword(Keyword::Fun),
+                matches!(
+                    visibility,
+                    VisibilityModifier::Internal(_) | VisibilityModifier::Private(_)
+                ),
+            )
         {
             self.emit(
                 codes::INVALID_DECLARATION_MODIFIER,
@@ -519,7 +514,7 @@ impl Parser<'_> {
             )?;
         }
         let declaration = if self.current_is_keyword(Keyword::Companion) {
-            if !context.allows_companion() || *companion_seen {
+            if member_companion_is_unsupported(context, *companion_seen) {
                 self.emit(
                     codes::UNSUPPORTED_CLASS_FAMILY_FORM,
                     "unsupported class-family form",
@@ -735,10 +730,7 @@ impl Parser<'_> {
                 self.current()?.span(),
             )?;
         }
-        while !self.current_is_symbol(Symbol::RightBrace)
-            && !self.current_is_symbol(Symbol::Semicolon)
-            && !matches!(self.current()?.kind(), LexemeKind::Eof)
-        {
+        while !is_enum_body_stop_kind(self.current()?.kind()) {
             if !self.current_is_identifier() {
                 if self.class_member_start()? {
                     self.emit(
@@ -779,10 +771,7 @@ impl Parser<'_> {
                 }
                 continue;
             }
-            if self.current_is_symbol(Symbol::RightBrace)
-                || self.current_is_symbol(Symbol::Semicolon)
-                || matches!(self.current()?.kind(), LexemeKind::Eof)
-            {
+            if is_enum_body_stop_kind(self.current()?.kind()) {
                 break;
             }
             if self.class_member_start()? {
@@ -911,18 +900,15 @@ impl Parser<'_> {
         payload_stops: Stops,
     ) -> Result<EnumVariantParameter, ParserInternalError> {
         let start = self.current()?.span().start();
-        let is_invalid_mode_modifier = (self.current_identifier_is("borrow")?
+        let is_mode_ident = self.current_identifier_is("borrow")?
             || self.current_identifier_is("inout")?
-            || self.current_identifier_is("own")?)
-            && self.peek_is_identifier(1);
-        if is_invalid_mode_modifier
-            || matches!(
-                self.current()?.kind(),
-                LexemeKind::Token(TokenKind::Keyword(
-                    Keyword::Val | Keyword::Var | Keyword::Vararg
-                ))
-            )
-        {
+            || self.current_identifier_is("own")?;
+        let next1 = if is_mode_ident {
+            self.peek(1).map(Lexeme::kind)
+        } else {
+            None
+        };
+        if is_enum_variant_param_invalid_prefix_kind(self.current()?.kind(), is_mode_ident, next1) {
             let primary = self.bump()?.span();
             self.emit(
                 codes::UNSUPPORTED_CLASS_FAMILY_FORM,
