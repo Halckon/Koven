@@ -172,17 +172,21 @@
 | 吞掉子 `deinit` 失败 | 违反：子任务 `deinit` 失败被首错优先覆盖而未终止进程 |
 | **B1 安全策略**：提交全序、外部取消当步提交、三子任务排空、次错与未返回成功值恰好一次清理、胜出结果父帧释放后安全返回、`deinit` 失败终止 | **零违反、零卡住、无环**；六种终态均可达（取消压过 `err_A` 且清理一次、`err_A` 压过取消并安全返回、取消压过 `ok` 且清理一次、`ok` 压过取消并安全返回、多错保留 `err_A` 且清理 `err_B` 一次、子 `deinit` 失败终止进程） |
 
-### 6.6 模型 G：OD6 FD0 有界停机与活持有者卡滞（2026-11-28 补充）
+### 6.6 模型 G：OD6 FD0 停机阻塞边状态枚举（2026-11-28 补充）
 
-在 `scripts/loan_kernel/failure_model.py`（`fd0_bounded_shutdown_model`）与 `scripts/tests/test_failure_model.py`（`Fd0BoundedShutdownModel`）中建立 OD6 FD0 含失败连接停机模型（对齐 [FD0 试金石 §5](fd0-supervision-boundary-litmus.md#5-阶段落位阻塞点准入与仍待-fd1fd3-收口的遗留项2026-11-27-od6-共识)），区分“锁持有者异常终止（`LockError.Poisoned`）”与“活持有者持续占锁”，独立检验主循环 `recordCompleted(Err)`、工作线程 `handleConnection.withLock` 与停机后 `recordCompleted(Err)` 三条阻塞边及四个计时检查点（①置位 `shutdownFlag`、②工作线程排空、③`joinAll()` 返回、④服务函数返回）。
+在 `scripts/loan_kernel/failure_model.py`（`fd0_bounded_shutdown_model`）与 `scripts/tests/test_failure_model.py`（`Fd0BoundedShutdownModel`）中建立 OD6 FD0 含失败连接停机的离散状态枚举模型（对齐 [FD0 试金石 §5](fd0-supervision-boundary-litmus.md#5-阶段落位阻塞点准入与仍待-fd1fd3-收口的遗留项2026-11-27-od6-共识)），正交拆分**锁状态**（持有者异常终止标中毒 `LockError.Poisoned` vs 活持有者占锁）、**诊断输出阻塞**（`println`，独立于锁中毒）与**停机信号到达起点**（`signal: pending -> arrived`），逐项检验主循环 `recordCompleted(Err)`（输出/锁）、工作线程 `handleConnection.withLock` 与停机后 `recordCompleted(Err)`（输出/锁）的卡滞状态。
+
+> **模型边界声明**：模型 G 仅枚举离散状态转移与卡滞可达性，**不证明真实运行时的墙钟时限**；真实截止时间仍须由 IO3 / FD1 / FD3 的运行时实测计时检验。
 
 | 政策 | 结果 |
 |---|---|
-| 不标中毒且三边无界 | 卡住：检查点①前卡滞（主循环 `recordCompleted(Err)` 无界阻塞，推迟置位 `shutdownFlag`） |
-| 仅靠 `LockError.Poisoned`（活持有者三边无界） | 持有者崩溃分支可达四检查点；**活持有者分支卡在检查点①前**（证明锁中毒不等价于活持有者可唤醒） |
-| 主循环有界但工作线程 `withLock` 无界 | 活持有者分支到达检查点①后**卡在检查点②/③前**（`joinAll()` 无法有界返回） |
-| 主循环与工作线程有界但停机后 `recordCompleted` 无界 | 活持有者分支完成检查点①–③（`joinAll()` 已返回）后**卡在检查点④前**（服务函数无法有界返回） |
-| 标中毒且三条阻塞边均有界（OD6 目标） | **零违反、零卡住**；两类场景均完成全部四个计时检查点 |
+| 不标中毒且全阻塞边无界 | 卡住：检查点①前卡滞（输出阻塞与锁等待两条路径均卡在停机信号到达之后、置位 `shutdownFlag` 之前） |
+| 仅靠 `LockError.Poisoned`（锁与输出均无界） | 持有者崩溃且输出正常分支可达四检查点；**持有者崩溃+输出阻塞分支与活持有者分支均卡在检查点①前**（说明锁中毒既不等价于活持有者可唤醒，也不解除诊断输出阻塞） |
+| 锁路径全有界但主循环诊断输出无界 | 即使锁已标中毒，输出阻塞分支仍**卡在检查点①前**（停机信号到达后无法推进至置位 `shutdownFlag`） |
+| 主循环全有界但工作线程 `withLock` 无界 | 活持有者分支到达检查点①后**卡在检查点②/③前**（`joinAll()` 无法推进返回） |
+| 主循环与工作线程全有界但停机后锁无界 | 活持有者分支完成检查点①–③（`joinAll()` 已返回）后**卡在检查点④前（锁等待）** |
+| 主循环与工作线程全有界但停机后诊断输出无界 | 即使锁已标中毒，输出阻塞分支完成检查点①–③后仍**卡在检查点④前（输出阻塞）** |
+| 标中毒且锁与输出全阻塞边均有界（OD6 目标模型） | **零违反、零卡住**；四项检查点状态均可达（仅离散状态枚举，不证明真实墙钟时限） |
 
 ## 7. 仍未覆盖的
 

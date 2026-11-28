@@ -132,3 +132,48 @@ fun od1_address_of_borrow_binding_slot_rejected(): Unit {
     val p = addressOf(&mut r) // ERR TYPE
     use(r)
 }
+
+// 9. AL2 实例身份回归：同名重赋值（直接覆写、move 后重建、分支重赋值、字段重赋值）不会让旧裸指针重新有效；重取址后合法
+fun al2_reassign_invalidates_old_raw_ptr(): Unit {
+    val x = Item(1)
+    val p = addressOf(&mut x)
+    x = Item(2)
+    raw_read(p) // ERR AL2
+    raw_write(p) // ERR AL2
+}
+
+fun al2_move_then_reassign_does_not_revive_old_raw_ptr(): Unit {
+    val x = Item(1)
+    val p = addressOf(&mut x)
+    consume(move x)
+    x = Item(2)
+    raw_read(p) // ERR AL2
+}
+
+fun al2_branch_reassign_invalidates_old_raw_ptr(): Unit {
+    val x = Item(1)
+    val p = addressOf(&x)
+    if (*) {
+        x = Item(2)
+    }
+    raw_read(p) // ERR AL2
+}
+
+fun al2_field_reassign_invalidates_field_keeps_sibling_ok(): Unit {
+    val pair = Pair(Item(1), Item(2))
+    val pa = addressOf(&mut pair.a)
+    val pb = addressOf(&mut pair.b)
+    pair.a = Item(3)
+    raw_read(pa) // ERR AL2
+    raw_write(pb)
+}
+
+fun al2_reacquire_after_reassign_ok(): Unit {
+    val x = Item(1)
+    val p = addressOf(&mut x)
+    x = Item(2)
+    p = addressOf(&mut x)
+    raw_write(p)
+    raw_read(p)
+}
+

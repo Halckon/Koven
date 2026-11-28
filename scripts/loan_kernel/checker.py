@@ -550,7 +550,9 @@ class Var:
     pinned: bool = False  # 任务已开始执行：帧不可再移动，离开作用域前须等它结束
     gone: dict = field(default_factory=dict)  # 已移出的按值字段：(字段名,) -> M | MM
     drop_barrier: bool = False  # U1 R1.2 / AL2：addressOf 建立的 place 级析构屏障
-    raw_meta: object = None  # RawPtr 元数据：(targets, via, mode, is_cell)
+    raw_meta: object = None  # RawPtr 元数据：(targets, via, mode, is_cell, inst_snapshots)
+    instances: frozenset = field(default_factory=frozenset)  # AL2 实例身份集合（按语法定值点稳定编号）
+    field_instances: dict = field(default_factory=dict)  # 字段路径 -> 实例身份集合
 
 
 @dataclass
@@ -580,7 +582,7 @@ def copy_loans(loans):
 
 def copy_state(state):
     return {name: Var(var.ty, var.init, copy_loans(var.loans), var.payload, var.pinned, dict(var.gone),
-                      var.drop_barrier, var.raw_meta)
+                      var.drop_barrier, var.raw_meta, var.instances, dict(var.field_instances))
             for name, var in state.items()}
 
 
@@ -879,7 +881,8 @@ class Checker:
             elif mode == "own" and self.tracked(Var(ty, "A", {})):
                 self.declare("let", fun.line, name, ty, state)
             state[name] = Var(ty if mode == "own" else Type(mode, ty_name), "A", loans,
-                              mode != "own" and ty.kind == "any")
+                              mode != "own" and ty.kind == "any",
+                              instances=frozenset({("param", name)}))
         declared = set(state)
         self.check_unique(fun.body, declared, fun)
         live_in(fun.body, expr_uses(fun.ret) if fun.ret else set())
@@ -1584,7 +1587,8 @@ class Checker:
             name = f"#tmp{self.temp_id}"
             if site is not None:
                 self.temp_names[site] = name
-        var = Var(value.ty, "A", copy_loans(value.loans), value.payload)
+        var = Var(value.ty, "A", copy_loans(value.loans), value.payload,
+                  instances=frozenset({("temp", name, line)}))
         if self.tracked(var):
             self.declare("let", line, name, value.ty, state)
         state[name] = var
@@ -2095,20 +2099,29 @@ class Checker:
             mode = "excl" if expr.mut else "shared"
             decl = self.classes.get(res.ty.name)
         is_cell = bool(decl and decl.cell)
-        for root, _ in targets:
+        inst_snapshots = set()
+        for root, path in targets:
             if root in state:
-                state[root].drop_barrier = True
-        return Value(Type("raw", "RawPtr"), {}, raw_meta=(frozenset(targets), frozenset(via), mode, is_cell))
+                owner = state[root]
+                owner.drop_barrier = True
+                f_snap = tuple(sorted(
+                    (p, owner.field_instances[p])
+                    for p in owner.field_instances
+                    if prefix_related(path, p)
+                ))
+                inst_snapshots.add((root, path, owner.instances, f_snap))
+        return Value(Type("raw", "RawPtr"), {}, raw_meta=(
+            frozenset(targets), frozenset(via), mode, is_cell, frozenset(inst_snapshots)))
 
     def raw_access(self, stmt, state):
-        """U0 AL1 / AL2 / AL7：在路线 L 参考检查器中直接检验裸指针读写的活跃性、派生权限与存活 loan 冲突。"""
+        """U0 AL1 / AL2 / AL7：在路线 L 参考检查器中直接检验裸指针读写的活跃性、实例身份、派生权限与存活 loan 冲突。"""
         var = state.get(stmt.name)
         if var is None or var.ty.kind != "raw":
             raise SyntaxProblem(f"第 {stmt.line} 行：{stmt.name} 不是裸指针")
         if var.init != "A" or var.raw_meta is None:
             self.error("AL2", stmt.line, f"裸指针 {stmt.name} 缺少有效来源元数据")
             return
-        targets, via, mode, is_cell = var.raw_meta
+        targets, via, mode, is_cell, inst_snapshots = var.raw_meta
         is_write = stmt.kind == "raw_write"
         for root, path in sorted(targets):
             if root.startswith("*"):
@@ -2123,6 +2136,20 @@ class Checker:
             if owner.gone and any(prefix_related(path, g) for g in owner.gone):
                 self.error("AL2", stmt.line, f"裸指针 {stmt.name} 指向的位置已被部分移出")
                 return
+        for root, path, expected_root_inst, expected_field_snap in sorted(inst_snapshots):
+            if root.startswith("*"):
+                continue
+            owner = state.get(root)
+            if owner is None:
+                continue
+            if expected_root_inst and not (owner.instances <= expected_root_inst):
+                self.error("AL2", stmt.line, f"裸指针 {stmt.name} 指向的 {root} 已被重新赋值，旧实例已失效")
+                return
+            expected_fields = dict(expected_field_snap)
+            for fpath, cur_fids in owner.field_instances.items():
+                if prefix_related(path, fpath) and not (cur_fids <= expected_fields.get(fpath, frozenset())):
+                    self.error("AL2", stmt.line, f"裸指针 {stmt.name} 指向的 {root} 字段已被重新赋值，旧实例已失效")
+                    return
         if is_write and mode != "excl" and not is_cell:
             self.error("AL1", stmt.line, f"非 RawCell 的共享派生裸指针 {stmt.name} 不得写入")
             return
@@ -2193,7 +2220,8 @@ class Checker:
             prev_out, self.out, self.temps = self.out, [] if self.out is not None else None, []
             value = (self.move(stmt.expr, state, local_binding=True) if stmt.expr.kind == "move"
                      else self.value(stmt.expr, state))
-            var = Var(value.ty, "A", value.loans, value.payload, raw_meta=value.raw_meta)
+            var = Var(value.ty, "A", value.loans, value.payload, raw_meta=value.raw_meta,
+                      instances=frozenset({("val", stmt.name, stmt.line)}))
             # 直接构造的独占字段若取自 &mut local，所指视图有确切的账，不保存会过期的字段副本。
             # 调用结果的 from 只指明来源，不一定指明所指存储；不裁剪它的合同记录。
             if value.ty.kind == "view" and stmt.expr.kind == "call" and stmt.expr.name in self.classes:
@@ -2355,16 +2383,16 @@ class Checker:
                 prefix = field_name + "."
                 loans = {"": set(held.get(field_name, ()))}
                 loans.update({key[len(prefix):]: set(ids) for key, ids in held.items() if key.startswith(prefix)})
-                state[name] = Var(Type(kind, ty), "A", loans)
+                state[name] = Var(Type(kind, ty), "A", loans, instances=frozenset({("open", name, stmt.line)}))
             elif self.carrier(ty):
                 # 容器作为按值字段时记在字段名下；拆成独立变量后放回 "*"。
                 loans = {"*": set(held.get(field_name, ()))} if field_name in held else {}
-                state[name] = Var(self.type_of(ty), "A", loans)
+                state[name] = Var(self.type_of(ty), "A", loans, instances=frozenset({("open", name, stmt.line)}))
             else:
                 prefix = field_name + "."
                 # 按值子视图的账在接收者名下；去掉字段前缀后交给新拥有者。
                 loans = {key[len(prefix):]: set(ids) for key, ids in held.items() if key.startswith(prefix)}
-                state[name] = Var(self.type_of(ty), "A", loans)
+                state[name] = Var(self.type_of(ty), "A", loans, instances=frozenset({("open", name, stmt.line)}))
 
     def open_field(self, ty, in_view, visiting=frozenset()):
         decl = self.classes.get(ty)
@@ -2401,7 +2429,24 @@ class Checker:
         elif not matches:
             self.error("X1", stmt.line, f"不能把 {value.ty.kind} {value.ty.name} 写入 {var.ty.name} 的槽位")
         via = set(var.loans.get("", ()))
-        self.access(state, self.places(via), via, "write", stmt.line)
+        store_targets = self.places(via)
+        self.access(state, store_targets, via, "write", stmt.line)
+        for root, path in sorted(store_targets):
+            if root in state:
+                if not path:
+                    sid = ("store", root, stmt.line)
+                    if len(store_targets) == 1:
+                        state[root].instances = frozenset({sid})
+                        state[root].field_instances = {}
+                        state[root].drop_barrier = False
+                    else:
+                        state[root].instances = state[root].instances | {sid}
+                else:
+                    fid = ("fstore", root, path, stmt.line)
+                    if len(store_targets) == 1:
+                        state[root].field_instances[path] = frozenset({fid})
+                    else:
+                        state[root].field_instances[path] = state[root].field_instances.get(path, frozenset()) | {fid}
         if wanted.startswith(("borrow ", "inout ")):
             if matches and value.loans:
                 targets = self.places(via)
@@ -2441,6 +2486,13 @@ class Checker:
             if not res.writable:
                 self.error("K1", stmt.line, "不能经共享借用写入")
             self.access(state, res.targets, res.via, "write", stmt.line)
+            for root, path in sorted(res.targets):
+                if root in state:
+                    fid = ("fassign", root, path, stmt.line)
+                    if len(res.targets) == 1:
+                        state[root].field_instances[path] = frozenset({fid})
+                    else:
+                        state[root].field_instances[path] = state[root].field_instances.get(path, frozenset()) | {fid}
             if value.all_loans():  # 把携带来源的值写进视图的字段
                 var = state[place.root]
                 prefix = ".".join(place.fields)
@@ -2484,6 +2536,9 @@ class Checker:
         if var.ty.kind == "closure" and value.ty.kind == "closure":
             var.ty = value.ty
         var.init, var.loans, var.payload, var.pinned, var.gone, var.raw_meta = "A", value.loans, value.payload, False, {}, value.raw_meta
+        var.drop_barrier = False
+        var.instances = frozenset({("assign", place.root, stmt.line)})
+        var.field_instances = {}
 
     def scope(self, stmts, state, live_after, end_line):
         """K9：作用域结束时按声明逆序析构；析构与仍存活的 loan 冲突即拒绝。"""
@@ -2516,14 +2571,19 @@ class Checker:
             if x.raw_meta == y.raw_meta:
                 raw_meta = x.raw_meta
             elif x.raw_meta is not None and y.raw_meta is not None:
-                tx, vx, mx, cx = x.raw_meta
-                ty, vy, my, cy = y.raw_meta
-                raw_meta = (tx | ty, vx & vy, "excl" if mx == "excl" and my == "excl" else "shared", cx and cy)
+                tx, vx, mx, cx, ix = x.raw_meta
+                ty, vy, my, cy, iy = y.raw_meta
+                raw_meta = (tx | ty, vx & vy, "excl" if mx == "excl" and my == "excl" else "shared", cx and cy, ix | iy)
             else:
                 raw_meta = None
+            merged_field_inst = {
+                p: x.field_instances.get(p, frozenset()) | y.field_instances.get(p, frozenset())
+                for p in set(x.field_instances) | set(y.field_instances)
+            }
             merged[name] = Var(self.merge_closure_ty(x.ty, y.ty), x.init if x.init == y.init else "MM", loans,
                                x.payload or y.payload, x.pinned or y.pinned, gone,
-                               x.drop_barrier or y.drop_barrier, raw_meta)
+                               x.drop_barrier or y.drop_barrier, raw_meta,
+                               x.instances | y.instances, merged_field_inst)
         return merged
 
 

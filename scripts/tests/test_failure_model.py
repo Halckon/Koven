@@ -379,17 +379,24 @@ class LockChannelModel(unittest.TestCase):
 
 
 class Fd0BoundedShutdownModel(unittest.TestCase):
-    """OD6 FD0 有界停机（模型 G）：区分锁中毒与活持有者卡滞，独立检验三条阻塞边与四个计时检查点。"""
+    """OD6 FD0 停机阻塞边状态枚举（模型 G）：分离锁中毒、输出阻塞与停机信号起点（仅枚举状态，不证明真实墙钟时限）。"""
 
     EXPECTED = {
-        "不标中毒且三边无界": (set(), {MODEL.FD0_SHUTDOWN_START_STALLED}, set()),
-        "仅靠LockError.Poisoned（活持有者三边无界）": (
-            set(), {MODEL.FD0_SHUTDOWN_START_STALLED}, {MODEL.FD0_ALL_CHECKPOINTS_BOUNDED}),
-        "主循环有界但工作线程withLock无界": (
+        "不标中毒且全阻塞边无界": (
+            set(), {MODEL.FD0_SHUTDOWN_START_OUTPUT_STALLED, MODEL.FD0_SHUTDOWN_START_LOCK_STALLED}, set()),
+        "仅靠LockError.Poisoned（锁与输出均无界）": (
+            set(),
+            {MODEL.FD0_SHUTDOWN_START_OUTPUT_STALLED, MODEL.FD0_SHUTDOWN_START_LOCK_STALLED},
+            {MODEL.FD0_ALL_CHECKPOINTS_BOUNDED}),
+        "锁路径全有界但主循环诊断输出无界": (
+            set(), {MODEL.FD0_SHUTDOWN_START_OUTPUT_STALLED}, {MODEL.FD0_ALL_CHECKPOINTS_BOUNDED}),
+        "主循环全有界但工作线程withLock无界": (
             set(), {MODEL.FD0_JOIN_ALL_STALLED}, {MODEL.FD0_ALL_CHECKPOINTS_BOUNDED}),
-        "主循环与工作线程有界但停机后recordCompleted无界": (
-            set(), {MODEL.FD0_POST_JOIN_RETURN_STALLED}, {MODEL.FD0_ALL_CHECKPOINTS_BOUNDED}),
-        "标中毒且三条阻塞边均有界（OD6目标）": (
+        "主循环与工作线程全有界但停机后锁无界": (
+            set(), {MODEL.FD0_POST_JOIN_LOCK_STALLED}, {MODEL.FD0_ALL_CHECKPOINTS_BOUNDED}),
+        "主循环与工作线程全有界但停机后诊断输出无界": (
+            set(), {MODEL.FD0_POST_JOIN_OUTPUT_STALLED}, {MODEL.FD0_ALL_CHECKPOINTS_BOUNDED}),
+        "标中毒且锁与输出全阻塞边均有界（OD6目标模型）": (
             set(), set(), {MODEL.FD0_ALL_CHECKPOINTS_BOUNDED}),
     }
 
@@ -398,6 +405,41 @@ class Fd0BoundedShutdownModel(unittest.TestCase):
         for name, policy in MODEL.FD0_SHUTDOWN_POLICIES.items():
             with self.subTest(policy=name):
                 self.assertEqual(self.EXPECTED[name], outcome(MODEL.fd0_bounded_shutdown_model(policy)))
+
+    def test_poisoned_lock_does_not_unblock_output_and_checkpoint1_waits_for_signal(self):
+        """即使锁已标中毒，诊断输出阻塞仍会独立卡住检查点①或④；且置位 shutdownFlag 须以停机信号到达为起点。"""
+        # 1. 锁已中毒 + 主循环输出无界：在持有者崩溃+输出阻塞分支上仍卡在检查点①前（输出阻塞）。
+        out_loop_report = MODEL.fd0_bounded_shutdown_model(
+            MODEL.FD0_SHUTDOWN_POLICIES["锁路径全有界但主循环诊断输出无界"])
+        trace = out_loop_report.stuck[MODEL.FD0_SHUTDOWN_START_OUTPUT_STALLED]
+        self.assertIn("场景:锁持有者异常终止+输出阻塞", trace)
+        self.assertIn("停机信号到达(检查点①起点)", trace)
+
+        # 2. 锁已中毒 + 停机后输出无界：在持有者崩溃+输出阻塞分支上仍卡在检查点④前（输出阻塞）。
+        out_post_report = MODEL.fd0_bounded_shutdown_model(
+            MODEL.FD0_SHUTDOWN_POLICIES["主循环与工作线程全有界但停机后诊断输出无界"])
+        post_trace = out_post_report.stuck[MODEL.FD0_POST_JOIN_OUTPUT_STALLED]
+        self.assertIn("场景:锁持有者异常终止+输出阻塞", post_trace)
+        self.assertIn("主循环:joinAll() 返回(检查点③)", post_trace)
+
+        # 3. 停机信号未到达前（signal == "pending"），poll_signal 不得置位 shutdownFlag。
+        captured = {}
+        original_explore = MODEL.explore
+
+        def capture(initial, events, violations, final_notes):
+            captured["events"] = events
+            return original_explore(initial, events, violations, final_notes)
+
+        MODEL.explore = capture
+        try:
+            MODEL.fd0_bounded_shutdown_model(MODEL.FD0_SHUTDOWN_POLICIES["标中毒且锁与输出全阻塞边均有界（OD6目标模型）"])
+        finally:
+            MODEL.explore = original_explore
+
+        pending_events = dict(captured["events"](("live_stalled", "held", "ready", "pending", "poll_signal", "running")))
+        self.assertNotIn("主循环:观测停机信号并置位 shutdownFlag(检查点①)", pending_events)
+        arrived_events = dict(captured["events"](("live_stalled", "held", "ready", "arrived", "poll_signal", "running")))
+        self.assertIn("主循环:观测停机信号并置位 shutdownFlag(检查点①)", arrived_events)
 
 
 if __name__ == "__main__":
