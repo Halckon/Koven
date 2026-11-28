@@ -1087,6 +1087,7 @@
   <path d="M 3612 312 C 3612 344, 2292 344, 2292 376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 2292 468 C 2292 500, 1500 500, 1500 532" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1500 624 C 1500 656, 972 656, 972 688" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 1092 734 C 25432 734, 25432 890, 49772 890" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <rect x="60" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">SPEC-0001</text>
   <text x="180" y="105" text-anchor="middle" font-size="13">建立可检查的 Cargo w</text>
@@ -3267,4 +3268,9 @@
   <text x="972" y="729" text-anchor="middle" font-size="13">F6 第十八片 type_r</text>
   <text x="972" y="747" text-anchor="middle" font-size="13">ef 函数类型起始、扩展接收</text>
   <text x="972" y="765" text-anchor="middle" font-size="13">者点号停止、proven_…</text>
+  <rect x="49772" y="844" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+  <text x="49892" y="867" text-anchor="middle" font-size="13" font-weight="600">SPEC-0519</text>
+  <text x="49892" y="885" text-anchor="middle" font-size="13">F6 第十九片 lambda</text>
+  <text x="49892" y="903" text-anchor="middle" font-size="13"> 块体循环分派、分号跳过、缺</text>
+  <text x="49892" y="921" text-anchor="middle" font-size="13">失闭合与 const va…</text>
 </svg>

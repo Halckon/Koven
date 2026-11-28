@@ -22,6 +22,10 @@ mod file_kani;
 mod file_tests;
 mod lambda;
 #[cfg(kani)]
+mod lambda_kani;
+#[cfg(test)]
+mod lambda_tests;
+#[cfg(kani)]
 mod lexeme_stream_kani;
 #[cfg(test)]
 mod lexeme_stream_tests;
