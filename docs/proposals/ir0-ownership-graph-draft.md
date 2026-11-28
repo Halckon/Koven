@@ -102,6 +102,8 @@ projection = ".field(", FieldId, ")"       (* class / value class 字段投影 *
    - 任何差异必须归因到“生产实现缺陷 / 构图器缺陷 / 规格模糊 / 已批准语义放宽”四类之一；存在未解释差异时禁止切换权威（IR3）；
    - 必须包含手工故障注入测试（故意在已检查图中构造悬垂 loan、双析构或错调用目标），确认展开后不变量与跨阶段差分均能稳定拦截。
 
+**离线原型验证（2026-11-28）**：上述两层校验与故障注入已在非规范 Python 原型 `scripts/loan_kernel/ir0_graph.py` 与 `scripts/tests/test_ir0_graph.py`（5 组单测）中固化可复跑，覆盖：① 拒绝 `Poisoned` 图、悬空块/局部/loan、非法 `Span`/`DesugarOrigin` 与带后继的 `FatalAbort`；② 校验用户源码二次移动通过第一层结构校验并由第二层报 `USE_AFTER_MOVE`；③ `LexicalRequired` + `Conditional(DropFlagId)` 正交组合与去标志双析构故障注入；④ `Call.failure_bb` 清理漏清（`LEAK_ON_RETURN`）vs `FatalAbort` 跳过待运行析构；⑤ `LoanActivate` 两阶段激活冲突校验。
+
 ## 3. 多阶段路线图生成脚本扩展设计（之十三 §6）
 
 按[演进总纲之十三](evolution-13-implementation-roadmap.md) §6（2026-11-11 用户决定：v1 之后每个阶段各用一份路线图文件，在该阶段入口条件满足时建立），现行 `scripts/gen_roadmap.py` 只读取单一 `docs/roadmap/v1.json`。未来立 Spec 扩展该脚本时固定以下约束：

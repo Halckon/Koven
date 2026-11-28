@@ -172,6 +172,18 @@
 | 吞掉子 `deinit` 失败 | 违反：子任务 `deinit` 失败被首错优先覆盖而未终止进程 |
 | **B1 安全策略**：提交全序、外部取消当步提交、三子任务排空、次错与未返回成功值恰好一次清理、胜出结果父帧释放后安全返回、`deinit` 失败终止 | **零违反、零卡住、无环**；六种终态均可达（取消压过 `err_A` 且清理一次、`err_A` 压过取消并安全返回、取消压过 `ok` 且清理一次、`ok` 压过取消并安全返回、多错保留 `err_A` 且清理 `err_B` 一次、子 `deinit` 失败终止进程） |
 
+### 6.6 模型 G：OD6 FD0 有界停机与活持有者卡滞（2026-11-28 补充）
+
+在 `scripts/loan_kernel/failure_model.py`（`fd0_bounded_shutdown_model`）与 `scripts/tests/test_failure_model.py`（`Fd0BoundedShutdownModel`）中建立 OD6 FD0 含失败连接停机模型（对齐 [FD0 试金石 §5](fd0-supervision-boundary-litmus.md#5-阶段落位阻塞点准入与仍待-fd1fd3-收口的遗留项2026-11-27-od6-共识)），区分“锁持有者异常终止（`LockError.Poisoned`）”与“活持有者持续占锁”，独立检验主循环 `recordCompleted(Err)`、工作线程 `handleConnection.withLock` 与停机后 `recordCompleted(Err)` 三条阻塞边及四个计时检查点（①置位 `shutdownFlag`、②工作线程排空、③`joinAll()` 返回、④服务函数返回）。
+
+| 政策 | 结果 |
+|---|---|
+| 不标中毒且三边无界 | 卡住：检查点①前卡滞（主循环 `recordCompleted(Err)` 无界阻塞，推迟置位 `shutdownFlag`） |
+| 仅靠 `LockError.Poisoned`（活持有者三边无界） | 持有者崩溃分支可达四检查点；**活持有者分支卡在检查点①前**（证明锁中毒不等价于活持有者可唤醒） |
+| 主循环有界但工作线程 `withLock` 无界 | 活持有者分支到达检查点①后**卡在检查点②/③前**（`joinAll()` 无法有界返回） |
+| 主循环与工作线程有界但停机后 `recordCompleted` 无界 | 活持有者分支完成检查点①–③（`joinAll()` 已返回）后**卡在检查点④前**（服务函数无法有界返回） |
+| 标中毒且三条阻塞边均有界（OD6 目标） | **零违反、零卡住**；两类场景均完成全部四个计时检查点 |
+
 ## 7. 仍未覆盖的
 
 - 析构中再次失败在多线程环境下的交错（单线程语义与策略见 `drop_plan.py` §6）。

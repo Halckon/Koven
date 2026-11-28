@@ -2084,6 +2084,9 @@ class Checker:
                 decl = self.classes.get(res.ty.name)
         else:
             res = self.resolve(state, place)
+            if not place.fields and res.ty.kind in ("borrow", "inout"):
+                self.error("TYPE", expr.line, f"不能对裸 {res.ty.kind} 绑定槽 {place.root} 使用 addressOf(&...)")
+                return Value(Type("raw", "RawPtr"), {}, raw_meta=None)
             if expr.mut and not res.writable:
                 self.error("AL1", expr.line, "不能经共享借用派生独占裸指针")
             access_kind = "excl" if expr.mut else "shared"
@@ -2459,6 +2462,9 @@ class Checker:
             return
         if var.ty.kind in ("borrow", "inout") and value.ty != var.ty:
             self.error("TYPE", stmt.line, f"不能把 {value.ty.kind} {value.ty.name} 赋给 {var.ty.kind} {var.ty.name} 槽位")
+            return
+        if var.ty.kind == "raw" and value.ty.kind != "raw":
+            self.error("TYPE", stmt.line, f"不能把 {value.ty.kind} {value.ty.name} 赋给裸指针槽位")
             return
         # 旧值正被覆盖，它持有的 loan 此刻不再算存活；新值在赋值之后仍被使用时算存活
         self.live = set(stmt.live_out) - {place.root}

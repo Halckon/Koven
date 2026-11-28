@@ -2131,7 +2131,8 @@ fun check_second_order_caps(): Unit {
             diags = CHECKER.check(source, early_drop=early, drops=drops, lowered=lowered)
             actual = {(rule, line) for rule, line, _ in diags}
             self.assertEqual(expected(source), actual, f"early_drop={early}")
-            for ok_fn in ("al2_drop_barrier_keeps_owner_alive", "al1_al7_rawcell_shared_write_ok"):
+            for ok_fn in ("al2_drop_barrier_keeps_owner_alive", "al1_al7_rawcell_shared_write_ok",
+                          "al1_disjoint_sibling_field_ok"):
                 self.assertTrue(lowered[ok_fn][2], (ok_fn, early))
                 types, program, _ = lowered[ok_fn]
                 self.assertEqual({}, CHECKER.DP.Verifier(types).run_all(program), (ok_fn, early))
@@ -2144,6 +2145,9 @@ fun check_second_order_caps(): Unit {
                 "al2_use_after_move_rejected",
                 "al2_use_after_inner_scope_drop_rejected",
                 "al2_partial_move_field_rejected",
+                "al2_whole_aggregate_after_partial_move_rejected",
+                "al2_branch_joined_dangling_rejected",
+                "od1_address_of_borrow_binding_slot_rejected",
             ):
                 self.assertFalse(lowered[bad_fn][2], (bad_fn, early))
             if early:
@@ -2156,10 +2160,11 @@ fun check_second_order_caps(): Unit {
 
         def no_barrier(checker, expr, state):
             val = original(checker, expr, state)
-            targets = val.raw_meta[0]
-            for root, _ in targets:
-                if root in state:
-                    state[root].drop_barrier = False
+            if val.raw_meta is not None:
+                targets = val.raw_meta[0]
+                for root, _ in targets:
+                    if root in state:
+                        state[root].drop_barrier = False
             return val
 
         CHECKER.Checker.address_of_raw = no_barrier
