@@ -1,10 +1,10 @@
 # SPEC-0517：F6 第十七片 `destructuring` 局部解构起始、绑定循环防重报状态机与初始化器守卫双轨证明
 
-> **性质**：交付合同 · **状态**：in-progress · **读取时机**：实施或验收 F6 第十七片局部机器证明与双轨 CI 时 · **唯一真源**：本页验收账本
+> **性质**：交付合同 · **状态**：done（历史归档） · **读取时机**：实施或验收 F6 第十七片局部机器证明与双轨 CI 时 · **唯一真源**：本页验收账本
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | 所属 Phase | Phase 1 局部形式化验证（F6 延伸） |
 | 语言规范 | [Guide v0.47](../../guide/README.md) |
 | 前置 Spec | [SPEC-0516](0516-f6-file-modifiers-machine-proof.md) |
@@ -42,4 +42,4 @@
 
 - [x] `F6Destructuring.lean` 零告警构建与 6 条定理核心公理白名单本机通过（仅依赖 `propext`）
 - [x] `verify_destructuring_start_predicates`、`verify_destructuring_exit_and_initializer_guards` 与 `verify_destructuring_loop_state_invariant_len_6` 本机 Kani 0.68.0 实跑通过（3/3 harnesses, 0 failures），`destructuring_tests`（3/3）单测、`cargo fmt --check` 与 `cargo clippy --all-targets` 通过
-- [ ] 接入 `parser-formal-f6.yml`（17 片 / 115 定理 / 44 harness），待 PR 远端主 CI 与 F6 双轨作业实跑验收后归档
+- [x] 接入 `parser-formal-f6.yml`（17 片 / 115 定理 / 44 harness），经 PR #496 远端主 CI 与 F6 双轨作业验收合入 `main@f7ad5fd7` 并归档

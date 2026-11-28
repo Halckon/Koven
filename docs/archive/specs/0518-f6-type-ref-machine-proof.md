@@ -1,10 +1,10 @@
 # SPEC-0518：F6 第十八片 `type_ref` 函数类型起始、扩展接收者点号停止、`proven_type_closer` 守卫与字符串毒化扫描双轨证明
 
-> **性质**：交付合同 · **状态**：in-progress · **读取时机**：实施或验收 F6 第十八片局部机器证明与双轨 CI 时 · **唯一真源**：本页验收账本
+> **性质**：交付合同 · **状态**：done（历史归档） · **读取时机**：实施或验收 F6 第十八片局部机器证明与双轨 CI 时 · **唯一真源**：本页验收账本
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | 所属 Phase | Phase 1 局部形式化验证（F6 延伸） |
 | 语言规范 | [Guide v0.47](../../guide/README.md) |
 | 前置 Spec | [SPEC-0517](0517-f6-destructuring-machine-proof.md) |
@@ -42,4 +42,4 @@
 
 - [x] `F6TypeRef.lean` 零告警构建与 6 条定理核心公理白名单本机通过（仅依赖 `propext`、`Quot.sound`）
 - [x] `verify_type_ref_start_extension_and_closer_guards`、`verify_bounded_proven_parameter_closer_invariants` 与 `verify_string_type_poison_scan_len_6` 本机 Kani 0.68.0 实跑通过（3/3 harnesses, 0 failures），`type_ref_tests`（3/3）单测、`cargo fmt --check` 与 `cargo clippy --all-targets` 通过
-- [ ] 接入 `parser-formal-f6.yml`（18 片 / 121 定理 / 47 harness），待 PR 远端主 CI 与 F6 双轨作业实跑验收后归档
+- [x] 接入 `parser-formal-f6.yml`（18 片 / 121 定理 / 47 harness），经 PR #496 远端主 CI 与 F6 双轨作业验收合入 `main@f7ad5fd7` 并归档

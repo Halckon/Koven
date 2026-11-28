@@ -1,21 +1,18 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="4848" height="868" viewBox="0 0 4848 868" font-family="PingFang SC, Microsoft YaHei, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="4848" height="400" viewBox="0 0 4848 400" font-family="PingFang SC, Microsoft YaHei, sans-serif">
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0,0 L10,5 L0,10 z" fill="#475569"/>
     </marker>
   </defs>
-  <rect width="4848" height="868" fill="#ffffff"/>
+  <rect width="4848" height="400" fill="#ffffff"/>
   <rect x="40" y="30" width="280" height="106" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="180" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，482 份）</text>
-  <rect x="384" y="30" width="2128" height="766" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="180" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，486 份）</text>
+  <rect x="384" y="30" width="2128" height="298" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="1448" y="50" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
   <rect x="2576" y="186" width="280" height="124" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="2716" y="206" text-anchor="middle" font-size="13" fill="#64748b">v0.43（draft）</text>
   <rect x="2920" y="186" width="1864" height="142" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="3852" y="206" text-anchor="middle" font-size="13" fill="#64748b">v0.44（draft）</text>
-  <path d="M 1052 312 C 1052 344, 524 344, 524 376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 524 468 C 524 500, 524 500, 524 532" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 524 624 C 524 656, 524 656, 524 688" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 300 92 C 1448 92, 1448 257, 2596 257" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 300 92 C 352 92, 352 257, 404 257" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 300 92 C 1620 92, 1620 266, 2940 266" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -26,7 +23,6 @@
   <path d="M 300 92 C 2280 92, 2280 257, 4260 257" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 300 92 C 2412 92, 2412 266, 4524 266" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 300 92 C 484 92, 484 266, 668 266" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 300 92 C 616 92, 616 266, 932 266" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <rect x="404" y="64" width="240" height="74" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
   <text x="524" y="87" text-anchor="middle" font-size="13" font-weight="600">SPEC-0291</text>
   <text x="524" y="105" text-anchor="middle" font-size="13">非空只读 Map 构造与插入</text>
@@ -105,27 +101,7 @@
   <text x="2372" y="105" text-anchor="middle" font-size="13">lang-lsp 显式工作区</text>
   <text x="2372" y="123" text-anchor="middle" font-size="13"> manifest 加载与诊</text>
   <text x="2372" y="141" text-anchor="middle" font-size="13">断源码片段上下文</text>
-  <rect x="932" y="220" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="1052" y="243" text-anchor="middle" font-size="13" font-weight="600">SPEC-0515</text>
-  <text x="1052" y="261" text-anchor="middle" font-size="13">F6 第十五片 postfi</text>
-  <text x="1052" y="279" text-anchor="middle" font-size="13">x 后缀起始、带类型调用延续</text>
-  <text x="1052" y="297" text-anchor="middle" font-size="13">、实参边界与 callee…</text>
-  <rect x="404" y="376" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="524" y="399" text-anchor="middle" font-size="13" font-weight="600">SPEC-0516</text>
-  <text x="524" y="417" text-anchor="middle" font-size="13">F6 第十六片 file 声</text>
-  <text x="524" y="435" text-anchor="middle" font-size="13">明修饰符顺序状态机与文件头/</text>
-  <text x="524" y="453" text-anchor="middle" font-size="13">顶层分隔符双轨证明</text>
-  <rect x="404" y="532" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="524" y="555" text-anchor="middle" font-size="13" font-weight="600">SPEC-0517</text>
-  <text x="524" y="573" text-anchor="middle" font-size="13">F6 第十七片 destru</text>
-  <text x="524" y="591" text-anchor="middle" font-size="13">cturing 局部解构起始</text>
-  <text x="524" y="609" text-anchor="middle" font-size="13">、绑定循环防重报状态机与初…</text>
-  <rect x="404" y="688" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="524" y="711" text-anchor="middle" font-size="13" font-weight="600">SPEC-0518</text>
-  <text x="524" y="729" text-anchor="middle" font-size="13">F6 第十八片 type_r</text>
-  <text x="524" y="747" text-anchor="middle" font-size="13">ef 函数类型起始、扩展接收</text>
-  <text x="524" y="765" text-anchor="middle" font-size="13">者点号停止、proven_…</text>
   <rect x="60" y="64" width="240" height="56" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">已完成 Spec</text>
-  <text x="180" y="105" text-anchor="middle" font-size="13">archive，482 份</text>
+  <text x="180" y="105" text-anchor="middle" font-size="13">archive，486 份</text>
 </svg>

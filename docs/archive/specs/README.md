@@ -1,5 +1,9 @@
 # 完成 Specs
 
+- [SPEC-0518](0518-f6-type-ref-machine-proof.md)：F6 第十八片 `type_ref` 函数类型起始、扩展接收者点号停止、`proven_type_closer` 守卫与字符串毒化扫描双轨证明，经 PR #496 验收合入 `main@f7ad5fd7` 并归档（18 片 / 121 条 Lean 定理 / 47 个 Kani harness）。
+- [SPEC-0517](0517-f6-destructuring-machine-proof.md)：F6 第十七片 `destructuring` 局部解构起始、绑定循环防重报状态机与边界初始化器守卫双轨证明，经 PR #496 验收合入 `main@f7ad5fd7` 并归档（17 片 / 115 条 Lean 定理 / 44 个 Kani harness）。
+- [SPEC-0516](0516-f6-file-modifiers-machine-proof.md)：F6 第十六片 `file` 声明修饰符顺序状态机与文件头/顶层分隔符双轨证明，经 PR #496 验收合入 `main@f7ad5fd7` 并归档（16 片 / 109 条 Lean 定理 / 41 个 Kani harness）。
+- [SPEC-0515](0515-f6-postfix-boundary-machine-proof.md)：F6 第十五片 `postfix` 后缀起始、带类型调用延续、实参边界与 callee 尾逆向扫描双轨证明，经 PR #496 验收合入 `main@f7ad5fd7` 并归档（15 片 / 102 条 Lean 定理 / 38 个 Kani harness）。
 - [SPEC-0514](0514-f6-block-boundary-machine-proof.md)：F6 第十四片 `block` 块语句分隔符、换行边界、显式 `block {` 与缺失块根扫描双轨证明，经 PR #491 验收合入 `main@f2ea2feb` 并归档（14 片 / 95 条 Lean 定理 / 35 个 Kani harness）。
 - [SPEC-0513](0513-f6-supertypes-boundary-machine-proof.md)：F6 第十三片 `supertypes` 委托边界、`deinit` 后缀决策与 Lambda 尾扫描双轨证明，经 PR #490 验收合入 `main@36012f86` 并归档（13 片 / 88 条 Lean 定理 / 32 个 Kani harness）。
 - [SPEC-0512](0512-f6-when-boundary-machine-proof.md)：F6 第十二片 `WhenEntryBody` / `SelectorScanState` 换行新选择器与 `if`/`else` 平衡双轨证明，随 PR #486 归档（合并树 12 片 / 82 条 Lean 定理 / 29 个 Kani harness）。
@@ -53,7 +57,7 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 482 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 486 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 全量依赖拓扑（含 active/draft 与本目录全部 Spec）见生成物
 [dependency-graph-full.md](dependency-graph-full.md) / [dependency-graph-full.svg](dependency-graph-full.svg)，

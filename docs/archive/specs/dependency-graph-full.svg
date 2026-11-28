@@ -6,7 +6,7 @@
   </defs>
   <rect width="54216" height="9538" fill="#ffffff"/>
   <rect x="40" y="30" width="49648" height="9436" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
-  <text x="24864" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，482 份）</text>
+  <text x="24864" y="50" text-anchor="middle" font-size="13" fill="#64748b">已完成（archive，486 份）</text>
   <rect x="49752" y="30" width="2128" height="6856" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
   <text x="50816" y="50" text-anchor="middle" font-size="13" fill="#64748b">现行 active</text>
   <rect x="51944" y="7992" width="280" height="124" rx="12" fill="#f8fafc" stroke="#e2e8f0"/>
@@ -1083,10 +1083,10 @@
   <path d="M 3348 312 C 3348 344, 708 656, 708 688" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 2028 468 C 2028 500, 1236 500, 1236 532" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <path d="M 1236 624 C 1236 656, 708 656, 708 688" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 49668 110 C 49720 110, 49720 266, 49772 266" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 49892 312 C 49892 344, 50156 344, 50156 376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 50156 468 C 50156 500, 49892 500, 49892 532" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
-  <path d="M 49892 624 C 49892 656, 49892 656, 49892 688" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 49548 156 C 49548 188, 3612 188, 3612 220" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 3612 312 C 3612 344, 2292 344, 2292 376" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 2292 468 C 2292 500, 1500 500, 1500 532" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
+  <path d="M 1500 624 C 1500 656, 972 656, 972 688" fill="none" stroke="#475569" stroke-width="1.5" marker-end="url(#arrow)"/>
   <rect x="60" y="64" width="240" height="74" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
   <text x="180" y="87" text-anchor="middle" font-size="13">SPEC-0001</text>
   <text x="180" y="105" text-anchor="middle" font-size="13">建立可检查的 Cargo w</text>
@@ -3247,24 +3247,24 @@
   <text x="49548" y="105" text-anchor="middle" font-size="13">F6 第十四片 block </text>
   <text x="49548" y="123" text-anchor="middle" font-size="13">块语句分隔符、换行边界、显式</text>
   <text x="49548" y="141" text-anchor="middle" font-size="13"> block { 与缺失块…</text>
-  <rect x="49772" y="220" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="49892" y="243" text-anchor="middle" font-size="13" font-weight="600">SPEC-0515</text>
-  <text x="49892" y="261" text-anchor="middle" font-size="13">F6 第十五片 postfi</text>
-  <text x="49892" y="279" text-anchor="middle" font-size="13">x 后缀起始、带类型调用延续</text>
-  <text x="49892" y="297" text-anchor="middle" font-size="13">、实参边界与 callee…</text>
-  <rect x="50036" y="376" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="50156" y="399" text-anchor="middle" font-size="13" font-weight="600">SPEC-0516</text>
-  <text x="50156" y="417" text-anchor="middle" font-size="13">F6 第十六片 file 声</text>
-  <text x="50156" y="435" text-anchor="middle" font-size="13">明修饰符顺序状态机与文件头/</text>
-  <text x="50156" y="453" text-anchor="middle" font-size="13">顶层分隔符双轨证明</text>
-  <rect x="49772" y="532" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="49892" y="555" text-anchor="middle" font-size="13" font-weight="600">SPEC-0517</text>
-  <text x="49892" y="573" text-anchor="middle" font-size="13">F6 第十七片 destru</text>
-  <text x="49892" y="591" text-anchor="middle" font-size="13">cturing 局部解构起始</text>
-  <text x="49892" y="609" text-anchor="middle" font-size="13">、绑定循环防重报状态机与初…</text>
-  <rect x="49772" y="688" width="240" height="92" rx="10" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
-  <text x="49892" y="711" text-anchor="middle" font-size="13" font-weight="600">SPEC-0518</text>
-  <text x="49892" y="729" text-anchor="middle" font-size="13">F6 第十八片 type_r</text>
-  <text x="49892" y="747" text-anchor="middle" font-size="13">ef 函数类型起始、扩展接收</text>
-  <text x="49892" y="765" text-anchor="middle" font-size="13">者点号停止、proven_…</text>
+  <rect x="3492" y="220" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="3612" y="243" text-anchor="middle" font-size="13">SPEC-0515</text>
+  <text x="3612" y="261" text-anchor="middle" font-size="13">F6 第十五片 postfi</text>
+  <text x="3612" y="279" text-anchor="middle" font-size="13">x 后缀起始、带类型调用延续</text>
+  <text x="3612" y="297" text-anchor="middle" font-size="13">、实参边界与 callee…</text>
+  <rect x="2172" y="376" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="2292" y="399" text-anchor="middle" font-size="13">SPEC-0516</text>
+  <text x="2292" y="417" text-anchor="middle" font-size="13">F6 第十六片 file 声</text>
+  <text x="2292" y="435" text-anchor="middle" font-size="13">明修饰符顺序状态机与文件头/</text>
+  <text x="2292" y="453" text-anchor="middle" font-size="13">顶层分隔符双轨证明</text>
+  <rect x="1380" y="532" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="1500" y="555" text-anchor="middle" font-size="13">SPEC-0517</text>
+  <text x="1500" y="573" text-anchor="middle" font-size="13">F6 第十七片 destru</text>
+  <text x="1500" y="591" text-anchor="middle" font-size="13">cturing 局部解构起始</text>
+  <text x="1500" y="609" text-anchor="middle" font-size="13">、绑定循环防重报状态机与初…</text>
+  <rect x="852" y="688" width="240" height="92" rx="10" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+  <text x="972" y="711" text-anchor="middle" font-size="13">SPEC-0518</text>
+  <text x="972" y="729" text-anchor="middle" font-size="13">F6 第十八片 type_r</text>
+  <text x="972" y="747" text-anchor="middle" font-size="13">ef 函数类型起始、扩展接收</text>
+  <text x="972" y="765" text-anchor="middle" font-size="13">者点号停止、proven_…</text>
 </svg>

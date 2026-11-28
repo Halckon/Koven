@@ -1,6 +1,6 @@
 # F6：局部机器证明前置设计与首片选型方案
 
-> **性质**：非规范前置设计与收口索引 · **状态**：14 片 F6 双轨证明全部完成并归档（`SPEC-0490`/`0492`/`0498`–`0500`/`0505`–`0510`/`0512`–`0514`） · **读取时机**：查阅 F6 证明范围、工具路线、证据边界与已归档切片账本时 · **唯一真源**：各归档 Spec 验收账本；本页维护总体选型与证据边界
+> **性质**：非规范前置设计与收口索引 · **状态**：18 片 F6 双轨证明全部完成并归档（`SPEC-0490`/`0492`/`0498`–`0500`/`0505`–`0510`/`0512`–`0518`） · **读取时机**：查阅 F6 证明范围、工具路线、证据边界与已归档切片账本时 · **唯一真源**：各归档 Spec 验收账本；本页维护总体选型与证据边界
 
 基点：`main@f3b9cc5ad28ffe8db95ff16a0ebda8b70f182ce7`，Guide v0.47。
 本设计严格遵守[主计划](../parser-formal-verification-plan.md#5-分阶段执行与退出条件)与[验证合同 §4](contracts/validation.md#4-文法证据与版本合同)：
@@ -78,9 +78,9 @@
 2. **工具路线**：已确认 **Lean 4（零 Mathlib 无限长定理）+ Kani（有界生产 Rust 符号检验）双轨并行**。
 3. **CI 策略**：不采用源码文本哈希门禁；采用 **路径触发的独立轻量 CI workflow** 直接运行双轨验证（先 advisory，对无关 PR 零开销）。
 
-## 5. 实施收口账本（14 片全量归档）
+## 5. 实施收口账本（18 片全量归档）
 
-截至 `main@a899841c`（PR #477 [F6 Lean 4 作业](https://github.com/Halckon/Koven/actions/runs/45797758634/job/139832703151) 与 [F6 Kani 作业](https://github.com/Halckon/Koven/actions/runs/45797758634/job/139832703749)，以及 PR #483、PR #486、PR #490 与 PR #491 连续扩展至 `main@f2ea2feb`），全部 **14 个高价值纯解析内核切片（共 95 条 Lean 4 机器检查模型定理 + 35 条 Kani 直接 Rust harness）** 已完成实现、接入 [.github/workflows/parser-formal-f6.yml](../../../.github/workflows/parser-formal-f6.yml) 并验收归档。其中 13 片共 87 条定理为 `proved (model, unbounded)`，Slice 6（`SPEC-0508` Stops 边界格）的 8 条定理为 `proved (model, complete finite lattice)`；Kani 轨道保持 `validated (bounded Rust)`，二者均不升级为全输入生产 G4：
+截至 `main@a899841c`（PR #477 [F6 Lean 4 作业](https://github.com/Halckon/Koven/actions/runs/45797758634/job/139832703151) 与 [F6 Kani 作业](https://github.com/Halckon/Koven/actions/runs/45797758634/job/139832703749)，以及 PR #483、PR #486、PR #490、PR #491 与 PR #496 连续扩展至 `main@f7ad5fd7`），全部 **18 个高价值纯解析内核切片（共 121 条 Lean 4 机器检查模型定理 + 47 条 Kani 直接 Rust harness）** 已完成实现、接入 [.github/workflows/parser-formal-f6.yml](../../../.github/workflows/parser-formal-f6.yml) 并验收归档。其中 96 条定理为 `proved (model, unbounded)`、8 条为 `proved (model, complete finite lattice)`（Slice 6 `SPEC-0508`）、17 条为 `proved (model, complete finite domain)`（Slice 15–18 有限枚举/布尔定理）；Kani 轨道保持 `validated (bounded Rust)`，二者均不升级为全输入生产 G4：
 
 | 切片 | 归档 Spec | 证明对象 | Lean 4 定理数（证据等级） | Kani Harness 数 |
 |---|---|---|---|---|
@@ -98,3 +98,7 @@
 | Slice 12 | [SPEC-0512](../../archive/specs/0512-f6-when-boundary-machine-proof.md) | `WhenEntryBody` / `SelectorScanState` 换行新选择器与 `if`/`else` 平衡 | 7 (`unbounded`) | 3 |
 | Slice 13 | [SPEC-0513](../../archive/specs/0513-f6-supertypes-boundary-machine-proof.md) | `supertypes` 委托边界、`deinit` 后缀决策与 Lambda 尾扫描 | 6 (`unbounded`) | 3 |
 | Slice 14 | [SPEC-0514](../../archive/specs/0514-f6-block-boundary-machine-proof.md) | `block` 块语句分隔符、换行边界、显式 `block {` 与缺失块根扫描 | 7 (`unbounded`) | 3 |
+| Slice 15 | [SPEC-0515](../../archive/specs/0515-f6-postfix-boundary-machine-proof.md) | `postfix` 后缀起始、带类型调用延续、实参边界与 callee 尾逆向扫描 | 2 `unbounded` + 5 `finite domain` | 3 |
+| Slice 16 | [SPEC-0516](../../archive/specs/0516-f6-file-modifiers-machine-proof.md) | `file` 声明修饰符顺序状态机与文件头/顶层分隔符 | 2 `unbounded` + 5 `finite domain` | 3 |
+| Slice 17 | [SPEC-0517](../../archive/specs/0517-f6-destructuring-machine-proof.md) | `destructuring` 局部解构起始、绑定循环防重报状态机与边界初始化器守卫 | 1 `unbounded` + 5 `finite domain` | 3 |
+| Slice 18 | [SPEC-0518](../../archive/specs/0518-f6-type-ref-machine-proof.md) | `type_ref` 函数类型起始、扩展接收者点号停止、`proven_type_closer` 与字符串毒化扫描 | 4 `unbounded` + 2 `finite domain` | 3 |

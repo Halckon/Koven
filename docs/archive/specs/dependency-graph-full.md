@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，482 份）"]
+subgraph Garchive["已完成（archive，486 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -491,6 +491,10 @@ subgraph Garchive["已完成（archive，482 份）"]
   S0512["S0512<br/>F6 第十二片 WhenEntryBody / SelectorScanState 换行新选择器与 if/else 平衡双轨证明"]
   S0513["S0513<br/>F6 第十三片 supertypes 委托边界、deinit 后缀决策与 Lambda 尾扫描双轨证明"]
   S0514["S0514<br/>F6 第十四片 block 块语句分隔符、换行边界、显式 block { 与缺失块根扫描双轨证明"]
+  S0515["S0515<br/>F6 第十五片 postfix 后缀起始、带类型调用延续、实参边界与 callee 尾逆向扫描双轨证明"]
+  S0516["S0516<br/>F6 第十六片 file 声明修饰符顺序状态机与文件头/顶层分隔符双轨证明"]
+  S0517["S0517<br/>F6 第十七片 destructuring 局部解构起始、绑定循环防重报状态机与初始化器守卫双轨证明"]
+  S0518["S0518<br/>F6 第十八片 type_ref 函数类型起始、扩展接收者点号停止、proven_type_closer 守卫与字符串毒化扫描双轨证明"]
 end
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
@@ -503,10 +507,6 @@ subgraph Gactive["现行 active"]
   S0391["S0391<br/>Codegen 测试诊断落盘与有界失败摘要"]
   S0392["S0392<br/>编译器分层复审与前端合同修复"]
   S0511["S0511<br/>lang-lsp 显式工作区 manifest 加载与诊断源码片段上下文"]
-  S0515["S0515<br/>F6 第十五片 postfix 后缀起始、带类型调用延续、实参边界与 callee 尾逆向扫描双轨证明"]
-  S0516["S0516<br/>F6 第十六片 file 声明修饰符顺序状态机与文件头/顶层分隔符双轨证明"]
-  S0517["S0517<br/>F6 第十七片 destructuring 局部解构起始、绑定循环防重报状态机与初始化器守卫双轨证明"]
-  S0518["S0518<br/>F6 第十八片 type_ref 函数类型起始、扩展接收者点号停止、proven_type_closer 守卫与字符串毒化扫描双轨证明"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -2082,6 +2082,10 @@ S0517 --> S0518
 | SPEC-0512 | archive | [0512-f6-when-boundary-machine-proof.md](0512-f6-when-boundary-machine-proof.md) |
 | SPEC-0513 | archive | [0513-f6-supertypes-boundary-machine-proof.md](0513-f6-supertypes-boundary-machine-proof.md) |
 | SPEC-0514 | archive | [0514-f6-block-boundary-machine-proof.md](0514-f6-block-boundary-machine-proof.md) |
+| SPEC-0515 | archive | [0515-f6-postfix-boundary-machine-proof.md](0515-f6-postfix-boundary-machine-proof.md) |
+| SPEC-0516 | archive | [0516-f6-file-modifiers-machine-proof.md](0516-f6-file-modifiers-machine-proof.md) |
+| SPEC-0517 | archive | [0517-f6-destructuring-machine-proof.md](0517-f6-destructuring-machine-proof.md) |
+| SPEC-0518 | archive | [0518-f6-type-ref-machine-proof.md](0518-f6-type-ref-machine-proof.md) |
 | SPEC-0291 | active | [0291-readonly-map-construction.md](../../specs/active/0291-readonly-map-construction.md) |
 | SPEC-0333 | active | [0333-static-map-callers.md](../../specs/active/0333-static-map-callers.md) |
 | SPEC-0341 | active | [0341-shared-lowering-core.md](../../specs/active/0341-shared-lowering-core.md) |
@@ -2092,10 +2096,6 @@ S0517 --> S0518
 | SPEC-0391 | active | [0391-codegen-test-diagnostics.md](../../specs/active/0391-codegen-test-diagnostics.md) |
 | SPEC-0392 | active | [0392-compiler-layered-review.md](../../specs/active/0392-compiler-layered-review.md) |
 | SPEC-0511 | active | [0511-lsp-workspace-manifest-and-diagnostic-context.md](../../specs/active/0511-lsp-workspace-manifest-and-diagnostic-context.md) |
-| SPEC-0515 | active | [0515-f6-postfix-boundary-machine-proof.md](../../specs/active/0515-f6-postfix-boundary-machine-proof.md) |
-| SPEC-0516 | active | [0516-f6-file-modifiers-machine-proof.md](../../specs/active/0516-f6-file-modifiers-machine-proof.md) |
-| SPEC-0517 | active | [0517-f6-destructuring-machine-proof.md](../../specs/active/0517-f6-destructuring-machine-proof.md) |
-| SPEC-0518 | active | [0518-f6-type-ref-machine-proof.md](../../specs/active/0518-f6-type-ref-machine-proof.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](../../specs/drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](../../specs/drafts/v0.44/0335-map-borrow-caller-proof.md) |

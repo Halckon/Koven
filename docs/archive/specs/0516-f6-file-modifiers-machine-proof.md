@@ -1,10 +1,10 @@
 # SPEC-0516：F6 第十六片 `file` 声明修饰符顺序状态机与文件头/顶层分隔符双轨证明
 
-> **性质**：交付合同 · **状态**：in-progress · **读取时机**：实施或验收 F6 第十六片局部机器证明与双轨 CI 时 · **唯一真源**：本页验收账本
+> **性质**：交付合同 · **状态**：done（历史归档） · **读取时机**：实施或验收 F6 第十六片局部机器证明与双轨 CI 时 · **唯一真源**：本页验收账本
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | 所属 Phase | Phase 1 局部形式化验证（F6 延伸） |
 | 语言规范 | [Guide v0.47](../../guide/README.md) |
 | 前置 Spec | [SPEC-0515](0515-f6-postfix-boundary-machine-proof.md) |
@@ -43,4 +43,4 @@
 
 - [x] `F6FileModifiers.lean` 零告警构建与 7 条定理核心公理白名单本机通过（仅依赖 `propext`、`Quot.sound`）
 - [x] `verify_file_header_and_root_separator_decisions`、`verify_declaration_modifier_step_invariants` 与 `verify_declaration_modifier_run_len_6` 本机 Kani 0.68.0 实跑通过（3/3 harnesses, 0 failures），`file_tests`（3/3）单测、`cargo fmt --check` 与 `cargo clippy --all-targets` 通过
-- [ ] 接入 `parser-formal-f6.yml`（16 片 / 109 定理 / 41 harness），待 PR 远端主 CI 与 F6 双轨作业实跑验收后归档
+- [x] 接入 `parser-formal-f6.yml`（16 片 / 109 定理 / 41 harness），经 PR #496 远端主 CI 与 F6 双轨作业验收合入 `main@f7ad5fd7` 并归档
