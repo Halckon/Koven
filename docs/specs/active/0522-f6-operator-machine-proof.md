@@ -12,7 +12,7 @@
 | 分支 | `feature/spec-0519-f6-lambda-body` |
 
 本 Spec 承接 [F6 局部机器证明前置设计](../../proposals/parser-formal-verification/f6-machine-proof-design.md) 与 [SPEC-0521](0521-f6-declaration-machine-proof.md)，
-对 [operator.rs](../../../crates/lang-frontend/src/parser/engine/operator.rs) 中的非法相邻双符号（`++`/`--`/`<<`/`>>`/`...`）、表达式与类型起始判定、毒化层级关系、声明尾随毒化守卫以及 31 个中缀运算符规则表（`infix_rule_from_parts`）交付 **Lean 4（模型定理：5 条 `complete finite domain`）+ Kani（零堆分配生产 Rust 符号检验）** 双轨证明，并接入 [.github/workflows/parser-formal-f6.yml](../../../.github/workflows/parser-formal-f6.yml)。
+对 [operator.rs](../../../crates/lang-frontend/src/parser/engine/operator.rs) 中的非法相邻双符号（`++`/`--`/`<<`/`>>`/`...`）、表达式与类型起始判定、毒化层级关系、声明尾随毒化守卫以及 35 个中缀运算符形式（28 个符号/硬关键字形式 + 7 个软关键字形式，`infix_rule_from_parts`）交付 **Lean 4（模型定理：5 条 `complete finite domain`）+ Kani（零堆分配生产 Rust 符号检验）** 双轨证明，并接入 [.github/workflows/parser-formal-f6.yml](../../../.github/workflows/parser-formal-f6.yml)。
 生产解析行为与公开 Rust API 零变化，不引入 Cargo 生产依赖，不宣称全输入生产 G4。
 
 ## 1. 交付合同
@@ -25,7 +25,7 @@
      - `unsupportedAdjacentOperatorPair_spec`（O1：相邻且精确匹配 `++`/`--`/`<<`/`>>`/`...` 充要条件）
      - `starter_and_poison_hierarchy_spec`（O2：类型起始 ⊆ 表达式起始、毒化 ⊆ 表达式起始、毒化与类型起始严格互斥）
      - `declarationTrailingPoison_spec`（O3：声明尾随毒化判定充要条件）
-     - `infixRule_precedence_and_associativity_spec`（O4：31 个中缀规则全部满足 `1 ≤ prec < 17`，仅 `?:` 与 6 个赋值右结合，非结合组精确落于优先级 `{4, 5, 6, 9}` 且永不右结合）
+     - `infixRule_precedence_and_associativity_spec`（O4：35 个中缀运算符形式——28 个符号/硬关键字 + 7 个软关键字——全部满足 `1 ≤ prec < 17`，仅 `?:` 与 6 个赋值右结合，非结合组精确落于优先级 `{4, 5, 6, 9}` 且永不右结合）
      - `infixRule_operand_and_soft_keyword_spec`（O5：类型右操作数精确为 `as`/`as?`/`is`/`!is`，标识符匹配当且仅当存在软关键字，非标识符忽略软关键字，毒化词法单元永不形成中缀运算符）
 3. **轨道 2（Kani 零堆分配生产 Rust 符号检验，`validated (bounded Rust)`）**：
    - [operator_kani.rs](../../../crates/lang-frontend/src/parser/engine/operator_kani.rs)（`#[cfg(kani)]` 隔离，零堆分配）提供 3 条 harness：

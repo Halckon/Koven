@@ -19,8 +19,8 @@
 
 1. **生产零分配内核抽取与零行为变化**：
    - 在 [borrow_result.rs](../../../crates/lang-frontend/src/parser/engine/borrow_result.rs) 中提炼纯栈值内核（`ExplicitResultAction`、`explicit_result_action`、`is_borrow_local_binding_keyword_kind`、`is_borrow_local_start_tail` 与 `borrow_local_contract_is_invalid`），接入 `parse_explicit_result`、`borrow_local_start` 与 `parse_borrow_local`，严格保留原有短路求值（非 `borrow`/`inout` 不前瞻 `peek(1)`，非 `?` 不前瞻 `peek(2)`）与解析行为零变化。
-   - 在 [declaration_head.rs](../../../crates/lang-frontend/src/parser/engine/declaration_head.rs) 中提炼 `is_extension_receiver_follow_kind`（及 `#[cfg(any(test, kani))] is_extension_receiver_head_kind`），接入 `parse_function_head` 且保持非标识符短路。
-   - 在 [engine.rs](../../../crates/lang-frontend/src/parser/engine.rs) 中挂载 `#[cfg(kani)] mod borrow_result_kani;` 与 `#[cfg(test)] mod borrow_result_tests;`，并在 [borrow_result_tests.rs](../../../crates/lang-frontend/src/parser/engine/borrow_result_tests.rs) 补充 3 个单元测试。
+   - 在 [declaration_head.rs](../../../crates/lang-frontend/src/parser/engine/declaration_head.rs) 中提炼非 `cfg` 生产纯函数 `is_extension_receiver_follow_kind` 与 `is_extension_receiver_head_kind`，由 `parse_function_head` 直接调用并保持非标识符时跳过 `peek(1)` 的短路行为。
+   - 在 [engine.rs](../../../crates/lang-frontend/src/parser/engine.rs) 中挂载 `#[cfg(kani)] mod borrow_result_kani;` 与 `#[cfg(test)] mod borrow_result_tests;`，并在 [borrow_result_tests.rs](../../../crates/lang-frontend/src/parser/engine/borrow_result_tests.rs) 补充 5 个单元测试（含生产入口 `explicit_result_production_entry_distinguishes_borrow_and_carrier_ast` 与 `function_head_production_entry_rejects_non_identifier_before_dot_as_extension_receiver`）。
 2. **轨道 1（Lean 4 模型定理：5 条 `complete finite domain`）**：
    - [formal/parser/f6_borrow_result/F6BorrowResult.lean](../../../formal/parser/f6_borrow_result/F6BorrowResult.lean)（零 Mathlib，固定 `leanprover/lean4:v4.14.0`）证明 5 条有限域模型定理（B1–B5，`proved (model, complete finite domain)`）：
      - `explicitResultAction_spec`（B1：四路返回来源分派充要条件，缺失 `from` 诊断当且仅当 `hasBorrow ∧ ¬hasFrom`）
@@ -39,5 +39,5 @@
 ## 2. 检查点
 
 - [x] `F6BorrowResult.lean` 零告警构建与 5 条定理核心公理白名单本机通过（仅依赖 `propext`）
-- [x] `verify_explicit_result_action_and_borrow_local_contract`、`verify_borrow_local_start_tail_exhaustive` 与 `verify_extension_receiver_head_exhaustive` 本机 Kani 0.68.0 实跑通过（3/3 harnesses, 0 failures），`borrow_result_tests`（3/3）单测、`cargo fmt --check` 与 `cargo clippy --all-targets` 通过
+- [x] `verify_explicit_result_action_and_borrow_local_contract`、`verify_borrow_local_start_tail_exhaustive` 与 `verify_extension_receiver_head_exhaustive` 本机 Kani 0.68.0 实跑通过（3/3 harnesses, 0 failures），`borrow_result_tests`（5/5，含两个生产入口端到端用例）单测、`cargo fmt --check` 与 `cargo clippy --all-targets` 通过
 - [ ] 接入 `parser-formal-f6.yml`（20 片 / 132 定理 / 53 harness），待 PR 远端主 CI 与 F6 双轨作业实跑验收后归档

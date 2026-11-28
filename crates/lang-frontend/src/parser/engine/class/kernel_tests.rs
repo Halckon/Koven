@@ -7,6 +7,7 @@ use super::kernel::{
     is_enum_variant_param_invalid_prefix_kind, member_companion_is_unsupported,
     member_receiver_policy, member_visibility_invalid_for_fun,
 };
+use crate::diagnostic::codes;
 use crate::lexer::{Keyword, LexemeKind, Symbol, TokenKind, lex_test_source_twice};
 use crate::source::SourceMap;
 
@@ -152,7 +153,6 @@ fn class_production_entry_enforces_classifier_and_member_policies() {
         ("object O<T> {}", true),
         ("enum class E", true),
         ("interface I { private fun f(): Int }", true),
-        ("class C { companion {} companion {} }", true),
     ] {
         let mut sources = SourceMap::new();
         let id = sources
@@ -167,4 +167,33 @@ fn class_production_entry_enforces_classifier_and_member_policies() {
             parsed.diagnostics()
         );
     }
+
+    let duplicate_companion = "class C { companion {}; companion {} }";
+    let second_companion_start = duplicate_companion
+        .rfind("companion")
+        .expect("second companion keyword");
+    let mut sources = SourceMap::new();
+    let id = sources
+        .add_source("duplicate-companion.ko", duplicate_companion)
+        .expect("unique source");
+    let lexed = lex_test_source_twice(&sources, id, "duplicate companion");
+    let parsed = parse_declaration(&sources, &lexed).expect("classifier must parse");
+    assert_eq!(
+        parsed.diagnostics().len(),
+        1,
+        "expected only duplicate companion diagnostic, got {:?}",
+        parsed.diagnostics()
+    );
+    let diag = &parsed.diagnostics()[0];
+    assert_eq!(
+        diag.code().to_string(),
+        codes::UNSUPPORTED_CLASS_FAMILY_FORM
+    );
+    assert_eq!(diag.primary_span().start(), second_companion_start);
+    assert_eq!(
+        sources
+            .slice(diag.primary_span())
+            .expect("primary span slice"),
+        "companion"
+    );
 }

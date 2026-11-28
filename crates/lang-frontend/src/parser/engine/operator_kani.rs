@@ -3,11 +3,27 @@ use super::operator::{
     is_declaration_trailing_poison_decision, is_poison_lexeme_kind,
     is_unsupported_adjacent_operator_pair,
 };
-use super::{
-    InfixKind, NonAssociativeGroup, PREC_ADDITIVE, PREC_AND, PREC_ASSIGNMENT, PREC_BITWISE_AND,
-    PREC_BITWISE_OR, PREC_BITWISE_XOR, PREC_CAST, PREC_COMPARISON, PREC_ELVIS, PREC_EQUALITY,
-    PREC_MEMBERSHIP, PREC_MULTIPLICATIVE, PREC_OR, PREC_PREFIX, PREC_RANGE, PREC_SHIFT, PREC_TO,
-};
+use super::{InfixKind, NonAssociativeGroup};
+
+// Independent language-spec precedence table (not imported from production `PREC_*` constants)
+// so swapping any production precedence tier (e.g. additive vs multiplicative) is caught.
+const SPEC_PREC_ASSIGNMENT: u8 = 1;
+const SPEC_PREC_OR: u8 = 2;
+const SPEC_PREC_AND: u8 = 3;
+const SPEC_PREC_EQUALITY: u8 = 4;
+const SPEC_PREC_COMPARISON: u8 = 5;
+const SPEC_PREC_MEMBERSHIP: u8 = 6;
+const SPEC_PREC_ELVIS: u8 = 7;
+const SPEC_PREC_TO: u8 = 8;
+const SPEC_PREC_RANGE: u8 = 9;
+const SPEC_PREC_BITWISE_OR: u8 = 10;
+const SPEC_PREC_BITWISE_XOR: u8 = 11;
+const SPEC_PREC_BITWISE_AND: u8 = 12;
+const SPEC_PREC_SHIFT: u8 = 13;
+const SPEC_PREC_ADDITIVE: u8 = 14;
+const SPEC_PREC_MULTIPLICATIVE: u8 = 15;
+const SPEC_PREC_CAST: u8 = 16;
+const SPEC_PREC_PREFIX: u8 = 17;
 use crate::lexer::{
     FloatLiteralSuffix, IntegerLiteralSuffix, InvalidKind, Keyword, LexemeKind, ReservedWord,
     Symbol, TokenKind, TriviaKind,
@@ -316,39 +332,61 @@ fn verify_infix_rule_from_parts_exhaustive() {
     let soft = any_opt_soft_infix_keyword();
     let actual = infix_rule_from_parts(kind, soft);
 
+    const {
+        assert!(SPEC_PREC_ASSIGNMENT < SPEC_PREC_OR);
+        assert!(SPEC_PREC_OR < SPEC_PREC_AND);
+        assert!(SPEC_PREC_AND < SPEC_PREC_EQUALITY);
+        assert!(SPEC_PREC_EQUALITY < SPEC_PREC_COMPARISON);
+        assert!(SPEC_PREC_COMPARISON < SPEC_PREC_MEMBERSHIP);
+        assert!(SPEC_PREC_MEMBERSHIP < SPEC_PREC_ELVIS);
+        assert!(SPEC_PREC_ELVIS < SPEC_PREC_TO);
+        assert!(SPEC_PREC_TO < SPEC_PREC_RANGE);
+        assert!(SPEC_PREC_RANGE < SPEC_PREC_BITWISE_OR);
+        assert!(SPEC_PREC_BITWISE_OR < SPEC_PREC_BITWISE_XOR);
+        assert!(SPEC_PREC_BITWISE_XOR < SPEC_PREC_BITWISE_AND);
+        assert!(SPEC_PREC_BITWISE_AND < SPEC_PREC_SHIFT);
+        assert!(SPEC_PREC_SHIFT < SPEC_PREC_ADDITIVE);
+        assert!(SPEC_PREC_ADDITIVE < SPEC_PREC_MULTIPLICATIVE);
+        assert!(SPEC_PREC_MULTIPLICATIVE < SPEC_PREC_CAST);
+        assert!(SPEC_PREC_CAST < SPEC_PREC_PREFIX);
+    }
+
     let expected: Option<(u8, bool, Option<NonAssociativeGroup>, bool)> = match kind {
         LexemeKind::Token(TokenKind::Symbol(Symbol::Star | Symbol::Slash | Symbol::Percent)) => {
-            Some((PREC_MULTIPLICATIVE, false, None, false))
+            Some((SPEC_PREC_MULTIPLICATIVE, false, None, false))
         }
         LexemeKind::Token(TokenKind::Symbol(Symbol::Plus | Symbol::Minus)) => {
-            Some((PREC_ADDITIVE, false, None, false))
+            Some((SPEC_PREC_ADDITIVE, false, None, false))
         }
-        LexemeKind::Token(TokenKind::Symbol(Symbol::DotDot | Symbol::DotDotLess)) => {
-            Some((PREC_RANGE, false, Some(NonAssociativeGroup::Range), false))
-        }
+        LexemeKind::Token(TokenKind::Symbol(Symbol::DotDot | Symbol::DotDotLess)) => Some((
+            SPEC_PREC_RANGE,
+            false,
+            Some(NonAssociativeGroup::Range),
+            false,
+        )),
         LexemeKind::Token(TokenKind::Identifier) => match soft {
-            Some(SoftInfixKeyword::To) => Some((PREC_TO, false, None, false)),
+            Some(SoftInfixKeyword::To) => Some((SPEC_PREC_TO, false, None, false)),
             Some(SoftInfixKeyword::Shl | SoftInfixKeyword::Shr | SoftInfixKeyword::Ushr) => {
-                Some((PREC_SHIFT, false, None, false))
+                Some((SPEC_PREC_SHIFT, false, None, false))
             }
-            Some(SoftInfixKeyword::And) => Some((PREC_BITWISE_AND, false, None, false)),
-            Some(SoftInfixKeyword::Xor) => Some((PREC_BITWISE_XOR, false, None, false)),
-            Some(SoftInfixKeyword::Or) => Some((PREC_BITWISE_OR, false, None, false)),
+            Some(SoftInfixKeyword::And) => Some((SPEC_PREC_BITWISE_AND, false, None, false)),
+            Some(SoftInfixKeyword::Xor) => Some((SPEC_PREC_BITWISE_XOR, false, None, false)),
+            Some(SoftInfixKeyword::Or) => Some((SPEC_PREC_BITWISE_OR, false, None, false)),
             None => None,
         },
         LexemeKind::Token(TokenKind::Symbol(Symbol::QuestionColon)) => {
-            Some((PREC_ELVIS, true, None, false))
+            Some((SPEC_PREC_ELVIS, true, None, false))
         }
         LexemeKind::Token(TokenKind::Keyword(Keyword::In))
         | LexemeKind::Token(TokenKind::Symbol(Symbol::BangIn)) => Some((
-            PREC_MEMBERSHIP,
+            SPEC_PREC_MEMBERSHIP,
             false,
             Some(NonAssociativeGroup::Membership),
             false,
         )),
         LexemeKind::Token(TokenKind::Keyword(Keyword::Is))
         | LexemeKind::Token(TokenKind::Symbol(Symbol::BangIs)) => Some((
-            PREC_MEMBERSHIP,
+            SPEC_PREC_MEMBERSHIP,
             false,
             Some(NonAssociativeGroup::Membership),
             true,
@@ -356,24 +394,26 @@ fn verify_infix_rule_from_parts_exhaustive() {
         LexemeKind::Token(TokenKind::Symbol(
             Symbol::Less | Symbol::Greater | Symbol::LessEqual | Symbol::GreaterEqual,
         )) => Some((
-            PREC_COMPARISON,
+            SPEC_PREC_COMPARISON,
             false,
             Some(NonAssociativeGroup::Comparison),
             false,
         )),
         LexemeKind::Token(TokenKind::Symbol(Symbol::EqualEqual | Symbol::BangEqual)) => Some((
-            PREC_EQUALITY,
+            SPEC_PREC_EQUALITY,
             false,
             Some(NonAssociativeGroup::Equality),
             false,
         )),
         LexemeKind::Token(TokenKind::Symbol(Symbol::AndAnd)) => {
-            Some((PREC_AND, false, None, false))
+            Some((SPEC_PREC_AND, false, None, false))
         }
-        LexemeKind::Token(TokenKind::Symbol(Symbol::OrOr)) => Some((PREC_OR, false, None, false)),
+        LexemeKind::Token(TokenKind::Symbol(Symbol::OrOr)) => {
+            Some((SPEC_PREC_OR, false, None, false))
+        }
         LexemeKind::Token(TokenKind::Keyword(Keyword::As))
         | LexemeKind::Token(TokenKind::Symbol(Symbol::AsQuestion)) => {
-            Some((PREC_CAST, false, None, true))
+            Some((SPEC_PREC_CAST, false, None, true))
         }
         LexemeKind::Token(TokenKind::Symbol(
             Symbol::Equal
@@ -382,14 +422,14 @@ fn verify_infix_rule_from_parts_exhaustive() {
             | Symbol::StarEqual
             | Symbol::SlashEqual
             | Symbol::PercentEqual,
-        )) => Some((PREC_ASSIGNMENT, true, None, false)),
+        )) => Some((SPEC_PREC_ASSIGNMENT, true, None, false)),
         _ => None,
     };
 
     match (actual, expected) {
         (Some(rule), Some((prec, right_assoc, group, is_type_operand))) => {
             assert_eq!(rule.precedence, prec);
-            assert!(rule.precedence >= PREC_ASSIGNMENT && rule.precedence < PREC_PREFIX);
+            assert!(rule.precedence >= SPEC_PREC_ASSIGNMENT && rule.precedence < SPEC_PREC_PREFIX);
             let expected_right_prec = if right_assoc { prec } else { prec + 1 };
             assert_eq!(rule.right_precedence, expected_right_prec);
             assert_eq!(rule.non_associative_group, group);

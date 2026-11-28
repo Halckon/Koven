@@ -1,7 +1,8 @@
+use super::super::ClassifierKind;
 use super::super::boundary::{ClassMemberContext, ReceiverModifierPolicy};
 use super::kernel::{
-    ClassifierKindTag, classifier_forbids_type_parameters, classifier_requires_body,
-    classifier_requires_constructor, classifier_supports_constructor,
+    ClassifierKindTag, classifier_forbids_type_parameters, classifier_kind_tag,
+    classifier_requires_body, classifier_requires_constructor, classifier_supports_constructor,
     is_class_field_invalid_prefix_kind, is_classifier_name_boundary_kind, is_enum_body_stop_kind,
     is_enum_variant_param_invalid_prefix_kind, member_companion_is_unsupported,
     member_receiver_policy, member_visibility_invalid_for_fun,
@@ -10,6 +11,7 @@ use crate::lexer::{
     FloatLiteralSuffix, IntegerLiteralSuffix, InvalidKind, Keyword, LexemeKind, ReservedWord,
     Symbol, TokenKind, TriviaKind,
 };
+use crate::source::Span;
 
 macro_rules! define_exhaustive_unit_enum_any {
     ($fn_name:ident, $enum_ty:ty, [$($variant:ident),+ $(,)?]) => {
@@ -31,11 +33,9 @@ macro_rules! define_exhaustive_unit_enum_any {
     };
 }
 
-define_exhaustive_unit_enum_any!(
-    any_classifier_kind_tag,
-    ClassifierKindTag,
-    [ValueClass, Class, Interface, EnumClass, Object]
-);
+// ClassifierKind carries Span fields; `any_classifier_kind` is defined below via
+// `define_exhaustive_enum_any!` so Kani starts from production `ClassifierKind` values
+// and passes through `classifier_kind_tag`.
 
 define_exhaustive_unit_enum_any!(
     any_class_member_context,
@@ -202,6 +202,30 @@ define_exhaustive_enum_any!(
     ]
 );
 
+define_exhaustive_enum_any!(
+    any_classifier_kind,
+    ClassifierKind,
+    [
+        ClassifierKind::ValueClass { .. } => ClassifierKind::ValueClass {
+            value_span: Span::synthetic_for_verification(),
+            class_span: Span::synthetic_for_verification(),
+        },
+        ClassifierKind::Class { .. } => ClassifierKind::Class {
+            class_span: Span::synthetic_for_verification(),
+        },
+        ClassifierKind::Interface { .. } => ClassifierKind::Interface {
+            interface_span: Span::synthetic_for_verification(),
+        },
+        ClassifierKind::EnumClass { .. } => ClassifierKind::EnumClass {
+            enum_span: Span::synthetic_for_verification(),
+            class_span: Span::synthetic_for_verification(),
+        },
+        ClassifierKind::Object { .. } => ClassifierKind::Object {
+            object_span: Span::synthetic_for_verification(),
+        },
+    ]
+);
+
 fn any_opt_lexeme_kind() -> Option<LexemeKind> {
     if kani::any() {
         Some(any_lexeme_kind())
@@ -212,7 +236,17 @@ fn any_opt_lexeme_kind() -> Option<LexemeKind> {
 
 #[kani::proof]
 fn verify_classifier_kind_and_member_context_policies_exhaustive() {
-    let tag = any_classifier_kind_tag();
+    let kind = any_classifier_kind();
+    let tag = classifier_kind_tag(kind);
+    let expected_tag = match kind {
+        ClassifierKind::ValueClass { .. } => ClassifierKindTag::ValueClass,
+        ClassifierKind::Class { .. } => ClassifierKindTag::Class,
+        ClassifierKind::Interface { .. } => ClassifierKindTag::Interface,
+        ClassifierKind::EnumClass { .. } => ClassifierKindTag::EnumClass,
+        ClassifierKind::Object { .. } => ClassifierKindTag::Object,
+    };
+    assert_eq!(tag, expected_tag);
+
     let supports_ctor = classifier_supports_constructor(tag);
     let requires_ctor = classifier_requires_constructor(tag);
     let requires_body = classifier_requires_body(tag);
@@ -221,15 +255,21 @@ fn verify_classifier_kind_and_member_context_policies_exhaustive() {
     assert_eq!(
         supports_ctor,
         matches!(
-            tag,
-            ClassifierKindTag::ValueClass | ClassifierKindTag::Class
+            kind,
+            ClassifierKind::ValueClass { .. } | ClassifierKind::Class { .. }
         )
     );
-    assert_eq!(requires_ctor, matches!(tag, ClassifierKindTag::ValueClass));
-    assert_eq!(requires_body, matches!(tag, ClassifierKindTag::EnumClass));
+    assert_eq!(
+        requires_ctor,
+        matches!(kind, ClassifierKind::ValueClass { .. })
+    );
+    assert_eq!(
+        requires_body,
+        matches!(kind, ClassifierKind::EnumClass { .. })
+    );
     assert_eq!(
         forbids_type_params,
-        matches!(tag, ClassifierKindTag::Object)
+        matches!(kind, ClassifierKind::Object { .. })
     );
     if requires_ctor {
         assert!(supports_ctor);

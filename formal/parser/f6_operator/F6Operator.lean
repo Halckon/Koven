@@ -5,7 +5,7 @@
 1. `is_unsupported_adjacent_operator_pair`（相邻非法双符号 `++`/`--`/`<<`/`>>`/`...`）
 2. `can_start_expression_kind` / `can_start_type_ref_kind` / `is_poison_lexeme_kind`
 3. `is_declaration_trailing_poison_decision`（声明尾随毒化判定）
-4. `infix_rule_from_parts`（31 个中缀运算符的优先级、左右结合性、非结合组与类型右操作数）
+4. `infix_rule_from_parts`（35 个中缀运算符形式——28 个符号/硬关键字 + 7 个软关键字——的优先级、左右结合性、非结合组与类型右操作数）
 
 证据等级：`proved (model, complete finite domain)`（5 条有限枚举/布尔全空间定理，零 Mathlib，仅核心公理）。
 -/
