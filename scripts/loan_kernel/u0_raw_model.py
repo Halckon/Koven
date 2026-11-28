@@ -38,6 +38,7 @@ def is_prefix_or_equal(prefix: str, target: str) -> bool:
 class Loan:
     loan_id: int
     place: str
+    alloc_id: int
     kind: str  # "Shared" | "Exclusive"
     parent_id: Optional[int] = None
 
@@ -120,7 +121,9 @@ class U0RawInterpreter:
         state = "Init" if initialized else "Uninit"
         slots = {root: state}
         for f in fields:
-            slots[f"{root}.{f}"] = state
+            parts = f.split(".")
+            for depth in range(1, len(parts) + 1):
+                slots[f"{root}.{'.'.join(parts[:depth])}"] = state
         handle_id = self._new_handle() if (resource_handle and initialized) else None
         self.owners[root] = OwnerState(
             root=root,
@@ -135,9 +138,10 @@ class U0RawInterpreter:
     def borrow(self, place: str, kind: str, *, parent_id: Optional[int] = None) -> int:
         self.step += 1
         assert kind in ("Shared", "Exclusive")
+        owner = self.owners[root_of(place)]
         loan_id = self.next_loan_id
         self.next_loan_id += 1
-        loan = Loan(loan_id=loan_id, place=place, kind=kind, parent_id=parent_id)
+        loan = Loan(loan_id=loan_id, place=place, alloc_id=owner.alloc_id, kind=kind, parent_id=parent_id)
         self.loans[loan_id] = loan
         self.loan_history[loan_id] = loan
         return loan_id
@@ -231,7 +235,7 @@ class U0RawInterpreter:
             return False
         allowed = self._ancestors(ptr.derived_loan_id)
         for loan in self.loans.values():
-            if loan.loan_id in allowed:
+            if loan.loan_id in allowed or loan.alloc_id != ptr.alloc_id:
                 continue
             if loan.kind == "Exclusive" and overlaps(loan.place, ptr.place):
                 self._record(
@@ -245,7 +249,7 @@ class U0RawInterpreter:
         """AL7：RawCell 允许经 Shared/Cell 路径写入，但仍不得与存活 Exclusive loan 重叠冲突。"""
         allowed = self._ancestors(ptr.derived_loan_id)
         for loan in self.loans.values():
-            if loan.loan_id in allowed:
+            if loan.loan_id in allowed or loan.alloc_id != ptr.alloc_id:
                 continue
             if loan.kind == "Exclusive" and overlaps(loan.place, ptr.place):
                 self._record(
@@ -287,7 +291,7 @@ class U0RawInterpreter:
                 cur = self.loan_history[cur].parent_id
         allowed = self._ancestors(ptr.derived_loan_id)
         for loan in self.loans.values():
-            if loan.loan_id in allowed:
+            if loan.loan_id in allowed or loan.alloc_id != ptr.alloc_id:
                 continue
             if overlaps(loan.place, ptr.place):
                 self._record(
@@ -384,6 +388,7 @@ class U0RawInterpreter:
                 root=into_owner,
                 alloc_id=self._new_alloc_id(),
                 slots=moved_slots,
+                is_cell=owner.is_cell if ptr.place == owner.root else False,
                 is_resource=moved_handle is not None,
                 handle_id=moved_handle,
             )
@@ -408,6 +413,7 @@ class U0RawInterpreter:
             root=into_owner,
             alloc_id=self._new_alloc_id(),
             slots=dup_slots,
+            is_cell=owner.is_cell if ptr.place == owner.root else False,
             is_resource=owner.handle_id is not None,
             handle_id=owner.handle_id,
         )

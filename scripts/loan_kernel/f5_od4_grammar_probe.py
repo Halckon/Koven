@@ -324,7 +324,8 @@ iface_members
   ;
 
 fun_decl
-  : FUN opt_tparams ident LPAREN opt_vparams RPAREN opt_ret opt_flows body
+  : FUN opt_tparams ident LPAREN opt_vparams RPAREN opt_flows block_or_bodyless
+  | FUN opt_tparams ident LPAREN opt_vparams RPAREN explicit_ret opt_flows body
   ;
 
 opt_tparams : /* empty */ | LT tparam_list GT ;
@@ -347,9 +348,8 @@ vparam_list : vparam | vparam_list COMMA vparam ;
 vparam : opt_mode ident COLON type_ref ;
 opt_mode : /* empty */ | OWN | BORROW | INOUT ;
 
-opt_ret
-  : /* empty */
-  | COLON type_ref
+explicit_ret
+  : COLON type_ref
   | COLON BORROW type_ref FROM_KW origin_source_list
   | COLON type_ref FROM_KW origin_source_list
   ;
@@ -388,6 +388,7 @@ origin_target
   ;
 
 type_ref : ident ;
+block_or_bodyless : LBRACE RBRACE | /* bodyless */ ;
 body : LBRACE RBRACE | EQ ident | /* bodyless */ ;
 %%
 
@@ -472,6 +473,7 @@ NEGATIVES: Tuple[Tuple[str, str], ...] = (
     ("N8: semicolon breaking flows clause", "fun bad ( inout dst : Slot , borrow x : Item ) ; flows x into dst { }"),
     ("N9: newline breaking flows clause (strict same-line)", "fun bad ( inout dst : Slot , borrow x : Item ) NL flows x into dst { }"),
     ("N10: duplicate view modifier on type param", "fun < view view T > bad ( ) { }"),
+    ("N11: expression body without return type rejected", "fun bad ( inout b : Bag , borrow x : Item ) flows x into b = x"),
 )
 
 SR_RE = re.compile(r"(\d+)\s+shift/reduce")
@@ -527,7 +529,7 @@ def run_witness_matrix(bison: str = "bison", cc: str = "cc") -> Tuple[List[Tuple
             for label, toks in POSITIVES
         ]
         neg_results = [
-            (label, subprocess.run([bin_path] + toks.split()).returncode != 0)
+            (label, subprocess.run([bin_path] + toks.split()).returncode == 1)
             for label, toks in NEGATIVES
         ]
         return pos_results, neg_results

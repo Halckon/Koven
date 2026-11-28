@@ -268,6 +268,49 @@ class U0RawModelTests(unittest.TestCase):
         interp.raw_read(p_moved_b)
         self.assertEqual(["UB5"], [v.code for v in interp.violations])
 
+    def test_al1_al7_ptr_read_preserves_rawcell_property(self):
+        """AL7：整值 ptr_read 移交 RawCell 后保留 is_cell 属性，经共享借用写入新 owner 合法。"""
+        interp = U0.U0RawInterpreter()
+        interp.alloc_owner("cell", initialized=True, is_cell=True)
+        p_cell = interp.address_of("cell", derived_mode="Exclusive")
+        interp.ptr_read(p_cell, into_owner="moved")
+
+        shared = interp.borrow("moved", "Shared")
+        p_moved = interp.address_of("moved", derived_mode="Shared", derived_loan_id=shared)
+        interp.raw_write(p_moved)
+        self.assertEqual([], interp.violations)
+        interp.end_loan(shared)
+
+    def test_al1_old_loan_on_dropped_owner_does_not_conflict_with_reallocated_same_name(self):
+        """AL1 / AL2：旧 owner 析构后即使残留未结束的旧借用，也不得与同名新分配实例的独占写入误冲突。"""
+        interp = U0.U0RawInterpreter()
+        interp.alloc_owner("x", initialized=True)
+        interp.borrow("x", "Shared")  # 刻意不调用 end_loan
+        interp.exit_scope()
+
+        interp.alloc_owner("x", initialized=True)
+        p_new = interp.address_of("x", derived_mode="Exclusive")
+        interp.raw_write(p_new)
+        interp.exit_scope()
+        self.assertEqual([], interp.violations)
+
+    def test_al2_ub5_leaf_only_nested_fields_materialize_intermediate_slots(self):
+        """AL2 / UB5：仅声明叶子字段 inner.a / inner.b / other 时自动建出 inner 中间槽位，写齐 inner 后读 inner 合法。"""
+        interp = U0.U0RawInterpreter()
+        interp.alloc_owner("r", fields=("inner.a", "inner.b", "other"), initialized=False)
+        p_a = interp.address_of("r.inner.a", derived_mode="Exclusive")
+        p_b = interp.address_of("r.inner.b", derived_mode="Exclusive")
+        p_inner = interp.address_of("r.inner", derived_mode="Exclusive")
+        p_root = interp.address_of("r", derived_mode="Exclusive")
+
+        interp.ptr_write(p_a)
+        interp.ptr_write(p_b)
+        interp.raw_read(p_inner)
+        self.assertEqual([], interp.violations)
+
+        interp.raw_read(p_root)
+        self.assertEqual(["UB5"], [v.code for v in interp.violations])
+
     def test_al2_ub2_old_ptr_rejected_after_same_name_reallocation(self):
         """AL2 / UB2：旧 owner 析构后重新分配同名存储，旧指针仍须因分配实例不匹配报 UB2。"""
         interp = U0.U0RawInterpreter()
