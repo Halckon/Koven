@@ -20,6 +20,56 @@ pub(super) struct EscapeWitnesses {
     pub(super) mutable_locals: BTreeSet<UnitSymbolId>,
     pub(super) results: BTreeMap<UnitExpressionId, BTreeSet<UnitExpressionId>>,
 }
+
+static EMPTY_ESCAPE_WITNESSES: EscapeWitnesses = EscapeWitnesses {
+    bindings: BTreeMap::new(),
+    known_bindings: BTreeSet::new(),
+    coverage: BTreeMap::new(),
+    mutable_locals: BTreeSet::new(),
+    results: BTreeMap::new(),
+};
+
+#[derive(Clone, Debug, Default)]
+pub(super) struct EscapeWitnessSlot(Option<Box<EscapeWitnesses>>);
+
+impl PartialEq for EscapeWitnessSlot {
+    fn eq(&self, other: &Self) -> bool {
+        **self == **other
+    }
+}
+
+impl Eq for EscapeWitnessSlot {}
+
+impl std::ops::Deref for EscapeWitnessSlot {
+    type Target = EscapeWitnesses;
+
+    fn deref(&self) -> &Self::Target {
+        self.0.as_deref().unwrap_or(&EMPTY_ESCAPE_WITNESSES)
+    }
+}
+
+impl std::ops::DerefMut for EscapeWitnessSlot {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.0.get_or_insert_with(Default::default)
+    }
+}
+
+impl EscapeWitnessSlot {
+    pub(super) fn merge(&mut self, other: Self) {
+        match (&mut self.0, other.0) {
+            (Some(left), Some(right)) => left.merge(*right),
+            (Some(left), None) => left.merge(EscapeWitnesses::default()),
+            (left @ None, Some(right)) => {
+                let mut merged = EscapeWitnesses::default();
+                merged.merge(*right);
+                if merged != EMPTY_ESCAPE_WITNESSES {
+                    *left = Some(Box::new(merged));
+                }
+            }
+            (None, None) => {}
+        }
+    }
+}
 impl EscapeWitnesses {
     pub(super) fn merge(&mut self, other: Self) {
         self.known_bindings

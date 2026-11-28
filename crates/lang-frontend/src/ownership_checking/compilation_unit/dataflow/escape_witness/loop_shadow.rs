@@ -267,7 +267,7 @@ mod tests {
                         .as_deref()
                         .cloned()
                         .unwrap_or_default(),
-                    active: state.escape_witnesses.clone(),
+                    active: (*state.escape_witnesses).clone(),
                     supported,
                 });
             }

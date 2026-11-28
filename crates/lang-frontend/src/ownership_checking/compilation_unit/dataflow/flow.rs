@@ -57,7 +57,7 @@ pub(super) struct CaptureRestriction {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(super) struct State {
     pub(super) loop_escape_shadow: super::escape_witness::LoopEscapeShadow,
-    pub(super) escape_witnesses: super::escape_witness::EscapeWitnesses,
+    pub(super) escape_witnesses: super::escape_witness::EscapeWitnessSlot,
     pub(super) origins: crate::ownership_checking::callable_provenance::graph::OriginState<
         UnitSymbolId,
         crate::ownership_checking::UnitCallableOrigin,
