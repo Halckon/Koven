@@ -29,6 +29,7 @@ mod operator;
 mod postfix;
 #[cfg(kani)]
 mod postfix_kani;
+mod postfix_kernel;
 #[cfg(test)]
 mod postfix_tests;
 #[cfg(kani)]
