@@ -33,6 +33,7 @@ Proposal 本身不修改现行 v0.46、不批准 Spec，也不代表实现优先
   - [之十三：实施路线——从当前到 v1，从 v1 到之后](evolution-13-implementation-roadmap.md)
 - [v1 冻结前的兼容性约束（Z1–Z11）](v1-freeze-decisions.md)：可并入 v1 条目 Spec 的条款，已登记为路线图决策 D16
 - [unsafe 别名、失败安全与外部边界合同（U0 + FF0）](unsafe-aliasing-contract-outline.md)：完整候选合同（AL1–AL8、FS1–FS8、MM1–MM7、UB1–UB11、TR1–TR4、FFI1–FFI5 与检测矩阵）
+- [U0 迁入前硬门槛证据账本（AL1/AL2 与 UB1–UB11）](u0-ub-harness-evidence.md)：AL1/AL2 向路线 L 参考检查器的附加前提映射、预 U1 ASan/UBSan/TSan 代理反例实测记录与 UB1/UB5/W13 剩余阻塞清单
 - [L3 试金石程序与 Kotlin 风格人机工程评审](l3-litmus-programs.md)：分词器、借用迭代器、区域分配三组只写源码的 L3 试金石及库/应用双侧人机工程评审
 - [FD0：显式监督边界预留与“每连接一线程”服务器试金石](fd0-supervision-boundary-litmus.md)：J48 四项预留核对、每连接一线程监督回显服务器试金石与行为草案第 3–4 条收口建议
 - [编译单元依赖、接口产物与语言版本规则提案（之十一 J45–J47）](compilation-unit-dependency-rules.md)：J45 两层无环依赖、J46 接口产物导出合同、J47 按单元语言版本隔离及与 J37/标准库三分的衔接
@@ -50,6 +51,7 @@ Proposal 本身不修改现行 v0.46、不批准 Spec，也不代表实现优先
 - [析构时机：两个方案的对比](drop-timing-comparison.md)：最早析构加屏障，对比词法析构加允许的提前释放；方向已裁决为后者
 - [IO 资源借用、责任交接与清理：设计安全原则](io-resource-handoff-cleanup.md)：在途 IO 的保活、责任交接与清理进度；失败政策与后端证明未决
 - [Parser 文法与验证实施建议：评审与路径分解](parser-grammar-verification-review.md)：恢复先行、机器文法为新语法把关的路线 F
+- [F5 增量门禁演练：OD4（L2/L3 候选语法前三项）](parser-formal-verification/f5-od4-l2-l3-syntax-gate-drill.md)：`flows … into`、`view T`、`p.origins` 的 F5 六项门禁字段、GNU Bison 2.3 冲突实测与 20 组正反例见证（排除 `borrow var`）
 - [顶层状态、静态存储与全局生命周期](global-and-static-state.md)：G1 接纳面收窄已决（v0.46 C），G2–G5 分层候选
 - [String Copyable 候选取舍](string-copyability.md)
 - [显式 clone() 候选设计](explicit-clone.md)
