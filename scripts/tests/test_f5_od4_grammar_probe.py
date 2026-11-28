@@ -29,10 +29,10 @@ class F5Od4GrammarProbeTests(unittest.TestCase):
                 self.assertEqual(expected, (res.shift_reduce, res.reduce_reduce), res.stderr)
 
     def test_compiled_combined_od4_witness_matrix(self):
-        """编译 3_combined_od4（%expect 0）并验证 11 组正例（含 <view >）与 10 组反例。"""
+        """编译 3_combined_od4（%expect 0）并验证 11 组正例（含 <view > 与接口成员）与 11 组反例（精确返回语法错误码 1）。"""
         pos, neg = PROBE.run_witness_matrix(bison=BISON, cc=CC)
         self.assertEqual(11, len(pos))
-        self.assertEqual(10, len(neg))
+        self.assertEqual(11, len(neg))
         for label, ok in pos:
             with self.subTest(positive=label):
                 self.assertTrue(ok, f"expected accept: {label}")

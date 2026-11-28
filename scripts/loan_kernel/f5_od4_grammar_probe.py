@@ -301,7 +301,7 @@ file : decl_list ;
 decl_list : decl | decl_list sep decl ;
 sep : NL | SEMI ;
 
-decl : fun_decl | class_decl | val_decl ;
+decl : fun_decl | class_decl | iface_decl | val_decl ;
 
 ident : ID | VIEW_KW | FLOWS_KW | INTO_KW | ORIGINS_KW ;
 non_view_ident : ID | FLOWS_KW | INTO_KW | ORIGINS_KW ;
@@ -314,8 +314,18 @@ class_decl
   | VIEW_KW CLASS ident opt_tparams LBRACE RBRACE
   ;
 
+iface_decl
+  : INTERFACE ident LBRACE iface_members RBRACE
+  ;
+
+iface_members
+  : fun_decl
+  | iface_members sep fun_decl
+  ;
+
 fun_decl
-  : FUN opt_tparams ident LPAREN opt_vparams RPAREN opt_ret opt_flows body
+  : FUN opt_tparams ident LPAREN opt_vparams RPAREN opt_flows block_or_bodyless
+  | FUN opt_tparams ident LPAREN opt_vparams RPAREN explicit_ret opt_flows body
   ;
 
 opt_tparams : /* empty */ | LT tparam_list GT ;
@@ -338,9 +348,8 @@ vparam_list : vparam | vparam_list COMMA vparam ;
 vparam : opt_mode ident COLON type_ref ;
 opt_mode : /* empty */ | OWN | BORROW | INOUT ;
 
-opt_ret
-  : /* empty */
-  | COLON type_ref
+explicit_ret
+  : COLON type_ref
   | COLON BORROW type_ref FROM_KW origin_source_list
   | COLON type_ref FROM_KW origin_source_list
   ;
@@ -379,6 +388,7 @@ origin_target
   ;
 
 type_ref : ident ;
+block_or_bodyless : LBRACE RBRACE | /* bodyless */ ;
 body : LBRACE RBRACE | EQ ident | /* bodyless */ ;
 %%
 
@@ -447,7 +457,7 @@ POSITIVES: Tuple[Tuple[str, str], ...] = (
     ("P5b: valid <view > type param named view", "fun < view > id ( ) { }"),
     ("P6: p.origins in return from clause", "fun < view T > forward ( borrow p : T ) : borrow Item from p . origins { }"),
     ("P7: nested field path + .origins source", "fun extract ( borrow p : Holder ) : borrow Item from p . inner . origins { }"),
-    ("P8: bodyless interface-style method with flows", "fun push ( inout b : Bag , borrow x : Item ) flows x into b"),
+    ("P8: bodyless interface method with flows and next member", "interface Store { fun push ( inout b : Bag , borrow x : Item ) flows x into b NL fun size ( ) : Int }"),
     ("P9: expression body after flows", "fun id ( inout dst : Slot , borrow x : Item ) : Int flows x into dst = x"),
     ("P10: this.origins into field", "fun stash ( inout dst : Slot ) flows this . origins into dst . slot { }"),
 )
@@ -463,6 +473,7 @@ NEGATIVES: Tuple[Tuple[str, str], ...] = (
     ("N8: semicolon breaking flows clause", "fun bad ( inout dst : Slot , borrow x : Item ) ; flows x into dst { }"),
     ("N9: newline breaking flows clause (strict same-line)", "fun bad ( inout dst : Slot , borrow x : Item ) NL flows x into dst { }"),
     ("N10: duplicate view modifier on type param", "fun < view view T > bad ( ) { }"),
+    ("N11: expression body without return type rejected", "fun bad ( inout b : Bag , borrow x : Item ) flows x into b = x"),
 )
 
 SR_RE = re.compile(r"(\d+)\s+shift/reduce")
@@ -518,7 +529,7 @@ def run_witness_matrix(bison: str = "bison", cc: str = "cc") -> Tuple[List[Tuple
             for label, toks in POSITIVES
         ]
         neg_results = [
-            (label, subprocess.run([bin_path] + toks.split()).returncode != 0)
+            (label, subprocess.run([bin_path] + toks.split()).returncode == 1)
             for label, toks in NEGATIVES
         ]
         return pos_results, neg_results

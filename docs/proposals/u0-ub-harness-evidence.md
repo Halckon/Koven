@@ -6,12 +6,12 @@
 
 ## 1. 硬门槛一：AL1 / AL2 附加前提的独立原型验证（是否满足路线 L 门槛待评审确认）
 
-U0 §9 第一条硬门槛要求“路线 L 的参考检查器能把 AL1、AL2 表述为对其模型的附加前提”。现已在独立模块 `scripts/loan_kernel/u0_raw_model.py` 补齐最小可执行参考解释器原型，并由 `scripts/tests/test_u0_raw_model.py`（10 条单测）验证下列附加前提。**边界说明**：该模块目前独立于主参考检查器 `scripts/loan_kernel/checker.py`，尚未接入 `checker.py` 语法与检查管线；独立原型是否足以满足 U0 §9 第一条门槛，或须先接入 `checker.py`，留待评审确认。
+U0 §9 第一条硬门槛要求“路线 L 的参考检查器能把 AL1、AL2 表述为对其模型的附加前提”。现已在独立模块 `scripts/loan_kernel/u0_raw_model.py` 补齐最小可执行参考解释器原型，并由 `scripts/tests/test_u0_raw_model.py`（18 条单测）验证下列附加前提。**边界说明**：该模块目前独立于主参考检查器 `scripts/loan_kernel/checker.py`，尚未接入 `checker.py` 语法与检查管线；独立原型是否足以满足 U0 §9 第一条门槛，或须先接入 `checker.py`，留待评审确认。
 
 | U0 条款 | 形式化附加前提（表述为参考检查器约束） | 对应原型模块与单测 | 当前状态 |
 |---|---|---|---|
-| **AL1（不与存活 loan 冲突 + AL7 `RawCell` 例外）** | 对裸指针解引用事件 `raw_read(p)` / `raw_write(p)`（逻辑来历绑定至 place `π`、分配实例 `alloc_id` 与沿完整借用派生历史 `loan_history` 核对后的真实派生权限 `provenance_kind`）：① `raw_read(p)` 要求 `π` 及所有前缀/后缀上不存在**其他**重叠存活的 `Exclusive` loan（对应 `K1`）；② `raw_write(p)` 按完整派生链核对权限，源自 `Shared` loan（含嵌套派生链及父 `Shared` loan 已结束的情形）的裸指针即使被标为 `Exclusive` 仍不得在非 `RawCell` 上写入（报 `UB1`）；`Exclusive` 写入要求祖先独占 loan 仍存活且无其他重叠子 loan（对应 `K1`/`K4`）；仅当 `RawCell`（`is_cell=True`，对应 `K19`）允许经 `Shared`/`Cell` 路径写入，且两条路径共用重叠 `Exclusive` loan 冲突检查 | `u0_raw_model.py`（`U0RawInterpreter`）+ `test_u0_raw_model.py`（`test_al1_*` 共 6 条） | **独立原型可复跑**（是否接入 `checker.py` 待评审确认） |
-| **AL2（不晚于 owner 析构/释放 + `addressOf` 屏障 + `ptr_read`/`ptr_write` 未初始化槽）** | `address_of(π)` 记录当前分配实例 `alloc_id` 并在根 owner 上设置 place 级析构屏障 `drop_barrier`（阻止提前析构并报 `AL2_BARRIER`，将其析构点提升至至少词法作用域结束）；owner 析构、整体移出或**析构后重新分配同名存储**后经旧 `RawPtr` 读写均报 `UB2`；`ptr_read(p)` 将槽位及其后代置为 `Uninit` 并移交旧析构义务，`ptr_write(p)` 恢复槽位（含后代）为 `Init` 并为资源槽位分配新析构义务，在任一祖先或后代处于 `Uninit` 时读取或析构报 `UB5` | `u0_raw_model.py` + `test_u0_raw_model.py`（`test_al2_*` 共 3 条） | **独立原型可复跑**（是否接入 `checker.py` 待评审确认） |
+| **AL1（不与存活 loan 冲突 + AL7 `RawCell` 例外）** | 对裸指针解引用事件 `raw_read(p)` / `raw_write(p)`（逻辑来历绑定至 place `π`、分配实例 `alloc_id`、派生借用范围校验与沿完整借用派生历史 `loan_history` 核对后的真实派生权限 `provenance_kind`）：① 冲突检查按同一 `alloc_id` 隔离，旧实例残留借用不与同名新分配误冲突；② `raw_read(p)` 要求 `π` 位于派生借用范围内且不存在**其他**重叠存活的 `Exclusive` loan（对应 `K1`）；③ `raw_write(p)` 按完整派生链核对权限与存活状态，源自 `Shared` loan（含父 `Shared` loan 已结束的情形）或祖先独占借用已结束时均报 `UB1`；仅当 `RawCell`（`is_cell=True`，整值移交时保留，对应 `K19`）允许经 `Shared`/`Cell` 路径写入，且两条路径共用重叠 `Exclusive` loan 冲突检查 | `u0_raw_model.py`（`U0RawInterpreter`）+ `test_u0_raw_model.py`（`test_al1_*` 共 10 条） | **独立原型可复跑**（是否接入 `checker.py` 待评审确认） |
+| **AL2（不晚于 owner 析构/释放 + `addressOf` 屏障 + `ptr_read`/`ptr_write` 未初始化槽）** | `address_of(π)` 记录当前分配实例 `alloc_id` 并在根 owner 上设置 place 级析构屏障 `drop_barrier`（阻止提前析构并报 `AL2_BARRIER`，将其析构点提升至至少词法作用域结束）；owner 析构、整体移出或**析构后重新分配同名存储**后经旧 `RawPtr` 读写均报 `UB2`；`ptr_read(p)` 将槽位及其后代置为 `Uninit` 并在移交时保留字段布局与析构义务，`ptr_write(p)` 恢复目标槽位（含后代）为 `Init`、沿祖先链自底向上同步已完整初始化的中间/根聚合，并为资源槽位分配新析构义务；**读取判据**：读取已显式初始化的目标字段（如 `pair.a` 或写齐后的 `r.inner`）即使兄弟字段与外层聚合仍为 `Uninit` 也合法，而读取任何未初始化字段或含未初始化后代的聚合、以及析构存在 `Uninit` 槽位的 owner 均报 `UB5` | `u0_raw_model.py` + `test_u0_raw_model.py`（`test_al2_*` 共 7 条） | **独立原型可复跑**（是否接入 `checker.py` 待评审确认） |
 | **AL3 / FS3 / FS8（析构义务恰好一次与失败注入）** | 在每个 FS1 操作处注入可展开失败并按词法逆序运行待执行析构，复现 U0 §4 列表中部插入的错误次序（先搬移制造重复句柄再 `clone()` 失败 → `UB4`）与正确次序（先 `clone()` 再仅用 FS4 搬移 → 零违规） | `u0_raw_model.py`（`simulate_fs8_insert_order`）+ `test_u0_raw_model.py`（`test_fs8_ub4_double_drop_and_safe_insert_order`） | **独立原型可复跑** |
 
 ## 2. 硬门槛二：UB1–UB6、UB9–UB11 预 U1 可复跑反例与捕获实测
@@ -51,7 +51,7 @@ U0 §9 第一条硬门槛要求“路线 L 的参考检查器能把 AL1、AL2 �
 ## 4. 验证与未运行项
 
 - **已运行**：
-  - `/opt/homebrew/bin/python3 -m unittest scripts.tests.test_u0_raw_model scripts.tests.test_u0_sanitizer_harness scripts.tests.test_f5_od4_grammar_probe`：`Ran 13 tests ... OK`（覆盖 10 条 `u0_raw_model`、10 组 `u0_sanitizer_harness` 与 9 组 Bison 文法 + 21 组 OD4 编译见证）。
-  - `/usr/bin/python3 -m unittest scripts.tests.test_u0_raw_model scripts.tests.test_u0_sanitizer_harness scripts.tests.test_f5_od4_grammar_probe`：`Ran 13 tests ... OK`（Python 3.9 兼容）。
+  - `/opt/homebrew/bin/python3 -m unittest scripts.tests.test_u0_raw_model scripts.tests.test_u0_sanitizer_harness scripts.tests.test_f5_od4_grammar_probe`：`Ran 22 tests ... OK`（覆盖 18 条 `u0_raw_model`、10 组 `u0_sanitizer_harness` + 真实 FFI5 派生 `exit(1)` 负例与 9 组 Bison 文法 + 22 组 OD4 编译见证）。
+  - `/usr/bin/python3 -m unittest scripts.tests.test_u0_raw_model scripts.tests.test_u0_sanitizer_harness scripts.tests.test_f5_od4_grammar_probe`：`Ran 22 tests ... OK`（Python 3.9 兼容）。
   - `/opt/homebrew/bin/python3 scripts/check_docs.py && /opt/homebrew/bin/python3 -m unittest scripts.tests.test_check_docs`。
 - **未运行**：未运行 Linux x86_64 MSan、FFI5 跨 C 帧阻断展开测试或弱内存模型检查（Loom/GenMC）；未修改 `crates/` 或 `docs/guide/`；未运行 `cargo test`。
