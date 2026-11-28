@@ -228,6 +228,16 @@ impl Checker<'_> {
             }
             if let Some(next) = flows.next.as_ref() {
                 self.reject_borrowed_closure_escape(argument.argument().expression(), next)?;
+                if self.diagnostics.len() == argument_diagnostics
+                    && let Some(witnesses) = next.escape_witnesses.results.get(&argument.argument())
+                    && !witnesses.is_empty()
+                {
+                    self.reject_borrowed_closure_roots(
+                        argument.argument().expression(),
+                        next,
+                        witnesses.clone(),
+                    )?;
+                }
             }
             if self.diagnostics.len() != argument_diagnostics {
                 continue;

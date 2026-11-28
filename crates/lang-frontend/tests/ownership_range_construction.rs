@@ -696,3 +696,57 @@ fn grouped_nested_range_source_keeps_real_root_identity_and_cleanup() {
 
 #[path = "ownership_range_construction/grouped_iteration.rs"]
 mod grouped_iteration;
+
+// The planner pending token is not the checker's active binding loan.
+// Check both Unit layouts; this is behavior, not a complete end table.
+#[test]
+fn metadata_child_protects_root_write_until_its_last_use() {
+    for (tail, reject) in [
+        ("root=listOf(\"changed\");observe(child)", true),
+        ("observe(child);root=listOf(\"changed\")", false),
+    ] {
+        let body = format!(
+            "fun run():Unit{{var root=listOf(\"kept\");borrow val parent=rangeView(root,0,1);borrow val child=alias(parent);{tail}}}"
+        );
+        let (_, document, rooted) = checked(&body);
+        for diagnostics in [document.diagnostics(), rooted.diagnostics()] {
+            let codes = diagnostics
+                .iter()
+                .map(|d| d.code().to_string())
+                .collect::<Vec<_>>();
+            assert_eq!(
+                codes,
+                if reject {
+                    vec!["L0135".to_owned()]
+                } else {
+                    vec![]
+                },
+                "{tail}"
+            );
+        }
+        for unit in [document, rooted] {
+            if reject {
+                assert!(unit.borrow_results().bindings().is_empty());
+                assert!(unit.loans().is_empty());
+                assert!(unit.drops().is_empty());
+                assert!(unit.validate().is_err());
+            } else {
+                assert!(unit.deferred().is_empty());
+                let [parent, child] = unit.borrow_results().bindings() else {
+                    panic!("two real bindings")
+                };
+                assert_eq!(child.parent(), Some(parent.binding()));
+                assert_eq!(child.origin(), parent.origin());
+                assert_eq!(
+                    unit.borrow_results()
+                        .ends()
+                        .iter()
+                        .map(|end| end.binding())
+                        .collect::<Vec<_>>(),
+                    [child.binding(), parent.binding()]
+                );
+                assert!(unit.validate().is_ok());
+            }
+        }
+    }
+}

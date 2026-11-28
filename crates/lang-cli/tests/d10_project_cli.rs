@@ -128,3 +128,84 @@ fn ordinary_split_project_executes_parent_child_zero_and_multiple_rounds() {
         }
     }
 }
+
+#[test]
+fn single_file_and_single_source_project_preserve_nested_exchange_results() {
+    for (order, body) in BODIES.into_iter().enumerate() {
+        for (parent, child) in [(0, 2), (2, 3)] {
+            let project = Project::new();
+            let source_root = project.0.join("src");
+            let source = source_root.join("app/entry.ko");
+            let text = format!(
+                "package app\nfun run(count: Int, childCount: Int) {{ var a = \"first\"; var b = \"kept\"; var outer = count; while(outer > 0) {{ {body} }}; println(a); println(b) }}\nfun entry() {{ run({parent}, {child}) }}"
+            );
+            fs::write(&source, &text).unwrap();
+            let manifest = project.0.join("project.toml");
+            fs::write(&manifest, "schema = \"koven.project\"\nversion = 1\n[project]\nname = \"entry-parity\"\nsource-roots = [\"src\"]\n").unwrap();
+            let expected = if parent == 0 {
+                "first\nkept\n"
+            } else if order == 0 {
+                "next\nkept\n"
+            } else {
+                "parent\nkept\n"
+            };
+            // Both entry modes read the very same file and source root. Expected output
+            // comes from loop/exchange semantics, never from the other compiler run.
+            for project_mode in [false, true] {
+                let executable = project
+                    .0
+                    .join(if project_mode { "project" } else { "single" });
+                let mut command = Command::new(env!("CARGO_BIN_EXE_kovenc"));
+                command.arg("build");
+                if project_mode {
+                    command.arg("--project").arg(&manifest);
+                } else {
+                    command.arg(&source).arg("--source-root").arg(&source_root);
+                }
+                let output = command
+                    .args([
+                        "--entry",
+                        if project_mode { "app.entry" } else { "entry" },
+                        "-o",
+                    ])
+                    .arg(&executable)
+                    .output()
+                    .unwrap();
+                assert_eq!(output.status.code(), Some(0), "{output:?}");
+                assert!(
+                    output.stdout.is_empty() && output.stderr.is_empty(),
+                    "{output:?}"
+                );
+                assert!(fs::metadata(&executable).unwrap().len() > 0);
+                let mut process = Command::new(&executable)
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::piped())
+                    .spawn()
+                    .unwrap();
+                let deadline = Instant::now() + Duration::from_secs(10);
+                loop {
+                    if process.try_wait().unwrap().is_some() {
+                        break;
+                    }
+                    if Instant::now() >= deadline {
+                        let _ = process.kill();
+                        let output = process.wait_with_output().unwrap();
+                        panic!(
+                            "native entry parity deadline: order={order} project={project_mode}: {output:?}"
+                        );
+                    }
+                    std::thread::sleep(Duration::from_millis(10));
+                }
+                let output = process.wait_with_output().unwrap();
+                assert_eq!(output.status.code(), Some(0), "{output:?}");
+                assert_eq!(
+                    output.stdout,
+                    expected.as_bytes(),
+                    "order={order} parent={parent} child={child} project={project_mode}"
+                );
+                assert!(output.stderr.is_empty(), "{output:?}");
+                assert_eq!(fs::read(&source).unwrap(), text.as_bytes());
+            }
+        }
+    }
+}

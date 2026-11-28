@@ -3,7 +3,7 @@
 use crate::{
     ast::ExpressionId,
     diagnostic::{Diagnostic, Severity},
-    parser::AssignmentOperator,
+    parser::{AssignmentOperator, Expression},
 };
 
 use super::{AccessKind, Checker, ExpressionUse, Flows, OwnershipCheckingError, State};
@@ -63,7 +63,29 @@ impl Checker<'_> {
             }
             flows
         } else {
-            self.check_expression(value, state, usage)?
+            // Only mutable field storage escapes here. Preserve the existing
+            // immutable-target diagnostic and ordinary local assignment paths.
+            let field = self.place(target)?.is_some_and(|place| {
+                !place.fields().is_empty()
+                    || self.symbol_kind(place.root())
+                        == Some(crate::name_resolution::SymbolKind::Field)
+            });
+            let mut actual = value;
+            let elvis = loop {
+                match self.parsed.ast().expressions().get(actual)?.payload() {
+                    Expression::Group { expression } => actual = *expression,
+                    Expression::Binary {
+                        operator: crate::parser::BinaryOperator::Elvis,
+                        ..
+                    } => break true,
+                    _ => break false,
+                }
+            };
+            if field && elvis && self.is_mutable_place(target)? {
+                self.check_escaping_expression(value, state, usage)?
+            } else {
+                self.check_expression(value, state, usage)?
+            }
         };
         if root.is_some() {
             for state in [&mut flows.next, &mut flows.breaks, &mut flows.continues]
@@ -116,6 +138,15 @@ impl Checker<'_> {
                 || self.symbol_kind(place.root()) == Some(crate::name_resolution::SymbolKind::Field)
         }) {
             self.reject_borrowed_closure_escape(value, state)?;
+            if self.diagnostics.len() == diagnostic_count
+                && let Some(witnesses) = state
+                    .escape_witnesses
+                    .results
+                    .get(&self.unit_expression(value))
+                && !witnesses.is_empty()
+            {
+                self.reject_borrowed_closure_roots(value, state, witnesses.clone())?;
+            }
             if self.diagnostics.len() != diagnostic_count {
                 self.rollback_facts(fact_lengths);
                 self.nullable_whens = nullable_when_checkpoint;
@@ -187,6 +218,10 @@ impl Checker<'_> {
                 self.rollback_facts(fact_lengths);
                 self.nullable_whens = nullable_when_checkpoint;
                 return Ok(Self::restore_flow_states(flows, &entry_state));
+            }
+            if accepted && operator == AssignmentOperator::Assign && place.is_root() {
+                self.replace_mutable_escape_witness(place.root(), value, state);
+                self.record_loop_escape_write(place.root(), value, state);
             }
         } else if !element_assignment {
             // Element prefixes were already evaluated before the RHS, even for

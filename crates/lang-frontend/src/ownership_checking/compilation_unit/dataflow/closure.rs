@@ -42,6 +42,12 @@ impl CaptureIndex<'_> {
         self.captures.is_empty()
     }
 
+    pub(super) fn captures_symbol(&self, symbol: UnitSymbolId) -> bool {
+        self.captures
+            .iter()
+            .any(|capture| capture.source() == UnitClosureCaptureSource::Symbol(symbol))
+    }
+
     pub(super) fn contains_lambda(&self, lambda: UnitExpressionId) -> bool {
         self.by_lambda.contains_key(&lambda)
     }
@@ -291,6 +297,12 @@ impl Checker<'_> {
                     if let Some(origins) = entry_state.closures.get(&symbol) {
                         body_state.closures.insert(symbol, origins.clone());
                     }
+                    self.seed_capture_body_witness(
+                        lambda,
+                        &capture,
+                        &entry_state,
+                        &mut body_state,
+                    )?;
                     body_state.immutable_captures.insert(
                         symbol,
                         CaptureRestriction {
@@ -353,6 +365,24 @@ impl Checker<'_> {
             return Ok(Flows::next(entry_state));
         }
         state.closure_captures.insert(lambda_id, captured_closures);
+        // Preserve diagnostic evidence from the value captured at formation, not
+        // a holder edge or a later lookup of the source binding.
+        let witnesses: BTreeSet<_> = captures
+            .iter()
+            .filter(|capture| capture.mode() == ClosureCaptureMode::Owned)
+            .filter_map(|capture| match capture.source() {
+                UnitClosureCaptureSource::Symbol(symbol) => {
+                    entry_state.escape_witnesses.bindings.get(&symbol)
+                }
+                UnitClosureCaptureSource::This => None,
+            })
+            .flatten()
+            .copied()
+            .collect();
+        let span = self.parsed.ast().expressions().get(lambda)?.span();
+        if !witnesses.is_empty() && !self.loop_spans.contains(self.parsed, span) {
+            state.escape_witnesses.results.insert(lambda_id, witnesses);
+        }
         Ok(Flows::next(state))
     }
 
@@ -664,24 +694,28 @@ impl Checker<'_> {
                     .entry(call)
                     .or_default()
                     .extend(origins);
+                #[cfg(test)]
+                super::closure_lifecycle_probe::record("held", call, state);
             }
         }
         Ok(())
     }
-
     pub(super) fn finish_call_closures(&self, call: UnitExpressionId, flows: &mut Flows) {
         for state in [&mut flows.next, &mut flows.breaks, &mut flows.continues]
             .into_iter()
             .flatten()
         {
+            #[cfg(test)]
+            super::closure_lifecycle_probe::record("before_finish", call, state);
             if let Some(origins) = state.pending_closure_calls.remove(&call) {
                 for origin in origins {
                     self.release_unheld_closure(origin, &BTreeSet::new(), state);
                 }
             }
+            #[cfg(test)]
+            super::closure_lifecycle_probe::record("after_finish", call, state);
         }
     }
-
     pub(super) fn release_exclusive_branch(
         &mut self,
         control: ExpressionId,

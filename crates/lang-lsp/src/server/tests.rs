@@ -27,6 +27,7 @@ mod ide_features_safety;
 mod initialization;
 mod lifecycle;
 mod missing_names;
+mod missing_pattern_closer;
 mod snapshot_lifecycle;
 mod source_set;
 

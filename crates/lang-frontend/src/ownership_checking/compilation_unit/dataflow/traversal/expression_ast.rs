@@ -156,8 +156,20 @@ impl Checker<'_> {
                 right,
                 ..
             } if escaping => {
+                let diagnostic_count = self.diagnostics.len();
                 let mut flows = self.check_expression(left, state, ExpressionUse::Read)?;
                 if let Some(next) = flows.next.take() {
+                    // A nullable left result can outlive its actual closure holder.
+                    // Consume only diagnostic provenance; keep the original read and release.
+                    if self.diagnostics.len() == diagnostic_count
+                        && let Some(witnesses) = next
+                            .escape_witnesses
+                            .results
+                            .get(&self.unit_expression(left))
+                            .cloned()
+                    {
+                        self.reject_borrowed_closure_roots(left, &next, witnesses)?;
+                    }
                     flows.merge(self.check_escaping_expression(
                         right,
                         next,

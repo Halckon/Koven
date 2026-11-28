@@ -181,8 +181,7 @@ selector，包括分组、逗号 alternatives 和穷举后的续流。同一 arm
 新建的来源借用并执行来源的实参完成边清理。外层调用借用单独的 nullable 槽。
 借用结果生产者的辅助参数也可使用同源 Shared Temporary 事实包装 Copyable 值。
 
-默认关闭的有界生命周期审计只消费原事实及实际 SSA，不扩大生产准入；
-完整证明域、token 竞争与残余 gap 见[生命周期审计边界](ownership-lifetime-audit.md)。
+默认关闭的有界生命周期审计只消费原事实及实际 SSA，不扩大生产准入； 完整证明域、token 竞争与残余 gap 见[生命周期审计边界](ownership-lifetime-audit.md)。
 
 实现入口：`crates/lang-codegen/src/ssa/refine.rs` 及 `refine/` 子模块、`ssa/inline_nullable.rs`、
 `llvm/runtime/inline_nullable.rs`；测试在 `ssa/refine_tests.rs` 与 `llvm/inline_nullable_tests.rs`。
@@ -198,3 +197,4 @@ no-carry 特许短路、offset-only 包含判断和诊断，不新增准入证�
 
 常量所有权失败的双 Unit recovery 保留无物化 capability、无 loan/drop 的原合同；
 L0131 相比 Single 多实际已选参数声明标签，精确差异见证保留两入口，不视为诊断等价退休。
+常量 String 插值 `stop()` 中止的原同源消费者已迁双 Unit，核完整物化/drop 空表；邻接 binary 完整 loan-end 见证保留 Single，不以 Partial 观察替代。

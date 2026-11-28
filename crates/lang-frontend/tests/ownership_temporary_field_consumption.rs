@@ -212,3 +212,31 @@ fn direct_temporary_bundle_field_return_reports_partial_move() {
         }
     }
 }
+
+#[test]
+fn direct_temporary_bundle_field_comparison_is_valid() {
+    for receiver in [
+        "Bundle(\"owned\", 7)",
+        "(Bundle(\"owned\", 7))",
+        "((Bundle(\"owned\", 7)))",
+    ] {
+        let text = format!(
+            "class Bundle(val text: String, val count: Int)\nfun use(): Boolean = {receiver}.text == \"owned\""
+        );
+        for constants in [false, true] {
+            for rooted in [false, true] {
+                let (_, _, owned, _) = observe(&text, constants, rooted);
+                assert!(
+                    owned.diagnostics().is_empty(),
+                    "{text}; constants={constants}; rooted={rooted}: {:?}",
+                    owned.diagnostics()
+                );
+                assert!(
+                    owned.deferred().is_empty(),
+                    "{text}; constants={constants}; rooted={rooted}: {:?}",
+                    owned.deferred()
+                );
+            }
+        }
+    }
+}

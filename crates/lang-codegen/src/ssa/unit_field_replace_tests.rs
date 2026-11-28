@@ -544,6 +544,8 @@ fn unit_field_replace_cross_file_input_order_is_deterministic() {
 
 mod temporary_copy_cleanup;
 
+mod conditional_root_cleanup;
+
 #[test]
 fn unit_receiver_field_replace_native_keeps_receiver_and_cancels_early_exchange() {
     for constants in [false, true] {
@@ -656,5 +658,3 @@ fn unit_diverging_replace_initializer_returns_the_borrow_and_drops_the_local() {
 mod element_swap;
 mod field_swap;
 mod inout_primitive;
-
-mod conditional_root_cleanup;

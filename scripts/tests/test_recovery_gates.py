@@ -108,8 +108,8 @@ class CompositionContracts(unittest.TestCase):
             self.assertEqual(1, other_targets.count(target))
         retained_targets = [target for target in other_targets
                             if target not in added_targets]
-        self.assertEqual(136, len(retained_targets))
-        self.assertEqual(139, len(other_targets))
+        self.assertEqual(150, len(retained_targets))
+        self.assertEqual(153, len(other_targets))
         self.assertEqual(1, retained_targets.count("formatting"))
         self.assertEqual(1, targets.count("ownership_value_api"))
         self.assertEqual(1, other_targets.count("type_text_extension"))
@@ -172,6 +172,30 @@ class StaticStageSelectionContracts(unittest.TestCase):
         for target in ("lambda_completion", "ownership_receiver_backedge",
                        "legacy_receiver_admission", "parser_super_recovery",
                        "parser_statement_separators", "parser_interface_delegation"):
+            with self.subTest(target=target):
+                self.assertEqual(1, targets.count(target))
+                self.assertTrue((ROOT / "crates/lang-frontend/tests" / f"{target}.rs").is_file())
+
+    def test_callable_escape_and_temporary_field_targets_present_exactly_once(self):
+        # Static selection contract only: no cargo, shell stubs or fault execution.
+        stage = (ROOT / "scripts/check_stage_integration.sh").read_text()
+        targets = re.findall(r"--test ([a-z0-9_]+)", stage)
+        for target in (
+            "ownership_captured_body_escape",
+            "ownership_construction_extracted_escape",
+            "ownership_elvis_left_escape",
+            "ownership_escape_combination",
+            "ownership_extracted_callable_escape",
+            "ownership_extracted_value_escape",
+            "ownership_field_elvis_escape",
+            "ownership_field_extracted_escape",
+            "ownership_map_store_escape",
+            "ownership_mutable_extracted_escape",
+            "ownership_mutable_nullable_alias_escape",
+            "ownership_nested_elvis_escape",
+            "ownership_nested_extracted_escape",
+            "ownership_temporary_field_consumption",
+        ):
             with self.subTest(target=target):
                 self.assertEqual(1, targets.count(target))
                 self.assertTrue((ROOT / "crates/lang-frontend/tests" / f"{target}.rs").is_file())

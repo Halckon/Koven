@@ -91,11 +91,10 @@ impl Checker<'_> {
                     },
                 )?;
                 if let Some(next) = flows.next.as_mut() {
-                    if kind == super::VariableKind::Val
-                        && self.diagnostics.len() == diagnostic_count
+                    if self.diagnostics.len() == diagnostic_count
                         && let Some(symbol) = self.marker_symbol(name).copied()
                     {
-                        self.bind_escape_witness(symbol, initializer, next)?;
+                        self.bind_local_escape_witness(kind, symbol, initializer, next)?;
                     }
                     self.mark_available(name, next);
                     if let Some(symbol) = self.marker_symbol(name).copied() {
@@ -325,6 +324,7 @@ impl Checker<'_> {
             } => {
                 let errors = self.diagnostics.len();
                 let mut state = state;
+                state.begin_loop_escape_shadow();
                 state.origins.attach(&self.callable_sources.arena);
                 #[cfg(any(test, feature = "loan-observation-test-support"))]
                 let _zero = self.research_zero_header(id, body, &state);
@@ -332,21 +332,33 @@ impl Checker<'_> {
                 let prefix = self.check_expression(condition, state, ExpressionUse::Read)?;
                 let (can_enter, can_skip) = self.ordinary_condition_outcomes(condition);
                 if can_enter {
-                    let flows =
+                    let (mut flows, no_backedge) =
                         self.check_maybe_loop(prefix, body, id, errors, &headers, can_skip)?;
+                    flows
+                        .finish_loop_escape_shadow(no_backedge && self.diagnostics.len() == errors);
                     if !can_skip && flows.next.is_none() {
                         self.non_fallthrough_whiles.insert(id.index());
                     }
                     Ok(flows)
                 } else {
+                    let mut prefix = prefix;
+                    prefix.finish_loop_escape_shadow(self.diagnostics.len() == errors);
                     Ok(prefix)
                 }
             }
-            Statement::For { source, body, .. } => self.check_iteration(id, source, body, state),
+            Statement::For { source, body, .. } => {
+                let mut state = state;
+                state.begin_loop_escape_shadow();
+                let mut flows = self.check_iteration(id, source, body, state)?;
+                // Iteration transport is not part of this no-backedge while/loop family.
+                flows.finish_loop_escape_shadow(false);
+                Ok(flows)
+            }
             Statement::Loop { body, .. } => {
                 let errors = self.diagnostics.len();
                 let body_id = body;
                 let mut state = state;
+                state.begin_loop_escape_shadow();
                 state.origins.attach(&self.callable_sources.arena);
                 let headers = state.origins.begin_loop();
                 let entry = state.clone();
@@ -360,10 +372,13 @@ impl Checker<'_> {
                 }
                 // Preserve the analyzed successor, not the presence of a syntactic break.
                 self.loop_has_exit.insert(id.index(), body.breaks.is_some());
-                Ok(Flows {
+                let no_backedge = body.next.is_none() && body.continues.is_none();
+                let mut flows = Flows {
                     next: body.breaks,
                     ..Flows::default()
-                })
+                };
+                flows.finish_loop_escape_shadow(no_backedge && self.diagnostics.len() == errors);
+                Ok(flows)
             }
             Statement::Expression { expression } => {
                 let mut flows = self.check_expression(expression, state, ExpressionUse::Read)?;
@@ -713,6 +728,16 @@ impl Checker<'_> {
                     self.check_cross_thread_delivery(argument.value, next)?;
                 } else if escaping {
                     self.reject_borrowed_closure_escape(argument.value, next)?;
+                    if self.diagnostics.len() == diagnostic_count
+                        && let Some(witnesses) = next.escape_witnesses.results.get(&operand)
+                        && !witnesses.is_empty()
+                    {
+                        self.reject_borrowed_closure_roots(
+                            argument.value,
+                            next,
+                            witnesses.clone(),
+                        )?;
+                    }
                 }
                 if self.diagnostics.len() == diagnostic_count {
                     #[cfg(any(test, feature = "loan-observation-test-support"))]

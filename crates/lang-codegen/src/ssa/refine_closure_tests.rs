@@ -622,5 +622,7 @@ mod callable_control;
 #[path = "generic_container_view_contract.rs"]
 mod generic_container_view_contract;
 
+#[path = "callback_replacement_ssa_contract.rs"]
+mod callback_replacement_ssa_contract;
 #[path = "closure_source_unit_retirement_tests.rs"]
 mod closure_source_unit_retirement;

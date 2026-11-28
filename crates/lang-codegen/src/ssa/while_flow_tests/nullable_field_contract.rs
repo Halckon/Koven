@@ -562,9 +562,11 @@ pub(in crate::ssa) mod value_argument_contract {
 
 pub(in crate::ssa) mod direct_contract {
     //! Read-only identity assertions for five direct ordinary nullable while sources.
+    use std::collections::BTreeSet;
+
     use crate::ssa::model::{
-        Definition, EntityId, EntityType, Function, FunctionId, LoanKind, Module, Operation,
-        Program, SsaTypeKind, TerminatorKind,
+        BlockId, Definition, Edge, EntityId, EntityType, Function, FunctionId, LoanKind, Module,
+        Operation, Program, ScalarConstant, SsaTypeKind, TerminatorKind,
     };
 
     pub(in crate::ssa) fn assert_unit_direct_proof(program: &Program, case: usize) {
@@ -751,10 +753,102 @@ pub(in crate::ssa) mod direct_contract {
             );
         } else {
             assert!(!terminator.targets().contains(&header.id));
+            if case == 3 {
+                assert_direct_return_origin(function, body.id, header.id, Some(result), None);
+                assert_direct_return_origin(function, header.id, body.id, None, Some(when_null));
+            }
             if case == 4 {
-                assert!(matches!(terminator, TerminatorKind::Return { .. }));
+                assert!(
+                    matches!(terminator, TerminatorKind::Return { values }
+                    if values.iter().copied().map(EntityId::Value).eq([result])),
+                    "return delivers the same field value read before proof retirement"
+                );
             }
         }
+    }
+
+    // Follow actual edge columns, not block names or a presumed join layout. Each path
+    // retains its own provenance and visited set, so reconvergence cannot hide a bad arm.
+    fn assert_direct_return_origin(
+        function: &Function,
+        start: BlockId,
+        forbidden: BlockId,
+        read: Option<EntityId>,
+        first_edge: Option<&Edge>,
+    ) {
+        let mut pending = vec![(
+            start,
+            read.into_iter().collect::<BTreeSet<_>>(),
+            BTreeSet::new(),
+        )];
+        let mut returns = 0;
+        while let Some((id, mut values, mut path)) = pending.pop() {
+            assert_ne!(
+                id, forbidden,
+                "selected continuation must not enter the other path"
+            );
+            assert!(path.insert(id), "break continuation must not cycle");
+            let block = function.block(id).unwrap();
+            for instruction in &block.instructions {
+                let instruction = function.instruction(*instruction).unwrap();
+                if read.is_none() {
+                    assert!(
+                        !matches!(instruction.operation, Operation::HeapFieldRead { .. }),
+                        "null path cannot read a payload field"
+                    );
+                    if instruction.operation == Operation::Constant(ScalarConstant::Integer(0)) {
+                        values.extend(instruction.results.iter().copied());
+                    }
+                }
+                if let Operation::Copy { source } = instruction.operation
+                    && values.contains(&EntityId::Value(source))
+                {
+                    values.extend(instruction.results.iter().copied());
+                }
+            }
+            let terminator = &block.terminator.as_ref().unwrap().kind;
+            if let TerminatorKind::Return { values: returned } = terminator {
+                assert!(
+                    matches!(returned.as_slice(), [value]
+                        if values.contains(&EntityId::Value(*value))),
+                    "return must preserve the selected field value or null-path Int zero"
+                );
+                returns += 1;
+                continue;
+            }
+            // On the initial guard follow only its actual null edge; subsequent
+            // continuations use all real edges, with the same per-path transport.
+            let edges = if id == start {
+                first_edge
+                    .map(|edge| vec![edge])
+                    .unwrap_or_else(|| crate::ssa::verify_ownership::edges(terminator))
+            } else {
+                crate::ssa::verify_ownership::edges(terminator)
+            };
+            assert!(
+                !edges.is_empty(),
+                "break continuation must reach its ordinary return"
+            );
+            for edge in edges {
+                let target = function.block(edge.target).unwrap();
+                assert!(target.parameters.len() >= edge.arguments.len());
+                let carried = edge
+                    .arguments
+                    .iter()
+                    .zip(&target.parameters)
+                    .filter_map(|(argument, parameter)| {
+                        values.contains(argument).then_some(*parameter)
+                    })
+                    .collect::<Vec<_>>();
+                let mut next = values.clone();
+                for parameter in &target.parameters {
+                    next.remove(parameter);
+                }
+                next.extend(carried);
+                pending.push((edge.target, next, path.clone()));
+            }
+        }
+        assert!(returns > 0, "break must reach a return");
     }
 
     fn only<T>(mut iterator: impl Iterator<Item = T>) -> T {

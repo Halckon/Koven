@@ -55,6 +55,7 @@ pub(super) struct LoanProvenance {
     pub(super) iteration_providers: BTreeSet<UnitSymbolId>,
     pub(super) borrow_bindings: BTreeSet<UnitSymbolId>,
     bindings_by_initializer: BTreeMap<UnitExpressionId, Vec<usize>>,
+    bindings_by_symbol: BTreeMap<UnitSymbolId, usize>,
 }
 
 impl LoanProvenance {
@@ -76,6 +77,7 @@ impl LoanProvenance {
         }
         let mut borrow_bindings = BTreeSet::new();
         let mut bindings_by_initializer = BTreeMap::<_, Vec<_>>::new();
+
         for (index, binding) in checker.borrow_results.bindings().iter().enumerate() {
             borrow_bindings.insert(binding.binding());
             // Normalize only the lookup key through transparent Groups. The
@@ -94,6 +96,13 @@ impl LoanProvenance {
             iteration_providers,
             borrow_bindings,
             bindings_by_initializer,
+            bindings_by_symbol: binding_symbol_index(
+                checker
+                    .borrow_results
+                    .bindings()
+                    .iter()
+                    .map(|fact| fact.binding()),
+            ),
         }
     }
 }
@@ -148,5 +157,87 @@ impl DropPlanner<'_, '_> {
                 self.checker.symbol_kind(root),
                 Some(SymbolKind::Variable | SymbolKind::ValueParameter)
             )
+    }
+}
+
+impl<'a, 'checker> DropPlanner<'a, 'checker> {
+    pub(super) fn borrow_binding_by_symbol(
+        &self,
+        symbol: UnitSymbolId,
+    ) -> Option<&'a UnitBorrowBinding> {
+        let index = *self.loan_provenance().bindings_by_symbol.get(&symbol)?;
+        self.checker.borrow_results.bindings().get(index)
+    }
+}
+
+// Preserve ordered first-match semantics; no facts are copied or republished.
+fn binding_symbol_index(
+    symbols: impl Iterator<Item = UnitSymbolId>,
+) -> BTreeMap<UnitSymbolId, usize> {
+    let mut result = BTreeMap::new();
+    for (index, symbol) in symbols.enumerate() {
+        result.entry(symbol).or_insert(index);
+    }
+    result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ownership_checking::compilation_unit::formed_tests::Fixture;
+    use std::cell::Cell;
+
+    #[test]
+    fn binding_lookup_preserves_source_identity_and_ordered_first_match() {
+        let source = |name: &str| {
+            format!(
+                "fun view{name}(source:String):borrow String from source=source\nfun use{name}(value:String):Unit {{}}\nfun run{name}():Unit {{ val owner=\"one\"; borrow val alias=view{name}(owner); use{name}(alias) }}"
+            )
+        };
+        let a = source("A");
+        let b = source("B");
+        let fixture = Fixture::new(&[("a.ko", &a), ("b.ko", &b)]);
+        let shared = fixture.shared();
+        let raw = fixture.dataflow(&fixture.parts(&shared));
+        assert!(raw.diagnostics.is_empty(), "{:?}", raw.diagnostics);
+        let facts = raw.borrow_results.bindings();
+        assert_eq!(facts.len(), 2);
+        assert_ne!(facts[0].binding(), facts[1].binding());
+        assert_eq!(facts[0].binding(), fixture.symbol(0, "alias"));
+        assert_eq!(facts[1].binding(), fixture.symbol(1, "alias"));
+        let visited = Cell::new(0);
+        let symbols = facts.iter().map(|fact| {
+            visited.set(visited.get() + 1);
+            fact.binding()
+        });
+        let index = binding_symbol_index(symbols);
+        assert_eq!(visited.get(), 2);
+        for _ in 0..32 {
+            for fact in facts {
+                let expected = facts
+                    .iter()
+                    .find(|candidate| candidate.binding() == fact.binding())
+                    .unwrap();
+                let actual = &facts[index[&fact.binding()]];
+                assert!(std::ptr::eq(actual, expected));
+                assert_eq!(actual, expected);
+            }
+        }
+        assert_eq!(
+            visited.get(),
+            2,
+            "lookups do not revisit the original fact iterator"
+        );
+        assert!(!index.contains_key(&fixture.symbol(0, "owner")));
+        let repeated = binding_symbol_index(
+            facts
+                .iter()
+                .map(|fact| fact.binding())
+                .chain([facts[0].binding(), facts[1].binding()]),
+        );
+        assert_eq!(
+            repeated, index,
+            "duplicate keys preserve original .find semantics, not last-wins"
+        );
     }
 }
