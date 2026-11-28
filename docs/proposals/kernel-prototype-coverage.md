@@ -14,9 +14,9 @@
 | KB1 值与析构义务 | [析构义务原型](drop-obligation-model.md)；与借用的配合见演算 §14、§20、§26、§27 | 已覆盖，5 组用例（含单值字段析构次序与泛型 `deinit`）；类型的性质取自能力推导；IR0 所有权图两层校验与故障注入原型见 `scripts/loan_kernel/ir0_graph.py` |
 | 失败出口与在途 IO | [失败与清理的状态模型](failure-cleanup-model.md)；失败出口上的借用检查见演算 §24 | 十个小模型（含 3A 取消排空与 `err_A` 归属、A2-ext 丢 `Job` 不取消/清理期重阻塞/多错仲裁对照、A3 三子任务与 OD2 · B1 双向竞态/带资源次错恰好一次清理/父帧释放后安全返回、多请求/代际/证据丢失、监督边界/多线程终止窗口、清理进度非原子间隙恢复、锁中毒/channel 关闭，以及 OD6 FD0 有界停机与活持有者卡滞模型 G）；借用一侧已覆盖 |
 | KB6 内部可变单元 | 借用内核演算 §15 | 已覆盖借用一侧；可共享的判定已取自能力推导（演算 §19） |
-| KB8 帧挂起 | 借用内核演算 §17、§21、§75–§76、§79 | 已覆盖借用、析构、作用域库、suspend 闭包/间接帧与生成器 `yield`；在途 IO 见失败模型 B–C |
-| KB7 裸内存 | [U0 硬门槛证据账本](u0-ub-harness-evidence.md)（`checker.py` + `Z48.lk`、`u0_raw_model.py`、`u0_sanitizer_harness.py`） | 已在主参考检查器与独立原型中验证 AL1/AL2/AL7 与析构屏障，并固化 UB2–UB4/UB6(TSan)/UB9–UB11 预 U1 代理套件；U0 仍留 `docs/proposals/` 待正式评审签核 |
-| KB9 编译期求值 | 不做原型：已有实现 | — |
+| KB8 帧挂起 | 借用内核演算 §17、§21、§75–§76、§79；IR5 挂起帧状态机变换原型见 `scripts/loan_kernel/ir5_suspend_frame_transform.py` | 已覆盖借用、析构、作用域库、suspend 闭包/间接帧、生成器 `yield` 与 IR5 状态机布局变换；在途 IO 见失败模型 B–C |
+| KB7 裸内存 | [U0 硬门槛证据账本](u0-ub-harness-evidence.md)（`checker.py` + `Z48.lk`、`u0_raw_model.py`、`u1_layout_ffi_model.py`、`u0_sanitizer_harness.py`、`u0_al8_backend_attrs.py`、`u0_memory_model.py`、`u0_tr4_audit_scope.py`） | 已在主参考检查器与独立原型中验证 AL1/AL2/AL6/AL7/AL8、MM1–MM7、TR2–TR4、FFI1/FFI3 与 UB2–UB4/UB6(TSan)/UB9–UB11 预 U1 代理套件；U0 仍留 `docs/proposals/` 待正式评审签核 |
+| KB9 编译期求值 | `scripts/loan_kernel/kb9_const_eval_model.py`（图上封闭编译期求值器） | 已覆盖 CFG 步数上限、Int32 溢出/除零、纯内存 `value class` 静态构造与运行时副作用拒绝；另含 `ve_simd_target_model.py`（VE1–VE3） |
 
 ## 2. 排期的原则
 
