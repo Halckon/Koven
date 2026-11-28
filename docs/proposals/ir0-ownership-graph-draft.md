@@ -26,6 +26,22 @@
 
 **降级止损门槛（沿用之八 §2.5）**：统计窗口收口时，若 `C1 + C2 + C3` 合计占比低（无法证明跨层协议与按树分派是主要返工源），则 IR1–IR4 **降级为“仅参考检查器使用”**，不启动生产所有权检查器重写与新 ADR。
 
+### 1.3 首轮真实主干采样实证（`92383a60..e428bc5d`，2026-11-28）
+
+对 `origin/main` 最近 800 个提交（`92383a60..e428bc5d`，覆盖 PR #441 → PR #501 的 `SPEC-0341` / `E3` / `SPEC-0392` 细化与迁移窗口）筛选触及 `lang-frontend/src/ownership_checking` 或 `lang-codegen/src/ssa` 的真实 `fix(...)` 提交，共得 **56 条**样本（全部固化在 `scripts/tests/test_ir0_attribution_sampler.py` 的 `REAL_WINDOW_56_COMMITS`）：
+
+| 统计口径 | 样本数 | C1（双处规则分歧） | C2（事实协议/门禁失配） | C3（AST/双路径重复分派） | C4（单层局部缺陷） | 图可消除占比（C1+C2+C3） | 止损判定（门槛 50%） |
+|---|---:|---:|---:|---:|---:|---:|---|
+| **逐条人工复核（按 `git show` 改动文件与主因）** | **56** | **7 (12.5%)** | **7 (12.5%)** | **22 (39.3%)** | **20 (35.7%)** | **64.3% (36/56)** | **`PROCEED_IR1_ADR`** |
+| 路径感知升级版 `ir0_attribution_sampler.py` | 56 | 6 (10.7%) | 8 (14.3%) | 23 (41.1%) | 19 (33.9%) | **66.1% (37/56)** | **`PROCEED_IR1_ADR`** |
+| 初版纯标题关键词启发式（已淘汰） | 56 | 14 (25.0%) | 0 (0.0%) | 0 (0.0%) | 42 (75.0%) | 25.0% (14/56) | 漏报（未识别路径特征） |
+
+主要返工簇：
+- **C3 最大返工源（39.3%，22/56）**：AST 括号组 `grouped` 穿透 5 条（`a951dc6c`、`5c140cbb`、`6964506c`、`c5ae9142`、`93d070d4`）；`refine/subset` 准入与 `unit_lower` 双路径分流 11 条（`2f162ddd`、`46b348c3`、`35c2f53f`、`6d203139`、`3f1e8974`、`6573c9f3`、`62ee41e5`、`96de2e58`、`7dc47f42`、`61bbb425`、`c26047e6`）；Elvis / nullable 控制流 / AST 递归栈帧 6 条（`182a0a00`、`90ebf74f`、`320b84df`、`59c269e1`、`823df340`、`51845889`）。
+- **C1 + C2 贡献最大单次跨层修改体量（25.0%，14/56）**：C1 含 `1fa838ee`（251 文件）、`4cbaf35f`（145 文件）、`89e473a9`（68 文件）、`978a24f4`、`0078eb0c`、`dd3d2432`、`4b689170`；C2 含 `3bcd444a`（152 文件，`lowering_facts.rs` + `refine/` + `verify_ownership/`）、`92cb7fc4`（24 文件）、`71fe9558`、`36f088c7`、`d16d7613`、`b5262a0f`、`f00860fe`。
+
+**边界声明**：本轮实证数据已跨过 IR0 §1.2 止损门槛（证明“引入所有权图”具备明确返工收益），但按[演进总纲之八](evolution-08-compiler-ir-escape-simd-selfhost.md) J30，**生产 IR1 工程实现与取代 ADR-0032 的新 ADR 仍须等待 v1 的 `E2/E3/E5` 收口并经正式评审批准后方可启动**。
+
 ## 2. 所有权图（Ownership Graph）最小规格草案（J27）
 
 本节定义位于 `lang-frontend` 逻辑边界的唯一中间表示。**硬约束（回应 ADR-0032）**：所有权图**严禁包含 SSA 值类型、寄存器/调用 ABI、指针 niche 或字节布局信息**；它只表达类型检查之后的控制流、place、所有权移动/借用/析构与源码来源映射。
@@ -103,7 +119,7 @@ projection = ".field(", FieldId, ")"       (* class / value class 字段投影 *
    - 必须包含手工故障注入测试（故意在已检查图中构造悬垂 loan、双析构或错调用目标），确认展开后不变量与跨阶段差分均能稳定拦截。
 
 **离线原型验证（2026-11-28）**：
-- **归因统计与止损门槛（P0-2）**：`scripts/loan_kernel/ir0_attribution_sampler.py` 与 `scripts/tests/test_ir0_attribution_sampler.py`（2 组单测），支持从标准 `git log` 文本自动过滤触及 `ownership_checking` / `ssa` 的 `fix` 提交，互斥归入 C1–C4 并按止损门槛判定 `PROCEED_IR1_ADR` 或 `DOWNGRADE_REFERENCE_ONLY`。
+- **归因统计与止损门槛（P0-2）**：`scripts/loan_kernel/ir0_attribution_sampler.py` 与 `scripts/tests/test_ir0_attribution_sampler.py`（4 组单测），结合路径特征（`lowering_facts.rs`、`refine/subset/`、`provider/borrow_result.rs` 等）与标题关键词互斥归入 C1–C4，过滤仅测试侧修改误判，并在真实主干 56 条样本（`92383a60..e428bc5d`）上复核通过。
 - **IR0 两层校验、故障注入与影子差分门槛**：`scripts/loan_kernel/ir0_graph.py` 与 `scripts/tests/test_ir0_graph.py`（6 组单测），覆盖 `Poisoned` / 悬空引用 / 非法 `Span` / `FatalAbort`、用户二次移动分层、`LexicalRequired` + `Conditional(DropFlagId)` 正交组合、`Call.failure_bb` vs `FatalAbort`、`LoanActivate` 两阶段激活冲突与 `evaluate_shadow_diff`。
 - **IR1 构图 + IR2 展开 + 真实全语料影子差分（P0-1）**：`scripts/loan_kernel/ir1_ir2_lowering.py` 与 `scripts/tests/test_ir1_ir2_lowering.py`（3 组单测），将 `checker.py` 全部 `cases/*.lk` 整值切片函数（150+ 函数，`early_drop=False/True`）构图为标准 `OwnershipGraph`，与 `DP.Verifier` 跑真实 `evaluate_shadow_diff` 达零未归因差异（`ir3_switch_allowed=True`），并对真实构图产物执行清空 `failure_bb` 与去析构标志的故障注入回归。
 
