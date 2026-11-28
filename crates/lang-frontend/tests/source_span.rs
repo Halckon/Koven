@@ -317,7 +317,11 @@ fn long_mixed_width_lines_match_the_scalar_and_utf16_prefix_oracles() {
     let source = add_source(&mut sources, "long.ko", &text);
     let mut start = 0;
     for (line, raw) in text.split('\n').enumerate() {
-        let content = raw.strip_suffix('\r').unwrap_or(raw);
+        let content = if start + raw.len() < text.len() {
+            raw.strip_suffix('\r').unwrap_or(raw)
+        } else {
+            raw
+        };
         for (scalars, byte) in raw
             .char_indices()
             .map(|(byte, _)| byte)
@@ -360,4 +364,15 @@ fn long_mixed_width_lines_match_the_scalar_and_utf16_prefix_oracles() {
         sources.position_utf16(source, 2),
         Err(SourceError::NotCharBoundary { .. })
     ));
+}
+
+#[test]
+fn utf16_positions_round_trip_at_eof_after_a_lone_carriage_return() {
+    let mut sources = SourceMap::new();
+    let source = add_source(&mut sources, "lone-cr.ko", "x\r");
+    assert_eq!(sources.position_utf16(source, 2), Ok((0, 2)));
+    assert_eq!(
+        sources.byte_offset_utf16(source, 0, 2),
+        Ok(Utf16Offset::Byte(2))
+    );
 }

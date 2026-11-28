@@ -451,8 +451,9 @@ impl SourceMap {
             return Ok(Utf16Offset::OutOfRange);
         };
         let end = source.line_end(line);
-        let text = &source.text[start..end];
-        let content_end = end - usize::from(text.ends_with('\r'));
+        let crlf = source.text.as_bytes().get(end) == Some(&b'\n')
+            && source.text[start..end].ends_with('\r');
+        let content_end = end - usize::from(crlf);
         if column > content_end - start {
             return Ok(Utf16Offset::OutOfRange);
         }
