@@ -130,7 +130,11 @@ pub(crate) fn document_symbols(
                     .chain(nominal.companion_members().iter())
                 {
                     if member.name_span().source_id() == source_id {
-                        let r = span_range(sources, member.name_span())?;
+                        let sel = span_range(sources, member.name_span())?;
+                        let full_span = parsed_file
+                            .and_then(|p| find_member_item_span(p, member.name_span()))
+                            .unwrap_or_else(|| member.name_span());
+                        let full = span_range(sources, full_span)?;
                         #[allow(deprecated)]
                         children.push(DocumentSymbol {
                             name: member.name().to_owned(),
@@ -138,8 +142,8 @@ pub(crate) fn document_symbols(
                             kind: SymbolKind::METHOD,
                             tags: None,
                             deprecated: None,
-                            range: r,
-                            selection_range: r,
+                            range: full,
+                            selection_range: sel,
                             children: None,
                         });
                     }
@@ -324,6 +328,39 @@ pub(crate) fn workspace_symbols(
             ))
     });
     Ok(out)
+}
+
+/// 根据成员函数名 `Span` 在 AST 中反查完整成员声明（含修饰符与方法体）的 `Span`。
+fn find_member_item_span(parsed: &ParsedFile, name_span: Span) -> Option<Span> {
+    let mut best: Option<Span> = None;
+    for (_, node) in parsed.ast().items().iter() {
+        let matches = match node.payload() {
+            Item::Function {
+                name: NameMarker::Present(s),
+                ..
+            } => *s == name_span,
+            Item::Modified { declaration, .. } => parsed
+                .ast()
+                .items()
+                .get(*declaration)
+                .ok()
+                .is_some_and(|inner| {
+                    matches!(
+                        inner.payload(),
+                        Item::Function { name: NameMarker::Present(s), .. } if *s == name_span
+                    )
+                }),
+            _ => false,
+        };
+        if matches {
+            let span = node.span();
+            // Prefer the outer `Item::Modified` span when present (strictly larger span).
+            if best.is_none_or(|b| span.len() > b.len()) {
+                best = Some(span);
+            }
+        }
+    }
+    best
 }
 
 fn ast_classifier_members(

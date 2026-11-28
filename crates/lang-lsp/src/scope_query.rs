@@ -1,5 +1,7 @@
 //! 补全与签名帮助共享的作用域查询、表达式定位与内存错误恢复工具。
 
+use std::collections::BTreeSet;
+
 use lang_frontend::{
     analysis::{DISPLAY_PATH, UnitSourceDescriptor, analyze_unit_names, append_builtin_display},
     lexer::{Lexeme, LexemeKind, Symbol, TokenKind, lex},
@@ -227,13 +229,54 @@ pub(crate) fn skip_angle_brackets_backwards(tokens: &[Lexeme], gt_idx: usize) ->
         match tokens[i].kind() {
             LexemeKind::Token(TokenKind::Symbol(Symbol::Greater)) => depth += 1,
             LexemeKind::Token(TokenKind::Symbol(Symbol::Less)) => depth -= 1,
-            LexemeKind::Token(TokenKind::Symbol(
-                Symbol::Semicolon | Symbol::LeftBrace | Symbol::RightBrace | Symbol::Equal,
-            )) => return None,
-            _ => {}
+            LexemeKind::Token(TokenKind::Identifier)
+            | LexemeKind::Token(TokenKind::Keyword(_))
+            | LexemeKind::Token(TokenKind::Symbol(
+                Symbol::Comma
+                | Symbol::Dot
+                | Symbol::Question
+                | Symbol::LeftParen
+                | Symbol::RightParen
+                | Symbol::Arrow
+                | Symbol::Ampersand,
+            )) => {}
+            _ => return None,
         }
     }
-    (depth == 0).then_some(i)
+    if depth != 0 || i == 0 {
+        return None;
+    }
+    // Generic arguments must immediately follow an identifier callee/type name, and must not
+    // look like spaced comparison operators (`a < b, c > (d)`).
+    let before_lt = tokens[i - 1];
+    if !matches!(before_lt.kind(), LexemeKind::Token(TokenKind::Identifier)) {
+        return None;
+    }
+    let adjacent_to_callee = before_lt.span().end() == tokens[i].span().start();
+    let adjacent_to_paren = tokens
+        .get(gt_idx + 1)
+        .is_some_and(|next| tokens[gt_idx].span().end() == next.span().start());
+    (adjacent_to_callee || adjacent_to_paren).then_some(i)
+}
+
+/// 判断光标偏移是否位于给定名义类型声明的 AST 范围内（用于 private 成员可见性检查）。
+pub(crate) fn is_inside_nominal_decl(
+    parsed_files: &[ParsedFile],
+    decl: &UnitDeclaration,
+    caller_unit: SourceUnitId,
+    cursor_offset: usize,
+) -> bool {
+    if caller_unit != decl.source_unit() {
+        return false;
+    }
+    parsed_files
+        .iter()
+        .find(|p| p.source_id() == decl.name_span().source_id())
+        .and_then(|p| p.ast().items().get(decl.root()).ok())
+        .is_some_and(|item| {
+            let span = item.span();
+            span.start() <= cursor_offset && cursor_offset <= span.end()
+        })
 }
 
 /// 查找在 `recv_end` 结束（且优先匹配 `expr_start`）的 AST 表达式并读取其推导类型。
@@ -403,24 +446,28 @@ pub(crate) fn visible_declarations<'a>(
     let mut out = Vec::new();
 
     // 1. Same file (including private) & same package (Public/Internal only).
+    let mut shadowed_by_explicit: BTreeSet<String> = BTreeSet::new();
     for decl in names.index().declarations() {
         let same_file = decl.source_unit() == source_unit;
         let same_pkg = Some(decl.package()) == current_pkg;
-        if same_file
-            || (same_pkg
-                && matches!(
-                    decl.visibility(),
-                    DeclarationVisibility::Public | DeclarationVisibility::Internal
-                ))
+        if same_file {
+            shadowed_by_explicit.insert(decl.name().to_owned());
+            out.push((decl.name().to_owned(), decl));
+        } else if same_pkg
+            && matches!(
+                decl.visibility(),
+                DeclarationVisibility::Public | DeclarationVisibility::Internal
+            )
         {
             out.push((decl.name().to_owned(), decl));
         }
     }
 
-    // 2. Explicit imports (including default-package single-segment imports), aliases, and wildcards.
+    // 2. Explicit imports and aliases first (they take precedence over wildcard imports).
     if let Some(parsed) = parsed_file
         && let Ok(text) = sources.source_text(parsed.source_id())
     {
+        let mut wildcard_pkgs: Vec<Vec<&str>> = Vec::new();
         for import in parsed.imports() {
             let segs: Vec<&str> = import
                 .segments
@@ -434,58 +481,71 @@ pub(crate) fn visible_declarations<'a>(
                 continue;
             }
             if import.wildcard_span.is_some() {
-                for decl in names.index().declarations() {
-                    let pkg_matches = names
-                        .index()
-                        .packages()
-                        .get(decl.package().index())
-                        .and_then(|p| p.name())
-                        .is_some_and(|p| {
-                            p.segments().len() == segs.len()
-                                && p.segments().iter().zip(segs.iter()).all(|(a, b)| a == b)
-                        });
-                    if pkg_matches
-                        && matches!(
-                            decl.visibility(),
-                            DeclarationVisibility::Public | DeclarationVisibility::Internal
-                        )
-                    {
-                        out.push((decl.name().to_owned(), decl));
-                    }
+                wildcard_pkgs.push(segs);
+                continue;
+            }
+            let (pkg_segs, target_name) = (&segs[..segs.len() - 1], segs[segs.len() - 1]);
+            let alias_name = import.alias.and_then(|a| {
+                (!a.name_span.is_empty() && a.name_span.end() <= text.len())
+                    .then_some(&text[a.name_span.start()..a.name_span.end()])
+            });
+            let exposed_name = alias_name.unwrap_or(target_name);
+            let mut matched_any = false;
+            for decl in names.index().declarations() {
+                let pkg_matches = names
+                    .index()
+                    .packages()
+                    .get(decl.package().index())
+                    .and_then(|p| p.name())
+                    .is_some_and(|p| {
+                        if pkg_segs.is_empty() {
+                            p.is_default()
+                        } else {
+                            p.segments().len() == pkg_segs.len()
+                                && p.segments()
+                                    .iter()
+                                    .zip(pkg_segs.iter())
+                                    .all(|(a, b)| a == b)
+                        }
+                    });
+                if pkg_matches
+                    && decl.name() == target_name
+                    && matches!(
+                        decl.visibility(),
+                        DeclarationVisibility::Public | DeclarationVisibility::Internal
+                    )
+                {
+                    matched_any = true;
+                    out.push((exposed_name.to_owned(), decl));
                 }
-            } else {
-                let (pkg_segs, target_name) = (&segs[..segs.len() - 1], segs[segs.len() - 1]);
-                let alias_name = import.alias.and_then(|a| {
-                    (!a.name_span.is_empty() && a.name_span.end() <= text.len())
-                        .then_some(&text[a.name_span.start()..a.name_span.end()])
-                });
-                let exposed_name = alias_name.unwrap_or(target_name);
-                for decl in names.index().declarations() {
-                    let pkg_matches = names
-                        .index()
-                        .packages()
-                        .get(decl.package().index())
-                        .and_then(|p| p.name())
-                        .is_some_and(|p| {
-                            if pkg_segs.is_empty() {
-                                p.is_default()
-                            } else {
-                                p.segments().len() == pkg_segs.len()
-                                    && p.segments()
-                                        .iter()
-                                        .zip(pkg_segs.iter())
-                                        .all(|(a, b)| a == b)
-                            }
-                        });
-                    if pkg_matches
-                        && decl.name() == target_name
-                        && matches!(
-                            decl.visibility(),
-                            DeclarationVisibility::Public | DeclarationVisibility::Internal
-                        )
-                    {
-                        out.push((exposed_name.to_owned(), decl));
-                    }
+            }
+            if matched_any {
+                shadowed_by_explicit.insert(exposed_name.to_owned());
+            }
+        }
+
+        // 3. Wildcard imports: skip names already bound by same-file declarations or explicit imports.
+        for segs in wildcard_pkgs {
+            for decl in names.index().declarations() {
+                if shadowed_by_explicit.contains(decl.name()) {
+                    continue;
+                }
+                let pkg_matches = names
+                    .index()
+                    .packages()
+                    .get(decl.package().index())
+                    .and_then(|p| p.name())
+                    .is_some_and(|p| {
+                        p.segments().len() == segs.len()
+                            && p.segments().iter().zip(segs.iter()).all(|(a, b)| a == b)
+                    });
+                if pkg_matches
+                    && matches!(
+                        decl.visibility(),
+                        DeclarationVisibility::Public | DeclarationVisibility::Internal
+                    )
+                {
+                    out.push((decl.name().to_owned(), decl));
                 }
             }
         }

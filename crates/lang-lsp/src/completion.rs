@@ -10,7 +10,7 @@ use lang_frontend::{
     },
     parser::{Item, NameMarker, ParsedFile, VisibilityModifier},
     source::SourceId,
-    type_checking::{CompilationUnitTypes, UnitTypeId, UnitTypeKind},
+    type_checking::{BuiltinType, CompilationUnitTypes, UnitTypeId, UnitTypeKind},
 };
 use lsp_types::{CompletionItem, CompletionItemKind};
 
@@ -18,52 +18,26 @@ use crate::{
     ide_features::format_unit_type,
     scope_query::{
         collect_qualifier_segments, expression_type_ending_at, find_local_symbol_in_scope,
-        find_receiver_expression_start, local_symbols_in_scope, non_trivia_tokens_through,
-        recover_unit_snapshot, replace_span_with_spaces, replace_span_with_zero,
-        visible_declarations,
+        find_receiver_expression_start, is_inside_nominal_decl, local_symbols_in_scope,
+        non_trivia_tokens_through, recover_unit_snapshot, replace_span_with_spaces,
+        replace_span_with_zero, visible_declarations,
     },
     symbols::format_callable_detail,
     unit_analysis_snapshot::UnitAnalysisSnapshot,
 };
 
-const BUILTIN_TYPES: &[&str] = &[
-    "Any",
+/// 除 `BuiltinType::ALL` 外，由 `standard_environments()` 预声明的能力与内建泛型类型构造器。
+const BUILTIN_CAPABILITIES_AND_INTRINSICS: &[&str] = &[
     "Array",
-    "Boolean",
     "Box",
-    "Byte",
-    "Char",
     "Copyable",
-    "Double",
-    "Err",
-    "Float",
     "Hashable",
-    "Int",
-    "Int8",
-    "Int16",
-    "Int32",
-    "Int64",
-    "IntRange",
     "List",
-    "Long",
-    "LongRange",
     "Map",
     "MutableList",
     "MutableMap",
-    "Nothing",
-    "Ok",
-    "Pair",
     "Rc",
-    "Result",
-    "Short",
-    "String",
     "Transferable",
-    "UInt",
-    "UInt8",
-    "UInt16",
-    "UInt32",
-    "UInt64",
-    "Unit",
     "View",
 ];
 
@@ -433,25 +407,6 @@ fn dot_completions(
     }
 
     items.into_values().collect()
-}
-
-fn is_inside_nominal_decl(
-    parsed_files: &[ParsedFile],
-    decl: &UnitDeclaration,
-    caller_unit: SourceUnitId,
-    cursor_offset: usize,
-) -> bool {
-    if caller_unit != decl.source_unit() {
-        return false;
-    }
-    parsed_files
-        .iter()
-        .find(|p| p.source_id() == decl.name_span().source_id())
-        .and_then(|p| p.ast().items().get(decl.root()).ok())
-        .is_some_and(|item| {
-            let span = item.span();
-            span.start() <= cursor_offset && cursor_offset <= span.end()
-        })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -844,7 +799,11 @@ fn scope_completions(
             );
         }
     }
-    for &ty in BUILTIN_TYPES {
+    for ty in BuiltinType::ALL
+        .iter()
+        .map(|b| b.name())
+        .chain(BUILTIN_CAPABILITIES_AND_INTRINSICS.iter().copied())
+    {
         if matches_prefix(ty, &prefix_lower) {
             insert_item(
                 &mut items,

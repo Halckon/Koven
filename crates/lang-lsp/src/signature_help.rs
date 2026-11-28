@@ -17,9 +17,9 @@ use crate::{
     ide_features::format_unit_type,
     scope_query::{
         collect_qualifier_segments, expression_type_ending_at, find_local_symbol_in_scope,
-        find_receiver_expression_start, non_trivia_tokens_through, recover_unit_snapshot,
-        replace_span_with_spaces, replace_span_with_zero, skip_angle_brackets_backwards,
-        visible_declarations,
+        find_receiver_expression_start, is_inside_nominal_decl, non_trivia_tokens_through,
+        recover_unit_snapshot, replace_span_with_spaces, replace_span_with_zero,
+        skip_angle_brackets_backwards, visible_declarations,
     },
     unit_analysis_snapshot::UnitAnalysisSnapshot,
 };
@@ -127,13 +127,18 @@ pub(crate) fn signature_help_at(
     let typed = active_snap.typed()?;
     let names = active_snap.name_snapshot().names();
     let active_sources = active_snap.name_snapshot().sources();
-    let parsed_file = active_snap
-        .name_snapshot()
-        .parsed_files()
-        .iter()
-        .find(|p| p.source_id() == active_sid);
+    let parsed_files = active_snap.name_snapshot().parsed_files();
+    let parsed_file = parsed_files.iter().find(|p| p.source_id() == active_sid);
+
+    let is_dot_call = callee_idx >= 2
+        && matches!(
+            tokens[callee_idx - 1].kind(),
+            LexemeKind::Token(TokenKind::Symbol(Symbol::Dot | Symbol::QuestionDot))
+        );
 
     let mut entries: Vec<SignatureEntry> = Vec::new();
+    let mut seen_decl_ids = Vec::new();
+    let mut seen_member_spans = Vec::new();
     // 1. Resolve via definition index at callee token (functions, overloads, methods, constructors).
     if let Some((_, targets)) = active_snap
         .definitions()
@@ -147,17 +152,87 @@ pub(crate) fn signature_help_at(
                 .find(|d| d.source_unit() == target.source_unit && d.name_span() == target.span)
                 && let Some(sig) = typed.signatures().declaration(decl.id())
             {
-                push_decl_signature(decl.name(), sig, typed, names, &mut entries);
+                if !seen_decl_ids.contains(&decl.id()) {
+                    seen_decl_ids.push(decl.id());
+                    push_decl_signature(decl.name(), sig, typed, names, &mut entries);
+                }
+                // Include sibling overloads in the same binding (same package & name, accessible).
+                if sig.callable().is_some() {
+                    for sibling in names.index().declarations() {
+                        if sibling.id() == decl.id()
+                            || seen_decl_ids.contains(&sibling.id())
+                            || sibling.package() != decl.package()
+                            || sibling.name() != decl.name()
+                            || sibling.namespace() != Namespace::Value
+                        {
+                            continue;
+                        }
+                        let accessible = sibling.source_unit() == active_su
+                            || matches!(
+                                sibling.visibility(),
+                                DeclarationVisibility::Public | DeclarationVisibility::Internal
+                            );
+                        if accessible
+                            && let Some(sib_sig) = typed.signatures().declaration(sibling.id())
+                            && sib_sig.callable().is_some()
+                        {
+                            seen_decl_ids.push(sibling.id());
+                            push_decl_signature(
+                                sibling.name(),
+                                sib_sig,
+                                typed,
+                                names,
+                                &mut entries,
+                            );
+                        }
+                    }
+                }
             } else {
-                for decl_sig in typed.signatures().declarations() {
-                    if let Some(nominal) = decl_sig.nominal() {
-                        for member in nominal
+                for decl in names.index().declarations() {
+                    if let Some(nominal) = typed
+                        .signatures()
+                        .declaration(decl.id())
+                        .and_then(|s| s.nominal())
+                    {
+                        let inside_decl =
+                            is_inside_nominal_decl(parsed_files, decl, active_su, clamped);
+                        let matched_instance = nominal
                             .members()
                             .iter()
-                            .chain(nominal.companion_members().iter())
-                        {
-                            if member.name_span() == target.span {
+                            .find(|m| m.name_span() == target.span);
+                        let matched_companion = nominal
+                            .companion_members()
+                            .iter()
+                            .find(|m| m.name_span() == target.span);
+                        if let Some(member) = matched_instance {
+                            if !seen_member_spans.contains(&member.name_span()) {
+                                seen_member_spans.push(member.name_span());
                                 entries.push(callable_signature_entry(member, typed, names));
+                            }
+                            for sibling in nominal.members() {
+                                if sibling.name() == member.name()
+                                    && !seen_member_spans.contains(&sibling.name_span())
+                                    && (inside_decl
+                                        || sibling.visibility() != DeclarationVisibility::Private)
+                                {
+                                    seen_member_spans.push(sibling.name_span());
+                                    entries.push(callable_signature_entry(sibling, typed, names));
+                                }
+                            }
+                        } else if let Some(member) = matched_companion {
+                            if !seen_member_spans.contains(&member.name_span()) {
+                                seen_member_spans.push(member.name_span());
+                                entries.push(callable_signature_entry(member, typed, names));
+                            }
+                            for sibling in nominal.companion_members() {
+                                if sibling.name() == member.name()
+                                    && !seen_member_spans.contains(&sibling.name_span())
+                                    && (inside_decl
+                                        || sibling.visibility() != DeclarationVisibility::Private)
+                                {
+                                    seen_member_spans.push(sibling.name_span());
+                                    entries.push(callable_signature_entry(sibling, typed, names));
+                                }
                             }
                         }
                     }
@@ -167,21 +242,17 @@ pub(crate) fn signature_help_at(
     }
 
     // 2. Receiver-aware fallback when call was recovered in memory (e.g. `obj.method(`, `lib.combine(`, `MyGreeter.create(`).
-    if entries.is_empty()
-        && callee_idx >= 2
-        && matches!(
-            tokens[callee_idx - 1].kind(),
-            LexemeKind::Token(TokenKind::Symbol(Symbol::Dot | Symbol::QuestionDot))
-        )
-    {
+    if entries.is_empty() && is_dot_call {
         let receiver_tokens = &tokens[..callee_idx - 1];
         resolve_dot_callee_signatures(
             typed,
             names,
+            parsed_files,
             parsed_file,
             active_sources,
             active_su,
             active_sid,
+            clamped,
             text,
             receiver_tokens,
             callee_name,
@@ -189,14 +260,16 @@ pub(crate) fn signature_help_at(
         );
     }
 
-    // 3. Bare-call fallback: only search declarations actually visible in the current file.
-    if entries.is_empty() {
+    // 3. Bare-call fallback: only for non-qualified calls (`!is_dot_call`), respecting import precedence.
+    if entries.is_empty() && !is_dot_call {
         for (visible_name, decl) in
             visible_declarations(names, parsed_file, active_sources, active_su)
         {
             if visible_name == callee_name
+                && !seen_decl_ids.contains(&decl.id())
                 && let Some(sig) = typed.signatures().declaration(decl.id())
             {
+                seen_decl_ids.push(decl.id());
                 push_decl_signature(&visible_name, sig, typed, names, &mut entries);
             }
         }
@@ -295,10 +368,12 @@ fn recover_for_signature_help(
 fn resolve_dot_callee_signatures(
     typed: &CompilationUnitTypes,
     names: &CompilationUnitNames,
+    parsed_files: &[lang_frontend::parser::ParsedFile],
     parsed_file: Option<&lang_frontend::parser::ParsedFile>,
     sources: &lang_frontend::source::SourceMap,
     source_unit: SourceUnitId,
     source_id: SourceId,
+    cursor_offset: usize,
     text: &str,
     receiver_tokens: &[Lexeme],
     callee_name: &str,
@@ -343,7 +418,7 @@ fn resolve_dot_callee_signatures(
         }
     }
 
-    // B. Receiver expression type (from Pass 1) or local symbol type -> instance methods.
+    // B. Receiver expression type (from Pass 1) or local symbol type -> accessible instance methods.
     let expr_start = find_receiver_expression_start(receiver_tokens);
     if let Some(ty_id) = expression_type_ending_at(
         typed,
@@ -352,7 +427,16 @@ fn resolve_dot_callee_signatures(
         expr_start,
         recv_tok.span().end(),
     ) {
-        push_type_method_signatures(ty_id, callee_name, typed, names, entries);
+        push_type_method_signatures(
+            ty_id,
+            callee_name,
+            typed,
+            names,
+            parsed_files,
+            source_unit,
+            cursor_offset,
+            entries,
+        );
         if !entries.is_empty() {
             return;
         }
@@ -367,13 +451,22 @@ fn resolve_dot_callee_signatures(
         recv_name,
     ) && let Some(ty_id) = typed.symbol_type(UnitSymbolId::new(source_unit, sym_id))
     {
-        push_type_method_signatures(ty_id, callee_name, typed, names, entries);
+        push_type_method_signatures(
+            ty_id,
+            callee_name,
+            typed,
+            names,
+            parsed_files,
+            source_unit,
+            cursor_offset,
+            entries,
+        );
         if !entries.is_empty() {
             return;
         }
     }
 
-    // C. Companion / object methods on a visible nominal type (`MyGreeter.create(`).
+    // C. Companion methods on a visible nominal type (`MyGreeter.create(`); instance methods ONLY for `object`.
     for (visible_name, decl) in visible_declarations(names, parsed_file, sources, source_unit) {
         if visible_name == recv_name
             && decl.namespace() == Namespace::Type
@@ -382,24 +475,37 @@ fn resolve_dot_callee_signatures(
                 .declaration(decl.id())
                 .and_then(|s| s.nominal())
         {
-            for member in nominal
-                .companion_members()
-                .iter()
-                .chain(nominal.members().iter())
-            {
-                if member.name() == callee_name {
+            let inside_decl =
+                is_inside_nominal_decl(parsed_files, decl, source_unit, cursor_offset);
+            for member in nominal.companion_members() {
+                if member.name() == callee_name
+                    && (inside_decl || member.visibility() != DeclarationVisibility::Private)
+                {
                     entries.push(callable_signature_entry(member, typed, names));
+                }
+            }
+            if nominal.kind() == NominalKind::Object {
+                for member in nominal.members() {
+                    if member.name() == callee_name
+                        && (inside_decl || member.visibility() != DeclarationVisibility::Private)
+                    {
+                        entries.push(callable_signature_entry(member, typed, names));
+                    }
                 }
             }
         }
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn push_type_method_signatures(
     ty_id: UnitTypeId,
     callee_name: &str,
     typed: &CompilationUnitTypes,
     names: &CompilationUnitNames,
+    parsed_files: &[lang_frontend::parser::ParsedFile],
+    caller_unit: SourceUnitId,
+    cursor_offset: usize,
     entries: &mut Vec<SignatureEntry>,
 ) {
     let inner = match typed.types().get(ty_id) {
@@ -409,6 +515,14 @@ fn push_type_method_signatures(
     let Some(UnitTypeKind::Nominal { declaration, .. }) = typed.types().get(inner) else {
         return;
     };
+    let Some(owner_decl) = names
+        .index()
+        .declarations()
+        .iter()
+        .find(|d| d.id() == *declaration)
+    else {
+        return;
+    };
     let Some(nominal) = typed
         .signatures()
         .declaration(*declaration)
@@ -416,23 +530,35 @@ fn push_type_method_signatures(
     else {
         return;
     };
+    let inside_owner = is_inside_nominal_decl(parsed_files, owner_decl, caller_unit, cursor_offset);
     for member in nominal.members() {
-        if member.name() == callee_name {
+        if member.name() == callee_name
+            && (inside_owner || member.visibility() != DeclarationVisibility::Private)
+        {
             entries.push(callable_signature_entry(member, typed, names));
         }
     }
     for &iface_ty in nominal.interfaces() {
         if let Some(UnitTypeKind::Nominal {
-            declaration: iface_decl,
+            declaration: iface_decl_id,
             ..
         }) = typed.types().get(iface_ty)
+            && let Some(iface_decl) = names
+                .index()
+                .declarations()
+                .iter()
+                .find(|d| d.id() == *iface_decl_id)
             && let Some(iface_nominal) = typed
                 .signatures()
-                .declaration(*iface_decl)
+                .declaration(*iface_decl_id)
                 .and_then(|s| s.nominal())
         {
+            let inside_iface =
+                is_inside_nominal_decl(parsed_files, iface_decl, caller_unit, cursor_offset);
             for member in iface_nominal.members() {
-                if member.name() == callee_name {
+                if member.name() == callee_name
+                    && (inside_iface || member.visibility() != DeclarationVisibility::Private)
+                {
                     entries.push(callable_signature_entry(member, typed, names));
                 }
             }

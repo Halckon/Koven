@@ -686,3 +686,280 @@ fun broken(): Int = unknownName
         .expect("server thread")
         .expect("clean exit");
 }
+
+/// Round-3 P2 regressions:
+/// 1. Builtin types match compiler `standard_environments()` (`UByte`/`UShort`/`ULong` present, no `Int32`/`UInt32`).
+/// 2. Unclosed `vault.secret(` outside `Vault` hides private instance methods.
+/// 3. Unclosed `Vault.open(` on ordinary class does not expose instance methods.
+/// 4. Unclosed `vault.missing(` does not fall back to unrelated top-level `fun missing()`.
+/// 5. Resolved overloaded call `pick(1)` still shows sibling overload `pick(String)`.
+/// 6. Comparison operators `combine(1 < 2, 3 > (1), 0)` report `active_parameter = 2`.
+/// 7. Explicit `import a.pick` shadows wildcard `import b.*` in unclosed `pick(`.
+/// 8. Typed `documentSymbol` method `range` spans full method body, strictly wider than `selection_range`.
+#[test]
+fn round3_p2_builtins_signature_filtering_overloads_comparisons_imports_and_method_ranges() {
+    let (server, client) = Connection::memory();
+    let server_thread = thread::spawn(|| run(server));
+    let a_uri: lsp_types::Uri = "file:///r3/a/api.ko".parse().expect("uri");
+    let b_uri: lsp_types::Uri = "file:///r3/b/other.ko".parse().expect("uri");
+    let app_uri: lsp_types::Uri = "file:///r3/app/main.ko".parse().expect("uri");
+
+    let a_src = "\
+package a
+
+public fun pick(x: Int): Int = x
+public fun pick(s: String): Int = 0
+";
+    let b_src = "\
+package b
+
+public fun pick(flag: Boolean): Int = 1
+";
+    let app_src = "\
+package app
+
+import a.pick
+import b.*
+
+public class Vault(val code: Int) {
+    public fun open(key: Int): Int {
+        val sum = code + key
+        return sum
+    }
+    private fun secret(pin: Int): Int = pin
+}
+
+fun missing(x: Int): Int = x
+fun combine(first: Boolean, second: Boolean, third: Int): Int = third
+
+fun testResolved() {
+    val p = pick(1)
+    val c = combine(1 < 2, 3 > (1), 0)
+}
+";
+    let caps = lsp_types::ClientCapabilities {
+        text_document: Some(lsp_types::TextDocumentClientCapabilities {
+            document_symbol: Some(lsp_types::DocumentSymbolClientCapabilities {
+                hierarchical_document_symbol_support: Some(true),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    initialize_with_capabilities_and_options(
+        &client,
+        caps,
+        Some(serde_json::json!({"koven": {"sourceSet": {
+            "schema": "koven.lsp.source-set",
+            "version": 1,
+            "roots": ["src"],
+            "sources": [
+                {"root": "src", "logicalPath": "a/api.ko", "uri": a_uri.as_str(), "text": a_src},
+                {"root": "src", "logicalPath": "b/other.ko", "uri": b_uri.as_str(), "text": b_src},
+                {"root": "src", "logicalPath": "app/main.ko", "uri": app_uri.as_str(), "text": app_src}
+            ]
+        }}})),
+    );
+    let d1 = receive_diagnostics(&client);
+    let d2 = receive_diagnostics(&client);
+    let d3 = receive_diagnostics(&client);
+    assert!(d1.diagnostics.is_empty(), "d1: {:?}", d1.diagnostics);
+    assert!(d2.diagnostics.is_empty(), "d2: {:?}", d2.diagnostics);
+    assert!(d3.diagnostics.is_empty(), "d3: {:?}", d3.diagnostics);
+
+    // 1. Builtin types list: UByte/UShort/ULong present; unpredeclared Int32/UInt32 absent.
+    let scope_labels = completion_labels(&client, 500, &app_uri, Position::new(17, 4));
+    for expected in [
+        "UByte",
+        "UShort",
+        "ULong",
+        "IntRange",
+        "LongRange",
+        "Copyable",
+    ] {
+        assert!(
+            scope_labels.iter().any(|l| l == expected),
+            "missing builtin type {expected}"
+        );
+    }
+    for unexpected in [
+        "Int8", "Int16", "Int32", "Int64", "UInt8", "UInt16", "UInt32", "UInt64",
+    ] {
+        assert!(
+            !scope_labels.iter().any(|l| l == unexpected),
+            "unexpected non-builtin {unexpected}"
+        );
+    }
+
+    // 5. Resolved overloaded call `pick(1)` shows BOTH `pick(Int)` and `pick(String)`, NOT `b.pick(Boolean)`.
+    let pick_arg = position_of(app_src, "pick(1)", 0);
+    let pick_sh = sig_help(
+        &client,
+        501,
+        &app_uri,
+        Position::new(pick_arg.line, pick_arg.character + 5),
+    )
+    .expect("pick(1) signature help");
+    assert!(
+        pick_sh
+            .signatures
+            .iter()
+            .any(|s| s.label.contains("x: Int")),
+        "expected Int overload: {:?}",
+        pick_sh.signatures
+    );
+    assert!(
+        pick_sh
+            .signatures
+            .iter()
+            .any(|s| s.label.contains("s: String")),
+        "expected String sibling overload: {:?}",
+        pick_sh.signatures
+    );
+    assert!(
+        !pick_sh
+            .signatures
+            .iter()
+            .any(|s| s.label.contains("flag: Boolean")),
+        "wildcard b.pick must not appear: {:?}",
+        pick_sh.signatures
+    );
+
+    // 6. Comparison operators `combine(1 < 2, 3 > (1), 0)` -> cursor at `0` is active_parameter = 2.
+    let cmp_third = position_of(app_src, ", 0)", 0);
+    let cmp_sh = sig_help(
+        &client,
+        502,
+        &app_uri,
+        Position::new(cmp_third.line, cmp_third.character + 2),
+    )
+    .expect("combine signature help");
+    assert_eq!(
+        cmp_sh.active_parameter,
+        Some(2),
+        "comparison `<` / `>` must not be treated as generics"
+    );
+
+    // 8. Typed documentSymbol method `range` covers the full method body (lines 6..=9), wider than `selection_range`.
+    send_request(
+        &client,
+        RequestId::from(503_i32),
+        DocumentSymbolRequest::METHOD,
+        serde_json::to_value(DocumentSymbolParams {
+            text_document: TextDocumentIdentifier::new(app_uri.clone()),
+            work_done_progress_params: Default::default(),
+            partial_result_params: Default::default(),
+        })
+        .expect("doc syms"),
+    );
+    let Some(DocumentSymbolResponse::Nested(syms)) =
+        serde_json::from_value::<Option<DocumentSymbolResponse>>(
+            receive_response(&client).response_result.expect("ok"),
+        )
+        .expect("resp")
+    else {
+        panic!("expected Nested DocumentSymbolResponse");
+    };
+    let vault_sym = syms.iter().find(|s| s.name == "Vault").expect("Vault");
+    let open_sym = vault_sym
+        .children
+        .as_ref()
+        .expect("Vault children")
+        .iter()
+        .find(|c| c.name == "open")
+        .expect("open method");
+    assert!(
+        open_sym.range.end.line > open_sym.selection_range.end.line,
+        "method range {:?} must cover full body beyond selection_range {:?}",
+        open_sym.range,
+        open_sym.selection_range
+    );
+
+    // 2, 3, 4, 7: Open app/main.ko with unclosed calls and verify filtering & import precedence.
+    let edit_cases = [
+        // 2: private instance method outside Vault -> None
+        ("val v = Vault(1)\n    val r = v.secret(", None),
+        // 3: instance method via class qualifier Vault.open( -> None
+        ("val r = Vault.open(", None),
+        // 4: missing member on instance must NOT fall back to top-level `fun missing` -> None
+        ("val v = Vault(1)\n    val r = v.missing(", None),
+        // 7: unclosed `pick(` with `import a.pick` + `import b.*` -> ONLY a.pick overloads
+        ("val r = pick(", Some("x: Int")),
+    ];
+    for (idx, (snippet, expected_sig)) in edit_cases.iter().enumerate() {
+        let edited = format!(
+            "package app\n\nimport a.pick\nimport b.*\n\npublic class Vault(val code: Int) {{\n    public fun open(key: Int): Int = code + key\n    private fun secret(pin: Int): Int = pin\n}}\n\nfun missing(x: Int): Int = x\n\nfun testEdit() {{\n    {snippet}\n}}\n"
+        );
+        if idx == 0 {
+            send_notification(
+                &client,
+                DidOpenTextDocument::METHOD,
+                serde_json::to_value(DidOpenTextDocumentParams {
+                    text_document: TextDocumentItem::new(
+                        app_uri.clone(),
+                        "koven".to_owned(),
+                        1,
+                        edited.clone(),
+                    ),
+                })
+                .expect("open"),
+            );
+        } else {
+            send_notification(
+                &client,
+                DidChangeTextDocument::METHOD,
+                serde_json::to_value(DidChangeTextDocumentParams {
+                    text_document: VersionedTextDocumentIdentifier::new(
+                        app_uri.clone(),
+                        (idx + 1) as i32,
+                    ),
+                    content_changes: vec![TextDocumentContentChangeEvent {
+                        range: None,
+                        range_length: None,
+                        text: edited.clone(),
+                    }],
+                })
+                .expect("change"),
+            );
+        }
+        let _ = receive_diagnostics(&client);
+        let _ = receive_diagnostics(&client);
+        let _ = receive_diagnostics(&client);
+
+        let lines: Vec<&str> = edited.lines().collect();
+        let target_line = lines
+            .iter()
+            .position(|l| l.contains("val r = "))
+            .expect("line");
+        let pos = Position::new(target_line as u32, lines[target_line].len() as u32);
+        let sh = sig_help(&client, 510 + idx as i32, &app_uri, pos);
+        match expected_sig {
+            None => assert!(
+                sh.is_none(),
+                "case {idx} (`{snippet}`) must return None, got: {sh:?}"
+            ),
+            Some(must_contain) => {
+                let sh = sh.unwrap_or_else(|| panic!("case {idx} (`{snippet}`) expected Some"));
+                assert!(
+                    sh.signatures.iter().any(|s| s.label.contains(must_contain)),
+                    "case {idx}: missing {must_contain} in {:?}",
+                    sh.signatures
+                );
+                assert!(
+                    !sh.signatures
+                        .iter()
+                        .any(|s| s.label.contains("flag: Boolean")),
+                    "case {idx}: wildcard b.pick must be shadowed by explicit import a.pick: {:?}",
+                    sh.signatures
+                );
+            }
+        }
+    }
+
+    shutdown(&client);
+    server_thread
+        .join()
+        .expect("server thread")
+        .expect("clean exit");
+}
