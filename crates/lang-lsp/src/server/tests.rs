@@ -20,6 +20,7 @@ const TIMEOUT: Duration = Duration::from_secs(5);
 
 mod definition;
 mod formatting;
+mod hot_reload_p4;
 mod ide_features;
 mod ide_features_p2;
 mod ide_features_p2_review;

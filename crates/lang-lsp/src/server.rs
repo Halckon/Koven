@@ -123,6 +123,7 @@ pub(crate) fn run_with_options(
             return Ok(());
         }
     };
+    let explicit_source_set = source_set.is_some();
     let source_set = match source_set {
         Some(config) => Some(config),
         None if options.workspace_manifest => {
@@ -311,6 +312,7 @@ pub(crate) fn run_with_options(
                     &mut state,
                     options,
                     &initialize_params,
+                    explicit_source_set,
                 ) {
                     send_log(&connection, error.to_string())?;
                 }
@@ -431,9 +433,10 @@ fn handle_notification(
     state: &mut SessionState,
     options: ServerOptions,
     initialize_params: &InitializeParams,
+    explicit_source_set: bool,
 ) -> Result<(), NotificationError> {
     if notification.method.as_str() == DidChangeWatchedFiles::METHOD {
-        if options.workspace_manifest {
+        if options.workspace_manifest && !explicit_source_set {
             notifications::handle_watched_files(
                 connection,
                 notification,
