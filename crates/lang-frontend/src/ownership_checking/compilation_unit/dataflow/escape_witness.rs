@@ -55,13 +55,19 @@ impl std::ops::DerefMut for EscapeWitnessSlot {
 }
 
 impl EscapeWitnessSlot {
-    pub(super) fn merge(&mut self, other: Self) {
+    pub(super) fn merge_preserving(
+        &mut self,
+        other: Self,
+        shared_candidates: Option<&BTreeSet<UnitSymbolId>>,
+    ) {
         match (&mut self.0, other.0) {
-            (Some(left), Some(right)) => left.merge(*right),
-            (Some(left), None) => left.merge(EscapeWitnesses::default()),
+            (Some(left), Some(right)) => left.merge_preserving(*right, shared_candidates),
+            (Some(left), None) => {
+                left.merge_preserving(EscapeWitnesses::default(), shared_candidates)
+            }
             (left @ None, Some(right)) => {
                 let mut merged = EscapeWitnesses::default();
-                merged.merge(*right);
+                merged.merge_preserving(*right, shared_candidates);
                 if merged != EMPTY_ESCAPE_WITNESSES {
                     *left = Some(Box::new(merged));
                 }
@@ -71,7 +77,16 @@ impl EscapeWitnessSlot {
     }
 }
 impl EscapeWitnesses {
+    #[cfg(test)]
     pub(super) fn merge(&mut self, other: Self) {
+        self.merge_preserving(other, None);
+    }
+
+    pub(super) fn merge_preserving(
+        &mut self,
+        other: Self,
+        shared_candidates: Option<&BTreeSet<UnitSymbolId>>,
+    ) {
         self.known_bindings
             .retain(|symbol| other.known_bindings.contains(symbol));
         for (expression, coverage) in other.coverage {
@@ -101,7 +116,9 @@ impl EscapeWitnesses {
             self.bindings.entry(symbol).or_default().extend(witnesses);
         }
         for symbol in mutable_symbols.difference(&self.mutable_locals) {
-            self.bindings.remove(symbol);
+            if !shared_candidates.is_some_and(|candidates| candidates.contains(symbol)) {
+                self.bindings.remove(symbol);
+            }
         }
     }
 }

@@ -1,18 +1,47 @@
 //! Immutable loop-span scan cache; not a control-flow or admission proof.
+use super::OwnershipCheckingError;
 use crate::{
-    parser::{ParsedFile, Statement},
+    ast::ExpressionId,
+    name_resolution::UnitSymbolId,
+    parser::{Expression, ParsedFile, Statement},
     source::Span,
 };
-use std::cell::OnceCell;
+use std::{cell::OnceCell, collections::BTreeSet};
 
 #[derive(Default)]
 pub(super) struct LoopSpans {
     spans: OnceCell<Vec<Span>>,
+    assigned_symbols: OnceCell<BTreeSet<UnitSymbolId>>,
     #[cfg(test)]
     visits: std::cell::Cell<usize>,
 }
 
 impl LoopSpans {
+    pub(super) fn has_assigned_symbol(
+        &self,
+        parsed: &ParsedFile,
+        symbol: UnitSymbolId,
+        mut root_symbol: impl FnMut(
+            ExpressionId,
+        ) -> Result<Option<UnitSymbolId>, OwnershipCheckingError>,
+    ) -> Result<bool, OwnershipCheckingError> {
+        let assigned = if let Some(cached) = self.assigned_symbols.get() {
+            cached
+        } else {
+            let mut collected = BTreeSet::new();
+            for (_, expression) in parsed.ast().expressions().iter() {
+                if let Expression::Assignment { target, .. } = expression.payload()
+                    && self.contains(parsed, expression.span())
+                    && let Some(root) = root_symbol(*target)?
+                {
+                    collected.insert(root);
+                }
+            }
+            self.assigned_symbols.get_or_init(|| collected)
+        };
+        Ok(assigned.contains(&symbol))
+    }
+
     pub(super) fn contains(&self, parsed: &ParsedFile, marker: Span) -> bool {
         let spans = self.spans.get_or_init(|| {
             parsed

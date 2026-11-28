@@ -137,8 +137,11 @@ pub(super) fn merge_optional_state(target: &mut Option<State>, source: Option<St
 
 pub(super) fn merge_state(target: &mut State, source: State) {
     target.origins.merge(&source.origins);
-    target.escape_witnesses.merge(source.escape_witnesses);
     target.loop_escape_shadow.merge(source.loop_escape_shadow);
+    let shared_candidates = target.loop_escape_shadow.outer_candidates();
+    target
+        .escape_witnesses
+        .merge_preserving(source.escape_witnesses, shared_candidates);
     target.publish_loop_escape_shadow();
     for (closure, captured) in source.closure_captures {
         target

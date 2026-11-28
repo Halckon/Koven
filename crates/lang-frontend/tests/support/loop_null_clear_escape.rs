@@ -220,6 +220,48 @@ fn pre_loop_copy_and_unknown_branch_preserve_borrowed_escape_rejection() {
             "val borrowed = if (choose) f else null; var optional = if (change) make() else borrowed; while (iterate) { optional = null; break }; return optional!!",
             true,
         ),
+        (
+            "conditional_unsupported_loop_branch_preserves_skipped_borrowed_path",
+            true,
+            "var optional = if (choose) f else null; if (change) { loop { optional = ({}); break } }; return optional!!",
+            true,
+        ),
+        (
+            "conditional_unsupported_loop_else_branch_preserves_skipped_borrowed_path",
+            true,
+            "var optional = if (choose) f else null; if (change) {} else { loop { optional = ({}); break } }; return optional!!",
+            true,
+        ),
+        (
+            "conditional_unsupported_loop_then_explicit_null_clear_is_safe",
+            true,
+            "var optional = if (choose) f else null; if (change) { loop { optional = ({}); break } }; optional = null; return optional!!",
+            false,
+        ),
+        (
+            "unconditional_unsupported_loop_overwrite_is_not_false_positive",
+            true,
+            "var optional = if (choose) f else null; loop { optional = ({}); break }; return optional!!",
+            false,
+        ),
+        (
+            "elvis_return_rhs_preserves_non_null_borrowed_continuation_var",
+            true,
+            "var optional = if (choose) f else null; val selected = optional ?: return ({}); return selected",
+            true,
+        ),
+        (
+            "elvis_return_rhs_preserves_non_null_borrowed_continuation_val",
+            true,
+            "val optional = if (choose) f else null; val selected = optional ?: return ({}); return selected",
+            true,
+        ),
+        (
+            "elvis_return_rhs_capture_free_is_safe",
+            false,
+            "val optional = if (choose) f else null; val selected = optional ?: return ({}); return selected",
+            false,
+        ),
     ] {
         let lambda = if borrowed { "{ read(xs) }" } else { "{}" };
         let text = format!(

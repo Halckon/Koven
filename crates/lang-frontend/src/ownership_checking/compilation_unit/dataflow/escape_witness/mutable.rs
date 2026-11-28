@@ -2,9 +2,7 @@ use super::Coverage;
 // Bounded local mutable diagnostic provenance; never closure ownership.
 use super::super::{Checker, OwnershipCheckingError, State};
 use crate::{
-    ast::ExpressionId,
-    name_resolution::UnitSymbolId,
-    parser::{Expression, VariableKind},
+    ast::ExpressionId, name_resolution::UnitSymbolId, parser::VariableKind,
     type_checking::UnitTypeKind,
 };
 
@@ -76,17 +74,10 @@ impl Checker<'_> {
         &self,
         symbol: UnitSymbolId,
     ) -> Result<bool, OwnershipCheckingError> {
-        // Exclude the entire binding, not just a write that would leave stale evidence.
-        // Name resolution supplies identity; syntax only bounds unsupported loop writes.
-        for (_, expression) in self.parsed.ast().expressions().iter() {
-            if let Expression::Assignment { target, .. } = expression.payload()
-                && self.loop_spans.contains(self.parsed, expression.span())
-                && self.expression_root_symbol(*target)? == Some(symbol)
-            {
-                return Ok(true);
-            }
-        }
-        Ok(false)
+        self.loop_spans
+            .has_assigned_symbol(self.parsed, symbol, |target| {
+                self.expression_root_symbol(target)
+            })
     }
 
     pub(in super::super) fn replace_mutable_escape_witness(
@@ -95,7 +86,9 @@ impl Checker<'_> {
         value: ExpressionId,
         state: &mut State,
     ) {
-        if !state.escape_witnesses.mutable_locals.contains(&symbol) {
+        if !state.escape_witnesses.mutable_locals.contains(&symbol)
+            && !state.loop_escape_shadow.is_outer_candidate(symbol)
+        {
             return;
         }
         if state

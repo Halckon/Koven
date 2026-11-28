@@ -100,6 +100,16 @@ impl LoopEscapeShadow {
             (None, None) => {}
         }
     }
+    pub(in super::super) fn outer_candidates(&self) -> Option<&BTreeSet<UnitSymbolId>> {
+        self.0
+            .as_deref()
+            .filter(|shadow| shadow.depth == 0)
+            .map(|shadow| &shadow.candidates)
+    }
+    pub(in super::super) fn is_outer_candidate(&self, symbol: UnitSymbolId) -> bool {
+        self.outer_candidates()
+            .is_some_and(|candidates| candidates.contains(&symbol))
+    }
     pub(in super::super) fn retain(&mut self, keep: impl FnMut(&UnitSymbolId) -> bool) {
         if let Some(shadow) = &mut self.0 {
             shadow.retain(keep);

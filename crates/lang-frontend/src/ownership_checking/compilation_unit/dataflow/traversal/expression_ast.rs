@@ -155,26 +155,47 @@ impl Checker<'_> {
                 operator: crate::parser::BinaryOperator::Elvis,
                 right,
                 ..
-            } if escaping => {
+            } => {
                 let diagnostic_count = self.diagnostics.len();
                 let mut flows = self.check_expression(left, state, ExpressionUse::Read)?;
-                if let Some(next) = flows.next.take() {
+                if let Some(left_state) = flows.next.take() {
                     // A nullable left result can outlive its actual closure holder.
                     // Consume only diagnostic provenance; keep the original read and release.
-                    if self.diagnostics.len() == diagnostic_count
-                        && let Some(witnesses) = next
+                    if escaping
+                        && self.diagnostics.len() == diagnostic_count
+                        && let Some(witnesses) = left_state
                             .escape_witnesses
                             .results
                             .get(&self.unit_expression(left))
                             .cloned()
                     {
-                        self.reject_borrowed_closure_roots(left, &next, witnesses)?;
+                        self.reject_borrowed_closure_roots(left, &left_state, witnesses)?;
                     }
-                    flows.merge(self.check_escaping_expression(
-                        right,
-                        next,
-                        ExpressionUse::Read,
-                    )?);
+                    let only_null = matches!(
+                        self.typed
+                            .expression_type(self.unit_expression(left))
+                            .and_then(|ty| self.typed.types().get(ty)),
+                        Some(crate::type_checking::UnitTypeKind::Nullable(inner))
+                            if matches!(
+                                self.typed.types().get(*inner),
+                                Some(crate::type_checking::UnitTypeKind::Builtin(
+                                    crate::type_checking::BuiltinType::Nothing
+                                ))
+                            )
+                    );
+                    let right_flows = if escaping {
+                        self.check_escaping_expression(
+                            right,
+                            left_state.clone(),
+                            ExpressionUse::Read,
+                        )?
+                    } else {
+                        self.check_expression(right, left_state.clone(), ExpressionUse::Read)?
+                    };
+                    if !only_null {
+                        flows.next = Some(left_state);
+                    }
+                    flows.merge(right_flows);
                 }
                 Ok(flows)
             }
