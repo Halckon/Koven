@@ -37,6 +37,9 @@ subgraph Gdrafts_v044["v0.44（draft）"]
   S0339["S0339<br/>Unit 值实参与待决调用求值"]
   S0340["S0340<br/>名义类型 nullable retest view 的普通读取"]
 end
+S0515 --> S0516
+S0516 --> S0517
+S0517 --> S0518
 ARCH --> S0292
 ARCH --> S0333
 ARCH --> S0334
@@ -47,6 +50,7 @@ ARCH --> S0338
 ARCH --> S0339
 ARCH --> S0340
 ARCH --> S0341
+ARCH --> S0515
 ```
 
 ## 节点链接

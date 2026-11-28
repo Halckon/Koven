@@ -291,6 +291,19 @@ fn verify_destructuring_loop_state_invariant_len_6() {
         if cur.has_bindings {
             assert!(next.has_bindings);
         }
+        if events[i] == DestructuringEvent::EmptyComma {
+            assert!(next.has_bindings);
+            assert!(next.comma_already_reported_as_empty);
+            assert!(next.needs_binding);
+            assert!(!destructuring_exit_emits_missing_binding(
+                DestructuringExitKind::RightParen,
+                next
+            ));
+            assert!(!destructuring_exit_emits_missing_binding(
+                DestructuringExitKind::Boundary,
+                next
+            ));
+        }
         if next.comma_already_reported_as_empty {
             assert!(next.needs_binding);
             assert!(next.has_bindings);
@@ -299,14 +312,26 @@ fn verify_destructuring_loop_state_invariant_len_6() {
         i += 1;
     }
     assert_eq!(final_state, cur);
-    if final_state.comma_already_reported_as_empty {
-        assert!(!destructuring_exit_emits_missing_binding(
-            DestructuringExitKind::RightParen,
-            final_state
-        ));
-        assert!(!destructuring_exit_emits_missing_binding(
-            DestructuringExitKind::Boundary,
-            final_state
-        ));
-    }
+
+    // Explicitly check `val (x,, = ...` (Binding -> SeparatorComma -> EmptyComma):
+    // EmptyComma must set comma_already_reported_as_empty so neither exit re-emits.
+    let after_empty_comma = run_destructuring_loop(
+        DestructuringLoopState::new(),
+        &[
+            DestructuringEvent::Binding,
+            DestructuringEvent::SeparatorComma,
+            DestructuringEvent::EmptyComma,
+        ],
+    );
+    assert!(after_empty_comma.has_bindings);
+    assert!(after_empty_comma.comma_already_reported_as_empty);
+    assert!(after_empty_comma.needs_binding);
+    assert!(!destructuring_exit_emits_missing_binding(
+        DestructuringExitKind::RightParen,
+        after_empty_comma
+    ));
+    assert!(!destructuring_exit_emits_missing_binding(
+        DestructuringExitKind::Boundary,
+        after_empty_comma
+    ));
 }

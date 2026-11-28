@@ -40,17 +40,24 @@ pub(super) const fn is_recovery_callee_terminal_kind(kind: LexemeKind) -> bool {
     )
 }
 
-#[cfg(any(test, kani))]
-pub(super) fn has_recovery_callee_end_kinds(kinds: &[LexemeKind]) -> bool {
-    let mut index = kinds.len();
+pub(super) fn has_recovery_callee_end_in<T: Copy>(
+    items: &[T],
+    kind_of: impl Fn(T) -> LexemeKind,
+) -> bool {
+    let mut index = items.len();
     while index > 0 {
         index -= 1;
-        let kind = kinds[index];
+        let kind = kind_of(items[index]);
         if !is_recovery_callee_ignored_kind(kind) {
             return is_recovery_callee_terminal_kind(kind);
         }
     }
     false
+}
+
+#[cfg(any(test, kani))]
+pub(super) fn has_recovery_callee_end_kinds(kinds: &[LexemeKind]) -> bool {
+    has_recovery_callee_end_in(kinds, |kind| kind)
 }
 
 pub(super) const fn typed_call_suffix_continues_kind(
@@ -283,12 +290,7 @@ impl Parser<'_> {
     fn has_recovery_callee_end(&self, start: usize, angle: usize) -> bool {
         // Walk only the trivia and postfix markers immediately before this angle.
         // A marker without an operand in this recovery region proves no callee.
-        self.lexed.lexemes()[start..angle]
-            .iter()
-            .rev()
-            .map(|lexeme| lexeme.kind())
-            .find(|&kind| !is_recovery_callee_ignored_kind(kind))
-            .is_some_and(is_recovery_callee_terminal_kind)
+        has_recovery_callee_end_in(&self.lexed.lexemes()[start..angle], Lexeme::kind)
     }
 
     /// An explicit lambda header distinguishes a local brace from a caller's block.

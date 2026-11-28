@@ -123,7 +123,7 @@ theorem stepDestructuringLoop_preserves_invariant
       cases ev <;> cases hb <;> cases cr <;> cases nb <;>
         simp [stepDestructuringLoop, loopInvariant] at hInv ⊢
 
-/-- D5: Unbounded preservation: `runDestructuringLoop` preserves `loopInvariant` over arbitrary-length event sequences, preventing double missing-binding reports after an empty comma. -/
+/-- D5: Unbounded preservation: `runDestructuringLoop` preserves `loopInvariant` over arbitrary-length event sequences, and appending `.emptyComma` to any prefix sets `commaAlreadyReported = true` and suppresses missing-binding diagnostics on both `.rightParen` and `.boundary` exits. -/
 theorem runDestructuringLoop_preserves_invariant
     (events : List DestructuringEvent)
     (st : DestructuringLoopState)
@@ -131,19 +131,33 @@ theorem runDestructuringLoop_preserves_invariant
     loopInvariant (runDestructuringLoop st events) ∧
     ((runDestructuringLoop st events).commaAlreadyReported = true →
       exitEmitsMissingBinding .rightParen (runDestructuringLoop st events) = false ∧
-      exitEmitsMissingBinding .boundary (runDestructuringLoop st events) = false) := by
+      exitEmitsMissingBinding .boundary (runDestructuringLoop st events) = false) ∧
+    ((runDestructuringLoop st (events ++ [.emptyComma])).commaAlreadyReported = true ∧
+      exitEmitsMissingBinding .rightParen (runDestructuringLoop st (events ++ [.emptyComma])) = false ∧
+      exitEmitsMissingBinding .boundary (runDestructuringLoop st (events ++ [.emptyComma])) = false) := by
   have hPres : loopInvariant (runDestructuringLoop st events) := by
     induction events generalizing st with
     | nil => exact hInv
     | cons ev rest ih =>
         exact ih (stepDestructuringLoop st ev)
           (stepDestructuringLoop_preserves_invariant st ev hInv).2
-  refine ⟨hPres, ?_⟩
-  intro hCr
-  have ⟨hNb, hHb⟩ := hPres hCr
-  simp [exitEmitsMissingBinding, hCr, hHb]
+  have hAppend : ∀ (xs ys : List DestructuringEvent) (s : DestructuringLoopState),
+      runDestructuringLoop s (xs ++ ys) =
+        runDestructuringLoop (runDestructuringLoop s xs) ys := by
+    intro xs
+    induction xs with
+    | nil => intro _ _; rfl
+    | cons ev rest ih =>
+        intro ys s
+        exact ih ys (stepDestructuringLoop s ev)
+  refine ⟨hPres, ?_, ?_⟩
+  · intro hCr
+    have ⟨_, hHb⟩ := hPres hCr
+    simp [exitEmitsMissingBinding, hCr, hHb]
+  · rw [hAppend events [.emptyComma] st]
+    simp [runDestructuringLoop, stepDestructuringLoop, exitEmitsMissingBinding]
 
-/-- D6: Exact characterization of `initializerMissingDiagnostic`. -/
+/-- D6: Exact characterization of the boundary-position (`boundary && !startsPrimary`) `initializerMissingDiagnostic` guard (`destructuring.rs:487–502`; non-boundary non-expression tokens such as `val (x) = *` are emitted separately at `destructuring.rs:511–515`). -/
 theorem initializerMissingDiagnostic_spec
     (hasEquals boundary startsPrimary terminalLexerRoot isPoison : Bool) :
     initializerMissingDiagnostic hasEquals boundary startsPrimary terminalLexerRoot isPoison = true ↔

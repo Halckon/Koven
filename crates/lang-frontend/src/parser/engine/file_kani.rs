@@ -275,6 +275,33 @@ fn verify_declaration_modifier_step_invariants() {
         assert!(next.saw_receiver);
     }
 
+    let expected_next = match token {
+        ModifierToken::Visibility => {
+            if state.has_visibility || state.saw_override || state.saw_receiver {
+                state
+            } else {
+                ModifierScanState {
+                    has_visibility: true,
+                    ..state
+                }
+            }
+        }
+        ModifierToken::Override => ModifierScanState {
+            saw_override: true,
+            ..state
+        },
+        ModifierToken::Receiver => match policy {
+            ReceiverModifierPolicy::NotRecognized => state,
+            ReceiverModifierPolicy::Rejected | ReceiverModifierPolicy::Allowed => {
+                ModifierScanState {
+                    saw_receiver: true,
+                    ..state
+                }
+            }
+        },
+    };
+    assert_eq!(next, expected_next);
+
     assert_eq!(
         outcome == ModifierStepOutcome::Stop,
         token == ModifierToken::Receiver && policy == ReceiverModifierPolicy::NotRecognized
@@ -287,6 +314,22 @@ fn verify_declaration_modifier_step_invariants() {
         ModifierToken::Receiver => policy == ReceiverModifierPolicy::Allowed && !state.saw_receiver,
     };
     assert_eq!(outcome == ModifierStepOutcome::Accept, expected_accept);
+
+    // Explicitly check rejected Override followed by Visibility when override is disallowed.
+    let (after_override, override_outcome) = step_declaration_modifier(
+        false,
+        policy,
+        ModifierScanState::default(),
+        ModifierToken::Override,
+    );
+    assert_eq!(override_outcome, ModifierStepOutcome::Invalid);
+    assert!(after_override.saw_override);
+    assert!(!after_override.has_visibility);
+    let (after_visibility, visibility_outcome) =
+        step_declaration_modifier(false, policy, after_override, ModifierToken::Visibility);
+    assert_eq!(visibility_outcome, ModifierStepOutcome::Invalid);
+    assert!(after_visibility.saw_override);
+    assert!(!after_visibility.has_visibility);
 }
 
 #[kani::proof]
@@ -329,4 +372,14 @@ fn verify_declaration_modifier_run_len_6() {
         + usize::from(final_state.saw_override)
         + usize::from(final_state.saw_receiver);
     assert!(rank <= 3);
+
+    let (rej_state, rej_errors) = run_declaration_modifiers(
+        false,
+        policy,
+        ModifierScanState::default(),
+        &[ModifierToken::Override, ModifierToken::Visibility],
+    );
+    assert!(rej_state.saw_override);
+    assert!(!rej_state.has_visibility);
+    assert_eq!(rej_errors, 2);
 }

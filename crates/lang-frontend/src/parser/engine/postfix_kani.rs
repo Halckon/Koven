@@ -1,5 +1,5 @@
 use super::postfix::{
-    call_argument_boundary_decision, has_recovery_callee_end_kinds, is_postfix_start_kind,
+    call_argument_boundary_decision, has_recovery_callee_end_in, is_postfix_start_kind,
     is_recovery_callee_ignored_kind, is_recovery_callee_terminal_kind,
     trailing_lambda_attaches_after_call, typed_call_suffix_continues_kind,
 };
@@ -250,7 +250,36 @@ fn verify_call_argument_boundary_and_callee_disjointness() {
         expected_boundary
     );
 
-    assert!(!(is_recovery_callee_ignored_kind(kind) && is_recovery_callee_terminal_kind(kind)));
+    let ignored = is_recovery_callee_ignored_kind(kind);
+    let terminal = is_recovery_callee_terminal_kind(kind);
+    assert_eq!(ignored, expected_recovery_callee_ignored(kind));
+    assert_eq!(terminal, expected_recovery_callee_terminal(kind));
+    assert!(!(ignored && terminal));
+}
+
+const fn expected_recovery_callee_ignored(kind: LexemeKind) -> bool {
+    matches!(
+        kind,
+        LexemeKind::Trivia(_)
+            | LexemeKind::Token(TokenKind::Symbol(Symbol::Question | Symbol::BangBang))
+    )
+}
+
+const fn expected_recovery_callee_terminal(kind: LexemeKind) -> bool {
+    matches!(
+        kind,
+        LexemeKind::Token(
+            TokenKind::Identifier
+                | TokenKind::IntegerLiteral(_)
+                | TokenKind::FloatLiteral(_)
+                | TokenKind::CharLiteral
+                | TokenKind::StringEnd
+                | TokenKind::Keyword(
+                    Keyword::True | Keyword::False | Keyword::Null | Keyword::This
+                )
+                | TokenKind::Symbol(Symbol::RightParen | Symbol::RightBracket | Symbol::RightBrace)
+        )
+    )
 }
 
 #[kani::proof]
@@ -267,14 +296,14 @@ fn verify_recovery_callee_end_reverse_scan_len_6() {
     let len: usize = kani::any();
     kani::assume(len <= 6);
 
-    let actual = has_recovery_callee_end_kinds(&kinds[..len]);
+    let actual = has_recovery_callee_end_in(&kinds[..len], |kind| kind);
 
     let mut expected = false;
     let mut i = len;
     while i > 0 {
         i -= 1;
-        if !is_recovery_callee_ignored_kind(kinds[i]) {
-            expected = is_recovery_callee_terminal_kind(kinds[i]);
+        if !expected_recovery_callee_ignored(kinds[i]) {
+            expected = expected_recovery_callee_terminal(kinds[i]);
             break;
         }
     }

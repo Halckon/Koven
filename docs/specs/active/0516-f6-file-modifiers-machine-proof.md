@@ -7,6 +7,7 @@
 | 状态 | in-progress |
 | 所属 Phase | Phase 1 局部形式化验证（F6 延伸） |
 | 语言规范 | [Guide v0.47](../../guide/README.md) |
+| 前置 Spec | [SPEC-0515](0515-f6-postfix-boundary-machine-proof.md) |
 | 基线 | `main@f2ea2feb`（叠加于 `SPEC-0515`） |
 | 分支 | `feature/spec-0515-f6-postfix-boundary` |
 

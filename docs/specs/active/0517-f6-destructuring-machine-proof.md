@@ -7,6 +7,7 @@
 | 状态 | in-progress |
 | 所属 Phase | Phase 1 局部形式化验证（F6 延伸） |
 | 语言规范 | [Guide v0.47](../../guide/README.md) |
+| 前置 Spec | [SPEC-0516](0516-f6-file-modifiers-machine-proof.md) |
 | 基线 | `main@f2ea2feb`（叠加于 `SPEC-0515`–`0516`） |
 | 分支 | `feature/spec-0515-f6-postfix-boundary` |
 
@@ -26,7 +27,7 @@
      - `exitEmitsMissingBinding_spec`（D3：`RightParen` 与 `Boundary` 两类退出点缺失绑定诊断充要条件）
      - `stepDestructuringLoop_preserves_invariant`（D4：单步 `hasBindings` 单调性与 `commaAlreadyReported → needsBinding ∧ hasBindings` 不变式保持）
      - `runDestructuringLoop_preserves_invariant`（D5：任意长度事件流保持该不变式，保证空逗号后退出 `)` 或其他边界永不重复报告缺失绑定）
-     - `initializerMissingDiagnostic_spec`（D6：初始化器缺失诊断五元守卫充要条件）
+     - `initializerMissingDiagnostic_spec`（D6：边界处 `boundary && !starts_primary` 缺失初始化器诊断的五元守卫充要条件；非边界非法首记号路径如 `val (x) = /` 在 `destructuring.rs:511–515` 另行发报，不在本守卫范围内）
 3. **轨道 2（Kani 零堆分配生产 Rust 符号检验，`validated (bounded Rust)`）**：
    - [destructuring_kani.rs](../../../crates/lang-frontend/src/parser/engine/destructuring_kani.rs)（`#[cfg(kani)]` 隔离，零堆分配）提供 3 条 harness：
      - `verify_destructuring_start_predicates`：直接调用生产 `is_local_destructuring_start_kinds` 与 `is_const_local_destructuring_start_kinds`，通过单源自动计数宏覆盖全部生产 `LexemeKind` / `Keyword` 变体。
