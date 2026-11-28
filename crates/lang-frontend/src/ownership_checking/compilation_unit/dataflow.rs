@@ -153,7 +153,7 @@ pub(super) struct Analysis {
     pub(super) borrow_forward_transports: Vec<super::UnitBorrowForwardTransportFact>,
     pub(super) loan_action_observations: Vec<super::UnitLoanActionObservation>,
     pub(super) direct_call_loan_ends: Vec<super::UnitDirectCallLoanEndFact>,
-    pub(super) class_result_argument_unwinds: Vec<super::UnitDirectCallLoanEndFact>,
+    pub(super) temporary_argument_unwinds: drop_planner::TemporaryArgumentUnwinds,
     pub(super) string_clone_loan_ends: Vec<crate::ownership_checking::UnitStringCloneLoanEndFact>,
     pub(super) loans: Vec<UnitLoanFact>,
     pub(super) borrow_results: crate::ownership_checking::borrow_result::UnitBorrowResults,
@@ -273,7 +273,7 @@ pub(super) fn analyze(
     let mut borrow_forward_transports = Vec::new();
     let mut loan_action_observations = Vec::new();
     let mut direct_call_loan_ends = Vec::new();
-    let mut class_result_argument_unwinds = Vec::new();
+    let mut temporary_argument_unwinds = drop_planner::TemporaryArgumentUnwinds::default();
     let mut string_clone_loan_ends = Vec::new();
     let mut exclusive_call_prefix_ends = Vec::new();
     let mut receiver_call_prefix_ends = Vec::new();
@@ -430,7 +430,7 @@ pub(super) fn analyze(
         owner_observations.extend(drop_analysis.owner_observations);
         loan_action_observations.extend(drop_analysis.loan_action_observations);
         direct_call_loan_ends.extend(drop_analysis.direct_call_loan_ends);
-        class_result_argument_unwinds.extend(drop_analysis.class_result_argument_unwinds);
+        temporary_argument_unwinds.extend(drop_analysis.temporary_argument_unwinds);
         string_clone_loan_ends.extend(drop_analysis.string_clone_loan_ends);
         borrow_call_handoffs.extend(drop_analysis.borrow_call_handoffs);
         borrow_call_transports.extend(drop_analysis.borrow_call_transports);
@@ -516,7 +516,7 @@ pub(super) fn analyze(
         borrow_return_origins.clear();
         loan_action_observations.clear();
         direct_call_loan_ends.clear();
-        class_result_argument_unwinds.clear();
+        temporary_argument_unwinds = Default::default();
         borrow_call_handoffs.clear();
         borrow_call_prefix_ends.clear();
         borrow_forward_transports.clear();
@@ -593,7 +593,7 @@ pub(super) fn analyze(
         owner_observations,
         loan_action_observations,
         direct_call_loan_ends,
-        class_result_argument_unwinds,
+        temporary_argument_unwinds,
         string_clone_loan_ends,
         borrow_call_handoffs,
         borrow_call_transports,

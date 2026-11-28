@@ -72,7 +72,7 @@ pub(super) fn plan_with_observations(
             ..Analysis::default()
         });
     }
-    let (direct_call_loan_ends, class_result_argument_unwinds) = planner.direct_call_unwinds();
+    let (direct_call_loan_ends, temporary_argument_unwinds) = planner.direct_call_unwinds();
     let borrow_call_prefix_ends = planner.borrow_call_prefix_ends();
     let exclusive_call_prefix_ends = planner.exclusive_call_prefix_ends();
     let receiver_call_prefix_ends = planner.receiver_call_prefix_ends();
@@ -129,7 +129,7 @@ pub(super) fn plan_with_observations(
             .iteration_actions
             .finish(checker.source_unit, checker.parsed.source_id()),
         direct_call_loan_ends,
-        class_result_argument_unwinds,
+        temporary_argument_unwinds,
         string_clone_loan_ends: planner.string_clone_loan_ends,
         borrow_call_prefix_ends,
         borrow_call_handoffs,

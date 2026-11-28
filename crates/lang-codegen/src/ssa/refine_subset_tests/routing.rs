@@ -1,6 +1,6 @@
 //! Shared normal-Unit routing observation; no lowering mode override.
 use super::*;
-use crate::ssa::model::TerminatorKind;
+use crate::ssa::model::{EntityId, Origin, TerminatorKind};
 
 fn lower(
     sources: &SourceMap,
@@ -506,4 +506,175 @@ fun f(): Unit {
         routed.is_empty(),
         "one array observer cannot admit a sibling loop"
     );
+}
+
+#[test]
+fn object_call_break_retires_the_argument_and_receiver_without_dispatch() {
+    for body in [
+        "loop { Gate.cond(7, break) }",
+        "loop { while (Gate.cond(7, break)) {} }",
+    ] {
+        let text = format!(
+            "package p\nobject Gate {{ fun cond(value: Int, stop: Boolean): Boolean = stop }}\nfun entry(): Unit {{ {body} }}"
+        );
+        let mut sources = SourceMap::new();
+        let (source, file) = parsed(&mut sources, "p/main.ko", &text);
+        for input in [
+            SourceUnitInput::new("root", "p/main.ko", source, &file),
+            SourceUnitInput::memory_document(source, &file),
+        ] {
+            let (program, routed) = lower(&sources, &[input], "entry");
+            let program = program.expect("object call prefix must lower");
+            crate::ssa::verify::verify_program(&program).unwrap();
+            let entry = program.modules[0]
+                .functions
+                .iter()
+                .find(|function| function.name.starts_with("koven.p.entry.d"))
+                .unwrap();
+            assert!(routed.contains(&entry.name));
+            assert!(
+                entry.instructions.iter().all(|instruction| !matches!(
+                    instruction.operation,
+                    Operation::DirectCall { .. }
+                )),
+                "break prevents dispatch"
+            );
+            let loan_at = |text| {
+                let mut matches = entry.instructions.iter().filter(|instruction| {
+                    matches!(instruction.operation, Operation::BorrowBegin { .. })
+                        && matches!(instruction.origin, Origin::Source(span)
+                            if sources.slice(span) == Ok(text))
+                });
+                let instruction = matches.next().expect("actual prefix loan");
+                assert!(matches.next().is_none());
+                let [EntityId::Loan(loan)] = instruction.results.as_slice() else {
+                    panic!("the prefix borrows exactly once at {text}");
+                };
+                *loan
+            };
+            let receiver = loan_at("Gate");
+            let argument = loan_at("7");
+            assert_ne!(receiver, argument);
+            // Straight-line SSA folding may absorb the break branch. Its
+            // cleanup instructions retain their source origin and block order.
+            let ends = entry
+                .instructions
+                .iter()
+                .filter(|instruction| {
+                    matches!(instruction.operation, Operation::BorrowEnd { .. })
+                        && matches!(instruction.origin, Origin::Source(span)
+                            if sources.slice(span) == Ok("break"))
+                })
+                .collect::<Vec<_>>();
+            let [first, second] = ends.as_slice() else {
+                panic!("the break ends both loans exactly once");
+            };
+            assert_eq!(first.block, second.block);
+            assert_eq!(first.operation, Operation::BorrowEnd { loan: argument });
+            assert_eq!(second.operation, Operation::BorrowEnd { loan: receiver });
+            let exit = &entry.blocks[first.block.index()];
+            assert!(
+                exit.instructions
+                    .iter()
+                    .position(|id| *id == first.id)
+                    .unwrap()
+                    < exit
+                        .instructions
+                        .iter()
+                        .position(|id| *id == second.id)
+                        .unwrap(),
+                "the break ends the argument loan before the receiver loan"
+            );
+        }
+    }
+}
+
+#[test]
+fn singleton_call_exit_drops_the_completed_temporary_before_the_scope() {
+    let source = r#"
+class Marker(val label: String) { deinit() { println(label) } }
+fun prefix(): Marker { println("prefix"); return Marker("drop-prefix") }
+fun suffix(): Int { println("suffix"); return 0 }
+object Gate {
+    fun cond(MODEvalue: Marker, stop: Boolean, last: Int): Boolean {
+        println("dispatch")
+        return stop
+    }
+}
+fun returning(): Unit {
+    val frame = Marker("drop-return-frame")
+    Gate.cond(prefix(), return, suffix())
+}
+fun main(): Unit {
+    loop {
+        val frame = Marker("drop-break-frame")
+        while (Gate.cond(prefix(), break, suffix())) { println("body") }
+    }
+    var again = true
+    while (again) {
+        again = false
+        val frame = Marker("drop-continue-frame")
+        Gate.cond(prefix(), continue, suffix())
+    }
+    returning()
+    Gate.cond(prefix(), false, suffix())
+}"#;
+    for mode in ["own ", ""] {
+        let source = source.replace("MODE", mode);
+        let run = crate::native_tests::emit_link_and_run("object-call-exits.ko", &source, "main");
+        crate::native_tests::boxed_enum_tests::assert_success(
+            &run,
+            b"prefix\ndrop-prefix\ndrop-break-frame\nprefix\ndrop-prefix\ndrop-continue-frame\nprefix\ndrop-prefix\ndrop-return-frame\nprefix\nsuffix\ndispatch\ndrop-prefix\n",
+        );
+    }
+}
+
+#[test]
+fn singleton_mixed_abort_keeps_the_existing_receiver_boundary() {
+    let (result, routed) = route(
+        r#"
+object Gate { fun choose(first: Int, second: Int): Unit {} }
+fun f(stop: Boolean): Unit { Gate.choose(7, if (stop) error("stopped") else 0) }
+"#,
+    );
+    assert!(!routed);
+    assert!(matches!(
+        result,
+        Err(LoweringError {
+            kind: crate::ssa::LoweringErrorKind::UnsupportedNode,
+            ..
+        })
+    ));
+}
+
+#[test]
+fn singleton_argument_return_keeps_the_projected_borrow_result_boundary() {
+    let (result, routed) = routes_from_entry(
+        r#"
+class Packet(val text: String)
+object Gate { fun inspect(prefix: Int, stop: Int): Unit {} }
+fun choose(source: Packet, stop: Boolean): borrow String from source {
+    Gate.inspect(7, if (stop) return source.text else 0)
+    return source.text
+}
+fun entry(): Unit {
+    val source = Packet("held".clone())
+    borrow val value = choose(source, true)
+    println(value)
+}
+"#,
+        "entry",
+    );
+    assert!(
+        !routed
+            .iter()
+            .any(|name| name.starts_with("koven.p.choose.d"))
+    );
+    assert!(matches!(
+        result,
+        Err(LoweringError {
+            kind: crate::ssa::LoweringErrorKind::UnsupportedNode,
+            ..
+        })
+    ));
 }

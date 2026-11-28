@@ -137,11 +137,27 @@ pub(super) struct Analysis {
         Vec<crate::ownership_checking::UnitBorrowForwardTransportFact>,
     pub(super) loan_action_observations: Vec<crate::ownership_checking::UnitLoanActionObservation>,
     pub(super) direct_call_loan_ends: Vec<crate::ownership_checking::UnitDirectCallLoanEndFact>,
-    pub(super) class_result_argument_unwinds: Vec<crate::ownership_checking::UnitDirectCallLoanEndFact>,
+    pub(super) temporary_argument_unwinds: TemporaryArgumentUnwinds,
     pub(super) string_clone_loan_ends: Vec<crate::ownership_checking::UnitStringCloneLoanEndFact>,
     pub(super) drops: Vec<UnitDropFact>,
     pub(super) conditional_receiver_drops: Vec<UnitConditionalReceiverDropFact>,
     pub(super) deferred: Vec<UnitOwnershipDeferredFact>,
+}
+
+#[derive(Default, Debug, PartialEq, Eq)]
+pub(in crate::ownership_checking::compilation_unit) struct TemporaryArgumentUnwinds {
+    pub(in crate::ownership_checking::compilation_unit) class_results:
+        Vec<crate::ownership_checking::UnitDirectCallLoanEndFact>,
+    pub(in crate::ownership_checking::compilation_unit) singleton_temporaries:
+        Vec<crate::ownership_checking::UnitDirectCallLoanEndFact>,
+}
+
+impl TemporaryArgumentUnwinds {
+    pub(super) fn extend(&mut self, other: Self) {
+        self.class_results.extend(other.class_results);
+        self.singleton_temporaries
+            .extend(other.singleton_temporaries);
+    }
 }
 
 pub(super) fn plan(checker: &Checker<'_>) -> Result<Analysis, OwnershipCheckingError> {

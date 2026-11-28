@@ -1,4 +1,4 @@
-//! 同步借用结果的双 Unit 合同及仍独立比较的 Single nullable 对照。
+//! 同步借用结果的双 Unit 合同及旧入口独有的诊断见证。
 use lang_frontend::{
     lexer::lex,
     name_resolution::{
@@ -6,8 +6,7 @@ use lang_frontend::{
         index_compilation_unit, resolve_compilation_unit_names, resolve_names,
     },
     ownership_checking::{
-        CompilationUnitOwnership, OwnershipCheckedFile, check_compilation_unit_ownership,
-        check_ownership,
+        CompilationUnitOwnership, check_compilation_unit_ownership, check_ownership,
     },
     parser::{ParsedFile, parse_file},
     source::SourceMap,
@@ -32,58 +31,6 @@ mod owned_auxiliary;
 #[path = "ownership_nested_borrow_arguments/parent_transport.rs"]
 mod parent_transport;
 
-struct Checked {
-    single: OwnershipCheckedFile,
-    unit: CompilationUnitOwnership,
-}
-
-fn checked(text: &str, rooted: bool) -> Checked {
-    let mut sources = SourceMap::new();
-    let source = sources.add_source("nested_borrow.ko", text).unwrap();
-    let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
-    assert!(
-        parsed.diagnostics().is_empty(),
-        "{:?}",
-        parsed.diagnostics()
-    );
-    let (environment, types) = standard_environments();
-    let names = resolve_names(&sources, &parsed, &environment).unwrap();
-    assert!(names.diagnostics().is_empty(), "{:?}", names.diagnostics());
-    let typed = check_types(&sources, &parsed, &names, &types).unwrap();
-    assert!(typed.diagnostics().is_empty(), "{:?}", typed.diagnostics());
-    let single = check_ownership(&sources, &parsed, &names, &typed).unwrap();
-    let inputs = [if rooted {
-        SourceUnitInput::new("root", "nested_borrow.ko", source, &parsed)
-    } else {
-        SourceUnitInput::memory_document(source, &parsed)
-    }];
-    let index = index_compilation_unit(&sources, &inputs).unwrap();
-    let [indexed] = index.source_units() else {
-        panic!("one original source")
-    };
-    assert_eq!(indexed.source_id(), source);
-    match (rooted, indexed.key()) {
-        (false, lang_frontend::name_resolution::SourceUnitKey::MemoryDocument) => {}
-        (true, lang_frontend::name_resolution::SourceUnitKey::Rooted { root, logical_path }) => {
-            assert_eq!(root.as_str(), "root");
-            assert_eq!(logical_path.as_str(), "nested_borrow.ko");
-        }
-        _ => panic!("requested entry identity"),
-    }
-    let names = resolve_compilation_unit_names(&sources, &inputs, &index, &environment)
-        .unwrap()
-        .validate()
-        .unwrap();
-    let typed = check_compilation_unit_types(&sources, &inputs, &names, &types)
-        .unwrap()
-        .validate()
-        .unwrap();
-    let unit = check_compilation_unit_ownership(&sources, &inputs, &names, &types, &typed).unwrap();
-    Checked { single, unit }
-}
-
-// Unit-only cases use the original source in both layouts. Other positive cases
-// retain independent Single event checks until Unit equivalents are proved.
 struct UnitChecked {
     sources: SourceMap,
     parsed: ParsedFile,
@@ -739,60 +686,116 @@ fn nullable_parent_conflict_reports_the_unit_selected_inout_parameter() {
 
 #[test]
 fn nullable_copy_preserves_a_live_parent_and_ends_a_last_use_source() {
-    // Keep the historical Single/Unit test identity for the L0135 rejection.
-    // The independent source-last-use positive now has its own Unit fixture.
-
-    for rooted in [false, true] {
-        let Checked { single, unit, .. } = checked(NULLABLE_PARENT_OVERLAP, rooted);
-        for diagnostics in [single.diagnostics(), unit.diagnostics()] {
-            let [diagnostic] = diagnostics else {
-                panic!("{diagnostics:?}")
-            };
-            assert_eq!(diagnostic.code().to_string(), "L0135");
-        }
-    }
+    // The legacy diagnostic has no selected-parameter label. Unit checks the
+    // same input independently with its full two-label diagnostic above.
+    let mut sources = SourceMap::new();
+    let source = sources
+        .add_source("nested_borrow.ko", NULLABLE_PARENT_OVERLAP)
+        .unwrap();
+    let parsed = parse_file(&sources, &lex(&sources, source).unwrap()).unwrap();
+    assert!(parsed.diagnostics().is_empty());
+    let (environment, types) = standard_environments();
+    let names = resolve_names(&sources, &parsed, &environment).unwrap();
+    assert!(names.diagnostics().is_empty());
+    let typed = check_types(&sources, &parsed, &names, &types).unwrap();
+    assert!(typed.diagnostics().is_empty());
+    let single = check_ownership(&sources, &parsed, &names, &typed).unwrap();
+    let [diagnostic] = single.diagnostics() else {
+        panic!("{:?}", single.diagnostics());
+    };
+    assert_eq!(diagnostic.code().to_string(), "L0135");
+    assert_eq!(sources.slice(diagnostic.primary_span()), Ok("&"));
+    let [lang_frontend::diagnostic::DiagnosticDetail::Label(conflict)] = diagnostic.details()
+    else {
+        panic!("only the legacy conflict label: {:?}", diagnostic.details());
+    };
+    assert_eq!(conflict.message(), "conflicting loan starts here");
+    assert_eq!(sources.slice(conflict.span()), Ok("n"));
 }
 
 #[test]
 fn nullable_copy_protects_the_source_from_recursive_call_return_cleanup() {
-    use lang_frontend::ownership_checking::{
-        DropPoint, DropTarget, LoanTarget, UnitDropPoint, UnitDropTarget, UnitLoanTarget,
+    use lang_frontend::{
+        ownership_checking::{
+            ClosureCaptureEffect, ClosureCaptureMode, LoanKind, UnitClosureCaptureSource,
+            UnitDropPoint, UnitDropTarget, UnitLoanTarget,
+        },
+        type_checking::UnitExpressionId,
     };
-    let text = "class Boxed(val value: Int)\nfun view(source: Boxed, aux: () -> Int): borrow Int from source = source.value\nfun observe(value: Int?): Unit {}\nfun run() { val boxed = Boxed(7); val aux: () -> Int = { boxed.value }; observe(view(boxed, aux)) }";
-    for rooted in [false, true] {
-        let Checked { single, unit, .. } = checked(text, rooted);
-        assert!(
-            single.diagnostics().is_empty(),
-            "{:?}",
-            single.diagnostics()
-        );
-        assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
-        let [usage] = single.borrow_results().call_uses() else {
-            panic!("expected one copy")
-        };
-        let LoanTarget::Place(place) = usage.origin() else {
-            panic!("expected a source place")
-        };
-        let points: Vec<_> = single
-            .drops()
-            .iter()
-            .filter(|fact| fact.target() == DropTarget::Named(place.root()))
-            .map(|fact| fact.point())
-            .collect();
-        assert_eq!(points, [DropPoint::AfterExpression(usage.argument())]);
 
+    let text = "class Boxed(val value: Int)\nfun view(source: Boxed, aux: () -> Int): borrow Int from source = source.value\nfun observe(value: Int?): Unit {}\nfun run() { val boxed = Boxed(7); val aux: () -> Int = { boxed.value }; observe(view(boxed, aux)) }";
+    let checked = unit_checked(text);
+    for ((unit, source_unit), names) in [checked.memory, checked.rooted]
+        .into_iter()
+        .zip(checked.source_units)
+        .zip(&checked.unit_names)
+    {
+        assert!(unit.diagnostics().is_empty(), "{:?}", unit.diagnostics());
+        assert!(unit.deferred().is_empty(), "{:?}", unit.deferred());
+        let spell = |id: UnitExpressionId| {
+            assert_eq!(id.source_unit(), source_unit);
+            let node = checked
+                .parsed
+                .ast()
+                .expressions()
+                .get(id.expression())
+                .unwrap();
+            checked.sources.slice(node.span()).unwrap()
+        };
         let [usage] = unit.borrow_results().call_uses() else {
-            panic!("expected one copy")
+            panic!("one result copy");
         };
-        let UnitLoanTarget::Place(place) = usage.origin() else {
-            panic!("expected a source place")
+        let inner = usage.expression();
+        assert_eq!(usage.argument(), inner);
+        assert_eq!(spell(inner), "view(boxed, aux)");
+        assert_eq!(spell(usage.call()), "observe(view(boxed, aux))");
+        let UnitLoanTarget::Place(lender) = usage.origin() else {
+            panic!("original named source place");
         };
-        let points: Vec<_> = unit
-            .drops()
+        let lender_loan = usage.source_loan();
+        assert_eq!(lender_loan.call(), inner);
+        assert_eq!(spell(lender_loan.argument()), "boxed");
+        let mut outer_loans = unit
+            .loans()
             .iter()
-            .filter(|fact| fact.target() == UnitDropTarget::Named(place.root()))
-            .map(|fact| fact.point())
-            .collect();
-        assert_eq!(points, [UnitDropPoint::AfterExpression(usage.argument())]);
+            .filter(|loan| loan.call() == usage.call());
+        let outer_loan = outer_loans
+            .next()
+            .expect("loan of the copied nullable argument");
+        assert!(outer_loans.next().is_none());
+        assert_eq!(outer_loan.kind(), LoanKind::Shared);
+        assert_eq!(outer_loan.argument(), inner);
+        assert_eq!(outer_loan.target(), &UnitLoanTarget::Temporary(inner));
+
+        let [capture] = unit.captures() else {
+            panic!("one auxiliary capture");
+        };
+        assert_eq!(spell(capture.lambda()), "{ boxed.value }");
+        assert_eq!(
+            capture.source(),
+            UnitClosureCaptureSource::Symbol(lender.root())
+        );
+        assert_eq!(capture.mode(), ClosureCaptureMode::Shared);
+        assert_eq!(capture.effect(), ClosureCaptureEffect::Borrow);
+        assert_eq!(capture.borrow_kind(), Some(LoanKind::Shared));
+
+        let [aux, boxed] = unit.drops() else {
+            panic!("one drop for each owner: {:?}", unit.drops());
+        };
+        let UnitDropTarget::Named(auxiliary) = aux.target() else {
+            panic!("named closure owner");
+        };
+        assert_ne!(auxiliary, lender.root());
+        assert_eq!(auxiliary.source_unit(), source_unit);
+        let source_names = &names.names().source_units()[source_unit.index()];
+        let aux_symbol = &source_names.resolution().symbols()[auxiliary.symbol().index()];
+        assert_eq!(checked.sources.slice(aux_symbol.span()), Ok("aux"));
+        assert_eq!(aux.point(), UnitDropPoint::CallReturn(inner));
+        assert_eq!(boxed.target(), UnitDropTarget::Named(lender.root()));
+        assert_eq!(boxed.point(), UnitDropPoint::AfterExpression(inner));
+        assert_eq!(usage.end_point(), boxed.point());
+        assert!(!aux.is_conditional_temporary());
+        assert!(!boxed.is_conditional_temporary());
+        assert!(unit.validate().is_ok());
     }
 }
