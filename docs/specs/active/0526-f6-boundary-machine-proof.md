@@ -18,7 +18,7 @@
 ## 1. 交付合同
 
 1. **生产零分配内核共享与零行为变化**：
-   - 在 [boundary.rs](../../../crates/lang-frontend/src/parser/engine/boundary.rs) 中将 `NameContext::is_stop` 委托给共享纯函数 `NameContext::is_stop_kind(self, kind: LexemeKind)`，将 `DeclarationStops::contains_hard`/`contains_soft` 委托给 `contains_hard_kind`/`contains_soft_kind`，并将 `declaration_modifier_start` 委托给纯栈值函数 `declaration_modifier_start_from_positions`（零堆分配、零迭代分配），解析行为与公开 Rust API 零变化。
+   - 在 [boundary.rs](../../../crates/lang-frontend/src/parser/engine/boundary.rs) 中将 `NameContext::is_stop` 委托给共享纯函数 `NameContext::is_stop_kind(self, kind: LexemeKind)`，将 `DeclarationStops::contains_hard`/`contains_soft` 委托给 `contains_hard_kind`/`contains_soft_kind`，并将 `declaration_modifier_start` 改用纯栈值辅助函数 `opt_min_usize`（零堆分配、零迭代分配），解析行为与公开 Rust API 零变化。
    - 在 [engine.rs](../../../crates/lang-frontend/src/parser/engine.rs) 中挂载 `#[cfg(kani)] mod boundary_kani;` 与 `#[cfg(test)] mod boundary_tests;`，并在 [boundary_tests.rs](../../../crates/lang-frontend/src/parser/engine/boundary_tests.rs) 补充 4 个单元测试（含生产入口 `parse_declaration` 对修饰符顺序与 `NameContext` 缺失名称恢复的端到端验证）。
 2. **轨道 1（Lean 4 模型定理：1 条 `unbounded` + 4 条 `complete finite domain`）**：
    - [formal/parser/f6_boundary/F6Boundary.lean](../../../formal/parser/f6_boundary/F6Boundary.lean)（零 Mathlib，固定 `leanprover/lean4:v4.14.0`）证明 5 条定理（B1–B5）：
@@ -39,6 +39,6 @@
 
 ## 2. 检查点
 
-- [x] `F6Boundary.lean` 零告警构建与 5 条定理核心公理白名单本机通过（仅核心公理）
+- [x] `F6Boundary.lean` 零告警构建与 5 条定理核心公理白名单本机通过（仅依赖 `propext`、`Classical.choice`、`Quot.sound`）
 - [x] `verify_boundary_starter_hierarchy_and_disjointness_exhaustive`、`verify_name_context_stop_and_recovery_alignment_exhaustive` 与 `verify_modifier_start_min_and_angle_comma_and_supertype_recovery` 本机 Kani 0.68.0 实跑通过（3/3 harnesses, 0 failures），`boundary_tests`（4/4）单测、`cargo fmt --check` 与 `cargo clippy --all-targets` 通过
 - [ ] 接入 `parser-formal-f6.yml`（26 片 / 162 定理 / 71 harness），待 PR 远端主 CI 与 F6 双轨作业实跑验收后归档

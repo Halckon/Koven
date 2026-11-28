@@ -439,11 +439,13 @@ impl Parser<'_> {
                         }
                         Statement::LambdaBody { elements } => {
                             let len = elements.len();
+                            let last = len.saturating_sub(1);
                             for (index, element) in elements.into_iter().enumerate().rev() {
-                                let is_expression_stmt = matches!(
-                                    self.ast.statements().get(element)?.payload(),
-                                    Statement::Expression { .. }
-                                );
+                                let is_expression_stmt = index == last
+                                    && matches!(
+                                        self.ast.statements().get(element)?.payload(),
+                                        Statement::Expression { .. }
+                                    );
                                 work.push(ContextWork::Statement {
                                     id: element,
                                     expression_is_statement: lambda_body_element_is_statement(
@@ -504,11 +506,14 @@ impl Parser<'_> {
                     match statement {
                         Statement::ControlBody { elements } => {
                             let len = elements.len();
+                            let last = len.saturating_sub(1);
                             for (index, element) in elements.into_iter().enumerate().rev() {
-                                let is_expression_stmt = matches!(
-                                    self.ast.statements().get(element)?.payload(),
-                                    Statement::Expression { .. }
-                                );
+                                let is_expression_stmt = value_required
+                                    && index == last
+                                    && matches!(
+                                        self.ast.statements().get(element)?.payload(),
+                                        Statement::Expression { .. }
+                                    );
                                 work.push(ContextWork::Statement {
                                     id: element,
                                     expression_is_statement: control_body_element_is_statement(

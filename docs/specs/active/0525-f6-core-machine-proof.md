@@ -39,6 +39,6 @@
 
 ## 2. 检查点
 
-- [x] `F6Core.lean` 零告警构建与 5 条定理核心公理白名单本机通过（仅核心公理）
+- [x] `F6Core.lean` 零告警构建与 5 条定理核心公理白名单本机通过（仅依赖 `propext`）
 - [x] `verify_recursion_depth_and_body_context_propagation`、`verify_previous_significant_end_len_6` 与 `verify_if_else_tail_and_recovery_boundary_guards_exhaustive` 本机 Kani 0.68.0 实跑通过（3/3 harnesses, 0 failures），`core_tests`（4/4）单测、`cargo fmt --check` 与 `cargo clippy --all-targets` 通过
 - [ ] 接入 `parser-formal-f6.yml`（25 片 / 157 定理 / 68 harness），待 PR 远端主 CI 与 F6 双轨作业实跑验收后归档
