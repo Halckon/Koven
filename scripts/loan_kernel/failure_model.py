@@ -981,6 +981,135 @@ LOCK_CHANNEL_POLICIES = {
 }
 
 
+# ---- 模型 G：OD6 FD0 停机阻塞边状态枚举（拆分锁中毒、诊断输出阻塞与停机信号起点；仅枚举状态，不证明真实墙钟时限）
+
+FD0_SHUTDOWN_START_OUTPUT_STALLED = "检查点①前卡滞（输出阻塞）：停机信号已到达，但主循环 recordCompleted(Err) 诊断输出阻塞，无法推进至置位 shutdownFlag"
+FD0_SHUTDOWN_START_LOCK_STALLED = "检查点①前卡滞（锁等待）：停机信号已到达，但主循环 recordCompleted(Err) 等待锁阻塞，无法推进至置位 shutdownFlag"
+FD0_JOIN_ALL_STALLED = "检查点②/③前卡滞：工作线程 withLock 遇活持有者无界阻塞，joinAll() 无法推进返回"
+FD0_POST_JOIN_OUTPUT_STALLED = "检查点④前卡滞（输出阻塞）：joinAll() 已返回，但停机后 recordCompleted(Err) 诊断输出阻塞导致服务函数不返回"
+FD0_POST_JOIN_LOCK_STALLED = "检查点④前卡滞（锁等待）：joinAll() 已返回，但停机后 recordCompleted(Err) 等待锁阻塞导致服务函数不返回"
+FD0_ALL_CHECKPOINTS_BOUNDED = "四项检查点状态均可达（①停机信号到达→置位停机→②工作线程排空→③joinAll返回→④服务函数返回；仅枚举离散状态，不证明真实墙钟时限）"
+
+
+@dataclass(frozen=True)
+class Fd0ShutdownPolicy:
+    poison_on_holder_crash: bool  # 锁持有者异常终止时是否标中毒（LockError.Poisoned）
+    worker_withlock_bounded: bool  # 阻塞边 1：handleConnection 中 withLock 遇活持有者是否可推进退出
+    main_loop_lock_bounded: bool  # 阻塞边 2a：主循环 recordCompleted(Err) 内 withLock 是否可推进
+    main_loop_output_bounded: bool  # 阻塞边 2b：主循环 recordCompleted(Err) 内诊断输出（println）是否可推进（独立于锁中毒）
+    post_join_lock_bounded: bool  # 阻塞边 3a：joinAll() 后 recordCompleted(Err) 内 withLock 是否可推进
+    post_join_output_bounded: bool  # 阻塞边 3b：joinAll() 后 recordCompleted(Err) 内诊断输出（println）是否可推进（独立于锁中毒）
+
+
+def fd0_bounded_shutdown_model(policy):
+    """状态：(锁持有者场景, 锁状态, 诊断输出状态, 停机信号状态, 主循环阶段, 工作线程状态)。
+
+    对照 docs/proposals/fd0-supervision-boundary-litmus.md §5.1–§5.2（OD6 共识）：
+    1. 独立拆分三条正交轴：锁状态（持有者崩溃标中毒 vs 活持有者占锁）、诊断输出阻塞（独立于锁中毒）、停机信号到达起点；
+    2. 逐项枚举主循环 recordCompleted(Err)（输出/锁）、工作线程 handleConnection.withLock 与停机后 recordCompleted(Err)（输出/锁）的卡滞状态；
+    3. 边界声明：本模型仅枚举离散状态转移与可达性，不证明真实运行时的墙钟时限（后者须由 IO3 / FD1 / FD3 运行时实测计时检验）。
+    """
+    initial = ("choose", "held", "ready", "pending", "loop_record_out", "running")
+
+    def events(state):
+        holder, lock, output, signal, main_phase, worker = state
+        if holder == "choose":
+            crashed_lock = "poisoned" if policy.poison_on_holder_crash else "locked_dead"
+            yield "场景:锁持有者异常终止+输出正常", ("crashed", crashed_lock, "ready", signal, main_phase, worker)
+            yield "场景:锁持有者异常终止+输出阻塞", ("crashed", crashed_lock, "blocked", signal, main_phase, worker)
+            yield "场景:活持有者占锁+输出正常", ("live_stalled", "held", "ready", signal, main_phase, worker)
+            yield "场景:活持有者占锁+输出阻塞", ("live_stalled", "held", "blocked", signal, main_phase, worker)
+            return
+        if signal == "pending":
+            yield "停机信号到达(检查点①起点)", (holder, lock, output, "arrived", main_phase, worker)
+        if worker == "running":
+            yield "工作线程:进入 handleConnection.withLock", (holder, lock, output, signal, main_phase, "waiting_lock")
+        elif worker == "waiting_lock":
+            if lock == "poisoned":
+                yield "工作线程:收到 LockError.Poisoned 并退出(检查点②)", (holder, lock, output, signal, main_phase, "done")
+            elif policy.worker_withlock_bounded:
+                yield "工作线程:有界退出 withLock(检查点②)", (holder, lock, output, signal, main_phase, "done")
+        if main_phase == "loop_record_out":
+            if output == "ready" or policy.main_loop_output_bounded:
+                yield "主循环:recordCompleted(Err) 诊断输出完成", (holder, lock, output, signal, "loop_record_lock", worker)
+        elif main_phase == "loop_record_lock":
+            if lock == "poisoned":
+                yield "主循环:recordCompleted(Err) 收到锁中毒后继续", (holder, lock, output, signal, "poll_signal", worker)
+            elif policy.main_loop_lock_bounded:
+                yield "主循环:recordCompleted(Err) 锁步骤有界完成", (holder, lock, output, signal, "poll_signal", worker)
+        elif main_phase == "poll_signal":
+            if signal == "arrived":
+                yield "主循环:观测停机信号并置位 shutdownFlag(检查点①)", (holder, lock, output, signal, "flag_set", worker)
+        elif main_phase == "flag_set":
+            yield "主循环:进入 joinAll()", (holder, lock, output, signal, "joining", worker)
+        elif main_phase == "joining":
+            if worker == "done":
+                yield "主循环:joinAll() 返回(检查点③)", (holder, lock, output, signal, "post_record_out", worker)
+        elif main_phase == "post_record_out":
+            if output == "ready" or policy.post_join_output_bounded:
+                yield "停机后:recordCompleted(Err) 诊断输出完成", (holder, lock, output, signal, "post_record_lock", worker)
+        elif main_phase == "post_record_lock":
+            if lock == "poisoned":
+                yield "停机后:recordCompleted(Err) 收到锁中毒后服务函数返回(检查点④)", (holder, lock, output, signal, "returned", worker)
+            elif policy.post_join_lock_bounded:
+                yield "停机后:recordCompleted(Err) 锁步骤有界完成后服务函数返回(检查点④)", (holder, lock, output, signal, "returned", worker)
+
+    def violations(state):
+        return []
+
+    def final_notes(state):
+        holder, _, _, signal, main_phase, worker = state
+        if holder == "choose":
+            return "notes", ""
+        if main_phase == "returned" and worker == "done":
+            return "notes", FD0_ALL_CHECKPOINTS_BOUNDED
+        if main_phase == "loop_record_out" and signal == "arrived":
+            return "stuck", FD0_SHUTDOWN_START_OUTPUT_STALLED
+        if main_phase == "loop_record_lock" and signal == "arrived":
+            return "stuck", FD0_SHUTDOWN_START_LOCK_STALLED
+        if main_phase == "joining" and worker != "done":
+            return "stuck", FD0_JOIN_ALL_STALLED
+        if main_phase == "post_record_out":
+            return "stuck", FD0_POST_JOIN_OUTPUT_STALLED
+        if main_phase == "post_record_lock":
+            return "stuck", FD0_POST_JOIN_LOCK_STALLED
+        return "stuck", HANG
+
+    return explore(initial, events, violations, final_notes)
+
+
+FD0_SHUTDOWN_POLICIES = {
+    "不标中毒且全阻塞边无界": Fd0ShutdownPolicy(
+        poison_on_holder_crash=False, worker_withlock_bounded=False,
+        main_loop_lock_bounded=False, main_loop_output_bounded=False,
+        post_join_lock_bounded=False, post_join_output_bounded=False),
+    "仅靠LockError.Poisoned（锁与输出均无界）": Fd0ShutdownPolicy(
+        poison_on_holder_crash=True, worker_withlock_bounded=False,
+        main_loop_lock_bounded=False, main_loop_output_bounded=False,
+        post_join_lock_bounded=False, post_join_output_bounded=False),
+    "锁路径全有界但主循环诊断输出无界": Fd0ShutdownPolicy(
+        poison_on_holder_crash=True, worker_withlock_bounded=True,
+        main_loop_lock_bounded=True, main_loop_output_bounded=False,
+        post_join_lock_bounded=True, post_join_output_bounded=True),
+    "主循环全有界但工作线程withLock无界": Fd0ShutdownPolicy(
+        poison_on_holder_crash=True, worker_withlock_bounded=False,
+        main_loop_lock_bounded=True, main_loop_output_bounded=True,
+        post_join_lock_bounded=True, post_join_output_bounded=True),
+    "主循环与工作线程全有界但停机后锁无界": Fd0ShutdownPolicy(
+        poison_on_holder_crash=True, worker_withlock_bounded=True,
+        main_loop_lock_bounded=True, main_loop_output_bounded=True,
+        post_join_lock_bounded=False, post_join_output_bounded=True),
+    "主循环与工作线程全有界但停机后诊断输出无界": Fd0ShutdownPolicy(
+        poison_on_holder_crash=True, worker_withlock_bounded=True,
+        main_loop_lock_bounded=True, main_loop_output_bounded=True,
+        post_join_lock_bounded=True, post_join_output_bounded=False),
+    "标中毒且锁与输出全阻塞边均有界（OD6目标模型）": Fd0ShutdownPolicy(
+        poison_on_holder_crash=True, worker_withlock_bounded=True,
+        main_loop_lock_bounded=True, main_loop_output_bounded=True,
+        post_join_lock_bounded=True, post_join_output_bounded=True),
+}
+
+
 def main():
     for title, model, policies in (("模型 A：借用型子任务", scope_model, SCOPE_POLICIES),
                                    ("模型 A2：作用域取消排空与确切错误归属", scope_cancel_drain_model,
@@ -993,7 +1122,9 @@ def main():
                                    ("模型 C：多请求、证据丢失与代际", multi_io_model, MULTI_IO_POLICIES),
                                    ("模型 D：监督边界与多线程终止窗口", supervision_model, SUPERVISION_POLICIES),
                                    ("模型 E：清理进度的记录与恢复", cleanup_progress_model, CLEANUP_PROGRESS_POLICIES),
-                                   ("模型 F：锁中毒与 channel 对端关闭", lock_channel_model, LOCK_CHANNEL_POLICIES)):
+                                   ("模型 F：锁中毒与 channel 对端关闭", lock_channel_model, LOCK_CHANNEL_POLICIES),
+                                   ("模型 G：OD6 FD0 有界停机与活持有者卡滞", fd0_bounded_shutdown_model,
+                                    FD0_SHUTDOWN_POLICIES)):
         print(title)
         for name, policy in policies.items():
             report = model(policy)

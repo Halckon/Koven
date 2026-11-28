@@ -105,3 +105,5 @@ koven.std（依赖 core + alloc + 平台层 PL2：同步/异步 IO、线程、�
 1. **v1 清单预留（Z8）**：在 v1 发行前于 `project` 清单 schema 中保留 `language_version` 字段并锁定校验（仅允许当前 v1 版本值）。
 2. **接口产物 ADR 与最小导出（阶段一末 / 阶段二初）**：确立接口产物序列化格式与内容哈希协议，先支持单向 DAG 校验与 `public` 声明导出，暂以归一化源码承载公开泛型体。
 3. **跨单元所有权图导出与多版本共存（阶段二 IR4 之后）**：将泛型导出体切换为所有权图表示，并在引入首个需要新保留字的语言版本时启用 J47 词法隔离与 `min_caller_language_version` 校验。
+
+**离线原型验证（2026-11-28）**：J45 两层依赖图与最短环路检测、白盒/黑盒测试可见性、J37 孤儿检查 / R0–R1 禁一揽子实现 / 标准一阶合一重叠检查、J46 接口产物确定性内容哈希（含传递调用私有泛型体失效与 schema 不兼容快速失败），以及 J47 保留字隔离与 `min_caller_language_version` 校验，已在非规范原型 `scripts/loan_kernel/coherence_unit_model.py` 与 `scripts/tests/test_coherence_unit_model.py`（5 组单测）中固化可复跑。

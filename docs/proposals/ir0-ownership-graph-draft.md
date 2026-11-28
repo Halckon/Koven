@@ -102,6 +102,11 @@ projection = ".field(", FieldId, ")"       (* class / value class 字段投影 *
    - 任何差异必须归因到“生产实现缺陷 / 构图器缺陷 / 规格模糊 / 已批准语义放宽”四类之一；存在未解释差异时禁止切换权威（IR3）；
    - 必须包含手工故障注入测试（故意在已检查图中构造悬垂 loan、双析构或错调用目标），确认展开后不变量与跨阶段差分均能稳定拦截。
 
+**离线原型验证（2026-11-28）**：
+- **归因统计与止损门槛（P0-2）**：`scripts/loan_kernel/ir0_attribution_sampler.py` 与 `scripts/tests/test_ir0_attribution_sampler.py`（2 组单测），支持从标准 `git log` 文本自动过滤触及 `ownership_checking` / `ssa` 的 `fix` 提交，互斥归入 C1–C4 并按止损门槛判定 `PROCEED_IR1_ADR` 或 `DOWNGRADE_REFERENCE_ONLY`。
+- **IR0 两层校验、故障注入与影子差分门槛**：`scripts/loan_kernel/ir0_graph.py` 与 `scripts/tests/test_ir0_graph.py`（6 组单测），覆盖 `Poisoned` / 悬空引用 / 非法 `Span` / `FatalAbort`、用户二次移动分层、`LexicalRequired` + `Conditional(DropFlagId)` 正交组合、`Call.failure_bb` vs `FatalAbort`、`LoanActivate` 两阶段激活冲突与 `evaluate_shadow_diff`。
+- **IR1 构图 + IR2 展开 + 真实全语料影子差分（P0-1）**：`scripts/loan_kernel/ir1_ir2_lowering.py` 与 `scripts/tests/test_ir1_ir2_lowering.py`（3 组单测），将 `checker.py` 全部 `cases/*.lk` 整值切片函数（150+ 函数，`early_drop=False/True`）构图为标准 `OwnershipGraph`，与 `DP.Verifier` 跑真实 `evaluate_shadow_diff` 达零未归因差异（`ir3_switch_allowed=True`），并对真实构图产物执行清空 `failure_bb` 与去析构标志的故障注入回归。
+
 ## 3. 多阶段路线图生成脚本扩展设计（之十三 §6）
 
 按[演进总纲之十三](evolution-13-implementation-roadmap.md) §6（2026-11-11 用户决定：v1 之后每个阶段各用一份路线图文件，在该阶段入口条件满足时建立），现行 `scripts/gen_roadmap.py` 只读取单一 `docs/roadmap/v1.json`。未来立 Spec 扩展该脚本时固定以下约束：
@@ -113,3 +118,5 @@ projection = ".field(", FieldId, ")"       (* class / value class 字段投影 *
    - v1 已占用裸编号 `L1–L21`、`S1–S7`、`X02–X12`、`V1–V6`；
    - 阶段一及之后的路线图 JSON 中，所有步骤条目 ID **强制带路线前缀**（例如 `RL-L0`、`RL-L3`、`RC-C0`、`RS-S2a`、`RU-U1`、`RX-X0a`、`RIR-IR1`、`RF-F3`），由 `gen_roadmap.py` 的 schema 校验直接拒绝与 v1 撞名的裸编号。
 3. **跨阶段入口显式引用**：每份后续阶段 JSON 的 `meta.entry_gates` 字段显式声明前置阶段 ID 与必过门槛（如 `stage1.json` 声明 `v1.0` + `P1/E2/E3/E5`），防止在入口未满足前提前激活条目。
+
+**多阶段路线图离线校验原型（2026-11-28）**：上述防撞名、路线前缀、入口门槛与依赖无环约束已在非规范原型 `scripts/loan_kernel/ir0_roadmap_schema.py` 与 `scripts/tests/test_ir0_roadmap_schema.py`（3 组单测，只读对接真实 `docs/roadmap/v1.json`）中固化可复跑。

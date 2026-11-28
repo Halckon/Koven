@@ -2123,6 +2123,82 @@ fun check_second_order_caps(): Unit {
             second_order_transferable, local_borrow_ref_policy="second_order")]
         self.assertEqual([("CAP", 12)], errs)
 
+    def test_u0_al1_al2_premises_in_reference_checker(self):
+        """U0 §9 原型验证（Z48.lk）：路线 L 参考检查器表达 AL1 / AL2 / AL7、实例身份与 U1 R1.2 析构屏障。"""
+        source = (ROOT / "cases/Z48.lk").read_text(encoding="utf-8")
+        for early in (False, True):
+            lowered, drops = {}, []
+            diags = CHECKER.check(source, early_drop=early, drops=drops, lowered=lowered)
+            actual = {(rule, line) for rule, line, _ in diags}
+            self.assertEqual(expected(source), actual, f"early_drop={early}")
+            for ok_fn in ("al2_drop_barrier_keeps_owner_alive", "al1_al7_rawcell_shared_write_ok",
+                          "al1_disjoint_sibling_field_ok", "al2_reacquire_after_reassign_ok"):
+                self.assertTrue(lowered[ok_fn][2], (ok_fn, early))
+                types, program, _ = lowered[ok_fn]
+                self.assertEqual({}, CHECKER.DP.Verifier(types).run_all(program), (ok_fn, early))
+            for bad_fn in (
+                "al1_al7_rawcell_conflicts_with_exclusive_loan",
+                "al1_shared_derived_write_rejected",
+                "al1_param_borrow_vs_inout",
+                "al1_conflicts_with_live_shared_and_excl_loans",
+                "al1_read_conflicts_with_live_excl_loan",
+                "al2_use_after_move_rejected",
+                "al2_use_after_inner_scope_drop_rejected",
+                "al2_partial_move_field_rejected",
+                "al2_whole_aggregate_after_partial_move_rejected",
+                "al2_branch_joined_dangling_rejected",
+                "od1_address_of_borrow_binding_slot_rejected",
+                "al2_reassign_invalidates_old_raw_ptr",
+                "al2_move_then_reassign_does_not_revive_old_raw_ptr",
+                "al2_branch_reassign_invalidates_old_raw_ptr",
+                "al2_field_reassign_invalidates_field_keeps_sibling_ok",
+            ):
+                self.assertFalse(lowered[bad_fn][2], (bad_fn, early))
+            if early:
+                early_vars = {var for fun, var, _ in drops if fun == "al2_drop_barrier_keeps_owner_alive"}
+                self.assertIn("other", early_vars)
+                self.assertNotIn("x", early_vars)
+
+        # 变异检验 1：去掉 drop_barrier 保护后，early_drop=True 下 x 被提前析构，raw_write/raw_read 必须报 AL2。
+        original = CHECKER.Checker.address_of_raw
+
+        def no_barrier(checker, expr, state):
+            val = original(checker, expr, state)
+            if val.raw_meta is not None:
+                targets = val.raw_meta[0]
+                for root, _ in targets:
+                    if root in state:
+                        state[root].drop_barrier = False
+            return val
+
+        CHECKER.Checker.address_of_raw = no_barrier
+        try:
+            mutated = {(rule, line) for rule, line, _ in CHECKER.check(source, early_drop=True)}
+        finally:
+            CHECKER.Checker.address_of_raw = original
+        added = mutated - expected(source)
+        self.assertGreaterEqual(len(added), 2)
+        self.assertTrue({("AL2", 17), ("AL2", 18)} <= added)
+        self.assertEqual({"AL2"}, {rule for rule, _ in added})
+
+        # 变异检验 2：去掉实例身份快照后，5 处同名/字段重赋值后的旧裸指针 AL2 诊断必须漏报。
+        def no_instance_identity(checker, expr, state):
+            val = original(checker, expr, state)
+            if val.raw_meta is not None:
+                targets, via, mode, is_cell, _ = val.raw_meta
+                val.raw_meta = (targets, via, mode, is_cell, frozenset())
+            return val
+
+        CHECKER.Checker.address_of_raw = no_instance_identity
+        try:
+            mutated_inst = {(rule, line) for rule, line, _ in CHECKER.check(source)}
+        finally:
+            CHECKER.Checker.address_of_raw = original
+        lost = expected(source) - mutated_inst
+        self.assertEqual(5, len(lost))
+        self.assertEqual({"AL2"}, {rule for rule, _ in lost})
+        self.assertEqual(set(), mutated_inst - expected(source))
+
 
 if __name__ == "__main__":
     unittest.main()

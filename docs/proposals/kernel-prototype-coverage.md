@@ -8,15 +8,15 @@
 
 | 基底 | 原型 | 状态 |
 |---|---|---|
-| KB2 Place 与 Loan、KB3 Origin 携带 | [借用内核演算](loan-kernel-calculus.md) | 已覆盖，67 个手写用例（含 OD1 · A1 默认 `forbid` 的 `Z46`/`Z47`），另有按三条轴及控制流/泛型扩展生成的 1397 段程序（演算 §23、§28–§38、§85） |
-| KB5 类型抽象 | 借用内核演算 §10–§11、§78（存在类型的载荷与槽位访问/返回、隐式打开与单态化分流） | 已覆盖主要内核边界 |
+| KB2 Place 与 Loan、KB3 Origin 携带 | [借用内核演算](loan-kernel-calculus.md) | 已覆盖，68 个手写用例（含 OD1 · A1 默认 `forbid` 的 `Z46`/`Z47` 与 U0 §9 AL1/AL2/AL7 主检查器用例 `Z48`），另有按三条轴及控制流/泛型扩展生成的 1397 段程序（演算 §23、§28–§38、§85） |
+| KB5 类型抽象 | 借用内核演算 §10–§11、§78（存在类型的载荷与槽位访问/返回、隐式打开与单态化分流）；J37 一致性与 J45–J47 编译单元依赖/接口产物原型见 `scripts/loan_kernel/coherence_unit_model.py` | 已覆盖主要内核边界与跨单元一致性原型 |
 | KB4 结构能力推导 | [能力推导原型](capability-derivation-model.md) | 已覆盖，9 组用例（含 `Weak`、四值判定、`interface` 上界、可声明能力与 `Copyable`/`Transferable` 实现测试表移植） |
-| KB1 值与析构义务 | [析构义务原型](drop-obligation-model.md)；与借用的配合见演算 §14、§20、§26、§27 | 已覆盖，5 组用例（含单值字段析构次序与泛型 `deinit`）；类型的性质取自能力推导 |
-| 失败出口与在途 IO | [失败与清理的状态模型](failure-cleanup-model.md)；失败出口上的借用检查见演算 §24 | 九个小模型（含 3A 取消排空与 `err_A` 归属、A2-ext 丢 `Job` 不取消/清理期重阻塞/多错仲裁对照、A3 三子任务与 OD2 · B1 双向竞态/带资源次错恰好一次清理/父帧释放后安全返回、多请求/代际/证据丢失、监督边界/多线程终止窗口、清理进度非原子间隙恢复与锁中毒/channel 关闭）；借用一侧已覆盖 |
+| KB1 值与析构义务 | [析构义务原型](drop-obligation-model.md)；与借用的配合见演算 §14、§20、§26、§27 | 已覆盖，5 组用例（含单值字段析构次序与泛型 `deinit`）；类型的性质取自能力推导；IR0 所有权图两层校验与故障注入原型见 `scripts/loan_kernel/ir0_graph.py` |
+| 失败出口与在途 IO | [失败与清理的状态模型](failure-cleanup-model.md)；失败出口上的借用检查见演算 §24 | 十个小模型（含 3A 取消排空与 `err_A` 归属、A2-ext 丢 `Job` 不取消/清理期重阻塞/多错仲裁对照、A3 三子任务与 OD2 · B1 双向竞态/带资源次错恰好一次清理/父帧释放后安全返回、多请求/代际/证据丢失、监督边界/多线程终止窗口、清理进度非原子间隙恢复、锁中毒/channel 关闭，以及 OD6 FD0 有界停机与活持有者卡滞模型 G）；借用一侧已覆盖 |
 | KB6 内部可变单元 | 借用内核演算 §15 | 已覆盖借用一侧；可共享的判定已取自能力推导（演算 §19） |
-| KB8 帧挂起 | 借用内核演算 §17、§21、§75–§76、§79 | 已覆盖借用、析构、作用域库、suspend 闭包/间接帧与生成器 `yield`；在途 IO 见失败模型 B–C |
-| KB7 裸内存 | 不做原型：它是一份合同（U0），靠解释器检测 | — |
-| KB9 编译期求值 | 不做原型：已有实现 | — |
+| KB8 帧挂起 | 借用内核演算 §17、§21、§75–§76、§79；IR5 挂起帧状态机变换原型见 `scripts/loan_kernel/ir5_suspend_frame_transform.py` | 已覆盖借用、析构、作用域库、suspend 闭包/间接帧、生成器 `yield` 与 IR5 状态机布局变换；在途 IO 见失败模型 B–C |
+| KB7 裸内存 | [U0 硬门槛证据账本](u0-ub-harness-evidence.md)（`checker.py` + `Z48.lk`、`u0_raw_model.py`、`u1_layout_ffi_model.py`、`u0_sanitizer_harness.py`、`u0_al8_backend_attrs.py`、`u0_memory_model.py`、`u0_tr4_audit_scope.py`） | 已在主参考检查器与独立原型中验证 AL1/AL2/AL6/AL7/AL8、MM1–MM7、TR2–TR4、FFI1/FFI3 与 UB2–UB4/UB6(TSan)/UB9–UB11 预 U1 代理套件；U0 仍留 `docs/proposals/` 待正式评审签核 |
+| KB9 编译期求值 | `scripts/loan_kernel/kb9_const_eval_model.py`（图上封闭编译期求值器） | 已覆盖 CFG 步数上限、Int32 溢出/除零、纯内存 `value class` 静态构造与运行时副作用拒绝；另含 `ve_simd_target_model.py`（VE1–VE3） |
 
 ## 2. 排期的原则
 

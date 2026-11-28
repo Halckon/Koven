@@ -208,3 +208,5 @@ fun loadAppConfig(path: String): Result<AppConfig, Error> {
 | XN3 | 借用 existential 逃逸或返回缺 `from` | `fun leak(s: ExprVisitor): ExprVisitor = s` 或存入 `class Hold(val v: ExprVisitor)`（当 `s` 为借用参数时） | **拒绝（R2.3 / L0163）**：借用 existential 是不可逃逸 Holder，不能脱离来源存储或无 `from` 返回 |
 | XN4 | 动态不兼容 interface 出现在值位置 | `interface EquatableSelf { fun eq(other: Self): Boolean }` 后写 `fun bad(x: EquatableSelf)` | **拒绝（X1 R1.2 / J38）**：含 `Self` 参数或泛型方法的 interface 不可动态分发，只能作泛型约束 |
 | XN5 | `pack_owned` 移交后继续使用原绑定 | `val a = AuditHandler("x", 0); bus.register(a); println(a.tag)` | **拒绝（R3.2 / L0131）**：普通 `class` 经 `pack_owned` 转移所有权后原绑定失效 |
+
+**离线原型验证（2026-11-28）**：X1 动态兼容检查（XN4）、X2 借用 existential 零堆分配 / 载荷禁整体替换（XN1）/ 禁逃逸（XN3）、X3 owned existential 零额外分配 / 内联类型显式 `Box` / 容器不协变（XN2）以及之十一 E2/E3 显式 `Into<Error>` 与禁转 `Cancelled`，已在非规范原型 `scripts/loan_kernel/existential_route_x_model.py` 与 `scripts/tests/test_existential_route_x_model.py`（4 组单测）中固化可复跑。
