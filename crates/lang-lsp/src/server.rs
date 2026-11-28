@@ -1,5 +1,6 @@
 //! LSP lifecycle、打开文档状态与诊断发布。
 
+mod ide_p3_requests;
 mod ide_requests;
 
 use std::{collections::BTreeMap, error::Error, fmt};
@@ -8,20 +9,23 @@ use lang_frontend::source::SourceId;
 
 use lsp_server::{Connection, ErrorCode, Message, Notification, Request, Response};
 use lsp_types::{
-    CompletionOptions, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
-    DidOpenTextDocumentParams, GotoDefinitionParams, GotoDefinitionResponse,
+    CodeActionKind, CodeActionOptions, CodeActionProviderCapability, CompletionOptions,
+    DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
+    FoldingRangeProviderCapability, GotoDefinitionParams, GotoDefinitionResponse,
     HoverProviderCapability, InitializeParams, InitializeResult, Location, LogMessageParams,
     MessageType, OneOf, PositionEncodingKind, PublishDiagnosticsParams, RenameOptions,
+    SemanticTokensFullOptions, SemanticTokensOptions, SemanticTokensServerCapabilities,
     ServerCapabilities, ServerInfo, SignatureHelpOptions, TextDocumentSyncCapability,
-    TextDocumentSyncKind, TextDocumentSyncOptions, Uri,
+    TextDocumentSyncKind, TextDocumentSyncOptions, TypeDefinitionProviderCapability, Uri,
     notification::{
         DidChangeTextDocument, DidCloseTextDocument, DidOpenTextDocument, LogMessage,
         Notification as LspNotification, PublishDiagnostics,
     },
     request::{
-        Completion, DocumentSymbolRequest, Formatting, GotoDefinition, HoverRequest,
+        CodeActionRequest, Completion, DocumentHighlightRequest, DocumentSymbolRequest,
+        FoldingRangeRequest, Formatting, GotoDefinition, GotoTypeDefinition, HoverRequest,
         InlayHintRequest, PrepareRenameRequest, References, Rename, Request as LspRequest,
-        SignatureHelpRequest, WorkspaceSymbolRequest,
+        SemanticTokensFullRequest, SignatureHelpRequest, WorkspaceSymbolRequest,
     },
 };
 
@@ -82,6 +86,13 @@ pub(crate) fn run_with_options(
         .and_then(|t| t.document_symbol.as_ref())
         .and_then(|d| d.hierarchical_document_symbol_support)
         .unwrap_or(false);
+    let supports_code_action_literals = initialize_params
+        .capabilities
+        .text_document
+        .as_ref()
+        .and_then(|t| t.code_action.as_ref())
+        .and_then(|ca| ca.code_action_literal_support.as_ref())
+        .is_some();
     let source_set = match SourceSetConfig::from_initialization_options(
         initialize_params.initialization_options.as_ref(),
     ) {
@@ -155,7 +166,7 @@ pub(crate) fn run_with_options(
         None => (SessionState::SingleDocument(BTreeMap::new()), None),
     };
     let initialize_result = InitializeResult {
-        capabilities: capabilities(),
+        capabilities: capabilities(supports_code_action_literals),
         server_info: Some(ServerInfo {
             name: "koven-lsp".to_owned(),
             version: Some(env!("CARGO_PKG_VERSION").to_owned()),
@@ -224,6 +235,28 @@ pub(crate) fn run_with_options(
                         supports_document_changes
                     )),
                     Formatting::METHOD => dispatch_json!(formatting_response(params, &state)),
+                    SemanticTokensFullRequest::METHOD => {
+                        dispatch_json!(ide_p3_requests::semantic_tokens_full_response(
+                            params, &state
+                        ))
+                    }
+                    DocumentHighlightRequest::METHOD => {
+                        dispatch_json!(ide_p3_requests::document_highlight_response(params, &state))
+                    }
+                    FoldingRangeRequest::METHOD => {
+                        dispatch_json!(ide_p3_requests::folding_range_response(params, &state))
+                    }
+                    GotoTypeDefinition::METHOD => {
+                        dispatch_json!(ide_p3_requests::type_definition_response(params, &state))
+                    }
+                    CodeActionRequest::METHOD => {
+                        dispatch_json!(ide_p3_requests::code_action_response(
+                            params,
+                            &state,
+                            supports_document_changes,
+                            supports_code_action_literals
+                        ))
+                    }
                     _ => {
                         send_response(
                             &connection,
@@ -249,7 +282,7 @@ pub(crate) fn run_with_options(
     Ok(())
 }
 
-fn capabilities() -> ServerCapabilities {
+fn capabilities(supports_code_action_literals: bool) -> ServerCapabilities {
     ServerCapabilities {
         position_encoding: Some(PositionEncodingKind::UTF16),
         text_document_sync: Some(TextDocumentSyncCapability::Options(
@@ -280,6 +313,26 @@ fn capabilities() -> ServerCapabilities {
             work_done_progress_options: Default::default(),
         })),
         document_formatting_provider: Some(OneOf::Left(true)),
+        document_highlight_provider: Some(OneOf::Left(true)),
+        folding_range_provider: Some(FoldingRangeProviderCapability::Simple(true)),
+        type_definition_provider: Some(TypeDefinitionProviderCapability::Simple(true)),
+        code_action_provider: supports_code_action_literals.then(|| {
+            CodeActionProviderCapability::Options(CodeActionOptions {
+                code_action_kinds: Some(vec![
+                    CodeActionKind::QUICKFIX,
+                    CodeActionKind::REFACTOR_REWRITE,
+                ]),
+                ..CodeActionOptions::default()
+            })
+        }),
+        semantic_tokens_provider: Some(SemanticTokensServerCapabilities::SemanticTokensOptions(
+            SemanticTokensOptions {
+                legend: crate::semantic_tokens::legend(),
+                full: Some(SemanticTokensFullOptions::Bool(true)),
+                range: None,
+                ..SemanticTokensOptions::default()
+            },
+        )),
         ..ServerCapabilities::default()
     }
 }
