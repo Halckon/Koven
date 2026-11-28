@@ -102,7 +102,7 @@ origin_target     = origin_root
 | P5 | `val view = origins` + `class view<view: Any> {}` + `fun <view > id() {}` + `fun <view view: Any> flows(borrow into: view) {}` | 四个软词全部作为普通标识符、类型名、带空格的合法 `<view >` 类型参数名与参数名共存 |
 | P6 | `fun <view T> forward(borrow p: T): borrow Item from p.origins {}` | `p.origins` 用于返回 `from` 合同 |
 | P7 | `fun extract(borrow p: Holder): borrow Item from p.inner.origins {}` | 嵌套字段路径后接 `.origins` 选择器 |
-| P8 | `fun push(inout b: Bag, borrow x: Item) flows x into b` | 无体接口方法携带 `flows` |
+| P8 | `interface Store { fun push(inout b: Bag, borrow x: Item) flows x into b\n fun size(): Int }` | 接口体内的无体方法携带 `flows` 且正确与下一成员分隔 |
 | P9 | `fun id(inout dst: Slot, borrow x: Item): Int flows x into dst = x` | 表达式体函数 `=` 之前携带 `flows` |
 | P10 | `fun stash(inout dst: Slot) flows this.origins into dst.slot {}` | `this.origins` 作为来源流入参数字段 |
 

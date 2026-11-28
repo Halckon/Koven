@@ -301,7 +301,7 @@ file : decl_list ;
 decl_list : decl | decl_list sep decl ;
 sep : NL | SEMI ;
 
-decl : fun_decl | class_decl | val_decl ;
+decl : fun_decl | class_decl | iface_decl | val_decl ;
 
 ident : ID | VIEW_KW | FLOWS_KW | INTO_KW | ORIGINS_KW ;
 non_view_ident : ID | FLOWS_KW | INTO_KW | ORIGINS_KW ;
@@ -312,6 +312,15 @@ val_decl : VAL ident EQ ident ;
 class_decl
   : CLASS ident opt_tparams LBRACE RBRACE
   | VIEW_KW CLASS ident opt_tparams LBRACE RBRACE
+  ;
+
+iface_decl
+  : INTERFACE ident LBRACE iface_members RBRACE
+  ;
+
+iface_members
+  : fun_decl
+  | iface_members sep fun_decl
   ;
 
 fun_decl
@@ -447,7 +456,7 @@ POSITIVES: Tuple[Tuple[str, str], ...] = (
     ("P5b: valid <view > type param named view", "fun < view > id ( ) { }"),
     ("P6: p.origins in return from clause", "fun < view T > forward ( borrow p : T ) : borrow Item from p . origins { }"),
     ("P7: nested field path + .origins source", "fun extract ( borrow p : Holder ) : borrow Item from p . inner . origins { }"),
-    ("P8: bodyless interface-style method with flows", "fun push ( inout b : Bag , borrow x : Item ) flows x into b"),
+    ("P8: bodyless interface method with flows and next member", "interface Store { fun push ( inout b : Bag , borrow x : Item ) flows x into b NL fun size ( ) : Int }"),
     ("P9: expression body after flows", "fun id ( inout dst : Slot , borrow x : Item ) : Int flows x into dst = x"),
     ("P10: this.origins into field", "fun stash ( inout dst : Slot ) flows this . origins into dst . slot { }"),
 )

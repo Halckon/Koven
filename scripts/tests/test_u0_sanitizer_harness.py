@@ -4,6 +4,7 @@ from __future__ import annotations
 import importlib.util
 from pathlib import Path
 import shutil
+import signal
 import sys
 import unittest
 
@@ -25,6 +26,21 @@ class U0SanitizerHarnessTests(unittest.TestCase):
             with self.subTest(case=case.name):
                 res = HARNESS.run_case(case, compiler=CLANG)
                 self.assertTrue(res.passed, f"{case.name} failed: rc={res.returncode}, {res.summary}")
+
+    def test_ffi5_baseline_rejects_plain_exit_1(self):
+        """FFI5 基线严格要求 -SIGABRT，普通 exit(1) 不得被误判为通过。"""
+        fake_case = HARNESS.SanitizerCase(
+            name="UB9_ffi5_wrong_exit_1",
+            ub_code="UB9-FFI5-neg",
+            flags=("-g", "-O0"),
+            expected_substrings=(),
+            expect_nonzero=True,
+            expected_returncode=-signal.SIGABRT,
+            source="int main(void) { return 1; }\n",
+        )
+        res = HARNESS.run_case(fake_case, compiler=CLANG)
+        self.assertFalse(res.passed)
+        self.assertEqual(1, res.returncode)
 
 
 if __name__ == "__main__":

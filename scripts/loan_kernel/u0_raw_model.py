@@ -51,6 +51,7 @@ class RawPtr:
     derived_mode: str  # "Shared" | "Exclusive" | "Cell"
     provenance_kind: str  # 实际派生权限："Shared" | "Exclusive" | "Cell"
     derived_loan_id: Optional[int] = None
+    out_of_scope_loan: Optional[str] = None
 
 
 @dataclass
@@ -162,6 +163,20 @@ class U0RawInterpreter:
             return "Cell" if derived_mode == "Cell" else "Shared"
         return derived_mode
 
+    def _check_derived_loan_scope(self, place: str, derived_loan_id: Optional[int]) -> Optional[str]:
+        """校验目标 place 是否落在派生借用链覆盖范围内；越界时返回首个不覆盖它的借用位置。"""
+        if derived_loan_id is None:
+            return None
+        cur: Optional[int] = derived_loan_id
+        visited: Set[int] = set()
+        while cur is not None and cur in self.loan_history and cur not in visited:
+            visited.add(cur)
+            loan = self.loan_history[cur]
+            if not is_prefix_or_equal(loan.place, place):
+                return loan.place
+            cur = loan.parent_id
+        return None
+
     def address_of(
         self,
         place: str,
@@ -169,7 +184,7 @@ class U0RawInterpreter:
         derived_mode: str,
         derived_loan_id: Optional[int] = None,
     ) -> int:
-        """U1 R1.2 + AL2：建立带分配实例 ID 与真实派生权限的裸指针，并在 root owner 上设置 place 级析构屏障。"""
+        """U1 R1.2 + AL2：建立带分配实例 ID、范围核对与真实派生权限的裸指针，并在 root owner 上设置 place 级析构屏障。"""
         self.step += 1
         assert derived_mode in ("Shared", "Exclusive", "Cell")
         root = root_of(place)
@@ -185,6 +200,7 @@ class U0RawInterpreter:
             derived_mode=derived_mode,
             provenance_kind=self._effective_provenance(derived_mode, derived_loan_id),
             derived_loan_id=derived_loan_id,
+            out_of_scope_loan=self._check_derived_loan_scope(place, derived_loan_id),
         )
         return ptr_id
 
@@ -207,6 +223,12 @@ class U0RawInterpreter:
         return owner
 
     def _check_al1_read(self, ptr: RawPtr) -> bool:
+        if ptr.out_of_scope_loan is not None:
+            self._record(
+                "UB1",
+                f"raw_read({ptr.place}) is outside derived loan #{ptr.derived_loan_id} scope ({ptr.out_of_scope_loan})",
+            )
+            return False
         allowed = self._ancestors(ptr.derived_loan_id)
         for loan in self.loans.values():
             if loan.loan_id in allowed:
@@ -234,6 +256,12 @@ class U0RawInterpreter:
         return True
 
     def _check_al1_write(self, ptr: RawPtr, owner: OwnerState, op: str) -> bool:
+        if ptr.out_of_scope_loan is not None:
+            self._record(
+                "UB1",
+                f"{op}({ptr.place}) is outside derived loan #{ptr.derived_loan_id} scope ({ptr.out_of_scope_loan})",
+            )
+            return False
         if ptr.provenance_kind in ("Shared", "Cell"):
             if not owner.is_cell:
                 self._record(
@@ -264,22 +292,37 @@ class U0RawInterpreter:
         return True
 
     def _is_initialized(self, owner: OwnerState, place: str) -> bool:
-        """检查 place 的全部祖先槽位与全部后代槽位均处于 Init。"""
+        """按目标粒度检查初始化状态：
+        - 若 place 自身已显式建槽，要求其自身及全部后代槽位均为 Init（不因兄弟字段未初始化而误拒）；
+        - 若 place 未单独建槽，回退检查最近的祖先槽位以及全部后代槽位。
+        """
+        if place in owner.slots:
+            if owner.slots[place] != "Init":
+                return False
+        else:
+            ancestors = [
+                (len(split_place(slot)), st)
+                for slot, st in owner.slots.items()
+                if is_prefix_or_equal(slot, place)
+            ]
+            if not ancestors or max(ancestors)[1] != "Init":
+                return False
         for slot, st in owner.slots.items():
-            if is_prefix_or_equal(slot, place) or is_prefix_or_equal(place, slot):
-                if st != "Init":
-                    return False
+            if is_prefix_or_equal(place, slot) and st != "Init":
+                return False
         return True
 
     def _set_slot_state(self, owner: OwnerState, place: str, state: str) -> None:
-        """更新 place 及其全部后代槽位的初始化状态；若为子字段恢复 Init 且所有字段均 Init，则恢复根槽位。"""
+        """更新 place 及其全部后代槽位的初始化状态，并维护根槽位的聚合完整性。"""
         owner.slots[place] = state
         for slot in list(owner.slots.keys()):
             if is_prefix_or_equal(place, slot):
                 owner.slots[slot] = state
-        if state == "Init" and place != owner.root:
+        if place != owner.root:
             children = [s for s in owner.slots if s != owner.root]
-            if children and all(owner.slots[s] == "Init" for s in children):
+            if state == "Uninit":
+                owner.slots[owner.root] = "Uninit"
+            elif children and all(owner.slots[s] == "Init" for s in children):
                 owner.slots[owner.root] = "Init"
 
     def raw_read(self, ptr_id: int) -> None:

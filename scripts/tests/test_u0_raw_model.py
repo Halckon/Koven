@@ -176,6 +176,42 @@ class U0RawModelTests(unittest.TestCase):
         interp.raw_write(ptr)
         self.assertEqual(["UB1"], [v.code for v in interp.violations])
 
+    def test_al1_ub1_ptr_outside_derived_loan_scope_rejected(self):
+        """AL1 / UB1：对 pair.left 建立独占借用后，不得用同一借用 ID 对兄弟字段 pair.right 取址读写。"""
+        interp = U0.U0RawInterpreter()
+        interp.alloc_owner("pair", fields=("left", "right"), initialized=True)
+        excl_left = interp.borrow("pair.left", "Exclusive")
+        ok_ptr = interp.address_of("pair.left", derived_mode="Exclusive", derived_loan_id=excl_left)
+        interp.raw_write(ok_ptr)
+        self.assertEqual([], interp.violations)
+
+        sibling_ptr = interp.address_of("pair.right", derived_mode="Exclusive", derived_loan_id=excl_left)
+        interp.raw_write(sibling_ptr)
+        interp.raw_read(sibling_ptr)
+        self.assertEqual(["UB1", "UB1"], [v.code for v in interp.violations])
+
+    def test_al2_ub5_partially_initialized_field_readable_while_aggregate_blocked(self):
+        """AL2 / UB5：未初始化的 pair(a, b) 经 ptr_write(pair.a) 后，读取 pair.a 合法，但读取完整聚合 pair 仍报 UB5。"""
+        interp = U0.U0RawInterpreter()
+        interp.alloc_owner("pair", fields=("a", "b"), initialized=False)
+        p_a = interp.address_of("pair.a", derived_mode="Exclusive")
+        p_b = interp.address_of("pair.b", derived_mode="Exclusive")
+        p_whole = interp.address_of("pair", derived_mode="Exclusive")
+
+        interp.ptr_write(p_a)
+        interp.raw_read(p_a)
+        self.assertEqual([], interp.violations)
+
+        interp.raw_read(p_whole)
+        self.assertEqual(["UB5"], [v.code for v in interp.violations])
+
+        # 补齐 pair.b 初始化后，完整聚合读取恢复合法
+        interp.violations.clear()
+        interp.ptr_write(p_b)
+        interp.raw_read(p_whole)
+        interp.exit_scope()
+        self.assertEqual([], interp.violations)
+
     def test_al2_ub2_old_ptr_rejected_after_same_name_reallocation(self):
         """AL2 / UB2：旧 owner 析构后重新分配同名存储，旧指针仍须因分配实例不匹配报 UB2。"""
         interp = U0.U0RawInterpreter()
