@@ -100,12 +100,15 @@ fun main(): Unit {{
             panic!("exactly one passive, source-qualified candidate");
         };
         assert_eq!(witness.loop_exit, UnitDropPoint::LoopExit(loop_stmt));
-        assert_eq!(
-            owned
-                .named_range_loop_reuse_controls()
-                .get(&binding.binding()),
-            Some(&witness.body_control)
-        );
+        let receipt = owned
+            .named_range_loop_reuse_controls()
+            .get(&binding.binding())
+            .copied()
+            .expect("pre-checked named Range loop reuse receipt");
+        assert_eq!(receipt.loop_statement(), loop_stmt);
+        assert_eq!(receipt.body_control(), witness.body_control);
+        assert_eq!(receipt.end_statement(), last);
+        assert_eq!(receipt.observer(), observe);
         let mut missing_provider = owned.clone();
         missing_provider
             .iterations
@@ -121,6 +124,15 @@ fun main(): Unit {{
             .named_range_loop_reuses
             .push(*witness);
         assert!(duplicate.named_range_loop_reuse_controls().is_empty());
+        let mut missing_observer_loan = owned.clone();
+        missing_observer_loan
+            .loans
+            .retain(|loan| loan.call() != witness.observer);
+        assert!(
+            missing_observer_loan
+                .named_range_loop_reuse_controls()
+                .is_empty()
+        );
         assert_eq!(witness.source, plan.descriptor().source());
         assert_eq!(
             witness.body_control,

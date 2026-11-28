@@ -242,4 +242,4 @@ pub use lowering_facts::UnitLoweringFacts;
 mod preflight;
 #[cfg(feature = "d10-catalog-experiment")]
 pub use compilation_unit::d10_catalog_experiment;
-pub use preflight::UnitPreflightFacts;
+pub use preflight::{NamedRangeLoopReuseControl, UnitPreflightFacts};

@@ -37,6 +37,62 @@ pub(super) fn range_scope(
     local_if::scope(parsed, marker, proven)
 }
 
+/// Verify a pre-checked named-Range loop-reuse receipt against the actual AST:
+/// `body_control` must be the sole `if` expression in `loop_statement`'s body,
+/// and `observer` must be the expression of `end_statement`.
+pub(in crate::ssa) fn verified_named_range_loop_reuse_control(
+    file: &ParsedFile,
+    binding_unit: lang_frontend::name_resolution::SourceUnitId,
+    loop_statement: lang_frontend::type_checking::UnitStatementId,
+    body_control: lang_frontend::type_checking::UnitExpressionId,
+    end_statement: lang_frontend::type_checking::UnitStatementId,
+    observer: lang_frontend::type_checking::UnitExpressionId,
+) -> Option<usize> {
+    if loop_statement.source_unit() != binding_unit
+        || body_control.source_unit() != binding_unit
+        || end_statement.source_unit() != binding_unit
+        || observer.source_unit() != binding_unit
+    {
+        return None;
+    }
+    let statements = file.ast().statements();
+    let Statement::For { body, .. } = statements.get(loop_statement.statement()).ok()?.payload()
+    else {
+        return None;
+    };
+    let body_node = statements.get(*body).ok()?;
+    let sole_stmt = match body_node.payload() {
+        Statement::Block { elements } | Statement::ControlBody { elements } => {
+            let [only] = elements.as_slice() else {
+                return None;
+            };
+            statements.get(*only).ok()?
+        }
+        _ => body_node,
+    };
+    let Statement::Expression { expression } = sole_stmt.payload() else {
+        return None;
+    };
+    let actual_control = ungroup(file, *expression, sole_stmt.span()).ok()?;
+    if actual_control != body_control.expression()
+        || !matches!(
+            file.ast().expressions().get(actual_control).ok()?.payload(),
+            Expression::If { .. }
+        )
+    {
+        return None;
+    }
+    let end_node = statements.get(end_statement.statement()).ok()?;
+    let Statement::Expression {
+        expression: end_expr,
+    } = end_node.payload()
+    else {
+        return None;
+    };
+    let actual_observer = ungroup(file, *end_expr, end_node.span()).ok()?;
+    (actual_observer == observer.expression()).then_some(actual_control.index())
+}
+
 /// Only discard transparent syntax; callers still validate the published expression facts.
 pub(super) fn ungroup(
     parsed: &ParsedFile,

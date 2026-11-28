@@ -961,10 +961,17 @@ pub(crate) fn validate_bindings(
                         &argument_controls,
                         &Default::default(),
                     );
-                    if let Some(control) = range_loop_reuses.get(&fact.binding()).copied()
-                        && control.source_unit() == fact.binding().source_unit()
+                    if let Some(receipt) = range_loop_reuses.get(&fact.binding()).copied()
+                        && let Some(control) = crate::ssa::borrow_result_support::verified_named_range_loop_reuse_control(
+                            file,
+                            fact.binding().source_unit(),
+                            receipt.loop_statement(),
+                            receipt.body_control(),
+                            receipt.end_statement(),
+                            receipt.observer(),
+                        )
                     {
-                        allowed.insert(control.expression().index());
+                        allowed.insert(control);
                     }
                     allowed
                 });

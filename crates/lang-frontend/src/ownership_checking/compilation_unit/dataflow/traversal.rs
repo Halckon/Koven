@@ -397,8 +397,7 @@ impl Checker<'_> {
     ) -> Result<Flows, OwnershipCheckingError> {
         let inherited: std::collections::BTreeSet<_> =
             state.borrow_bindings.keys().copied().collect();
-        let closed_for = inherited
-            .is_empty()
+        let closed_for = (inherited.is_empty() && prefix_len == elements.len())
             .then(|| self.closed_range_for_reuse(elements))
             .flatten();
         let uses = crate::ownership_checking::borrow_last_use::StraightLineBorrowUses::build_with_named_range_loop(

@@ -3,8 +3,38 @@
 use super::*;
 use crate::name_resolution::UnitSymbolId;
 use crate::ownership_checking::borrow_result::UnitBorrowResults;
-use crate::type_checking::UnitExpressionId;
+use crate::type_checking::{UnitExpressionId, UnitStatementId};
 use std::collections::{HashMap, HashSet};
+
+/// Pre-checked receipt for one bounded named-Range loop reuse.
+/// Callers with AST access must still verify that `body_control` is the sole
+/// `if` in `loop_statement`'s body and `observer` is the expression of `end_statement`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NamedRangeLoopReuseControl {
+    loop_statement: UnitStatementId,
+    body_control: UnitExpressionId,
+    end_statement: UnitStatementId,
+    observer: UnitExpressionId,
+}
+
+impl NamedRangeLoopReuseControl {
+    /// The `for` statement iterating the named Range binding.
+    pub const fn loop_statement(&self) -> UnitStatementId {
+        self.loop_statement
+    }
+    /// The sole `if` expression inside `loop_statement`'s body.
+    pub const fn body_control(&self) -> UnitExpressionId {
+        self.body_control
+    }
+    /// The statement whose `AfterStatement` edge retires the Range binding.
+    pub const fn end_statement(&self) -> UnitStatementId {
+        self.end_statement
+    }
+    /// The final read call expression observing the Range binding.
+    pub const fn observer(&self) -> UnitExpressionId {
+        self.observer
+    }
+}
 
 pub(crate) mod sealed {
     pub trait Sealed {}
@@ -29,8 +59,8 @@ pub trait UnitPreflightFacts: sealed::Sealed {
     }
 
     /// Confirm the exact Range loop-body control against actual iteration,
-    /// last-use and owner-delivery records.
-    fn named_range_loop_reuse_controls(&self) -> HashMap<UnitSymbolId, UnitExpressionId> {
+    /// last-use, observer-loan and owner-delivery records.
+    fn named_range_loop_reuse_controls(&self) -> HashMap<UnitSymbolId, NamedRangeLoopReuseControl> {
         HashMap::new()
     }
 
@@ -110,7 +140,7 @@ fn insert_unique<K: Copy + std::hash::Hash + Eq, V>(
 
 impl sealed::Sealed for CompilationUnitOwnership {}
 impl UnitPreflightFacts for CompilationUnitOwnership {
-    fn named_range_loop_reuse_controls(&self) -> HashMap<UnitSymbolId, UnitExpressionId> {
+    fn named_range_loop_reuse_controls(&self) -> HashMap<UnitSymbolId, NamedRangeLoopReuseControl> {
         CompilationUnitOwnership::named_range_loop_reuse_controls(self)
     }
 
@@ -200,7 +230,7 @@ impl CompilationUnitOwnership {
     /// Passive validation for the bounded named-Range loop use.
     pub(super) fn named_range_loop_reuse_controls(
         &self,
-    ) -> HashMap<UnitSymbolId, UnitExpressionId> {
+    ) -> HashMap<UnitSymbolId, NamedRangeLoopReuseControl> {
         use UnitIterationCleanupAction as Action;
         use UnitIterationExitKind as Exit;
         let results = self.borrow_results();
@@ -231,8 +261,14 @@ impl CompilationUnitOwnership {
             }
         }
         let roots: HashSet<_> = witnesses.values().flatten().map(|row| row.root).collect();
+        let observers: HashSet<_> = witnesses
+            .values()
+            .flatten()
+            .map(|row| row.observer)
+            .collect();
         let mut plans = HashMap::new();
         let mut loans = HashMap::new();
+        let mut observer_loans = HashMap::new();
         let mut moves = HashMap::new();
         let mut drops = HashSet::new();
         for plan in self.iterations() {
@@ -242,6 +278,9 @@ impl CompilationUnitOwnership {
             let key = (loan.call(), loan.argument());
             if sources.contains(&key) {
                 insert_unique(&mut loans, key, loan);
+            }
+            if observers.contains(&loan.call()) {
+                insert_unique(&mut observer_loans, loan.call(), loan);
             }
         }
         for delivery in self.value_deliveries() {
@@ -268,16 +307,22 @@ impl CompilationUnitOwnership {
                 || row.root.source_unit() != source_unit
                 || [row.source, row.body_control, row.observer, row.consume, row.consumed_operand]
                     .iter().any(|id| id.source_unit() != source_unit)
-                || row.body_control == row.source || row.observer == row.consume
+                || row.body_control == row.source
+                || row.observer == row.consume
+                || row.observer == row.source
+                || row.observer == row.body_control
                 || drops.contains(&row.root)
                 || ends.get(&symbol).copied().flatten() != Some(row.end)
             { return None; }
             let binding = (*bindings.get(&symbol)?)?;
             let original = binding.source_loan()?;
             let loan = (*loans.get(&(original.call(), original.argument()))?)?;
+            let observer_loan = (*observer_loans.get(&row.observer)?)?;
             if binding.storage() != BorrowBindingStorage::NewRangeDescriptor
                 || !matches!(binding.origin(), UnitLoanTarget::Place(place) if place.is_root() && place.root() == row.root)
                 || loan.target() != binding.origin() || loan.kind() != LoanKind::Shared
+                || observer_loan.kind() != LoanKind::Shared
+                || observer_loan.target() != binding.origin()
             { return None; }
             let plan = (*plans.get(&statement)?)?;
             if plan.descriptor().source() != row.source
@@ -315,7 +360,15 @@ impl CompilationUnitOwnership {
                 && moved.call() == row.consume
                 && moved.argument() == row.consumed_operand
                 && moved.place().is_some_and(|place| place.is_root()))
-            .then_some((symbol, row.body_control))
+            .then_some((
+                symbol,
+                NamedRangeLoopReuseControl {
+                    loop_statement: statement,
+                    body_control: row.body_control,
+                    end_statement: end,
+                    observer: row.observer,
+                },
+            ))
         }).collect()
     }
 }
