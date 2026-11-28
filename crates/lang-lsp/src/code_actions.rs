@@ -3,9 +3,13 @@
 use std::collections::{BTreeSet, HashMap};
 
 use lang_frontend::{
-    name_resolution::{DeclarationVisibility, SourceUnitId, UnitSymbolId},
-    parser::{Item, NameMarker, ParsedFile},
+    name_resolution::{
+        CompilationUnitNames, DeclarationId, DeclarationVisibility, Namespace, SourceUnitId,
+        UnitSymbolId,
+    },
+    parser::{ClassifierKind, Item, NameMarker, ParsedFile},
     source::SourceId,
+    type_checking::{CompilationUnitTypes, ParameterMode, UnitTypeId, UnitTypeKind},
 };
 use lsp_types::{
     CodeAction, CodeActionKind, CodeActionOrCommand, DocumentChangeOperation, DocumentChanges,
@@ -14,9 +18,9 @@ use lsp_types::{
 };
 
 use crate::{
-    ide_features::format_unit_type,
-    position_adapter::{PositionMappingError, span_range},
+    position_adapter::{PositionMappingError, span_range, utf16_position},
     rename::is_valid_rename_identifier,
+    scope_query::visible_declarations,
     unit_analysis_snapshot::UnitAnalysisSnapshot,
 };
 
@@ -39,11 +43,8 @@ pub(crate) fn code_actions(
     let Ok(text) = sources.source_text(source_id) else {
         return Ok(Vec::new());
     };
-    let parsed_file = snapshot
-        .name_snapshot()
-        .parsed_files()
-        .iter()
-        .find(|p| p.source_id() == source_id);
+    let parsed_files = snapshot.name_snapshot().parsed_files();
+    let parsed_file = parsed_files.iter().find(|p| p.source_id() == source_id);
     let mut actions = Vec::new();
 
     let allow_quickfix = kind_allowed(only, &CodeActionKind::QUICKFIX);
@@ -57,9 +58,9 @@ pub(crate) fn code_actions(
             .iter()
             .find(|u| u.id() == source_unit)
             .map(|u| u.package());
-        let existing_imports = collect_existing_import_paths(parsed_file, text);
+        let existing_imports = collect_existing_import_bindings(parsed_file, text);
         let (insert_pos, insert_prefix, insert_suffix) =
-            import_insertion_point(sources, parsed_file, text)?;
+            import_insertion_point(sources, source_id, parsed_file, text)?;
 
         let mut seen_fqns: BTreeSet<String> = BTreeSet::new();
         for diag in snapshot.diagnostics() {
@@ -79,7 +80,23 @@ pub(crate) fn code_actions(
                 continue;
             }
 
-            // Collect all unique importable FQNs matching `ident` in other packages.
+            // Determine whether the unresolved reference is in Type or Value namespace.
+            let expected_ns = names
+                .references()
+                .iter()
+                .find(|r| r.source_unit() == source_unit && r.span() == diag.primary_span())
+                .and_then(|r| r.namespace())
+                .or_else(|| {
+                    parsed_file.and_then(|p| {
+                        let in_type = p.ast().type_refs().iter().any(|(_, n)| {
+                            n.span().start() <= diag.primary_span().start()
+                                && diag.primary_span().end() <= n.span().end()
+                        });
+                        in_type.then_some(Namespace::Type)
+                    })
+                });
+
+            // Collect all unique importable FQNs matching `ident` and namespace in other packages.
             let mut candidates: BTreeSet<String> = BTreeSet::new();
             for decl in names.index().declarations() {
                 if decl.name() != ident || Some(decl.package()) == current_pkg {
@@ -89,6 +106,17 @@ pub(crate) fn code_actions(
                     decl.visibility(),
                     DeclarationVisibility::Public | DeclarationVisibility::Internal
                 ) {
+                    continue;
+                }
+                let ns_ok = match expected_ns {
+                    Some(Namespace::Type) => decl.namespace() == Namespace::Type,
+                    Some(Namespace::Value) => {
+                        decl.namespace() == Namespace::Value
+                            || is_constructible_classifier(decl, parsed_files)
+                    }
+                    None => true,
+                };
+                if !ns_ok {
                     continue;
                 }
                 let Some(pkg_name) = names
@@ -104,7 +132,8 @@ pub(crate) fn code_actions(
                 } else {
                     format!("{}.{}", pkg_name.segments().join("."), decl.name())
                 };
-                if !existing_imports.contains(&fqn) {
+                // Only skip if this exact `(fqn, local_name)` binding already exists.
+                if !existing_imports.contains(&(fqn.clone(), ident.to_owned())) {
                     candidates.insert(fqn);
                 }
             }
@@ -132,7 +161,8 @@ pub(crate) fn code_actions(
         }
     }
 
-    // 2. Refactor: Add explicit type annotation `: T` on unannotated `val`/`var` intersecting `requested_range`.
+    // 2. Refactor: Add explicit type annotation `: T` on unannotated `val`/`var` intersecting `requested_range`,
+    //    preserving import aliases or using qualified names when the bare name does not resolve to the target type.
     if allow_refactor
         && let Some(typed) = snapshot.typed()
         && let Some(parsed) = parsed_file
@@ -141,6 +171,12 @@ pub(crate) fn code_actions(
             .iter()
             .find(|u| u.source_unit() == source_unit)
     {
+        let visible_types: Vec<(String, DeclarationId)> =
+            visible_declarations(names, Some(parsed), sources, source_unit)
+                .into_iter()
+                .filter(|(_, d)| d.namespace() == Namespace::Type)
+                .map(|(n, d)| (n, d.id()))
+                .collect();
         let mut seen_offsets: BTreeSet<usize> = BTreeSet::new();
         for (_, node) in parsed.ast().items().iter() {
             let Item::Variable {
@@ -169,7 +205,7 @@ pub(crate) fn code_actions(
             let Some(ty_id) = typed.symbol_type(UnitSymbolId::new(source_unit, sym.id())) else {
                 continue;
             };
-            let Some(ty_text) = format_unit_type(ty_id, typed, names) else {
+            let Some(ty_text) = format_type_in_scope(ty_id, typed, names, &visible_types, 0) else {
                 continue;
             };
             let name_end = span_range(sources, *name_span)?.end;
@@ -191,6 +227,176 @@ pub(crate) fn code_actions(
     Ok(actions)
 }
 
+fn is_constructible_classifier(
+    decl: &lang_frontend::name_resolution::UnitDeclaration,
+    parsed_files: &[ParsedFile],
+) -> bool {
+    if decl.namespace() != Namespace::Type {
+        return false;
+    }
+    let Some(parsed) = parsed_files
+        .iter()
+        .find(|p| p.source_id() == decl.name_span().source_id())
+    else {
+        return false;
+    };
+    let Ok(node) = parsed.ast().items().get(decl.root()) else {
+        return false;
+    };
+    let payload = match node.payload() {
+        Item::Modified { declaration, .. } => parsed
+            .ast()
+            .items()
+            .get(*declaration)
+            .ok()
+            .map(|n| n.payload()),
+        other => Some(other),
+    };
+    matches!(
+        payload,
+        Some(Item::Classifier(c))
+            if matches!(
+                c.kind,
+                ClassifierKind::Class { .. }
+                    | ClassifierKind::ValueClass { .. }
+                    | ClassifierKind::Object { .. }
+            )
+    )
+}
+
+/// 按当前文件的作用域/导入别名格式化类型文本，确保插入后可准确解析回原声明。
+fn format_type_in_scope(
+    ty: UnitTypeId,
+    typed: &CompilationUnitTypes,
+    names: &CompilationUnitNames,
+    visible_types: &[(String, DeclarationId)],
+    depth: usize,
+) -> Option<String> {
+    if depth > 16 {
+        return None;
+    }
+    match typed.types().get(ty)? {
+        UnitTypeKind::Builtin(b) => Some(b.name().to_owned()),
+        UnitTypeKind::Nullable(inner) => Some(format!(
+            "{}?",
+            format_type_in_scope(*inner, typed, names, visible_types, depth + 1)?
+        )),
+        UnitTypeKind::Function {
+            move_only,
+            parameters,
+            return_type,
+        } => {
+            let mut params = Vec::with_capacity(parameters.len());
+            for p in parameters {
+                let pt = format_type_in_scope(p.ty(), typed, names, visible_types, depth + 1)?;
+                let mode = match p.mode() {
+                    ParameterMode::Value => "own ",
+                    ParameterMode::Borrow => "",
+                    ParameterMode::Inout => "inout ",
+                };
+                params.push(format!("{mode}{pt}"));
+            }
+            let ret = format_type_in_scope(*return_type, typed, names, visible_types, depth + 1)?;
+            let prefix = if *move_only { "move " } else { "" };
+            Some(format!("{prefix}({}) -> {ret}", params.join(", ")))
+        }
+        UnitTypeKind::Nominal {
+            declaration,
+            arguments,
+        } => {
+            let base = resolve_nominal_type_spelling(*declaration, names, visible_types)?;
+            if arguments.is_empty() {
+                Some(base)
+            } else {
+                let mut args = Vec::with_capacity(arguments.len());
+                for arg in arguments {
+                    args.push(format_type_in_scope(
+                        *arg,
+                        typed,
+                        names,
+                        visible_types,
+                        depth + 1,
+                    )?);
+                }
+                Some(format!("{base}<{}>", args.join(", ")))
+            }
+        }
+        UnitTypeKind::Intrinsic {
+            constructor,
+            arguments,
+        } => {
+            let base = format!("{constructor:?}");
+            if arguments.is_empty() {
+                Some(base)
+            } else {
+                let mut args = Vec::with_capacity(arguments.len());
+                for arg in arguments {
+                    args.push(format_type_in_scope(
+                        *arg,
+                        typed,
+                        names,
+                        visible_types,
+                        depth + 1,
+                    )?);
+                }
+                Some(format!("{base}<{}>", args.join(", ")))
+            }
+        }
+        UnitTypeKind::TypeParameter(sym) => names
+            .source_units()
+            .iter()
+            .find(|u| u.source_unit() == sym.source_unit())
+            .and_then(|u| {
+                u.resolution()
+                    .symbols()
+                    .iter()
+                    .find(|s| s.id() == sym.symbol())
+            })
+            .map(|s| s.name().to_owned()),
+        UnitTypeKind::StaticSelf(_) => Some("Self".to_owned()),
+        UnitTypeKind::Capability(cap) => Some(format!("{cap:?}")),
+        UnitTypeKind::EnumCase { .. }
+        | UnitTypeKind::IntegerLiteral(_)
+        | UnitTypeKind::Deferred(_)
+        | UnitTypeKind::Error => None,
+    }
+}
+
+fn resolve_nominal_type_spelling(
+    target_id: DeclarationId,
+    names: &CompilationUnitNames,
+    visible_types: &[(String, DeclarationId)],
+) -> Option<String> {
+    // Prefer an unambiguous visible name (including explicit alias like `import model.Point as P`).
+    for (visible_name, id) in visible_types {
+        if *id == target_id {
+            let unique = visible_types
+                .iter()
+                .filter(|(n, _)| n == visible_name)
+                .all(|(_, other)| *other == target_id);
+            if unique {
+                return Some(visible_name.clone());
+            }
+        }
+    }
+    // Otherwise fall back to fully qualified `pkg.Name` when non-default package.
+    let decl = names
+        .index()
+        .declarations()
+        .iter()
+        .find(|d| d.id() == target_id)?;
+    let pkg = names
+        .index()
+        .packages()
+        .get(decl.package().index())
+        .and_then(|p| p.name())?;
+    if pkg.is_default() {
+        None
+    } else {
+        Some(format!("{}.{}", pkg.segments().join("."), decl.name()))
+    }
+}
+
 fn kind_allowed(only: Option<&[CodeActionKind]>, candidate: &CodeActionKind) -> bool {
     let Some(only) = only else {
         return true;
@@ -206,7 +412,11 @@ fn ranges_overlap(a: Range, b: Range) -> bool {
     !(a.end < b.start || b.end < a.start)
 }
 
-fn collect_existing_import_paths(parsed_file: Option<&ParsedFile>, text: &str) -> BTreeSet<String> {
+/// 返回已存在的 `(fqn, bound_local_name)` 精确导入集合，避免别名导入屏蔽原名自动导入。
+fn collect_existing_import_bindings(
+    parsed_file: Option<&ParsedFile>,
+    text: &str,
+) -> BTreeSet<(String, String)> {
     let mut out = BTreeSet::new();
     let Some(parsed) = parsed_file else {
         return out;
@@ -223,31 +433,87 @@ fn collect_existing_import_paths(parsed_file: Option<&ParsedFile>, text: &str) -
                     .then_some(&text[s.span.start()..s.span.end()])
             })
             .collect();
-        if !segs.is_empty() {
-            out.insert(segs.join("."));
+        if let Some(&last) = segs.last() {
+            let alias = import.alias.and_then(|a| {
+                (!a.name_span.is_empty() && a.name_span.end() <= text.len())
+                    .then_some(&text[a.name_span.start()..a.name_span.end()])
+            });
+            out.insert((segs.join("."), alias.unwrap_or(last).to_owned()));
         }
     }
     out
 }
 
-/// 返回 `(insert_position, prefix, suffix)`，在现有 `import` 末尾、`package` 后空行或文件顶部插入导入。
+/// 按语法边界定位导入插入点（兼容同行 `package app; fun main()` 与紧跟多行块注释）。
 fn import_insertion_point(
     sources: &lang_frontend::source::SourceMap,
+    source_id: SourceId,
     parsed_file: Option<&ParsedFile>,
     text: &str,
 ) -> Result<(Position, &'static str, &'static str), PositionMappingError> {
     let nl = if text.contains("\r\n") { "\r\n" } else { "\n" };
     if let Some(parsed) = parsed_file {
         if let Some(last_import) = parsed.imports().last() {
-            let line = span_range(sources, last_import.span)?.end.line;
-            return Ok((Position::new(line + 1, 0), "", nl));
+            return insertion_after_header_span(
+                sources,
+                source_id,
+                text,
+                last_import.span.end(),
+                nl,
+                false,
+            );
         }
         if let Some(pkg) = parsed.package() {
-            let line = span_range(sources, pkg.span)?.end.line;
-            return Ok((Position::new(line + 1, 0), nl, nl));
+            return insertion_after_header_span(sources, source_id, text, pkg.span.end(), nl, true);
         }
     }
     Ok((Position::new(0, 0), "", nl))
+}
+
+fn insertion_after_header_span(
+    sources: &lang_frontend::source::SourceMap,
+    source_id: SourceId,
+    text: &str,
+    header_end: usize,
+    nl: &'static str,
+    blank_line_before: bool,
+) -> Result<(Position, &'static str, &'static str), PositionMappingError> {
+    let bytes = text.as_bytes();
+    let mut cursor = header_end.min(bytes.len());
+    // Skip horizontal whitespace and an optional `;` immediately terminating the header.
+    while cursor < bytes.len() && matches!(bytes[cursor], b' ' | b'\t') {
+        cursor += 1;
+    }
+    if bytes.get(cursor) == Some(&b';') {
+        cursor += 1;
+        while cursor < bytes.len() && matches!(bytes[cursor], b' ' | b'\t') {
+            cursor += 1;
+        }
+    }
+    // If the header ends cleanly at a line break or EOF, insert on the next line.
+    if cursor >= bytes.len() {
+        let pos = utf16_position(sources, source_id, bytes.len())?;
+        return Ok((pos, nl, nl));
+    }
+    if bytes[cursor] == b'\r' {
+        let next = if bytes.get(cursor + 1) == Some(&b'\n') {
+            cursor + 2
+        } else {
+            cursor + 1
+        };
+        let pos = utf16_position(sources, source_id, next)?;
+        let prefix = if blank_line_before { nl } else { "" };
+        return Ok((pos, prefix, nl));
+    }
+    if bytes[cursor] == b'\n' {
+        let pos = utf16_position(sources, source_id, cursor + 1)?;
+        let prefix = if blank_line_before { nl } else { "" };
+        return Ok((pos, prefix, nl));
+    }
+    // Same-line trailing item or block comment (e.g. `package app; fun main() {` or `package app /* ... */`):
+    // insert right at `cursor` wrapped in newlines so we never enter a function body or comment.
+    let pos = utf16_position(sources, source_id, cursor)?;
+    Ok((pos, nl, nl))
 }
 
 fn build_single_file_edit(

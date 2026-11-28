@@ -1,22 +1,23 @@
-//! `textDocument/semanticTokens/full` 实现：基于前端名称与类型事实生成确定性 UTF-16 语义高亮。
+//! `textDocument/semanticTokens/full` 实现：基于前端名称/类型事实与 O(1) 目标索引生成确定性 UTF-16 语义高亮。
 
 use std::collections::BTreeMap;
 
 use lang_frontend::{
-    lexer::{LexemeKind, TokenKind, lex},
+    analysis::DISPLAY_PATH,
     name_resolution::{
-        CompilationUnitNames, Namespace, SourceUnitId, SymbolKind as FrontSymbolKind,
-        UnitDeclaration,
+        Namespace, SourceUnitId, SymbolKind as FrontSymbolKind, UnitDeclaration,
+        UnitReferenceTarget,
     },
     parser::{ClassifierKind, Item, NameMarker, ParsedFile, VariableKind},
     source::{SourceId, Span},
-    type_checking::{BuiltinType, CompilationUnitTypes, NominalKind},
+    type_checking::{CompilationUnitTypes, NominalKind},
 };
 use lsp_types::{
     SemanticToken, SemanticTokenModifier, SemanticTokenType, SemanticTokens, SemanticTokensLegend,
 };
 
 use crate::{
+    navigation_extras::collect_assignment_write_spans,
     position_adapter::{PositionMappingError, span_range},
     unit_analysis_snapshot::UnitAnalysisSnapshot,
 };
@@ -40,37 +41,7 @@ const MOD_MODIFICATION: u32 = 1 << 2;
 const MOD_STATIC: u32 = 1 << 3;
 const MOD_DEFAULT_LIBRARY: u32 = 1 << 4;
 
-const BUILTIN_EXTRAS: &[&str] = &[
-    "Array",
-    "Box",
-    "Copyable",
-    "Hashable",
-    "List",
-    "Map",
-    "MutableList",
-    "MutableMap",
-    "Rc",
-    "Transferable",
-    "View",
-];
-
-const BUILTIN_FUNCS: &[&str] = &[
-    "println",
-    "error",
-    "listOf",
-    "mutableListOf",
-    "mapOf",
-    "mutableMapOf",
-    "arrayOf",
-    "replace",
-    "swap",
-    "rangeView",
-    "textByteLength",
-    "textByteAt",
-    "textUtf8ErrorOffset",
-    "textCopyBytes",
-    "textCopySlice",
-];
+type TargetKey = (SourceUnitId, usize, usize);
 
 /// 返回 `ServerCapabilities` 中声明的语义高亮图例。
 pub(crate) fn legend() -> SemanticTokensLegend {
@@ -111,13 +82,31 @@ pub(crate) fn semantic_tokens_full(
     let parsed_files = snapshot.name_snapshot().parsed_files();
     let parsed_file = parsed_files.iter().find(|p| p.source_id() == source_id);
 
-    // Pre-collect mutable (`var`) name spans from AST across the unit for READONLY vs MODIFICATION.
     let mutable_spans = collect_mutable_spans(parsed_files);
+    let assignment_writes = collect_assignment_write_spans(parsed_file);
+
+    // Pre-index all target classifications once in O(D + M + L) so reference lookup is O(log N).
+    let embedded_units: Vec<SourceUnitId> = names
+        .index()
+        .source_units()
+        .iter()
+        .filter(|su| {
+            su.key()
+                .logical_path()
+                .is_some_and(|p| p.as_str() == DISPLAY_PATH)
+                && sources
+                    .source_name(su.source_id())
+                    .is_ok_and(|n| n.starts_with("koven-std/"))
+        })
+        .map(|su| su.id())
+        .collect();
+    let target_index =
+        build_target_index(names, typed, parsed_files, &mutable_spans, &embedded_units);
 
     // Map `(line, start_col_utf16) -> (length_utf16, token_type, token_modifiers)`.
     let mut raw: BTreeMap<(u32, u32), (u32, u32, u32)> = BTreeMap::new();
 
-    // 1. Package header segments -> NAMESPACE.
+    // 1. Package header and import package segments -> NAMESPACE.
     if let Some(parsed) = parsed_file {
         if let Some(pkg) = parsed.package() {
             for seg in &pkg.segments {
@@ -140,14 +129,16 @@ pub(crate) fn semantic_tokens_full(
         if decl.source_unit() != source_unit || decl.name_span().source_id() != source_id {
             continue;
         }
-        let (tt, mods) = classify_declaration(decl, typed, parsed_files, &mutable_spans);
-        record_span(
-            sources,
-            decl.name_span(),
-            tt,
-            mods | MOD_DECLARATION,
-            &mut raw,
-        )?;
+        let key = target_key(decl.source_unit(), decl.name_span());
+        if let Some(&(tt, mods)) = target_index.get(&key) {
+            record_span(
+                sources,
+                decl.name_span(),
+                tt,
+                mods | MOD_DECLARATION,
+                &mut raw,
+            )?;
+        }
 
         if let Some(typed) = typed
             && let Some(nominal) = typed
@@ -158,7 +149,7 @@ pub(crate) fn semantic_tokens_full(
             for field in nominal.fields() {
                 if field.span().source_id() == source_id {
                     let fmod = if mutable_spans.contains(&field.span()) {
-                        MOD_DECLARATION | MOD_MODIFICATION
+                        MOD_DECLARATION
                     } else {
                         MOD_DECLARATION | MOD_READONLY
                     };
@@ -218,7 +209,7 @@ pub(crate) fn semantic_tokens_full(
         }
     }
 
-    // 4. All resolved references in this file (without DECLARATION modifier).
+    // 4. All resolved references in this file via O(log N) target index; set MOD_MODIFICATION only on actual writes.
     for (ref_span, targets) in snapshot.definitions().entries_in_unit(source_unit) {
         if ref_span.source_id() != source_id {
             continue;
@@ -229,36 +220,44 @@ pub(crate) fn semantic_tokens_full(
         if target.source_unit == source_unit && target.span == ref_span {
             continue;
         }
-        if let Some((tt, mods)) = classify_target(
-            names,
-            typed,
-            parsed_files,
-            &mutable_spans,
-            target.source_unit,
-            target.span,
-        ) {
+        if let Some(&(tt, mut mods)) =
+            target_index.get(&target_key(target.source_unit, target.span))
+        {
+            if assignment_writes.contains(&(ref_span.start(), ref_span.end())) {
+                mods |= MOD_MODIFICATION;
+            }
             record_span(sources, ref_span, tt, mods, &mut raw)?;
         }
     }
 
-    // 5. Unshadowed builtin types and functions via lexer scan.
-    if let Ok(lexed) = lex(sources, source_id)
-        && let Ok(text) = sources.source_text(source_id)
-    {
-        for lexeme in lexed.lexemes() {
-            if !matches!(lexeme.kind(), LexemeKind::Token(TokenKind::Identifier)) {
-                continue;
+    // 5. Frontend-resolved compiler builtins (`External` / `ExternalOverloadSet`) and embedded declarations (`Display`).
+    let decl_by_id: BTreeMap<lang_frontend::name_resolution::DeclarationId, TargetKey> = names
+        .index()
+        .declarations()
+        .iter()
+        .map(|d| (d.id(), target_key(d.source_unit(), d.name_span())))
+        .collect();
+    for reference in names.references() {
+        if reference.source_unit() != source_unit || reference.span().source_id() != source_id {
+            continue;
+        }
+        match reference.target() {
+            UnitReferenceTarget::External(_) | UnitReferenceTarget::ExternalOverloadSet(_) => {
+                let tt = match reference.namespace() {
+                    Some(Namespace::Type) => TT_TYPE,
+                    Some(Namespace::Value) => TT_FUNCTION,
+                    None => continue,
+                };
+                record_span(sources, reference.span(), tt, MOD_DEFAULT_LIBRARY, &mut raw)?;
             }
-            let span = lexeme.span();
-            if span.end() > text.len() {
-                continue;
+            UnitReferenceTarget::Declaration(decl_id) => {
+                if let Some(key) = decl_by_id.get(decl_id)
+                    && let Some(&(tt, mods)) = target_index.get(key)
+                {
+                    record_span(sources, reference.span(), tt, mods, &mut raw)?;
+                }
             }
-            let ident = &text[span.start()..span.end()];
-            if is_builtin_type(ident) {
-                record_span(sources, span, TT_TYPE, MOD_DEFAULT_LIBRARY, &mut raw)?;
-            } else if BUILTIN_FUNCS.contains(&ident) {
-                record_span(sources, span, TT_FUNCTION, MOD_DEFAULT_LIBRARY, &mut raw)?;
-            }
+            _ => {}
         }
     }
 
@@ -298,6 +297,93 @@ pub(crate) fn semantic_tokens_full(
         result_id: None,
         data,
     })
+}
+
+fn target_key(su: SourceUnitId, span: Span) -> TargetKey {
+    (su, span.start(), span.end())
+}
+
+fn build_target_index(
+    names: &lang_frontend::name_resolution::CompilationUnitNames,
+    typed: Option<&CompilationUnitTypes>,
+    parsed_files: &[ParsedFile],
+    mutable_spans: &[Span],
+    embedded_units: &[SourceUnitId],
+) -> BTreeMap<TargetKey, (u32, u32)> {
+    let mut index: BTreeMap<TargetKey, (u32, u32)> = BTreeMap::new();
+
+    // 1. Local symbols across all source units.
+    for unit_names in names.source_units() {
+        let su = unit_names.source_unit();
+        for sym in unit_names.resolution().symbols() {
+            if !sym.is_synthetic()
+                && let Some(entry) = classify_local_symbol(sym.kind(), sym.span(), mutable_spans)
+            {
+                index.insert(target_key(su, sym.span()), entry);
+            }
+        }
+    }
+
+    // 2. Nominal fields, enum cases, instance methods, companion methods.
+    if let Some(typed) = typed {
+        for decl in names.index().declarations() {
+            let Some(nominal) = typed
+                .signatures()
+                .declaration(decl.id())
+                .and_then(|s| s.nominal())
+            else {
+                continue;
+            };
+            let su = decl.source_unit();
+            let extra = if embedded_units.contains(&su) {
+                MOD_DEFAULT_LIBRARY
+            } else {
+                0
+            };
+            for field in nominal.fields() {
+                let fmod = if mutable_spans.contains(&field.span()) {
+                    extra
+                } else {
+                    MOD_READONLY | extra
+                };
+                index.insert(target_key(su, field.span()), (TT_PROPERTY, fmod));
+            }
+            for case in nominal.enum_cases() {
+                index.insert(
+                    target_key(su, case.name_span()),
+                    (TT_ENUM_MEMBER, MOD_STATIC | extra),
+                );
+            }
+            for member in nominal.members() {
+                index.insert(target_key(su, member.name_span()), (TT_METHOD, extra));
+            }
+            for member in nominal.companion_members() {
+                index.insert(
+                    target_key(su, member.name_span()),
+                    (TT_METHOD, MOD_STATIC | extra),
+                );
+            }
+        }
+    }
+
+    // 3. Top-level declarations (prefer Namespace::Type for objects).
+    let mut seen_type_decl = BTreeMap::<TargetKey, bool>::new();
+    for decl in names.index().declarations() {
+        let key = target_key(decl.source_unit(), decl.name_span());
+        if seen_type_decl.get(&key).copied().unwrap_or(false) {
+            continue;
+        }
+        let (tt, mut mods) = classify_declaration(decl, typed, parsed_files, mutable_spans);
+        if embedded_units.contains(&decl.source_unit()) {
+            mods |= MOD_DEFAULT_LIBRARY;
+        }
+        index.insert(key, (tt, mods));
+        if decl.namespace() == Namespace::Type {
+            seen_type_decl.insert(key, true);
+        }
+    }
+
+    index
 }
 
 fn record_span(
@@ -365,7 +451,7 @@ fn classify_declaration(
         FrontSymbolKind::Constant => (TT_VARIABLE, MOD_READONLY),
         FrontSymbolKind::Variable => {
             if mutable_spans.contains(&decl.name_span()) {
-                (TT_VARIABLE, MOD_MODIFICATION)
+                (TT_VARIABLE, 0)
             } else {
                 (TT_VARIABLE, MOD_READONLY)
             }
@@ -429,7 +515,7 @@ fn classify_local_symbol(
         }
         FrontSymbolKind::Variable => {
             let m = if mutable_spans.contains(&span) {
-                MOD_MODIFICATION
+                0
             } else {
                 MOD_READONLY
             };
@@ -437,90 +523,4 @@ fn classify_local_symbol(
         }
         _ => None,
     }
-}
-
-fn classify_target(
-    names: &CompilationUnitNames,
-    typed: Option<&CompilationUnitTypes>,
-    parsed_files: &[ParsedFile],
-    mutable_spans: &[Span],
-    target_unit: SourceUnitId,
-    target_span: Span,
-) -> Option<(u32, u32)> {
-    // 1. Top-level declaration (prefer Namespace::Type for objects).
-    let mut matched_decl: Option<&UnitDeclaration> = None;
-    for decl in names.index().declarations() {
-        if decl.source_unit() == target_unit
-            && decl.name_span() == target_span
-            && (matched_decl.is_none() || decl.namespace() == Namespace::Type)
-        {
-            matched_decl = Some(decl);
-        }
-    }
-    if let Some(decl) = matched_decl {
-        return Some(classify_declaration(
-            decl,
-            typed,
-            parsed_files,
-            mutable_spans,
-        ));
-    }
-
-    // 2. Nominal fields, methods, companion methods, enum cases.
-    if let Some(typed) = typed {
-        for sig in typed.signatures().declarations() {
-            let Some(nominal) = sig.nominal() else {
-                continue;
-            };
-            if let Some(field) = nominal.fields().iter().find(|f| f.span() == target_span) {
-                let fmod = if mutable_spans.contains(&field.span()) {
-                    MOD_MODIFICATION
-                } else {
-                    MOD_READONLY
-                };
-                return Some((TT_PROPERTY, fmod));
-            }
-            if nominal
-                .enum_cases()
-                .iter()
-                .any(|c| c.name_span() == target_span)
-            {
-                return Some((TT_ENUM_MEMBER, MOD_STATIC));
-            }
-            if nominal
-                .members()
-                .iter()
-                .any(|m| m.name_span() == target_span)
-            {
-                return Some((TT_METHOD, 0));
-            }
-            if nominal
-                .companion_members()
-                .iter()
-                .any(|m| m.name_span() == target_span)
-            {
-                return Some((TT_METHOD, MOD_STATIC));
-            }
-        }
-    }
-
-    // 3. Local symbols in target_unit.
-    if let Some(unit_names) = names
-        .source_units()
-        .iter()
-        .find(|u| u.source_unit() == target_unit)
-        && let Some(sym) = unit_names
-            .resolution()
-            .symbols()
-            .iter()
-            .find(|s| s.span() == target_span)
-    {
-        return classify_local_symbol(sym.kind(), sym.span(), mutable_spans);
-    }
-
-    None
-}
-
-fn is_builtin_type(ident: &str) -> bool {
-    BuiltinType::ALL.iter().any(|b| b.name() == ident) || BUILTIN_EXTRAS.contains(&ident)
 }

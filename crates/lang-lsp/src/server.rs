@@ -86,6 +86,13 @@ pub(crate) fn run_with_options(
         .and_then(|t| t.document_symbol.as_ref())
         .and_then(|d| d.hierarchical_document_symbol_support)
         .unwrap_or(false);
+    let supports_code_action_literals = initialize_params
+        .capabilities
+        .text_document
+        .as_ref()
+        .and_then(|t| t.code_action.as_ref())
+        .and_then(|ca| ca.code_action_literal_support.as_ref())
+        .is_some();
     let source_set = match SourceSetConfig::from_initialization_options(
         initialize_params.initialization_options.as_ref(),
     ) {
@@ -159,7 +166,7 @@ pub(crate) fn run_with_options(
         None => (SessionState::SingleDocument(BTreeMap::new()), None),
     };
     let initialize_result = InitializeResult {
-        capabilities: capabilities(),
+        capabilities: capabilities(supports_code_action_literals),
         server_info: Some(ServerInfo {
             name: "koven-lsp".to_owned(),
             version: Some(env!("CARGO_PKG_VERSION").to_owned()),
@@ -246,7 +253,8 @@ pub(crate) fn run_with_options(
                         dispatch_json!(ide_p3_requests::code_action_response(
                             params,
                             &state,
-                            supports_document_changes
+                            supports_document_changes,
+                            supports_code_action_literals
                         ))
                     }
                     _ => {
@@ -274,7 +282,7 @@ pub(crate) fn run_with_options(
     Ok(())
 }
 
-fn capabilities() -> ServerCapabilities {
+fn capabilities(supports_code_action_literals: bool) -> ServerCapabilities {
     ServerCapabilities {
         position_encoding: Some(PositionEncodingKind::UTF16),
         text_document_sync: Some(TextDocumentSyncCapability::Options(
@@ -308,13 +316,15 @@ fn capabilities() -> ServerCapabilities {
         document_highlight_provider: Some(OneOf::Left(true)),
         folding_range_provider: Some(FoldingRangeProviderCapability::Simple(true)),
         type_definition_provider: Some(TypeDefinitionProviderCapability::Simple(true)),
-        code_action_provider: Some(CodeActionProviderCapability::Options(CodeActionOptions {
-            code_action_kinds: Some(vec![
-                CodeActionKind::QUICKFIX,
-                CodeActionKind::REFACTOR_REWRITE,
-            ]),
-            ..CodeActionOptions::default()
-        })),
+        code_action_provider: supports_code_action_literals.then(|| {
+            CodeActionProviderCapability::Options(CodeActionOptions {
+                code_action_kinds: Some(vec![
+                    CodeActionKind::QUICKFIX,
+                    CodeActionKind::REFACTOR_REWRITE,
+                ]),
+                ..CodeActionOptions::default()
+            })
+        }),
         semantic_tokens_provider: Some(SemanticTokensServerCapabilities::SemanticTokensOptions(
             SemanticTokensOptions {
                 legend: crate::semantic_tokens::legend(),

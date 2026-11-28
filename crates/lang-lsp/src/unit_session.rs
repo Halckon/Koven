@@ -340,6 +340,34 @@ impl UnitSession {
         self.overlays.get(uri.as_str()).map(|o| o.version)
     }
 
+    /// 校验已关闭的磁盘文档当前内容与快照一致；若已被外部修改或删除则返回 `false`。
+    pub(crate) fn is_closed_document_fresh(&self, uri: &Uri) -> bool {
+        if self.overlays.contains_key(uri.as_str()) {
+            return true;
+        }
+        let Some((_, _, sid)) = self.query_context(uri) else {
+            return false;
+        };
+        let Ok(expected) = self
+            .snapshot
+            .analysis
+            .name_snapshot()
+            .sources()
+            .source_text(sid)
+        else {
+            return false;
+        };
+        let is_disk_backed = self.disk_backed_uris.contains(uri.as_str());
+        if let Some(path) = workspace_manifest::file_uri_to_path(uri) {
+            if is_disk_backed || path.exists() {
+                return std::fs::read_to_string(&path).is_ok_and(|disk| disk == expected);
+            }
+            true
+        } else {
+            !is_disk_backed
+        }
+    }
+
     /// 只为当前打开的 overlay 提供编辑，不能把关闭后的 base 当作编辑器文本。
     pub(crate) fn formatting_edits(
         &self,

@@ -77,30 +77,11 @@ pub(crate) fn document_highlights(
     Ok(out)
 }
 
-fn collect_write_spans(
-    snapshot: &UnitAnalysisSnapshot,
+/// 收集当前文件内所有赋值左侧写入位置的 `(start, end)` 字节范围。
+pub(crate) fn collect_assignment_write_spans(
     parsed_file: Option<&ParsedFile>,
-    source_unit: SourceUnitId,
-    source_id: SourceId,
 ) -> BTreeSet<(usize, usize)> {
     let mut writes = BTreeSet::new();
-    let names = snapshot.name_snapshot().names();
-    for decl in names.index().declarations() {
-        if decl.source_unit() == source_unit && decl.name_span().source_id() == source_id {
-            writes.insert((decl.name_span().start(), decl.name_span().end()));
-        }
-    }
-    if let Some(unit_names) = names
-        .source_units()
-        .iter()
-        .find(|u| u.source_unit() == source_unit)
-    {
-        for sym in unit_names.resolution().symbols() {
-            if !sym.is_synthetic() && sym.span().source_id() == source_id {
-                writes.insert((sym.span().start(), sym.span().end()));
-            }
-        }
-    }
     if let Some(parsed) = parsed_file {
         for (_, node) in parsed.ast().expressions().iter() {
             if let Expression::Assignment { target, .. } = node.payload()
@@ -116,6 +97,33 @@ fn collect_write_spans(
                     }
                     _ => {}
                 }
+            }
+        }
+    }
+    writes
+}
+
+fn collect_write_spans(
+    snapshot: &UnitAnalysisSnapshot,
+    parsed_file: Option<&ParsedFile>,
+    source_unit: SourceUnitId,
+    source_id: SourceId,
+) -> BTreeSet<(usize, usize)> {
+    let mut writes = collect_assignment_write_spans(parsed_file);
+    let names = snapshot.name_snapshot().names();
+    for decl in names.index().declarations() {
+        if decl.source_unit() == source_unit && decl.name_span().source_id() == source_id {
+            writes.insert((decl.name_span().start(), decl.name_span().end()));
+        }
+    }
+    if let Some(unit_names) = names
+        .source_units()
+        .iter()
+        .find(|u| u.source_unit() == source_unit)
+    {
+        for sym in unit_names.resolution().symbols() {
+            if !sym.is_synthetic() && sym.span().source_id() == source_id {
+                writes.insert((sym.span().start(), sym.span().end()));
             }
         }
     }
@@ -311,20 +319,48 @@ where
         .iter()
         .find(|p| p.source_id() == source_id);
 
-    // 1. Resolve via definition index at cursor.
-    let mut resolved_type: Option<UnitTypeId> = None;
-    if let Some((_, targets)) = snapshot.definitions().entry_at(source_unit, offset)
-        && let Some(target) = targets.first().copied()
-    {
-        // Already pointing to a nominal type declaration -> jump directly to it.
-        if let Some(decl) = names.index().declarations().iter().find(|d| {
+    // 1. If cursor is already on a nominal type reference/declaration, jump directly to it.
+    let entry_target = snapshot
+        .definitions()
+        .entry_at(source_unit, offset)
+        .and_then(|(_, targets)| targets.first().copied());
+    if let Some(target) = entry_target
+        && let Some(decl) = names.index().declarations().iter().find(|d| {
             d.source_unit() == target.source_unit
                 && d.name_span() == target.span
                 && d.namespace() == Namespace::Type
-        }) {
-            return decl_location_response(sources, decl, &uri_for_unit);
+        })
+    {
+        return decl_location_response(sources, decl, &uri_for_unit);
+    }
+
+    // 2. Prefer substituted expression type at cursor (preserves concrete generic projections like `h.value` -> `Point`).
+    let mut resolved_type: Option<UnitTypeId> = None;
+    if let Some(parsed) = parsed_file {
+        let mut best: Option<(usize, UnitTypeId)> = None;
+        for (expr_id, node) in parsed.ast().expressions().iter() {
+            let s = node.span();
+            if s.start() <= offset
+                && offset <= s.end()
+                && let Some(ty) = typed.expression_type(UnitExpressionId::new(source_unit, expr_id))
+            {
+                let len = s.len();
+                if best.is_none_or(|(best_len, _)| len < best_len) {
+                    best = Some((len, ty));
+                }
+            }
         }
-        // Value symbol (local, param, constant, variable).
+        if let Some((_, ty)) = best
+            && unwrap_nominal_declaration(ty, typed).is_some()
+        {
+            resolved_type = Some(ty);
+        }
+    }
+
+    // 3. Fallback to declaration/symbol/field type (for variable/parameter declarations without an expression node).
+    if resolved_type.is_none()
+        && let Some(target) = entry_target
+    {
         if let Some(unit_names) = names
             .source_units()
             .iter()
@@ -337,7 +373,6 @@ where
         {
             resolved_type = typed.symbol_type(UnitSymbolId::new(target.source_unit, sym.id()));
         }
-        // Nominal field target.
         if resolved_type.is_none() {
             'outer: for sig in typed.signatures().declarations() {
                 if let Some(nominal) = sig.nominal() {
@@ -352,45 +387,35 @@ where
         }
     }
 
-    // 2. Fallback: smallest AST expression containing `offset` with an inferred type.
-    if resolved_type.is_none()
-        && let Some(parsed) = parsed_file
-    {
-        let mut best: Option<(usize, UnitTypeId)> = None;
-        for (expr_id, node) in parsed.ast().expressions().iter() {
-            let s = node.span();
-            if s.start() <= offset
-                && offset <= s.end()
-                && let Some(ty) = typed.expression_type(UnitExpressionId::new(source_unit, expr_id))
-            {
-                let len = s.len();
-                if best.is_none_or(|(best_len, _)| len < best_len) {
-                    best = Some((len, ty));
-                }
-            }
-        }
-        resolved_type = best.map(|(_, ty)| ty);
-    }
-
     let Some(ty_id) = resolved_type else {
         return Ok(None);
     };
-    let inner = match typed.types().get(ty_id) {
-        Some(UnitTypeKind::Nullable(inner)) => *inner,
-        _ => ty_id,
-    };
-    let Some(UnitTypeKind::Nominal { declaration, .. }) = typed.types().get(inner) else {
+    let Some(declaration) = unwrap_nominal_declaration(ty_id, typed) else {
         return Ok(None);
     };
     let Some(decl) = names
         .index()
         .declarations()
         .iter()
-        .find(|d| d.id() == *declaration)
+        .find(|d| d.id() == declaration)
     else {
         return Ok(None);
     };
     decl_location_response(sources, decl, &uri_for_unit)
+}
+
+fn unwrap_nominal_declaration(
+    ty_id: UnitTypeId,
+    typed: &lang_frontend::type_checking::CompilationUnitTypes,
+) -> Option<lang_frontend::name_resolution::DeclarationId> {
+    let inner = match typed.types().get(ty_id) {
+        Some(UnitTypeKind::Nullable(inner)) => *inner,
+        _ => ty_id,
+    };
+    match typed.types().get(inner) {
+        Some(UnitTypeKind::Nominal { declaration, .. }) => Some(*declaration),
+        _ => None,
+    }
 }
 
 fn decl_location_response<F>(

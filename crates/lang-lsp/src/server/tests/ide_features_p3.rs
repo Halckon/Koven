@@ -10,6 +10,26 @@ use lsp_types::{
     },
 };
 
+fn code_action_literal_caps() -> lsp_types::ClientCapabilities {
+    lsp_types::ClientCapabilities {
+        text_document: Some(lsp_types::TextDocumentClientCapabilities {
+            code_action: Some(lsp_types::CodeActionClientCapabilities {
+                code_action_literal_support: Some(lsp_types::CodeActionLiteralSupport {
+                    code_action_kind: lsp_types::CodeActionKindLiteralSupport {
+                        value_set: vec![
+                            CodeActionKind::QUICKFIX.as_str().to_owned(),
+                            CodeActionKind::REFACTOR_REWRITE.as_str().to_owned(),
+                        ],
+                    },
+                }),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }),
+        ..Default::default()
+    }
+}
+
 fn doc_pos(uri: &lsp_types::Uri, position: Position) -> TextDocumentPositionParams {
     TextDocumentPositionParams::new(TextDocumentIdentifier::new(uri.clone()), position)
 }
@@ -107,8 +127,9 @@ fun main(seed: Point?) {
     }
 }
 ";
-    initialize_with_options(
+    initialize_with_capabilities_and_options(
         &client,
+        code_action_literal_caps(),
         Some(serde_json::json!({"koven": {"sourceSet": {
             "schema": "koven.lsp.source-set",
             "version": 1,
@@ -174,10 +195,11 @@ fun main(seed: Point?) {
             .iter()
             .any(|(_, _, s, t, m)| s == "x" && *t == 8 && (*m & 2) != 0)
     );
+    // `y` is mutable `var` field -> NOT readonly (mod 2) and NOT modification (mod 4) at declaration!
     assert!(
         decoded_model
             .iter()
-            .any(|(_, _, s, t, m)| s == "y" && *t == 8 && (*m & 4) != 0)
+            .any(|(_, _, s, t, m)| s == "y" && *t == 8 && (*m & 2) == 0 && (*m & 4) == 0)
     );
     assert!(
         decoded_model
@@ -205,11 +227,18 @@ fun main(seed: Point?) {
         panic!("expected app SemanticTokens");
     };
     let decoded_app = decode_semantic_tokens(&app_toks.data, app_src);
-    // `count` is mutable `var` (mod 4), `origin` is readonly `val` (mod 2), `println` is builtin func (6, mod 16)
-    assert!(
-        decoded_app
+    // `count` LHS assignment has MOD_MODIFICATION (4), while `count` reads do NOT have MOD_MODIFICATION!
+    let count_toks: Vec<_> = decoded_app
+        .iter()
+        .filter(|(_, _, s, t, _)| s == "count" && *t == 10)
+        .collect();
+    assert_eq!(
+        count_toks
             .iter()
-            .any(|(_, _, s, t, m)| s == "count" && *t == 10 && (*m & 4) != 0)
+            .filter(|(_, _, _, _, m)| (*m & 4) != 0)
+            .count(),
+        1,
+        "only the assignment LHS of `count` should carry MOD_MODIFICATION: {count_toks:?}"
     );
     assert!(
         decoded_app
@@ -421,4 +450,365 @@ fun main() {
         .join()
         .expect("server thread")
         .expect("clean exit");
+}
+
+/// PR #501 review regressions (all 10 P2 findings):
+/// - Explicit type refactor preserves import alias `import model.Point as P` -> `: P`
+/// - Generic field `h.value` on `Holder<Point>` jumps to `Point` in `typeDefinition`
+/// - Auto-import filters Type vs Value namespace (`fun f(x: Missing)` rejects `fun Missing()`)
+/// - Aliased import `import extra.computeBonus as bonus` does not block bare `computeBonus(5)` import
+/// - Single-line `package app; fun main() { ... }` inserts import outside function body
+/// - Semantic tokens highlight `Display` via frontend target and do NOT falsely highlight `obj.println()`
+/// - Closed disk file modified externally returns empty code actions (no stale edit)
+/// - Client without `codeActionLiteralSupport` receives `code_action_provider: None` and empty actions
+#[test]
+fn p3_review_regressions_aliases_namespaces_insertion_generic_typedef_tokens_disk_and_caps() {
+    // 1. Client without `codeActionLiteralSupport` must NOT get `code_action_provider` advertised.
+    {
+        let (server, client) = Connection::memory();
+        let server_thread = thread::spawn(|| run(server));
+        client
+            .sender
+            .send(Message::Request(Request {
+                id: RequestId::from(1_i32),
+                method: Initialize::METHOD.to_owned(),
+                params: serde_json::to_value(InitializeParams::default()).expect("params"),
+            }))
+            .expect("init");
+        let Message::Response(resp) = client.receiver.recv_timeout(TIMEOUT).expect("resp") else {
+            panic!("expected init response");
+        };
+        let init: InitializeResult =
+            serde_json::from_value(resp.response_result.expect("ok")).expect("init result");
+        assert!(
+            init.capabilities.code_action_provider.is_none(),
+            "code_action_provider must be None without codeActionLiteralSupport"
+        );
+        send_notification(
+            &client,
+            Initialized::METHOD,
+            serde_json::to_value(InitializedParams {}).expect("initialized"),
+        );
+        shutdown(&client);
+        server_thread.join().expect("thread").expect("exit");
+    }
+
+    // 2. Multi-file project covering alias refactor, generic field typeDefinition, Display & non-builtin member tokens,
+    //    type-vs-value auto-import filtering, aliased import non-blocking, same-line package insertion, and stale disk check.
+    let tmp_dir = std::env::temp_dir().join(format!("koven_lsp_p3_r1_{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&tmp_dir);
+    std::fs::create_dir_all(tmp_dir.join("model")).expect("mkdir");
+    std::fs::create_dir_all(tmp_dir.join("extra")).expect("mkdir");
+    std::fs::create_dir_all(tmp_dir.join("app")).expect("mkdir");
+
+    let model_path = tmp_dir.join("model/types.ko");
+    let extra_path = tmp_dir.join("extra/helper.ko");
+    let app_path = tmp_dir.join("app/main.ko");
+
+    let model_src = "\
+package model
+
+public class Point(public val x: Int, public val y: Int) : Display {
+    public override fun toString(): String = \"pt\"
+}
+
+public class Holder<T>(public val value: T)
+";
+    let extra_src = "\
+package extra
+
+public fun Missing(): Int = 1
+public fun computeBonus(v: Int): Int = v + 10
+";
+    let app_src = "\
+package app
+
+import model.Point as P
+import model.Holder
+
+fun main(h: Holder<P>) {
+    val p = P(1, 2)
+    borrow val item = h.value
+}
+";
+    std::fs::write(&model_path, model_src).expect("write model");
+    std::fs::write(&extra_path, extra_src).expect("write extra");
+    std::fs::write(&app_path, app_src).expect("write app");
+
+    let model_uri: lsp_types::Uri = format!("file://{}", model_path.display())
+        .parse()
+        .expect("uri");
+    let extra_uri: lsp_types::Uri = format!("file://{}", extra_path.display())
+        .parse()
+        .expect("uri");
+    let app_uri: lsp_types::Uri = format!("file://{}", app_path.display())
+        .parse()
+        .expect("uri");
+
+    let (server, client) = Connection::memory();
+    let server_thread = thread::spawn(|| run(server));
+    initialize_with_capabilities_and_options(
+        &client,
+        code_action_literal_caps(),
+        Some(serde_json::json!({"koven": {"sourceSet": {
+            "schema": "koven.lsp.source-set",
+            "version": 1,
+            "roots": ["src"],
+            "sources": [
+                {"root": "src", "logicalPath": "model/types.ko", "uri": model_uri.as_str(), "text": model_src},
+                {"root": "src", "logicalPath": "extra/helper.ko", "uri": extra_uri.as_str(), "text": extra_src},
+                {"root": "src", "logicalPath": "app/main.ko", "uri": app_uri.as_str(), "text": app_src}
+            ]
+        }}})),
+    );
+    let d1 = receive_diagnostics(&client);
+    let d2 = receive_diagnostics(&client);
+    let d3 = receive_diagnostics(&client);
+    assert!(d1.diagnostics.is_empty(), "d1: {:?}", d1.diagnostics);
+    assert!(d2.diagnostics.is_empty(), "d2: {:?}", d2.diagnostics);
+    assert!(d3.diagnostics.is_empty(), "d3: {:?}", d3.diagnostics);
+
+    // 2a. Explicit type refactor on `val p = P(1, 2)` must preserve alias `: P` (not `: Point`).
+    let p_pos = position_of(app_src, "val p", 0);
+    send_request(
+        &client,
+        RequestId::from(700_i32),
+        CodeActionRequest::METHOD,
+        serde_json::to_value(CodeActionParams {
+            text_document: TextDocumentIdentifier::new(app_uri.clone()),
+            range: Range::new(p_pos, p_pos),
+            context: CodeActionContext {
+                diagnostics: Vec::new(),
+                only: Some(vec![CodeActionKind::REFACTOR_REWRITE]),
+                trigger_kind: None,
+            },
+            work_done_progress_params: Default::default(),
+            partial_result_params: Default::default(),
+        })
+        .expect("ca"),
+    );
+    let alias_actions: CodeActionResponse =
+        serde_json::from_value(receive_response(&client).response_result.expect("ok"))
+            .expect("resp");
+    assert!(
+        alias_actions.iter().any(|a| matches!(
+            a,
+            CodeActionOrCommand::CodeAction(ca) if ca.title == "Add explicit type ': P'"
+        )),
+        "explicit type refactor must preserve import alias P: {alias_actions:?}"
+    );
+
+    // 2b. Generic field `h.value` on `Holder<P>` must jump to `Point` in `typeDefinition`!
+    let value_pos = position_of(app_src, "value", 0);
+    send_request(
+        &client,
+        RequestId::from(701_i32),
+        GotoTypeDefinition::METHOD,
+        serde_json::to_value(GotoTypeDefinitionParams {
+            text_document_position_params: doc_pos(&app_uri, value_pos),
+            work_done_progress_params: Default::default(),
+            partial_result_params: Default::default(),
+        })
+        .expect("typedef"),
+    );
+    let Some(GotoDefinitionResponse::Scalar(loc)) =
+        serde_json::from_value::<Option<GotoDefinitionResponse>>(
+            receive_response(&client).response_result.expect("ok"),
+        )
+        .expect("resp")
+    else {
+        panic!("expected concrete Point typeDefinition for generic field h.value");
+    };
+    assert_eq!(loc.uri, model_uri);
+    assert_eq!(loc.range.start.line, 2, "Point declaration line");
+
+    // 2c. Semantic tokens on model/types.ko must highlight `Display` as INTERFACE (2) + DEFAULT_LIBRARY (16).
+    send_request(
+        &client,
+        RequestId::from(702_i32),
+        SemanticTokensFullRequest::METHOD,
+        serde_json::to_value(SemanticTokensParams {
+            text_document: TextDocumentIdentifier::new(model_uri.clone()),
+            work_done_progress_params: Default::default(),
+            partial_result_params: Default::default(),
+        })
+        .expect("sem"),
+    );
+    let Some(SemanticTokensResult::Tokens(m_toks)) =
+        serde_json::from_value::<Option<SemanticTokensResult>>(
+            receive_response(&client).response_result.expect("ok"),
+        )
+        .expect("resp")
+    else {
+        panic!("expected tokens");
+    };
+    let decoded_m = decode_semantic_tokens(&m_toks.data, model_src);
+    assert!(
+        decoded_m
+            .iter()
+            .any(|(_, _, s, t, m)| s == "Display" && *t == 2 && (*m & 16) != 0),
+        "Display must be highlighted as INTERFACE + DEFAULT_LIBRARY: {decoded_m:?}"
+    );
+
+    // 2d. Stale closed disk file: modify app/main.ko on disk while closed -> codeAction must return empty!
+    std::fs::write(&app_path, format!("// externally modified\n{app_src}")).expect("modify disk");
+    send_request(
+        &client,
+        RequestId::from(703_i32),
+        CodeActionRequest::METHOD,
+        serde_json::to_value(CodeActionParams {
+            text_document: TextDocumentIdentifier::new(app_uri.clone()),
+            range: Range::new(p_pos, p_pos),
+            context: CodeActionContext {
+                diagnostics: Vec::new(),
+                only: Some(vec![CodeActionKind::REFACTOR_REWRITE]),
+                trigger_kind: None,
+            },
+            work_done_progress_params: Default::default(),
+            partial_result_params: Default::default(),
+        })
+        .expect("stale ca"),
+    );
+    let stale_actions: CodeActionResponse =
+        serde_json::from_value(receive_response(&client).response_result.expect("ok"))
+            .expect("resp");
+    assert!(
+        stale_actions.is_empty(),
+        "stale closed disk file must return empty code actions: {stale_actions:?}"
+    );
+
+    // 2e. Open app/main.ko with:
+    //     - single-line `package app; fun f(x: Missing) { ... }` -> must NOT suggest `fun extra.Missing()` for Type position!
+    //     - `import extra.computeBonus as bonus` + bare `computeBonus(5)` -> MUST still suggest `Import extra.computeBonus`!
+    //     - unresolved `x.println()` -> must NOT get DEFAULT_LIBRARY semantic token!
+    let tricky_src = "package app; import extra.computeBonus as bonus; fun f(x: Missing) { val b = computeBonus(5); val u = x.println() }\n";
+    send_notification(
+        &client,
+        DidOpenTextDocument::METHOD,
+        serde_json::to_value(DidOpenTextDocumentParams {
+            text_document: TextDocumentItem::new(
+                app_uri.clone(),
+                "koven".to_owned(),
+                1,
+                tricky_src.to_owned(),
+            ),
+        })
+        .expect("open"),
+    );
+    let _ = receive_diagnostics(&client);
+    let _ = receive_diagnostics(&client);
+    let _ = receive_diagnostics(&client);
+
+    // Type-position `Missing` must NOT suggest `extra.Missing` (which is a function, not a type).
+    let missing_pos = position_of(tricky_src, "Missing", 0);
+    send_request(
+        &client,
+        RequestId::from(704_i32),
+        CodeActionRequest::METHOD,
+        serde_json::to_value(CodeActionParams {
+            text_document: TextDocumentIdentifier::new(app_uri.clone()),
+            range: Range::new(missing_pos, missing_pos),
+            context: CodeActionContext {
+                diagnostics: Vec::new(),
+                only: Some(vec![CodeActionKind::QUICKFIX]),
+                trigger_kind: None,
+            },
+            work_done_progress_params: Default::default(),
+            partial_result_params: Default::default(),
+        })
+        .expect("missing ca"),
+    );
+    let missing_actions: CodeActionResponse =
+        serde_json::from_value(receive_response(&client).response_result.expect("ok"))
+            .expect("resp");
+    assert!(
+        !missing_actions.iter().any(|a| matches!(
+            a,
+            CodeActionOrCommand::CodeAction(ca) if ca.title.contains("extra.Missing")
+        )),
+        "type-position Missing must not suggest function extra.Missing: {missing_actions:?}"
+    );
+
+    // Bare `computeBonus(5)` with existing `import extra.computeBonus as bonus` MUST still suggest `Import extra.computeBonus`
+    // and insert it on line 0 right after the import semicolon (NOT on line 1 after the function!).
+    let bonus_pos = position_of(tricky_src, "computeBonus(5)", 0);
+    send_request(
+        &client,
+        RequestId::from(705_i32),
+        CodeActionRequest::METHOD,
+        serde_json::to_value(CodeActionParams {
+            text_document: TextDocumentIdentifier::new(app_uri.clone()),
+            range: Range::new(bonus_pos, bonus_pos),
+            context: CodeActionContext {
+                diagnostics: Vec::new(),
+                only: Some(vec![CodeActionKind::QUICKFIX]),
+                trigger_kind: None,
+            },
+            work_done_progress_params: Default::default(),
+            partial_result_params: Default::default(),
+        })
+        .expect("bonus ca"),
+    );
+    let bonus_actions: CodeActionResponse =
+        serde_json::from_value(receive_response(&client).response_result.expect("ok"))
+            .expect("resp");
+    let bonus_ca = bonus_actions
+        .iter()
+        .find_map(|a| match a {
+            CodeActionOrCommand::CodeAction(ca) if ca.title == "Import extra.computeBonus" => {
+                Some(ca)
+            }
+            _ => None,
+        })
+        .unwrap_or_else(|| panic!("expected Import extra.computeBonus: {bonus_actions:?}"));
+    let bonus_edit = &bonus_ca
+        .edit
+        .as_ref()
+        .and_then(|e| e.changes.as_ref())
+        .and_then(|c| c.get(&app_uri))
+        .expect("edit")[0];
+    assert_eq!(
+        bonus_edit.range.start.line, 0,
+        "must insert before `fun f` on line 0, not after line 0"
+    );
+    assert!(
+        bonus_edit.range.start.character < tricky_src.find("fun f").unwrap() as u32 + 1,
+        "must not insert inside function body: {:?}",
+        bonus_edit.range
+    );
+
+    // Unresolved `x.println()` must NOT get DEFAULT_LIBRARY (16) semantic token.
+    send_request(
+        &client,
+        RequestId::from(706_i32),
+        SemanticTokensFullRequest::METHOD,
+        serde_json::to_value(SemanticTokensParams {
+            text_document: TextDocumentIdentifier::new(app_uri.clone()),
+            work_done_progress_params: Default::default(),
+            partial_result_params: Default::default(),
+        })
+        .expect("sem tricky"),
+    );
+    let Some(SemanticTokensResult::Tokens(t_toks)) =
+        serde_json::from_value::<Option<SemanticTokensResult>>(
+            receive_response(&client).response_result.expect("ok"),
+        )
+        .expect("resp")
+    else {
+        panic!("expected tokens");
+    };
+    let decoded_t = decode_semantic_tokens(&t_toks.data, tricky_src);
+    assert!(
+        !decoded_t
+            .iter()
+            .any(|(_, _, s, _, m)| s == "println" && (*m & 16) != 0),
+        "unresolved member `x.println()` must not get DEFAULT_LIBRARY token: {decoded_t:?}"
+    );
+
+    shutdown(&client);
+    server_thread
+        .join()
+        .expect("server thread")
+        .expect("clean exit");
+    let _ = std::fs::remove_dir_all(&tmp_dir);
 }

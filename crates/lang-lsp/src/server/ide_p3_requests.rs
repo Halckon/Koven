@@ -172,10 +172,20 @@ pub(super) fn code_action_response(
     params: serde_json::Value,
     state: &SessionState,
     supports_document_changes: bool,
+    supports_code_action_literals: bool,
 ) -> Result<Option<CodeActionResponse>, RequestError> {
     let params: CodeActionParams = serde_json::from_value(params)
         .map_err(|error| RequestError::InvalidParams(error.to_string()))?;
+    if !supports_code_action_literals {
+        return Ok(Some(Vec::new()));
+    }
     let uri = &params.text_document.uri;
+    if let SessionState::Unit { session, .. } = state
+        && session.contains_uri(uri)
+        && !session.is_closed_document_fresh(uri)
+    {
+        return Ok(Some(Vec::new()));
+    }
     let Some(ctx) = resolve_doc_context(state, uri)? else {
         return Ok(None);
     };
