@@ -24,6 +24,7 @@ mod ide_features;
 mod ide_features_p2;
 mod ide_features_p2_review;
 mod ide_features_p3;
+mod ide_features_p3_verification;
 mod ide_features_safety;
 mod initialization;
 mod lifecycle;
