@@ -234,7 +234,7 @@ fun handleRequest(path: String) {
     * 但须明确被取消子任务的 join() 是返回独立取消通道还是不返回到作用域体，并分别比较 C-II-a 与 C-II-b 在嵌套 ? 上的样板成本。
 ```
 
-**暂缓结论（2026-11-27 OD3 讨论更新）**：继续暂缓取消接口定案，等路线 S `suspend` 与[之十一 §1.5](evolution-11-failure-interfaces-units.md) `E2`/`E3`（`?` 错误转换与通用 `Error` 接口）齐平再拍板；暂缓期间**以独立取消通道（C-II-a / C-II-b，单列比较）为优先比较方向**，不冻结 `ScopedResult` 或 `join()` 类型，且已在之十一 E2 侧预先写入硬约束：**`?` 错误转换不得把 `Cancelled` 隐式转为普通业务错误 `E`**。
+**暂缓结论（2026-11-27 OD3 讨论更新）**：继续暂缓取消接口定案，等路线 S `suspend` 与[之十一 §1.5](evolution-11-failure-interfaces-units.md) `E2`/`E3`（`?` 错误转换与通用 `Error` 接口）齐平再拍板；暂缓期间**以独立取消通道（C-II-a / C-II-b，单列比较）为优先比较方向**，不冻结 `ScopedResult` 或 `join()` 类型，且已在之十一 E2 侧预先写入硬约束：**`?` 错误转换不得把 `Cancelled` 隐式转为普通业务错误 `E`**。上述三方案在嵌套 `scoped` + 泛型 `retry<T, E>` 与 E2 `?` 约束下的行为差异，现已由离线对照原型 `scripts/loan_kernel/od3_cancel_surface_model.py` 与 `scripts/tests/test_od3_cancel_surface_model.py`（4 组单测）固化可复跑。
 
 ## 4. 原型验收落地记录（2026-11-26 已完成，不修改编译器或现行 Guide）
 
