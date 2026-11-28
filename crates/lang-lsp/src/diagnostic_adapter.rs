@@ -1,6 +1,6 @@
 //! frontend 结构化诊断到标准 LSP diagnostic 的纯转换。
 
-use std::{error::Error, fmt};
+use std::{collections::HashMap, error::Error, fmt};
 
 use lang_frontend::{
     diagnostic::{Diagnostic, DiagnosticDetail, Severity},
@@ -60,20 +60,24 @@ pub(crate) fn convert_unit_diagnostics_with_context(
     embedded_source: Option<SourceId>,
 ) -> Result<Vec<Vec<lsp_types::Diagnostic>>, DiagnosticMappingError> {
     let mut grouped = vec![Vec::new(); uris.len()];
+    if diagnostics.is_empty() {
+        return Ok(grouped);
+    }
+    // Index identity for lookup only. Publication order still follows the input URIs.
+    let mut by_source = HashMap::with_capacity(uris.len());
+    for (index, (source, uri)) in uris.iter().enumerate() {
+        by_source.entry(*source).or_insert((index, uri));
+    }
     for diagnostic in diagnostics {
         let source = diagnostic.primary_span().source_id();
-        let index = uris
-            .iter()
-            .position(|(candidate, _)| *candidate == source)
+        let (index, _) = by_source
+            .get(&source)
+            .copied()
             .ok_or(DiagnosticMappingError::UnknownSource(source))?;
         let converted = convert_diagnostic(
             sources,
             diagnostic,
-            |source| {
-                uris.iter()
-                    .find(|(candidate, _)| *candidate == source)
-                    .map(|(_, uri)| uri)
-            },
+            |source| by_source.get(&source).map(|(_, uri)| *uri),
             enrich_context,
             embedded_source,
         )?;
@@ -89,9 +93,6 @@ fn convert_diagnostic<'uri>(
     enrich_context: bool,
     embedded_source: Option<SourceId>,
 ) -> Result<lsp_types::Diagnostic, DiagnosticMappingError> {
-    let _primary_uri = uri_for_source(diagnostic.primary_span().source_id()).ok_or(
-        DiagnosticMappingError::UnknownSource(diagnostic.primary_span().source_id()),
-    )?;
     let mut message = diagnostic.message().to_owned();
     if enrich_context
         && let Some(snippet) = primary_span_snippet(sources, diagnostic.primary_span())
@@ -258,21 +259,84 @@ mod tests {
         let provider_uri: Uri = "file:///workspace/p/provider.ko".parse().expect("uri");
         let consumer_uri: Uri = "file:///workspace/q/consumer.ko".parse().expect("uri");
 
+        let another = Diagnostic::new(
+            &sources,
+            Severity::Error,
+            catalog.resolve("L0080").expect("code"),
+            "next diagnostic in the same file",
+            primary,
+        )
+        .expect("diagnostic");
+        let provider_diagnostic = Diagnostic::new(
+            &sources,
+            Severity::Error,
+            catalog.resolve("L0080").expect("code"),
+            "provider diagnostic",
+            target,
+        )
+        .expect("diagnostic");
         let grouped = convert_unit_diagnostics(
             &sources,
-            &[(provider, provider_uri.clone()), (consumer, consumer_uri)],
-            &[diagnostic],
+            &[
+                (consumer, consumer_uri),
+                (provider, provider_uri.clone()),
+                (provider, "file:///alias.ko".parse().expect("alias URI")),
+            ],
+            &[diagnostic, provider_diagnostic, another],
         )
         .expect("unit diagnostic mapping");
 
-        assert!(grouped[0].is_empty());
+        assert_eq!(grouped.len(), 3);
         assert_eq!(grouped[1].len(), 1);
-        let related = grouped[1][0]
+        assert_eq!(grouped[1][0].message, "provider diagnostic");
+        assert!(grouped[2].is_empty());
+        assert_eq!(grouped[0].len(), 2);
+        assert_eq!(grouped[0][0].message, "cross-source diagnostic");
+        assert_eq!(grouped[0][1].message, "next diagnostic in the same file");
+        let related = grouped[0][0]
             .related_information
             .as_ref()
             .expect("related information");
         assert_eq!(related[0].location.uri, provider_uri);
         assert_eq!(related[0].location.range.start, Position::new(0, 4));
+    }
+
+    #[test]
+    fn rejects_foreign_primary_and_unmapped_related_sources() {
+        let mut sources = SourceMap::new();
+        let source = sources.add_source("actual", "foo").expect("source");
+        let mut other = SourceMap::new();
+        let foreign = other.add_source("foreign", "foo").expect("foreign");
+        let actual_span = sources.span(source, 0, 3).expect("span");
+        let catalog = codes::catalog().expect("catalog");
+        let mut diagnostic = Diagnostic::new(
+            &sources,
+            Severity::Error,
+            catalog.resolve("L0080").expect("code"),
+            "unresolved name",
+            actual_span,
+        )
+        .expect("diagnostic");
+        let uri = "file:///foreign.ko".parse().expect("uri");
+
+        assert!(matches!(
+            convert_unit_diagnostics(&sources, &[(foreign, uri)], std::slice::from_ref(&diagnostic)),
+            Err(super::DiagnosticMappingError::UnknownSource(id)) if id == source
+        ));
+
+        let related = sources.add_source("unmapped", "bar").expect("related");
+        diagnostic
+            .add_label(
+                &sources,
+                sources.span(related, 0, 3).expect("span"),
+                "details",
+            )
+            .expect("label");
+        let uri = "file:///actual.ko".parse().expect("uri");
+        assert!(matches!(
+            convert_unit_diagnostics(&sources, &[(source, uri)], &[diagnostic]),
+            Err(super::DiagnosticMappingError::UnknownSource(id)) if id == related
+        ));
     }
 
     #[test]

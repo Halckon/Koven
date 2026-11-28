@@ -1,6 +1,6 @@
 //! SPEC-0002 的公开 source / span 契约测试。
 
-use lang_frontend::source::{SourceError, SourceId, SourceMap, SourcePosition};
+use lang_frontend::source::{SourceError, SourceId, SourceMap, SourcePosition, Utf16Offset};
 
 fn add_source(sources: &mut SourceMap, name: &str, text: &str) -> SourceId {
     sources
@@ -282,6 +282,22 @@ fn physical_file_name_does_not_change_logical_identity() {
         sources.add_source("src/main.ko", "other"),
         Err(SourceError::DuplicateSourceName { .. })
     ));
+    let alias = sources
+        .add_source_with_file_name("src/alias.ko", "alias", "/actual/目录/main.ko")
+        .expect("distinct logical names may share a host file name");
+    assert_ne!(alias, source);
+    assert_eq!(sources.source_name(alias), Ok("src/alias.ko"));
+    assert_eq!(
+        sources.source_file_name(alias),
+        sources.source_file_name(source)
+    );
+    assert_eq!(
+        sources.add_source_with_file_name("src/alias.ko", "other", "elsewhere.ko"),
+        Err(SourceError::DuplicateSourceName {
+            name: String::from("src/alias.ko"),
+        })
+    );
+    assert_eq!(sources.source_text(alias), Ok("alias"));
     let mut other = SourceMap::new();
     let foreign = other.add_source("foreign", "").expect("source");
     assert!(matches!(
@@ -290,4 +306,58 @@ fn physical_file_name_does_not_change_logical_identity() {
     ));
     let logical = sources.add_source("embedded.ko", "").expect("source");
     assert_eq!(sources.source_file_name(logical), Ok("embedded.ko"));
+}
+
+#[test]
+fn long_mixed_width_lines_match_the_scalar_and_utf16_prefix_oracles() {
+    let first = format!("{}\r\n", "a😀界".repeat(88));
+    let second = "é😀z".repeat(71);
+    let text = format!("{first}\n{second}\r");
+    let mut sources = SourceMap::new();
+    let source = add_source(&mut sources, "long.ko", &text);
+    let mut start = 0;
+    for (line, raw) in text.split('\n').enumerate() {
+        let content = raw.strip_suffix('\r').unwrap_or(raw);
+        for (scalars, byte) in raw
+            .char_indices()
+            .map(|(byte, _)| byte)
+            .chain(std::iter::once(raw.len()))
+            .enumerate()
+        {
+            let utf16 = raw[..byte].encode_utf16().count();
+            assert_eq!(
+                sources.position(source, start + byte).map(coordinates),
+                Ok((line + 1, scalars + 1))
+            );
+            assert_eq!(
+                sources.position_utf16(source, start + byte),
+                Ok((line, utf16))
+            );
+            let reverse = if byte <= content.len() {
+                Utf16Offset::Byte(start + byte)
+            } else {
+                Utf16Offset::OutOfRange
+            };
+            assert_eq!(sources.byte_offset_utf16(source, line, utf16), Ok(reverse));
+            if raw[byte..].starts_with('😀') {
+                assert_eq!(
+                    sources.byte_offset_utf16(source, line, utf16 + 1),
+                    Ok(Utf16Offset::InsideSurrogatePair)
+                );
+            }
+        }
+        start += raw.len() + 1;
+    }
+    assert_eq!(
+        sources.byte_offset_utf16(source, usize::MAX, 0),
+        Ok(Utf16Offset::OutOfRange)
+    );
+    assert_eq!(
+        sources.byte_offset_utf16(source, 0, usize::MAX),
+        Ok(Utf16Offset::OutOfRange)
+    );
+    assert!(matches!(
+        sources.position_utf16(source, 2),
+        Err(SourceError::NotCharBoundary { .. })
+    ));
 }
