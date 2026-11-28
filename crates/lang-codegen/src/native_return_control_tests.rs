@@ -664,3 +664,226 @@ fun entry(): Unit {
         b"null\nleaf\nleaf\ntail\nleaf\nleaf\ntail\ndone\ndrop\n",
     );
 }
+
+#[test]
+fn singleton_abandoned_box_and_containers_retire_elements_and_backing_storage() {
+    let source = r#"
+class Leaf(val label: String) { deinit() { println(label) } }
+enum class Packet { Full(value: Leaf), Empty }
+object Gate {
+    fun boxed(value: Box<Packet>, stop: Int): Unit { println("dispatch") }
+    fun optional(value: Box<Packet>?, stop: Int): Unit { println("dispatch") }
+    fun array(value: Array<Leaf>, stop: Int): Unit { println("dispatch") }
+    fun list(value: List<Leaf>, stop: Int): Unit { println("dispatch") }
+    fun mutableList(value: MutableList<Leaf>, stop: Int): Unit { println("dispatch") }
+    fun map(value: Map<Int, Leaf>, stop: Int): Unit { println("dispatch") }
+    fun mutableMap(value: MutableMap<Int, Leaf>, stop: Int): Unit { println("dispatch") }
+    fun optionalMap(value: Map<Int, Leaf>?, stop: Int): Unit { println("dispatch") }
+}
+fun maybe(present: Boolean): Box<Packet>? {
+    if (present) { return Box(Packet.Full(Leaf("nullable"))) }
+    return null
+}
+fun makeMap(): MutableMap<Int, Leaf> {
+    var values = mutableMapOf<Int, Leaf>()
+    values.put(1, Leaf("map"))
+    return values
+}
+fun makeImmutable(): Map<Int, Leaf> {
+    var values = mutableMapOf<Int, Leaf>()
+    values.put(1, Leaf("immutable-map"))
+    return values.consume()
+}
+fun maybeMap(present: Boolean): Map<Int, Leaf>? {
+    if (!present) { return null }
+    var entries = mutableMapOf<Int, Leaf>()
+    entries.put(1, Leaf("nullable-map"))
+    return entries.consume()
+}
+fun abandonMap(present: Boolean): Unit { Gate.optionalMap(maybeMap(present), return) }
+fun abandonOptional(present: Boolean): Unit { Gate.optional(maybe(present), return) }
+fun abandonList(): Unit { Gate.list(listOf(Leaf("list")), return) }
+fun entry(): Unit {
+    loop { Gate.boxed(Box(Packet.Full(Leaf("box"))), break) }
+    var again = true
+    while (again) {
+        again = false
+        Gate.array(arrayOf(Leaf("array")), continue)
+    }
+    abandonList()
+    loop { Gate.mutableList(mutableListOf(Leaf("mutable-list")), break) }
+    loop { Gate.map(mapOf<Int, Leaf>(), break) }
+    loop { Gate.map(makeImmutable(), break) }
+    loop { Gate.mutableMap(makeMap(), break) }
+    abandonOptional(true)
+    abandonOptional(false)
+    abandonMap(true)
+    abandonMap(false)
+    println("done")
+}
+"#;
+    let llvm = super::boxed_enum_tests::lower_to_llvm("singleton-container-prefix.ko", source);
+    // Eight nonempty owners each allocate a Leaf and backing storage.
+    // The empty map still allocates buckets; the null handles allocate nothing.
+    let run = super::boxed_enum_tests::run_counted_allocations(&llvm, 17);
+    super::boxed_enum_tests::assert_success(
+        &run,
+        b"box\narray\nlist\nmutable-list\nimmutable-map\nmap\nnullable\nnullable-map\ndone\n",
+    );
+}
+
+#[test]
+fn singleton_mixed_argument_dispatch_uses_the_continuing_arm_only() {
+    for (control, body, expected) in [
+        (
+            "break",
+            "loop { CALL; break }; println(\"tail\")",
+            b"tail\ndone\nsuffix\ndispatch\ntail\ndone\n".as_slice(),
+        ),
+        (
+            "continue",
+            "var again = true; while (condition(again)) { again = false; CALL }; println(\"tail\")",
+            b"condition\ncondition\ntail\ndone\ncondition\nsuffix\ndispatch\ncondition\ntail\ndone\n".as_slice(),
+        ),
+        (
+            "return",
+            "CALL; println(\"tail\")",
+            b"done\nsuffix\ndispatch\ntail\ndone\n".as_slice(),
+        ),
+    ] {
+        let body = body.replace(
+            "CALL",
+            &format!("Gate.choose(7, if (stop) {control} else 0, suffix())"),
+        );
+        let source = format!(
+            r#"
+object Gate {{ fun choose(first: Int, stop: Int, last: Int): Unit {{ println("dispatch") }} }}
+fun suffix(): Int {{ println("suffix"); return 0 }}
+fun condition(active: Boolean): Boolean {{ println("condition"); return active }}
+fun exercise(stop: Boolean): Unit {{ {body} }}
+fun main(): Unit {{ exercise(true); println("done"); exercise(false); println("done") }}
+"#
+        );
+        let output = super::emit_link_and_run("singleton-mixed-scalar.ko", &source, "main");
+        super::boxed_enum_tests::assert_success(&output, expected);
+    }
+}
+
+#[test]
+fn singleton_mixed_dispatch_releases_its_own_resources_on_each_edge() {
+    let source = r#"
+class Leaf { deinit() { println("drop-leaf") } }
+fun makeText(): String { println("text-prefix"); return "text-argument".clone() }
+fun makeOwner(): Rc<Leaf> { println("rc-prefix"); return Rc(Leaf()) }
+fun suffix(): Int { println("suffix"); return 0 }
+object Gate {
+    fun inspect(owner: Rc<Leaf>?, text: String, stop: Int, last: Int): Unit {
+        println("dispatch")
+        println(text)
+    }
+}
+fun exercise(stop: Boolean): Unit {
+    loop {
+        Gate.inspect(text = makeText(), owner = makeOwner(),
+                     stop = if (stop) break else 0, last = suffix())
+        break
+    }
+    println("done")
+}
+fun entry(): Unit { exercise(true); exercise(false) }
+"#;
+    let llvm = super::boxed_enum_tests::lower_to_llvm("singleton-mixed-owner.ko", source);
+    let run = super::boxed_enum_tests::run_counted_allocations(&llvm, 6);
+    super::boxed_enum_tests::assert_success(
+        &run,
+        b"text-prefix\nrc-prefix\ndrop-leaf\ndone\ntext-prefix\nrc-prefix\nsuffix\ndispatch\ntext-argument\ndrop-leaf\ndone\n",
+    );
+}
+
+#[test]
+fn singleton_string_entry_return_retires_temporary_arguments_and_preserves_source() {
+    for (value, first) in [
+        ("source", "make\ndrop-leaf\nheld\n"),
+        ("relay(source)", "make\nrelay\ndrop-leaf\nheld\n"),
+    ] {
+        let source = format!(
+            r#"
+class Leaf {{ deinit() {{ println("drop-leaf") }} }}
+fun make(): Rc<Leaf> {{ println("make"); return Rc(Leaf()) }}
+fun suffix(): Int {{ println("suffix"); return 0 }}
+fun relay(source: String): borrow String from source {{ println("relay"); return source }}
+object Gate {{
+    fun inspect(owner: Rc<Leaf>, observed: String, stop: Int, last: Int): Unit {{ println("dispatch") }}
+}}
+fun select(source: String, stop: Boolean): borrow String from source {{
+    Gate.inspect(make(), source, if (stop) return {value} else 0, suffix())
+    return source
+}}
+fun entry(): Unit {{
+    val source = "held".clone()
+    borrow val first = select(source, true)
+    println(first)
+    borrow val second = select(source, false)
+    println(second)
+    println(source)
+}}
+"#
+        );
+        let llvm = super::boxed_enum_tests::lower_to_llvm("singleton-entry-return.ko", &source);
+        // One owned source String and two independent pairs of Leaf and Rc allocations.
+        let output = super::boxed_enum_tests::run_counted_allocations(&llvm, 5);
+        let expected = format!("{first}make\nsuffix\ndispatch\ndrop-leaf\nheld\nheld\n");
+        super::boxed_enum_tests::assert_success(&output, expected.as_bytes());
+    }
+}
+
+#[test]
+fn singleton_loop_exit_retires_argument_reborrow_but_keeps_string_entry() {
+    for (body, early, normal) in [
+        (
+            r#"loop {
+        Gate.inspect(make(), source, if (stop) break else 0, suffix())
+        break
+    }"#,
+            "make\ndrop-leaf\nheld\n",
+            "make\nsuffix\ndispatch\ndrop-leaf\nheld\n",
+        ),
+        (
+            r#"var again = true
+    while (condition(again)) {
+        again = false
+        Gate.inspect(make(), source, if (stop) continue else 0, suffix())
+    }"#,
+            "condition\nmake\ndrop-leaf\ncondition\nheld\n",
+            "condition\nmake\nsuffix\ndispatch\ndrop-leaf\ncondition\nheld\n",
+        ),
+    ] {
+        let source = format!(
+            r#"
+class Leaf {{ deinit() {{ println("drop-leaf") }} }}
+fun make(): Rc<Leaf> {{ println("make"); return Rc(Leaf()) }}
+fun suffix(): Int {{ println("suffix"); return 0 }}
+fun condition(again: Boolean): Boolean {{ println("condition"); return again }}
+object Gate {{
+    fun inspect(owner: Rc<Leaf>, observed: String, stop: Int, last: Int): Unit {{ println("dispatch") }}
+}}
+fun select(source: String, stop: Boolean): borrow String from source {{
+    {body}
+    return source
+}}
+fun entry(): Unit {{
+    val source = "held".clone()
+    borrow val first = select(source, true)
+    println(first)
+    borrow val second = select(source, false)
+    println(second)
+    println(source)
+}}
+"#
+        );
+        let llvm = super::boxed_enum_tests::lower_to_llvm("singleton-entry-loop.ko", &source);
+        let output = super::boxed_enum_tests::run_counted_allocations(&llvm, 5);
+        let expected = format!("{early}{normal}held\n");
+        super::boxed_enum_tests::assert_success(&output, expected.as_bytes());
+    }
+}

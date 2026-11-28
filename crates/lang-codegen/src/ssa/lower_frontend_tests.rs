@@ -334,7 +334,7 @@ fn analyze_single_root(text: &str, name: &str) -> (UnitSource, DeclarationId) {
 
 #[test]
 fn rejects_nested_interpolation_in_error_at_whole_file_boundary() {
-    let text = "fun abortInterpolated(): Unit { error(\"${1}\") }";
+    let text = "fun abortInterpolated(): Unit { error(\"${1.0}\") }";
     let (unit, declaration) = analyze_single_root(text, "abortInterpolated");
     let error = unit
         .lower_entry(declaration)
@@ -345,14 +345,14 @@ fn rejects_nested_interpolation_in_error_at_whole_file_boundary() {
         .span
         .expect("nested interpolation retains source span");
     assert_eq!(span.source_id(), unit.parsed().source_id());
-    assert_eq!(unit.sources().slice(span), Ok("\"${1}\""));
+    assert_eq!(unit.sources().slice(span), Ok("\"${1.0}\""));
     assert_eq!(span.start(), text.find('"').unwrap());
     assert_eq!(span.end(), text.rfind('"').unwrap() + 1);
 }
 
 #[test]
 fn rejects_nested_interpolation_in_println_at_whole_file_boundary() {
-    let text = "fun output(): Unit { println(\"${1}\") }";
+    let text = "fun output(): Unit { println(\"${1.0}\") }";
     let (unit, declaration) = analyze_single_root(text, "output");
     let error = unit
         .lower_entry(declaration)
@@ -363,7 +363,7 @@ fn rejects_nested_interpolation_in_println_at_whole_file_boundary() {
         .span
         .expect("nested interpolation retains source span");
     assert_eq!(span.source_id(), unit.parsed().source_id());
-    assert_eq!(unit.sources().slice(span), Ok("\"${1}\""));
+    assert_eq!(unit.sources().slice(span), Ok("\"${1.0}\""));
     assert_eq!(span.start(), text.find('"').unwrap());
     assert_eq!(span.end(), text.rfind('"').unwrap() + 1);
 }

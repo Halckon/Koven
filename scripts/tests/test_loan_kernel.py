@@ -1618,11 +1618,8 @@ class LoanKernelCases(unittest.TestCase):
                      "origins_field_normal_access_ok", "closure_capture_guide07_shared_ok",
                      "closure_capture_future_excl_ok"):
             self.assertTrue(lowered[name][2], name)
-        # 范围未决对照（不作为语言承诺或正例）：局部借用别名 &fa / &mut fb 当前实现不触发 1A 的 TYPE 规则；
-        # 裸 borrow/inout 形参 &h / &mut h 仍报 TYPE；同名遮蔽已由 check_unique 拒绝，不改检查器。
-        self.assertTrue(lowered["local_borrow_alias_ref_scope_undecided"][2])
-        self.assertFalse(any(rule == "TYPE" and "local_borrow_alias_ref_scope_undecided" in msg
-                             for rule, _, msg in diags))
+        # OD1 · A1（1A-ext）默认 forbid：局部借用绑定槽 &fa / &mut fb 与裸形参 &h / &mut h 同样报 TYPE。
+        self.assertFalse(lowered["local_borrow_alias_ref_scope_undecided"][2])
         for name in ("bare_borrow_ref_rejected", "bare_inout_ref_rejected",
                      "write_bare_vs_ref_distinct_diagnostics", "generic_view_t_backdoor_rejected",
                      "flows_origins_source_blocks_conflicting_write",
@@ -1699,18 +1696,30 @@ class LoanKernelCases(unittest.TestCase):
                     return idx
             raise AssertionError(f"未找到 {fun_name} 中的 {snippet!r}")
 
-        # 1. 默认策略 undecided：与 Z46.lk 注释标记一致，且暴露扁平化类型漏报。
+        # 1. 旧基线 undecided：显式指定时仍复现全部 6 处扁平化漏报。
         undecided_lowered = {}
-        undecided_diags = {(r, l) for r, l, _ in CHECKER.check(source, lowered=undecided_lowered)}
-        self.assertEqual(expected(source), undecided_diags)
-        self.assertTrue(undecided_lowered["local_borrow_write_via_mut_ref_hole"][2])
-        self.assertTrue(undecided_lowered["local_borrow_escapable_t_hole"][2])
-        self.assertTrue(undecided_lowered["local_borrow_store_concrete_into_borrow_slot"][2])
+        undecided_diags = {(r, l) for r, l, _ in CHECKER.check(source, lowered=undecided_lowered,
+                                                               local_borrow_ref_policy="undecided")}
+        expected_undecided = {
+            ("TYPE", find_line("local_borrow_origins_preserves_inner_loan", "read_item(g)")),
+            ("X1", find_line("local_borrow_rebind_via_second_order_store", "*rb = &b")),
+            ("K1", find_line("local_borrow_rebind_via_second_order_store", "write_item(&mut a)")),
+            ("X1", find_line("local_borrow_rebind_protects_new_source", "*rb = &b")),
+            ("K1", find_line("local_borrow_ref_blocks_rebind", "fa = &b")),
+            ("K1", find_line("local_borrow_ref_keeps_source_alive", "write_item(&mut a)")),
+            ("K6", find_line("local_borrow_ref_cannot_return", "return &fa")),
+            ("K1", find_line("local_borrow_direct_write_still_k1", "write_item(fa)")),
+        }
+        self.assertEqual(expected_undecided, undecided_diags)
+        for hole_fn in ("local_borrow_write_via_mut_ref_hole", "local_borrow_escapable_t_hole",
+                        "local_borrow_store_concrete_into_borrow_slot", "local_borrow_scalar_write_via_mut_ref_hole",
+                        "local_borrow_view_constructor_peel_hole"):
+            self.assertTrue(undecided_lowered[hole_fn][2], hole_fn)
 
-        # 2. 候选策略 forbid（1A-ext）：禁止一切局部借用变量显式取址，同时保留重借、字段投影与显式 Slot。
+        # 2. 新默认策略 forbid（OD1 · A1 / 1A-ext）：与 Z46.lk 注释标记一致，堵住全部 6 处漏报并保留重借、投影与显式 Slot。
         forbid_lowered = {}
-        forbid_diags = {(r, l) for r, l, _ in CHECKER.check(source, lowered=forbid_lowered,
-                                                            local_borrow_ref_policy="forbid")}
+        forbid_diags = {(r, l) for r, l, _ in CHECKER.check(source, lowered=forbid_lowered)}
+        self.assertEqual(expected(source), forbid_diags)
         expected_forbid = {
             ("TYPE", find_line("local_borrow_write_via_mut_ref_hole", "write_item(&mut fa)")),
             ("TYPE", find_line("local_borrow_escapable_t_hole", "take_escapable_mut(&mut fa)")),
@@ -1770,6 +1779,21 @@ class LoanKernelCases(unittest.TestCase):
         self.assertFalse(second_lowered["local_borrow_view_constructor_peel_hole"][2])
         self.assertFalse(second_lowered["local_borrow_origins_preserves_inner_loan"][2])
         self.assertFalse(second_lowered["local_borrow_rebind_protects_new_source"][2])
+
+    def test_od1_binding_slot_rejection_vs_legal_reborrow(self):
+        """OD1 · A1 验收（Z47.lk）：绑定槽显式取址拒绝（TYPE）与共享槽写入拒绝（K1）vs 合法接收者重借/两阶段/换源/投影/for/replace/swap。"""
+        source = (ROOT / "cases/Z47.lk").read_text(encoding="utf-8")
+        lowered = {}
+        diags = CHECKER.check(source, lowered=lowered)
+        actual = {(rule, line) for rule, line, _ in diags}
+        self.assertEqual(expected(source), actual)
+        for ok_fn in ("receiver_reborrow_and_two_phase_ok", "new_binding_switches_local_source_ok",
+                      "for_source_iteration_ok", "legal_place_replace_and_swap_ok"):
+            self.assertTrue(lowered[ok_fn][2], ok_fn)
+        for bad_fn in ("receiver_binding_slot_ref_rejected", "binding_slot_swap_and_rebind_rejected",
+                       "binding_slot_shared_receiver_write_rejected",
+                       "for_source_iteration_protects_collection_k1"):
+            self.assertFalse(lowered[bad_fn][2], bad_fn)
 
     def test_the_verifier_catches_a_field_dropped_after_it_was_moved_out(self):
         """部分移出进入同一条路：借用原型若忘了字段已被移出，它定下的析构会把移走的字段再析构一次。"""

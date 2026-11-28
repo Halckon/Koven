@@ -136,6 +136,7 @@ fn int_program() -> (Program, FunctionId, SsaTypeId) {
             signed: true,
         },
         ScalarConstant::Integer(5),
+        false,
     )
 }
 
@@ -144,15 +145,20 @@ fn int_program() -> (Program, FunctionId, SsaTypeId) {
 fn tagged_program(
     inner: SsaTypeKind,
     constant: ScalarConstant,
+    map_result: bool,
 ) -> (Program, FunctionId, SsaTypeId) {
     let mut program = Program::default();
     let module_id = program.add_module("inline_tagged");
     let module = program.module_mut(module_id).expect("module");
     let int = module.intern_type(inner);
     let boolean = module.intern_type(SsaTypeKind::Boolean);
-    let nullable = module
-        .add_inline_nullable_type(int)
-        .expect("tagged nullable");
+    let nullable = if map_result {
+        module.add_map_result_type(int).expect("tagged map result")
+    } else {
+        module
+            .add_inline_nullable_type(int)
+            .expect("tagged nullable")
+    };
     let main = module
         .add_function("main", Vec::new(), origin())
         .expect("main");
@@ -168,7 +174,20 @@ fn tagged_program(
         },
         nullable,
     );
-    let (null, non_null, owner, view) = branch(function, entry, wrapped, nullable, int);
+    // A block parameter keeps the first tag and payload dynamic in the rendered IR.
+    let test = function
+        .add_block(vec![EntityType::Value(nullable)], origin())
+        .expect("tag test block");
+    finish(
+        function,
+        entry,
+        TerminatorKind::Branch(Edge {
+            target: test,
+            arguments: vec![EntityId::Value(wrapped)],
+        }),
+    );
+    let input = null_parameter(function, test);
+    let (null, non_null, owner, view) = branch(function, test, input, nullable, int);
     let second = function.add_block(Vec::new(), origin()).expect("second");
     print(function, null, "bad-null\n");
     finish(function, null, goto(second));
@@ -238,14 +257,20 @@ fn tagged_program(
     (program, main, nullable)
 }
 
-/// `String?` (pointer niche): a concatenated owner is printed through the non-null view
-/// and dropped as a nullable; a separate `null` is dropped without freeing.
-fn string_program() -> (Program, FunctionId) {
+/// A concatenated String is printed through its non-null view, then dropped as a nullable.
+/// A separate absent value is dropped without freeing.
+fn string_program(map_result: bool) -> (Program, FunctionId) {
     let mut program = Program::default();
     let module_id = program.add_module("inline_string");
     let module = program.module_mut(module_id).expect("module");
     let string = module.add_string_owner_type();
-    let nullable = module.add_inline_nullable_type(string).expect("String?");
+    let nullable = if map_result {
+        module
+            .add_map_result_type(string)
+            .expect("tagged String result")
+    } else {
+        module.add_inline_nullable_type(string).expect("String?")
+    };
     let main = module
         .add_function("main", Vec::new(), origin())
         .expect("main");
@@ -396,8 +421,62 @@ fn inline_int_nullable_uses_present_tag_and_runs_both_edges() {
 }
 
 #[test]
+fn tagged_nullable_branch_reads_payload_only_on_the_present_edge() {
+    for map_result in [false, true] {
+        let (program, main, _) = tagged_program(
+            SsaTypeKind::Integer {
+                bits: 32,
+                signed: true,
+            },
+            ScalarConstant::Integer(5),
+            map_result,
+        );
+        let ir = render_verified_program_with_entry(&program, main).expect("tagged branch lowers");
+        let mut block = "";
+        let mut reads_payload = false;
+        let mut guarded_reads = 0;
+        let mut view_stores = 0;
+        for line in ir.lines() {
+            if !line.starts_with(' ')
+                && let Some((label, _)) = line.split_once(':')
+            {
+                block = label;
+                reads_payload = false;
+            }
+            if line.contains("= extractvalue ") && line.ends_with(", 1") {
+                reads_payload = true;
+                if block.starts_with("nullable.branch.present") {
+                    guarded_reads += 1;
+                }
+            }
+            if line.contains("br i1") && line.contains("label %nullable.branch.present") {
+                assert!(
+                    !reads_payload,
+                    "the tag test in {block} extracted the payload"
+                );
+            }
+            if line.trim_start().starts_with("store ") && line.contains("%map.payload.view") {
+                assert!(
+                    block.starts_with("nullable.branch.present"),
+                    "{line} in {block}"
+                );
+                view_stores += 1;
+            }
+        }
+        assert_eq!(
+            guarded_reads, 1,
+            "the dynamic wrapper is read on its present edge"
+        );
+        assert_eq!(view_stores, 2, "one view initialization per guarded edge");
+        assert!(ir.contains("label %nullable.branch.present"));
+        assert!(ir.contains("phi ptr [ %map.payload.view, %nullable.branch.present"));
+        run_counted(&ir, 0, b"five\nnone\n");
+    }
+}
+
+#[test]
 fn inline_string_nullable_uses_pointer_niche_and_frees_once() {
-    let (program, main) = string_program();
+    let (program, main) = string_program(false);
     verify_program(&program).expect("String? program verifies");
     let ir = render_verified_program_with_entry(&program, main).expect("String? lowers");
     assert_diagnostic!(
@@ -408,6 +487,17 @@ fn inline_string_nullable_uses_pointer_niche_and_frees_once() {
         ir.contains("icmp ne ptr"),
         "niche drop tests the data pointer: {ir}"
     );
+    run_counted(&ir, 1, b"abcd\ndone\n");
+}
+
+#[test]
+fn tagged_string_result_branches_borrow_and_free_the_present_payload_once() {
+    let (program, main) = string_program(true);
+    let ir = render_verified_program_with_entry(&program, main).expect("tagged String lowers");
+    let (_, present) = ir
+        .split_once("\nnullable.branch.present:")
+        .expect("guarded payload edge");
+    assert!(present.contains("%map.payload = extractvalue"), "{present}");
     run_counted(&ir, 1, b"abcd\ndone\n");
 }
 
@@ -456,7 +546,7 @@ fn inline_boolean_and_char_nullables_use_present_tag_and_run_both_edges() {
             "i32",
         ),
     ] {
-        let (program, main, nullable) = tagged_program(inner, constant);
+        let (program, main, nullable) = tagged_program(inner, constant, false);
         verify_program(&program).expect("tagged nullable program verifies");
         let ir = render_verified_program_with_entry(&program, main).expect("tagged lowers");
         let name = format!(
@@ -590,4 +680,69 @@ fn verifier_rejects_mismatched_inline_nullable_operations() {
         verify_program(&program).is_err(),
         "take under a non-inner type"
     );
+}
+
+#[test]
+fn null_only_value_has_a_tagged_call_abi_and_rejects_wrapping_a_payload() {
+    let mut program = Program::default();
+    let id = program.add_module("null_only");
+    let module = program.module_mut(id).unwrap();
+    let uninhabited = module.intern_type(SsaTypeKind::Uninhabited);
+    let null_only = module.add_inline_nullable_type(uninhabited).unwrap();
+    let boolean = module.intern_type(SsaTypeKind::Boolean);
+    let id = module
+        .add_function("null_value", vec![null_only], origin())
+        .unwrap();
+    let function = module.function_mut(id).unwrap();
+    let entry = function
+        .add_block(vec![EntityType::Value(null_only)], origin())
+        .unwrap();
+    let input = value(function.block(entry).unwrap().parameters[0]);
+    let present_marker = emit_value(
+        function,
+        entry,
+        Operation::NullableIsNull { owner: input },
+        boolean,
+    );
+    let result = emit_value(
+        function,
+        entry,
+        Operation::NullableNull {
+            nullable: null_only,
+        },
+        null_only,
+    );
+    finish(
+        function,
+        entry,
+        TerminatorKind::Return {
+            values: vec![result],
+        },
+    );
+
+    verify_program(&program).expect("null-only ABI verifies");
+    let ir = super::render_verified_program(&program).expect("null-only ABI lowers");
+    let ty = format!("%koven.nullable.t{}", null_only.index());
+    assert!(ir.contains(&format!("{ty} = type {{ i1, {{}} }}")), "{ir}");
+    assert!(
+        ir.contains(&format!("define internal {ty} @f0.null_value({ty} %v0)")),
+        "{ir}"
+    );
+    assert!(ir.contains(&format!("ret {ty} zeroinitializer")), "{ir}");
+
+    let function = program
+        .module_mut(id.module())
+        .unwrap()
+        .function_mut(id)
+        .unwrap();
+    let materialization = function
+        .instructions
+        .iter_mut()
+        .find(|instruction| matches!(instruction.operation, Operation::NullableNull { .. }))
+        .unwrap();
+    materialization.operation = Operation::NullableWrap {
+        nullable: null_only,
+        owner: present_marker,
+    };
+    verify_program(&program).expect_err("null-only values cannot wrap a payload");
 }

@@ -94,6 +94,14 @@ impl LexicalRecoveryIndex<'_> {
         self.ordinary_groups(lexed).closer(opener)
     }
 
+    pub(in crate::parser::engine) fn enclosing_group_opener(
+        &self,
+        lexed: &LexedFile,
+        opener: usize,
+    ) -> Option<usize> {
+        Some(self.ordinary_groups(lexed).pair(opener)?.enclosing?.get() - 1)
+    }
+
     pub(in crate::parser::engine) fn block_statement_follows(
         &self,
         lexed: &LexedFile,

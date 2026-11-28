@@ -1,0 +1,4 @@
+fun main(): Unit {
+    val x = 10d
+    println("bad")
+}

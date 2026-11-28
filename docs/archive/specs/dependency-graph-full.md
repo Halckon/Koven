@@ -8,7 +8,7 @@ SVG 版本：[dependency-graph-full.svg](dependency-graph-full.svg)。
 
 ```mermaid
 flowchart TD
-subgraph Garchive["已完成（archive，453 份）"]
+subgraph Garchive["已完成（archive，482 份）"]
   S0001["S0001<br/>建立可检查的 Cargo workspace"]
   S0002["S0002<br/>建立统一 source 与 Span 基础设施"]
   S0003["S0003<br/>建立结构化诊断核心"]
@@ -349,6 +349,7 @@ subgraph Garchive["已完成（archive，453 份）"]
   S0365["S0365<br/>带捕获闭包返回的来源事实"]
   S0366["S0366<br/>文本与同步 IO 规范启用"]
   S0367["S0367<br/>String 创建入口的 Int 字节长度不变量"]
+  S0369["S0369<br/>CLI 最终调试产物与源码断点"]
   S0370["S0370<br/>lambda 体（thunk）与局部 callable 绑定迁入所有权细化层"]
   S0371["S0371<br/>整数内建、整数区间、String.clone() 与文本原语迁入所有权细化层"]
   S0372["S0372<br/>泛型 class 与泛型 Copyable enum class 迁入所有权细化层"]
@@ -453,8 +454,20 @@ subgraph Garchive["已完成（archive，453 份）"]
   S0474["S0474<br/>Single ownership运行与声明职责归位"]
   S0475["S0475<br/>Fixture发现、执行与合同测试归位"]
   S0476["S0476<br/>Conditional leaf实例回放器归位"]
+  S0477["S0477<br/>Parser 与 Formatter 往返差分首片"]
+  S0478["S0478<br/>普通块表达式离线差分"]
   S0479["S0479<br/>显式词法块 block { ... } 与带括号调用跨行尾 lambda 附着"]
+  S0480["S0480<br/>新表面语法增量门禁接入提案与 Spec 模板（F5）"]
+  S0481["S0481<br/>Tree-sitter 与 parse_file 完整文件差分首片（F4b）"]
+  S0482["S0482<br/>独立参考词法机差分验证（F3b）"]
   S0483["S0483<br/>F3d 泛型调用、Lambda 与 SPEC-0479 独立参考解析差分（F3d→F4a）"]
+  S0484["S0484<br/>F3e 声明、类族与完整文件独立参考解析差分（F3e→F4a）"]
+  S0485["S0485<br/>F3c 18 级表达式运算符层级独立参考解析差分（F3c→F4a）"]
+  S0486["S0486<br/>四入口统一观察适配器与恢复/边界契约矩阵（F0b）"]
+  S0487["S0487<br/>F4c Formatter 全 AST 往返差分扩展"]
+  S0488["S0488<br/>收口 editors/tree-sitter 已知文法漂移（TS-03 / TS-05 / TS-07）"]
+  S0489["S0489<br/>F2a 窄普通括号恢复原型评估与停止/反例契约见证"]
+  S0490["S0490<br/>F6 首片 angle_group_closers 双轨机器证明（Lean 4 + Kani）与路径触发轻量 CI"]
   S0491["S0491<br/>收口 editors/tree-sitter 剩余已知文法漂移（TS-01 / TS-02 / TS-04）"]
   S0492["S0492<br/>F6 第二片 OrdinaryGroups 栈计数不变量与 GroupClosers::confirmed_closer 水位单调性双轨证明"]
   S0493["S0493<br/>F4b 完整文件 Tree-sitter 差分路径触发轻量 CI 接入"]
@@ -462,6 +475,22 @@ subgraph Garchive["已完成（archive，453 份）"]
   S0495["S0495<br/>E2 两源 Unit CI 门禁的可撤回影子试点与双宿主 A/B 对账"]
   S0496["S0496<br/>正式 CI 切换 E2 Replay 与 E2 两源 Unit 为唯一产物锁多核执行器"]
   S0497["S0497<br/>正式 CI Targeted Tests 按独立套件拆分为并行矩阵作业"]
+  S0498["S0498<br/>F6 第三片 GroupOwners 词法深度与 terminal_owner_events 栈平衡双轨证明"]
+  S0499["S0499<br/>F6 第四片 ElsePoisonTail 缓存可靠与同行花括号保留双轨证明"]
+  S0500["S0500<br/>F6 第五片 Pratt 运算符优先级、结合律与非结合链检出双轨证明"]
+  S0501["S0501<br/>收口 editors/tree-sitter 块与 Lambda 同行无分隔符语句漂移（TS-05 闭环）"]
+  S0502["S0502<br/>双宿主 Targeted Tests 统一启用有限调试符号（debug=1）与独立缓存前缀"]
+  S0503["S0503<br/>正式 CI 切换 D10 目录身份与 Scalar Owner 门禁为唯一产物锁多核执行器"]
+  S0504["S0504<br/>F5 表面语法增量门禁路径触发轻量 CI 接入"]
+  S0505["S0505<br/>F6 第八片 validate_lexemes 词法流连续划分、严格单调与唯一 EOF 契约双轨证明"]
+  S0506["S0506<br/>F6 第九片 diagnostic_anchor_prefix 前缀和单调性与区间诊断锚点查询双轨证明"]
+  S0507["S0507<br/>F6 第十片 StrictCallTrialIndex 索引单调性、反向 DP 路径与递归预算双轨证明"]
+  S0508["S0508<br/>F6 第六片 Stops / TypeStops / DeclarationStops 边界传播格与硬分隔符不屏蔽双轨证明"]
+  S0509["S0509<br/>F6 第七片 LambdaHeaderIndex 单遍流式 DFA 等价性与线性步数双轨证明"]
+  S0510["S0510<br/>F6 第十一片 LexicalRecoveryIndex 词法 owner 栈健全性与 verified_events 构造双轨证明"]
+  S0512["S0512<br/>F6 第十二片 WhenEntryBody / SelectorScanState 换行新选择器与 if/else 平衡双轨证明"]
+  S0513["S0513<br/>F6 第十三片 supertypes 委托边界、deinit 后缀决策与 Lambda 尾扫描双轨证明"]
+  S0514["S0514<br/>F6 第十四片 block 块语句分隔符、换行边界、显式 block { 与缺失块根扫描双轨证明"]
 end
 subgraph Gactive["现行 active"]
   S0291["S0291<br/>非空只读 Map 构造与插入序共享存储"]
@@ -470,22 +499,14 @@ subgraph Gactive["现行 active"]
   S0357["S0357<br/>String subject when 的 Unit 清理事实"]
   S0360["S0360<br/>String when 清理事实的 refinement 消费"]
   S0368["S0368<br/>可信文本扩展与 UTF-8 字节往返"]
-  S0369["S0369<br/>CLI 最终调试产物与源码断点"]
   S0390["S0390<br/>预置 Linux CI 工具链镜像"]
   S0391["S0391<br/>Codegen 测试诊断落盘与有界失败摘要"]
   S0392["S0392<br/>编译器分层复审与前端合同修复"]
-  S0477["S0477<br/>Parser 与 Formatter 往返差分首片"]
-  S0478["S0478<br/>普通块表达式离线差分"]
-  S0480["S0480<br/>新表面语法增量门禁接入提案与 Spec 模板（F5）"]
-  S0481["S0481<br/>Tree-sitter 与 parse_file 完整文件差分首片（F4b）"]
-  S0482["S0482<br/>独立参考词法机差分验证（F3b）"]
-  S0484["S0484<br/>F3e 声明、类族与完整文件独立参考解析差分（F3e→F4a）"]
-  S0485["S0485<br/>F3c 18 级表达式运算符层级独立参考解析差分（F3c→F4a）"]
-  S0486["S0486<br/>四入口统一观察适配器与恢复/边界契约矩阵（F0b）"]
-  S0487["S0487<br/>F4c Formatter 全 AST 往返差分扩展"]
-  S0488["S0488<br/>收口 editors/tree-sitter 已知文法漂移（TS-03 / TS-05 / TS-07）"]
-  S0489["S0489<br/>F2a 窄普通括号恢复原型评估与停止/反例契约见证"]
-  S0490["S0490<br/>F6 首片 angle_group_closers 双轨机器证明（Lean 4 + Kani）与路径触发轻量 CI"]
+  S0511["S0511<br/>lang-lsp 显式工作区 manifest 加载与诊断源码片段上下文"]
+  S0515["S0515<br/>F6 第十五片 postfix 后缀起始、带类型调用延续、实参边界与 callee 尾逆向扫描双轨证明"]
+  S0516["S0516<br/>F6 第十六片 file 声明修饰符顺序状态机与文件头/顶层分隔符双轨证明"]
+  S0517["S0517<br/>F6 第十七片 destructuring 局部解构起始、绑定循环防重报状态机与初始化器守卫双轨证明"]
+  S0518["S0518<br/>F6 第十八片 type_ref 函数类型起始、扩展接收者点号停止、proven_type_closer 守卫与字符串毒化扫描双轨证明"]
 end
 subgraph Gdrafts_v043["v0.43（draft）"]
   S0292["S0292<br/>链内立即消费序列与 owned 结果"]
@@ -1566,6 +1587,13 @@ S0451 --> S0456
 S0456 --> S0457
 S0495 --> S0496
 S0496 --> S0497
+S0496 --> S0503
+S0497 --> S0502
+S0502 --> S0503
+S0514 --> S0515
+S0515 --> S0516
+S0516 --> S0517
+S0517 --> S0518
 ```
 
 ## 节点链接
@@ -1912,6 +1940,7 @@ S0496 --> S0497
 | SPEC-0365 | archive | [0365-closure-return-facts.md](0365-closure-return-facts.md) |
 | SPEC-0366 | archive | [0366-text-io-guide.md](0366-text-io-guide.md) |
 | SPEC-0367 | archive | [0367-string-length-invariant.md](0367-string-length-invariant.md) |
+| SPEC-0369 | archive | [0369-final-debug-artifacts.md](0369-final-debug-artifacts.md) |
 | SPEC-0370 | archive | [0370-refine-lambda-bodies.md](0370-refine-lambda-bodies.md) |
 | SPEC-0371 | archive | [0371-refine-integer-range-text.md](0371-refine-integer-range-text.md) |
 | SPEC-0372 | archive | [0372-refine-generic-class-enum.md](0372-refine-generic-class-enum.md) |
@@ -2016,8 +2045,20 @@ S0496 --> S0497
 | SPEC-0474 | archive | [0474-single-ownership-lifecycle-and-declarations.md](0474-single-ownership-lifecycle-and-declarations.md) |
 | SPEC-0475 | archive | [0475-fixture-discovery-execution-and-contracts.md](0475-fixture-discovery-execution-and-contracts.md) |
 | SPEC-0476 | archive | [0476-conditional-leaf-instance-replay-domain.md](0476-conditional-leaf-instance-replay-domain.md) |
+| SPEC-0477 | archive | [0477-parser-formatter-difftest.md](0477-parser-formatter-difftest.md) |
+| SPEC-0478 | archive | [0478-independent-block-difftest.md](0478-independent-block-difftest.md) |
 | SPEC-0479 | archive | [0479-explicit-block-and-crossline-lambda.md](0479-explicit-block-and-crossline-lambda.md) |
+| SPEC-0480 | archive | [0480-surface-syntax-incremental-gate.md](0480-surface-syntax-incremental-gate.md) |
+| SPEC-0481 | archive | [0481-tree-sitter-difftest.md](0481-tree-sitter-difftest.md) |
+| SPEC-0482 | archive | [0482-lexer-reference-difftest.md](0482-lexer-reference-difftest.md) |
 | SPEC-0483 | archive | [0483-f3d-reference-difftest.md](0483-f3d-reference-difftest.md) |
+| SPEC-0484 | archive | [0484-f3e-file-difftest.md](0484-f3e-file-difftest.md) |
+| SPEC-0485 | archive | [0485-f3c-expression-difftest.md](0485-f3c-expression-difftest.md) |
+| SPEC-0486 | archive | [0486-parser-observation-adapter.md](0486-parser-observation-adapter.md) |
+| SPEC-0487 | archive | [0487-f4c-formatter-roundtrip-expansion.md](0487-f4c-formatter-roundtrip-expansion.md) |
+| SPEC-0488 | archive | [0488-tree-sitter-drift-closure.md](0488-tree-sitter-drift-closure.md) |
+| SPEC-0489 | archive | [0489-f2a-paired-paren-recovery-prototype.md](0489-f2a-paired-paren-recovery-prototype.md) |
+| SPEC-0490 | archive | [0490-f6-angle-group-machine-proof.md](0490-f6-angle-group-machine-proof.md) |
 | SPEC-0491 | archive | [0491-tree-sitter-remaining-drift-closure.md](0491-tree-sitter-remaining-drift-closure.md) |
 | SPEC-0492 | archive | [0492-f6-ordinary-groups-machine-proof.md](0492-f6-ordinary-groups-machine-proof.md) |
 | SPEC-0493 | archive | [0493-f4b-tree-sitter-difftest-ci.md](0493-f4b-tree-sitter-difftest-ci.md) |
@@ -2025,28 +2066,36 @@ S0496 --> S0497
 | SPEC-0495 | archive | [0495-e2-two-source-ci-shadow-pilot.md](0495-e2-two-source-ci-shadow-pilot.md) |
 | SPEC-0496 | archive | [0496-formal-e2-ci-gate-switch.md](0496-formal-e2-ci-gate-switch.md) |
 | SPEC-0497 | archive | [0497-parallel-targeted-tests-ci.md](0497-parallel-targeted-tests-ci.md) |
+| SPEC-0498 | archive | [0498-f6-group-owners-machine-proof.md](0498-f6-group-owners-machine-proof.md) |
+| SPEC-0499 | archive | [0499-f6-adjacent-poison-machine-proof.md](0499-f6-adjacent-poison-machine-proof.md) |
+| SPEC-0500 | archive | [0500-f6-pratt-precedence-machine-proof.md](0500-f6-pratt-precedence-machine-proof.md) |
+| SPEC-0501 | archive | [0501-ts05-block-separator-closure.md](0501-ts05-block-separator-closure.md) |
+| SPEC-0502 | archive | [0502-macos-limited-debug-ci.md](0502-macos-limited-debug-ci.md) |
+| SPEC-0503 | archive | [0503-d10-and-scalar-multicore-ci-gate.md](0503-d10-and-scalar-multicore-ci-gate.md) |
+| SPEC-0504 | archive | [0504-f5-syntax-gate-ci.md](0504-f5-syntax-gate-ci.md) |
+| SPEC-0505 | archive | [0505-f6-lexeme-stream-machine-proof.md](0505-f6-lexeme-stream-machine-proof.md) |
+| SPEC-0506 | archive | [0506-f6-diagnostic-anchor-machine-proof.md](0506-f6-diagnostic-anchor-machine-proof.md) |
+| SPEC-0507 | archive | [0507-f6-strict-call-trial-machine-proof.md](0507-f6-strict-call-trial-machine-proof.md) |
+| SPEC-0508 | archive | [0508-f6-stops-lattice-machine-proof.md](0508-f6-stops-lattice-machine-proof.md) |
+| SPEC-0509 | archive | [0509-f6-lambda-trial-machine-proof.md](0509-f6-lambda-trial-machine-proof.md) |
+| SPEC-0510 | archive | [0510-f6-lexical-owner-events-machine-proof.md](0510-f6-lexical-owner-events-machine-proof.md) |
+| SPEC-0512 | archive | [0512-f6-when-boundary-machine-proof.md](0512-f6-when-boundary-machine-proof.md) |
+| SPEC-0513 | archive | [0513-f6-supertypes-boundary-machine-proof.md](0513-f6-supertypes-boundary-machine-proof.md) |
+| SPEC-0514 | archive | [0514-f6-block-boundary-machine-proof.md](0514-f6-block-boundary-machine-proof.md) |
 | SPEC-0291 | active | [0291-readonly-map-construction.md](../../specs/active/0291-readonly-map-construction.md) |
 | SPEC-0333 | active | [0333-static-map-callers.md](../../specs/active/0333-static-map-callers.md) |
 | SPEC-0341 | active | [0341-shared-lowering-core.md](../../specs/active/0341-shared-lowering-core.md) |
 | SPEC-0357 | active | [0357-string-when-ownership-facts.md](../../specs/active/0357-string-when-ownership-facts.md) |
 | SPEC-0360 | active | [0360-string-when-refinement.md](../../specs/active/0360-string-when-refinement.md) |
 | SPEC-0368 | active | [0368-text-byte-foundation.md](../../specs/active/0368-text-byte-foundation.md) |
-| SPEC-0369 | active | [0369-final-debug-artifacts.md](../../specs/active/0369-final-debug-artifacts.md) |
 | SPEC-0390 | active | [0390-prebuilt-ci-toolchain.md](../../specs/active/0390-prebuilt-ci-toolchain.md) |
 | SPEC-0391 | active | [0391-codegen-test-diagnostics.md](../../specs/active/0391-codegen-test-diagnostics.md) |
 | SPEC-0392 | active | [0392-compiler-layered-review.md](../../specs/active/0392-compiler-layered-review.md) |
-| SPEC-0477 | active | [0477-parser-formatter-difftest.md](../../specs/active/0477-parser-formatter-difftest.md) |
-| SPEC-0478 | active | [0478-independent-block-difftest.md](../../specs/active/0478-independent-block-difftest.md) |
-| SPEC-0480 | active | [0480-surface-syntax-incremental-gate.md](../../specs/active/0480-surface-syntax-incremental-gate.md) |
-| SPEC-0481 | active | [0481-tree-sitter-difftest.md](../../specs/active/0481-tree-sitter-difftest.md) |
-| SPEC-0482 | active | [0482-lexer-reference-difftest.md](../../specs/active/0482-lexer-reference-difftest.md) |
-| SPEC-0484 | active | [0484-f3e-file-difftest.md](../../specs/active/0484-f3e-file-difftest.md) |
-| SPEC-0485 | active | [0485-f3c-expression-difftest.md](../../specs/active/0485-f3c-expression-difftest.md) |
-| SPEC-0486 | active | [0486-parser-observation-adapter.md](../../specs/active/0486-parser-observation-adapter.md) |
-| SPEC-0487 | active | [0487-f4c-formatter-roundtrip-expansion.md](../../specs/active/0487-f4c-formatter-roundtrip-expansion.md) |
-| SPEC-0488 | active | [0488-tree-sitter-drift-closure.md](../../specs/active/0488-tree-sitter-drift-closure.md) |
-| SPEC-0489 | active | [0489-f2a-paired-paren-recovery-prototype.md](../../specs/active/0489-f2a-paired-paren-recovery-prototype.md) |
-| SPEC-0490 | active | [0490-f6-angle-group-machine-proof.md](../../specs/active/0490-f6-angle-group-machine-proof.md) |
+| SPEC-0511 | active | [0511-lsp-workspace-manifest-and-diagnostic-context.md](../../specs/active/0511-lsp-workspace-manifest-and-diagnostic-context.md) |
+| SPEC-0515 | active | [0515-f6-postfix-boundary-machine-proof.md](../../specs/active/0515-f6-postfix-boundary-machine-proof.md) |
+| SPEC-0516 | active | [0516-f6-file-modifiers-machine-proof.md](../../specs/active/0516-f6-file-modifiers-machine-proof.md) |
+| SPEC-0517 | active | [0517-f6-destructuring-machine-proof.md](../../specs/active/0517-f6-destructuring-machine-proof.md) |
+| SPEC-0518 | active | [0518-f6-type-ref-machine-proof.md](../../specs/active/0518-f6-type-ref-machine-proof.md) |
 | SPEC-0292 | drafts/v0.43 | [0292-immediate-consuming-sequence.md](../../specs/drafts/v0.43/0292-immediate-consuming-sequence.md) |
 | SPEC-0334 | drafts/v0.44 | [0334-nullable-string-map-abi.md](../../specs/drafts/v0.44/0334-nullable-string-map-abi.md) |
 | SPEC-0335 | drafts/v0.44 | [0335-map-borrow-caller-proof.md](../../specs/drafts/v0.44/0335-map-borrow-caller-proof.md) |

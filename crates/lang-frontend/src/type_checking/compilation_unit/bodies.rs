@@ -14,8 +14,8 @@ use crate::{
 };
 
 use super::{
-    CompilationUnitSignatures, CompilationUnitTypeError, UnitExpressionId, UnitStatementId,
-    UnitTypeId, UnitTypeRefId, UnitTypeTable, ValidatedCompilationUnitSignatures,
+    CompilationUnitSignatures, CompilationUnitTypeError, UnitCallableTarget, UnitExpressionId,
+    UnitStatementId, UnitTypeId, UnitTypeRefId, UnitTypeTable, ValidatedCompilationUnitSignatures,
 };
 
 mod assignment;
@@ -42,8 +42,10 @@ mod recovery;
 mod string;
 
 pub use checker::check_compilation_unit_types;
-pub(crate) use checker::check_compilation_unit_types_recovering;
 pub(crate) use checker::copyability::UnitTransferability;
+pub(crate) use checker::{
+    check_compilation_unit_types_recovering, check_types_with_completed_calls,
+};
 pub use integer::*;
 pub use integer_range::*;
 pub use nullable_when::*;
@@ -52,6 +54,13 @@ pub use {
     assignment::*, container::*, map::*, non_null_assertion::*, nullable::*, projection::*, rc::*,
     string::*,
 };
+
+/// Source call identities confirmed by the selected ownership capability.
+#[derive(Default)]
+pub(crate) struct CompletedUnitCalls {
+    pub(crate) explicit: std::collections::BTreeSet<UnitExpressionId>,
+    pub(crate) display: BTreeMap<UnitExpressionId, UnitCallableTarget>,
+}
 
 /// 一个 unit body 中成功选择的静态 call target。
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -114,6 +123,7 @@ pub struct UnitCallReceiverDescriptor {
     pub(crate) mode: ParameterMode,
     pub(crate) category: ExpressionCategory,
     pub(crate) ty: UnitTypeId,
+    pub(crate) qualified_super: bool,
 }
 
 impl UnitCallReceiverDescriptor {
@@ -139,6 +149,12 @@ impl UnitCallReceiverDescriptor {
     #[must_use]
     pub const fn ty(self) -> UnitTypeId {
         self.ty
+    }
+
+    /// An explicitly selected interface body bypasses concrete receiver dispatch.
+    #[must_use]
+    pub const fn is_qualified_super(self) -> bool {
+        self.qualified_super
     }
 }
 
@@ -445,6 +461,7 @@ pub(crate) struct CompilationUnitTypeParts {
     pub(crate) ownership_primitives: Vec<UnitOwnershipPrimitiveDescriptor>,
     pub(crate) rc_operations: Vec<UnitRcOperationDescriptor>,
     pub(crate) string_operations: Vec<UnitStringOperationDescriptor>,
+    interpolation_plans: BTreeMap<UnitExpressionId, Vec<UnitInterpolationPart>>,
     pub(crate) integer_operations: Vec<UnitIntegerOperationDescriptor>,
     pub(crate) integer_range_operations: Vec<UnitIntegerRangeOperationDescriptor>,
     pub(crate) container_constructions: Vec<UnitContainerConstructionDescriptor>,
@@ -503,6 +520,7 @@ pub struct CompilationUnitTypes {
     ownership_primitives: Vec<UnitOwnershipPrimitiveDescriptor>,
     rc_operations: Vec<UnitRcOperationDescriptor>,
     string_operations: Vec<UnitStringOperationDescriptor>,
+    interpolation_plans: BTreeMap<UnitExpressionId, Vec<UnitInterpolationPart>>,
     integer_operations: Vec<UnitIntegerOperationDescriptor>,
     integer_range_operations: Vec<UnitIntegerRangeOperationDescriptor>,
     container_constructions: Vec<UnitContainerConstructionDescriptor>,
@@ -560,8 +578,8 @@ pub fn validate_compilation_unit_body_inputs(
         || unit_names.source_units().iter().any(|source| {
             source.resolution().source_id()
                 != unit_names.index().source_units()[source.source_unit().index()].source_id()
-                || !Arc::ptr_eq(source.resolution().environment_owner(), environment.owner())
         })
+        || !environment.is_compatible_with_unit_names(unit_names)
     {
         return Err(CompilationUnitTypeError::MismatchedNameEnvironment);
     }

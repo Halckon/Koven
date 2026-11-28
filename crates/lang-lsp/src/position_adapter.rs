@@ -2,7 +2,7 @@
 
 use std::{error::Error, fmt};
 
-use lang_frontend::source::{SourceError, SourceId, SourceMap, Span};
+use lang_frontend::source::{SourceError, SourceId, SourceMap, Span, Utf16Offset};
 use lsp_types::{Position, Range};
 
 pub(crate) fn span_range(sources: &SourceMap, span: Span) -> Result<Range, PositionMappingError> {
@@ -17,22 +17,10 @@ pub(crate) fn utf16_position(
     source_id: SourceId,
     offset: usize,
 ) -> Result<Position, PositionMappingError> {
-    let source_position = sources.position(source_id, offset)?;
-    let text = sources.source_text(source_id)?;
-    let scalar_column = source_position.column() - 1;
-    // SourceMap owns line/CRLF semantics. Walking exactly its reported scalar column only adapts
-    // that column to the UTF-16 code units required by the LSP boundary.
-    let utf16_column = text[..offset]
-        .chars()
-        .rev()
-        .take(scalar_column)
-        .map(char::len_utf16)
-        .sum::<usize>();
-
+    let (line, column) = sources.position_utf16(source_id, offset)?;
     Ok(Position::new(
-        u32::try_from(source_position.line() - 1)
-            .map_err(|_| PositionMappingError::PositionOverflow)?,
-        u32::try_from(utf16_column).map_err(|_| PositionMappingError::PositionOverflow)?,
+        u32::try_from(line).map_err(|_| PositionMappingError::PositionOverflow)?,
+        u32::try_from(column).map_err(|_| PositionMappingError::PositionOverflow)?,
     ))
 }
 
@@ -45,39 +33,15 @@ pub(crate) fn byte_offset(
     source_id: SourceId,
     position: Position,
 ) -> Result<Option<usize>, PositionMappingError> {
-    let text = sources.source_text(source_id)?;
-    let target_line =
+    let line =
         usize::try_from(position.line).map_err(|_| PositionMappingError::PositionOverflow)?;
-    let target_character =
+    let column =
         usize::try_from(position.character).map_err(|_| PositionMappingError::PositionOverflow)?;
-
-    let mut line_start = 0;
-    for _ in 0..target_line {
-        let Some(newline) = text[line_start..].find('\n') else {
-            return Ok(None);
-        };
-        line_start += newline + 1;
+    match sources.byte_offset_utf16(source_id, line, column)? {
+        Utf16Offset::Byte(offset) => Ok(Some(offset)),
+        Utf16Offset::OutOfRange => Ok(None),
+        Utf16Offset::InsideSurrogatePair => Err(PositionMappingError::InsideSurrogatePair),
     }
-    let line_end = text[line_start..]
-        .find('\n')
-        .map_or(text.len(), |newline| line_start + newline);
-    let content_end = if text.as_bytes().get(line_end.wrapping_sub(1)) == Some(&b'\r') {
-        line_end - 1
-    } else {
-        line_end
-    };
-
-    let mut utf16_column = 0;
-    for (relative, character) in text[line_start..content_end].char_indices() {
-        if utf16_column == target_character {
-            return Ok(Some(line_start + relative));
-        }
-        utf16_column += character.len_utf16();
-        if utf16_column > target_character {
-            return Err(PositionMappingError::InsideSurrogatePair);
-        }
-    }
-    Ok((utf16_column == target_character).then_some(content_end))
 }
 
 #[derive(Debug)]

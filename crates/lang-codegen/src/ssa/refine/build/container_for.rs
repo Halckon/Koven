@@ -79,6 +79,7 @@ impl Builder<'_, '_> {
         let exit = self.body.block();
         self.goto(header, span)?;
         let mark = self.enter(header);
+        let exit_temporaries = self.temporaries.clone();
         self.loops.push(LoopFrame {
             statement,
             continue_target: header,
@@ -97,6 +98,7 @@ impl Builder<'_, '_> {
             self.goto(header, span)?;
         }
         // Every `break` already dropped at `LoopExit` on its own path.
+        self.temporaries = exit_temporaries;
         let facts = self.collect_drops(UnitDropPoint::LoopExit(statement));
         self.finish_drops(&facts);
         if !frame.broken {
@@ -142,6 +144,7 @@ impl Builder<'_, '_> {
             let view = self.active_views.pop().expect("views boundary checked");
             self.push(ROp::BorrowEnd { loan: view.slot }, Vec::new(), span)?;
         }
+        self.drop_interpolation_prefixes(self.loops.len(), span)?;
         self.drops(UnitDropPoint::ControlTransfer(self.unit(expression)))?;
         if !is_break && let Some(seq) = frame.seq_for {
             let next = self.value(
@@ -506,6 +509,7 @@ impl Builder<'_, '_> {
             }),
             map_for: None,
         });
+        let exhausted_temporaries = self.temporaries.clone();
         let reached = self.statement(loop_body)? != Lowered::Diverged;
         self.leave(mark, span)?;
         if reached {
@@ -522,6 +526,7 @@ impl Builder<'_, '_> {
             self.goto(header, span)?;
         }
 
+        self.temporaries = exhausted_temporaries;
         let mark = self.enter(exhausted);
         self.leave_unclaimed(mark, span)?;
         self.drops(UnitDropPoint::LoopExit(statement_id))?;
@@ -733,6 +738,7 @@ impl Builder<'_, '_> {
                 cursor_ty,
             }),
         });
+        let exhausted_temporaries = self.temporaries.clone();
         let reached = self.statement(loop_body)? != Lowered::Diverged;
         self.leave(mark, span)?;
         if reached {
@@ -748,6 +754,7 @@ impl Builder<'_, '_> {
             self.goto(header, span)?;
         }
 
+        self.temporaries = exhausted_temporaries;
         let mark = self.enter(exhausted);
         self.leave_unclaimed(mark, span)?;
         self.drops(UnitDropPoint::LoopExit(statement_id))?;

@@ -94,6 +94,16 @@ pub(super) fn substitute(
     substitutions: &BTreeMap<UnitSymbolId, UnitTypeId>,
     completed: &mut BTreeMap<UnitTypeId, UnitTypeId>,
 ) -> Result<UnitTypeId, CompilationUnitTypeError> {
+    substitute_for_receiver(types, root, substitutions, None, completed)
+}
+
+pub(super) fn substitute_for_receiver(
+    types: &mut UnitTypeTable,
+    root: UnitTypeId,
+    substitutions: &BTreeMap<UnitSymbolId, UnitTypeId>,
+    static_self: Option<UnitTypeId>,
+    completed: &mut BTreeMap<UnitTypeId, UnitTypeId>,
+) -> Result<UnitTypeId, CompilationUnitTypeError> {
     let mut pending = vec![(root, false)];
     let mut active = BTreeSet::new();
     while let Some((ty, finish)) = pending.pop() {
@@ -101,6 +111,10 @@ pub(super) fn substitute(
             continue;
         }
         let kind = types.get(ty).cloned().unwrap_or(UnitTypeKind::Error);
+        if let (UnitTypeKind::StaticSelf(_), Some(receiver)) = (&kind, static_self) {
+            completed.insert(ty, receiver);
+            continue;
+        }
         if let UnitTypeKind::TypeParameter(symbol) = kind {
             completed.insert(ty, substitutions.get(&symbol).copied().unwrap_or(ty));
             continue;

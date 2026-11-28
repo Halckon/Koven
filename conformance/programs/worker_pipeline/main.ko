@@ -1,0 +1,62 @@
+// 受限并发管道：覆盖 Guide 13 的 thread(move { })、channel<T>() 按名解构、
+// Sender.clone() 多生产者、Transferable String 所有权跨线程移交、join() 与作用域隐式 join。
+
+fun spawnAndDropThread(own tx: Sender<String>): Unit {
+    val bg: Thread<Unit> = thread(move {
+        tx.send("bg-done")
+        println("  bg-worker finished")
+        return
+    })
+}
+
+fun runImplicitJoin(): String {
+    val (sender, receiver) = channel<String>()
+    spawnAndDropThread(sender)
+    println("  after implicit join")
+    val result = receiver.receive()
+    return result ?: "missing"
+}
+
+fun main(): Unit {
+    val (sender, receiver) = channel<String>()
+    val s1 = sender.clone()
+    val s2 = sender.clone()
+
+    val w1: Thread<Int> = thread(move {
+        s1.send("a")
+        s1.send("bb")
+        return 2
+    })
+    val w2: Thread<Int> = thread(move {
+        s2.send("ccc")
+        return 1
+    })
+
+    val c1 = w1.join()
+    val c2 = w2.join()
+    println("sent: ${c1 + c2}")
+
+    var count = 0
+    var seenA = 0
+    var seenBb = 0
+    var seenCcc = 0
+    var i = 0
+    while (i < c1 + c2) {
+        val item = receiver.receive()
+        if (item != null) {
+            count = count + 1
+            if (item == "a") {
+                seenA = seenA + 1
+            } else if (item == "bb") {
+                seenBb = seenBb + 1
+            } else if (item == "ccc") {
+                seenCcc = seenCcc + 1
+            }
+        }
+        i = i + 1
+    }
+    println("received: ${count}, counts: a=${seenA} bb=${seenBb} ccc=${seenCcc}")
+
+    val bgResult = runImplicitJoin()
+    println("implicit join: " + bgResult)
+}

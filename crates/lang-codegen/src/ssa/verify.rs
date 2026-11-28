@@ -470,6 +470,14 @@ fn verify_type(
             location,
             origin: Some(origin.clone()),
         });
+    } else if module.type_kind(ty) == Some(&SsaTypeKind::Uninhabited) {
+        errors.push(VerifyError {
+            kind: VerifyErrorKind::OperationContract {
+                reason: "uninhabited payload cannot be an SSA entity or function result",
+            },
+            location,
+            origin: Some(origin.clone()),
+        });
     }
 }
 

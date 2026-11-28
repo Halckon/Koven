@@ -1,11 +1,12 @@
 //! Original single-source materialization contracts through both Unit entries.
 use lang_frontend::{
+    diagnostic::{Diagnostic, DiagnosticCodeCatalog, Severity},
     name_resolution::{
         SourceUnitInput, SourceUnitKey, index_compilation_unit, resolve_compilation_unit_names,
     },
     ownership_checking::{
-        ConstEnabledOwnedUnit, ConstantMaterializationKind, UnitDropTarget, UnitLoanTarget,
-        check_compilation_unit_constant_ownership,
+        CompilationUnitConstantOwnership, ConstEnabledOwnedUnit, ConstantMaterializationKind,
+        UnitDropTarget, UnitLoanTarget, check_compilation_unit_constant_ownership,
     },
     parser::{BinaryOperator, Expression, Item, NameMarker, StringPart},
     source::SourceMap,
@@ -19,6 +20,28 @@ pub(super) fn checked(
     text: &str,
     rooted: bool,
 ) -> (SourceMap, ConstEnabledTypedUnit, ConstEnabledOwnedUnit) {
+    let (sources, typed, owned) = analyze(text, rooted);
+    assert!(
+        owned.ownership().diagnostics().is_empty(),
+        "{:?}",
+        owned.ownership().diagnostics()
+    );
+    assert!(
+        owned.ownership().deferred().is_empty(),
+        "{:?}",
+        owned.ownership().deferred()
+    );
+    (sources, typed, owned.validate().unwrap())
+}
+
+fn analyze(
+    text: &str,
+    rooted: bool,
+) -> (
+    SourceMap,
+    ConstEnabledTypedUnit,
+    CompilationUnitConstantOwnership,
+) {
     let mut sources = SourceMap::new();
     let source = sources.add_source("constants.ko", text).unwrap();
     let parsed = super::parser_test_assertions::parse_file_twice(
@@ -61,19 +84,51 @@ pub(super) fn checked(
     let owned =
         check_compilation_unit_constant_ownership(&sources, &inputs, &names, &types, &typed)
             .unwrap();
-    assert!(
-        owned.ownership().diagnostics().is_empty(),
-        "{:?}",
-        owned.ownership().diagnostics()
-    );
-    assert!(
-        owned.ownership().deferred().is_empty(),
-        "{:?}",
-        owned.ownership().deferred()
-    );
     assert!(owned.is_compatible_with(&typed));
-    let owned = owned.validate().unwrap();
     (sources, typed, owned)
+}
+
+pub(super) fn rejects_moving_constant_backed_field(text: &str) {
+    for rooted in [false, true] {
+        let (sources, typed, owned) = analyze(text, rooted);
+        let [constant_use] = typed.constants().uses() else {
+            panic!("one original TEXT read");
+        };
+        let [declaration] = typed.constants().declarations() else {
+            panic!("one original TEXT declaration");
+        };
+        assert_eq!(sources.slice(declaration.declaration_span()), Ok("TEXT"));
+        assert_eq!(constant_use.target(), declaration.symbol());
+        // The current Unit checker rejects consuming the field of the temporary owner.
+        let source = declaration.declaration_span().source_id();
+        let field_name = text.find("val text").expect("field declaration") + "val ".len();
+        let member_name = text.find(").text").expect("member access") + ").".len();
+        let catalog = DiagnosticCodeCatalog::try_new(&["L0132"]).unwrap();
+        let mut diagnostic = Diagnostic::new(
+            &sources,
+            Severity::Error,
+            catalog.resolve("L0132").unwrap(),
+            "cannot move a non-Copyable component out of its owner",
+            sources
+                .span(source, member_name, member_name + "text".len())
+                .unwrap(),
+        )
+        .unwrap();
+        diagnostic
+            .add_label(
+                &sources,
+                sources
+                    .span(source, field_name, field_name + "text".len())
+                    .unwrap(),
+                "non-Copyable component declared here",
+            )
+            .unwrap();
+        assert_eq!(owned.ownership().diagnostics(), [diagnostic]);
+        assert!(owned.ownership().drops().is_empty());
+        assert!(owned.ownership().loans().is_empty());
+        assert!(owned.materializations().is_none());
+        assert!(owned.validate().is_err());
+    }
 }
 
 pub(super) fn scalar(text: &str) {
@@ -315,5 +370,35 @@ fn aborting_binary(text: &str, expected_operator: BinaryOperator) {
             assert!(owned.ownership().direct_call_loan_ends().is_empty());
         }
         assert!(owned.ownership().value_deliveries().is_empty());
+    }
+}
+
+#[test]
+fn singleton_exit_ends_the_materialized_owner_of_a_grouped_string_constant() {
+    let text = r#"
+const val TEXT = "payload"
+object Gate { fun inspect(value: String, stop: Int): Unit {} }
+fun run(): Unit { Gate.inspect(((TEXT)), return) }
+"#;
+    for rooted in [false, true] {
+        let (sources, _, owned) = checked(text, rooted);
+        let primary = owned.ownership();
+        let [end] = primary.singleton_temporary_argument_unwinds() else {
+            panic!("the singleton exit must retire the actual argument loan");
+        };
+        let loan = end.loan();
+        let UnitLoanTarget::Temporary(owner) = loan.target() else {
+            panic!("the constant materializes its own String");
+        };
+        assert_ne!(*owner, loan.argument());
+        assert!(owned.materialization_at(*owner).is_some());
+        assert!(owned.materialization_at(loan.argument()).is_none());
+        assert_eq!(end.preceding_drops(), 0);
+        let [drop] = primary.drops() else {
+            panic!("one materialized owner must retire");
+        };
+        assert_eq!(drop.point(), end.point());
+        assert_eq!(drop.target(), UnitDropTarget::Temporary(*owner));
+        assert_eq!(sources.slice(drop.value_origin()), Ok("TEXT"));
     }
 }

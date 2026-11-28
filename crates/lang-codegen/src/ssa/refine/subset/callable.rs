@@ -2,6 +2,7 @@
 //! Borrow function parameters are callable views, local callable bindings hold concrete
 //! function pointers or closures, and lambda bodies lower as thunks.
 mod joins;
+mod unwind;
 
 use lang_frontend::{
     ast::ExpressionId,
@@ -675,31 +676,43 @@ impl Checker<'_, '_> {
             .source_plan
             .call_site(self.inputs.source_token, id);
         let prefix_only = site.is_some_and(|site| site.dispatch_key().is_none());
+        let unit_site = site.is_some_and(|site| {
+            self.inputs.owned.call_may_dispatch(id) == Some(site.dispatch_key().is_some())
+        });
+        let mut unit_prefix = false;
         let borrow_prefix =
             descriptor.borrow_return().is_some() && self.inputs.abandoned_borrow_result_call(id);
         let is_extension = self.is_extension_call(descriptor);
-        let simple = (descriptor.receiver().is_none()
-            || is_extension
-            || self.receiver_call(expression))
-            && descriptor.range_construction().is_none()
-            && (borrow_prefix || descriptor.borrow_return().is_none())
-            && descriptor
-                .arguments()
-                .iter()
-                .filter(|argument| {
-                    !prefix_only
-                        || values.get(argument.argument_index()).is_some_and(|&value| {
-                            self.inputs.owned.call_argument_completed(self.id(value))
-                        })
-                })
-                .all(|argument| match argument.mode() {
-                    ParameterMode::Value => self.storage_type(self.c(argument.parameter_type())),
-                    ParameterMode::Borrow => {
-                        self.storage_type(self.c(argument.parameter_type()))
-                            || self.view_function(self.c(argument.parameter_type()))
-                    }
-                    ParameterMode::Inout => self.storage_type(self.c(argument.parameter_type())),
-                });
+        let simple =
+            (descriptor.receiver().is_none() || is_extension || self.receiver_call(expression))
+                && descriptor.range_construction().is_none()
+                && (borrow_prefix || descriptor.borrow_return().is_none())
+                && descriptor
+                    .arguments()
+                    .iter()
+                    .filter(|argument| {
+                        !prefix_only
+                            || values.get(argument.argument_index()).is_some_and(|&value| {
+                                self.inputs.owned.call_argument_completed(self.id(value))
+                            })
+                    })
+                    .all(|argument| {
+                        let parameter = self.c(argument.parameter_type());
+                        self.storage_type(parameter)
+                            || (argument.mode() == ParameterMode::Borrow
+                                && self.view_function(parameter))
+                            || (unit_site
+                                && argument.mode() != ParameterMode::Inout
+                                && values.get(argument.argument_index()).is_some_and(|&value| {
+                                    let supported = self.inputs.direct_unit_argument(
+                                        descriptor,
+                                        self.id(value),
+                                        parameter,
+                                    );
+                                    unit_prefix |= supported && prefix_only;
+                                    supported
+                                }))
+                    });
         // A call through a function value is further restricted to view parameters.
         let target = descriptor.prints_line()
             || descriptor.aborts()
@@ -733,6 +746,7 @@ impl Checker<'_, '_> {
         let ok = simple && target;
         self.migrated |= ok
             && (borrow_prefix
+                || unit_prefix
                 || is_extension
                 || descriptor.text_primitive().is_some()
                 || self.named_nothing_call(descriptor));
@@ -764,7 +778,9 @@ impl Checker<'_, '_> {
                 })
             {
                 let parameter = self.c(argument.parameter_type());
-                if matches!(self.kind(parameter), Some(UnitTypeKind::Nullable(_))) {
+                if matches!(self.kind(parameter), Some(UnitTypeKind::Nullable(_)))
+                    || (argument.mode() == ParameterMode::Borrow && self.unit(parameter))
+                {
                     demands.push(parameter);
                 }
             }

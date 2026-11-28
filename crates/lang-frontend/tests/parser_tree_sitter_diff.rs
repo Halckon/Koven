@@ -904,6 +904,15 @@ fun closedDrifts(a: Int, b: Int, c: Int, move: Int) {
         ("TS-04-chained-membership", "val x = a in b in c\n"),
         ("TS-04-chained-comparison", "val x = a < b <= c\n"),
         ("TS-04-chained-equality", "val x = a == b != c\n"),
+        ("TS-05-same-line-unseparated-block", "fun f() { 1 2 }\n"),
+        (
+            "TS-05-same-line-unseparated-control",
+            "fun f(ok: Boolean) { if (ok) { a() b() } }\n",
+        ),
+        (
+            "TS-05-same-line-unseparated-lambda",
+            "val g = { x() y() }\n",
+        ),
     ];
 
     for (name, source) in rejected_cases {
@@ -924,7 +933,7 @@ fn spec_0491_closed_drifts_ts01_ts02_ts04_match_rust() {
     let cli = tree_sitter_cli();
     let grammar = grammar_dir();
 
-    // TS-01, TS-02, TS-04 are closed by SPEC-0491 (TS-05 same-line unseparated statements e.g. `{ 1 2 }` remain tracked).
+    // All 7 documented F4b drifts (TS-01..TS-07) are now closed across SPEC-0479, 0488, 0491, and 0497.
     let accepted_checks = [
         ("TS-01-valid-crlf", "val x = 1\r\nval y = 2\r\n"),
         (

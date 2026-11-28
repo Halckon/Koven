@@ -47,7 +47,8 @@ pub fn integer_literal_magnitude(text: &str, kind: IntegerLiteralKind) -> Option
     previous_digit.then_some(value)
 }
 
-pub(super) fn float_literal_core(text: &str, kind: FloatLiteralKind) -> Option<Cow<'_, str>> {
+/// Return the decimal core of a lexer-approved float literal.
+pub fn float_literal_core(text: &str, kind: FloatLiteralKind) -> Option<Cow<'_, str>> {
     let digits = match kind {
         FloatLiteralKind::Double => text,
         FloatLiteralKind::Float => text.strip_suffix(['f', 'F'])?,

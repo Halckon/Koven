@@ -577,12 +577,12 @@ class Checker:
     sub_stmt_liveness = True  # 语句级之下的活性精度；置为 False 仅用于对照
 
     def __init__(self, classes, funs, sigs, early_drop=False, frames_movable=False,
-                 local_borrow_ref_policy="undecided"):
+                 local_borrow_ref_policy="forbid"):
         if local_borrow_ref_policy not in ("undecided", "forbid", "second_order"):
             raise ValueError(f"未知的 local_borrow_ref_policy: {local_borrow_ref_policy}")
         self.classes, self.funs, self.sigs = classes, funs, sigs
         self.frames_movable = frames_movable  # 对照用：假设开始执行后的帧仍可移动
-        self.local_borrow_ref_policy = local_borrow_ref_policy  # 对照用：局部借用变量显式取址策略
+        self.local_borrow_ref_policy = local_borrow_ref_policy  # OD1 A1 默认 forbid（1A-ext）；undecided/second_order 仅作对照
         self.frames = {}  # (函数名, 行号) -> (跨这个挂起点留在帧里的变量, 其中被帧内借用指向的变量)
         self.errors = set()
         self.early_drop = early_drop  # 析构不可观察的局部值在不再需要时提前析构（统一析构规则的“许可”）
@@ -850,8 +850,8 @@ class Checker:
             if ty.kind == "view":
                 for kind, fld in self.ref_paths(ty_name):
                     loans[fld] = {self.symbolic(name, fld, kind, fun.line)}
-            elif ty.kind == "opaque" and ty_name in fun.views or mode == "own" and self.carrier(ty_name):
-                loans["*"] = {self.symbolic(name, "*", "inout", fun.line)}  # view T 与容器的值携带一组未知的来源
+            elif ty.kind == "opaque" and ty_name in fun.views or self.carrier(ty_name):
+                loans["*"] = {self.symbolic(name, "*", "inout", fun.line)}  # view T 与容器（含借用形参）携带一组未知的来源
             # 按 inout / borrow 接收存在类型，得到的是载荷访问（之三 §2.4）
             if fun.deinit_of:
                 if not (ty_name in self.classes and self.classes[ty_name].deinit):
@@ -1055,6 +1055,22 @@ class Checker:
                     loans.setdefault(key[len(prefix):], set()).update(held)
         return loans
 
+    def star_origins(self, state, targets):
+        """K20 现查（容器与 view T）：从拥有被借存储的变量或参数上取出最新的 '*' 来源集合。"""
+        found = set()
+        for root, path in targets:
+            owner = state.get(root)
+            if owner is None and root.startswith("*"):
+                name, _, fld = root[1:].partition(".")
+                owner, path = state.get(name), (tuple(fld.split(".")) if fld else ()) + path
+            elif owner is not None and not (owner.ty.kind in ("view", "opaque") or self.carrier(owner.ty.name)):
+                owner = None
+            if owner is not None:
+                key = ".".join(path) or "*"
+                if key in owner.loans:
+                    found.update(owner.loans[key])
+        return found
+
     def walk(self, state, targets, held, class_name, through):
         """沿字段路径走：按值字段留在同一处存储，借用字段换到它所指的存储。返回走到的存储与那里的账。"""
         at = set(targets)
@@ -1069,12 +1085,16 @@ class Checker:
         return at, held
 
     def current_fields(self, state, targets, carried, class_name):
-        """K20 现查：视图 class_name 位于 targets 时各借用字段当前持有的 loan。
+        """K20 现查：视图、容器或 view T 位于 targets 时当前持有的来源。
 
         借用字段之外的路径（它所指的另一个视图的字段）在这个视图名下只有建立时的副本，
-        账在所指视图的拥有者上，沿路径走过去取。
+        账在所指视图的拥有者上，沿路径走过去取；容器与 view T 的 '*' 来源同理现查拥有者。
         """
         fields = self.held_fields(state, targets, carried)
+        if self.carrier(class_name) or class_name in self.fun.views:
+            star = self.star_origins(state, targets)
+            if star:
+                fields.setdefault("*", set()).update(star)
         for _, path in self.ref_paths(class_name) if class_name in self.classes else ():
             *through, last = path.split(".")
             if self.crosses_borrow_field(class_name, through):
@@ -1853,6 +1873,13 @@ class Checker:
                 self.error("TYPE", line, f"{name}：二层借用 {mode} ({actual}) 不能充当 {mode} {wanted}")
             elif mode == "inout" and value.payload:
                 self.error("X2", line, f"{name}：载荷访问不能充当 {wanted} 的槽位")
+        for _, (target, _) in fun.flows:
+            wanted = next((ty for _, n, ty in fun.params if n == target), None)
+            if wanted in fun.tparams:
+                actual = bound.get(wanted)
+                if isinstance(actual, tuple) or (isinstance(actual, str) and self.escapable(actual)):
+                    shown = actual[1] if isinstance(actual, tuple) else actual
+                    self.error("SIG", line, f"{fun.name}：流向的目标 {target} 实例化为不能携带来源的类型 {shown}")
         for actual in bound.values():
             if isinstance(actual, tuple):
                 self.dispatches[self.fun.name, line] = ("open", actual[1])
@@ -1950,6 +1977,8 @@ class Checker:
                 raise SyntaxProblem(f"第 {expr.line} 行：流向的目标须是对变量或其字段的借用，或一个借用值")
             flowing = self.carried(values[param], modes[param], fld)
             actual = bound.get(wanted, wanted)
+            if wanted in fun.tparams and (isinstance(actual, tuple) or (isinstance(actual, str) and self.escapable(actual))):
+                continue
             if isinstance(actual, str) and actual in self.classes and self.type_of(actual).kind == "view":
                 # 目标是视图：流入的来源可能落在 path 之下的任何一个借用字段上
                 fields = {key: held for key, held in given.loans.items() if key}
@@ -2283,9 +2312,12 @@ class Checker:
                     self.record_flow(state, targets, copy_loans(value.loans), replace=False)
         else:
             incoming = {key: held for key, held in value.loans.items() if key}
-            if incoming:  # K20：新值携带的来源记到所指的存储上
+            targets = self.places(via)
+            carries = (self.carrier(wanted) or wanted in self.fun.views
+                       or (wanted in self.classes and self.type_of(wanted).kind == "view"))
+            if incoming or (carries and len(targets) == 1):  # K20：新值携带的来源记到所指的存储上；唯一槽位整体替换时清空旧来源
                 var.loans = {"": via}
-                self.record_flow(state, self.places(via), incoming, replace=len(self.places(via)) == 1)
+                self.record_flow(state, targets, incoming, replace=len(targets) == 1)
 
     def assign(self, stmt, state):
         value = self.value(stmt.expr, state)
@@ -2380,13 +2412,13 @@ class Checker:
 
 
 def check(text, early_drop=False, drops=None, frames_movable=False, frames=None, lowered=None, dispatches=None,
-          local_borrow_ref_policy="undecided"):
+          local_borrow_ref_policy="forbid"):
     """检查一段演算程序，返回按行排序的 (规则, 行号, 说明)。空列表表示接受。
 
     early_drop 打开提前析构；drops 若给出，收到各处提前析构的 (函数名, 变量名, 行号)。
     lowered 若给出，收到各函数的 (类型表, 带显式析构的程序, 是否被接受)，可交给 DP.Verifier。
     dispatches 若给出，收到存在类型进入泛型时的分流记录 ("open" | "mono", 实参类型名)。
-    local_borrow_ref_policy 用于 §84 局部借用变量显式取址策略对照："undecided" | "forbid" | "second_order"。
+    local_borrow_ref_policy 默认 "forbid"（OD1 A1 / 1A-ext 收口）；"undecided" 与 "second_order" 保留作 §84 对照。
     """
     classes, funs, sigs = parse(text)
     checker = Checker(classes, funs, sigs, early_drop, frames_movable, local_borrow_ref_policy)

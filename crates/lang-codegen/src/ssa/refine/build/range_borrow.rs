@@ -12,7 +12,7 @@ use lang_frontend::{
     type_checking::{
         BorrowReturnOrigin, CallableResultSource, Copyability, ParameterMode,
         UnitAggregateProjectionReceiver, UnitCallDescriptor, UnitCallReceiverOrigin,
-        UnitExpressionId, UnitTypeId, UnitTypeKind,
+        UnitExpressionId, UnitMapRequireValueDescriptor, UnitTypeId, UnitTypeKind,
     },
 };
 
@@ -363,6 +363,39 @@ impl Builder<'_, '_> {
         }
         self.drops(UnitDropPoint::CallReturn(id))?;
         Ok(Some((result, created)))
+    }
+
+    pub(super) fn lower_abandoned_map_require_value(
+        &mut self,
+        descriptor: UnitMapRequireValueDescriptor,
+        span: Span,
+    ) -> Result<Lowered, LoweringError> {
+        let receiver = descriptor.receiver().expression();
+        let operand = if self
+            .inputs
+            .typed
+            .expression_falls_through(descriptor.receiver())
+            == Some(false)
+        {
+            receiver
+        } else {
+            let key = descriptor.key();
+            if self.inputs.typed.expression_falls_through(key) != Some(false) {
+                return Err(error(LoweringErrorKind::InvalidModel, span));
+            }
+            let receiver_span = self.span(receiver);
+            let Some((_, created, _)) =
+                self.borrow_call_operand_loan(receiver, None, receiver_span)?
+            else {
+                return Err(error(LoweringErrorKind::InvalidModel, receiver_span));
+            };
+            self.pending_call_loans.extend(created);
+            key.expression()
+        };
+        match self.expression(operand)? {
+            Lowered::Diverged => Ok(Lowered::Diverged),
+            _ => Err(error(LoweringErrorKind::InvalidModel, span)),
+        }
     }
 
     fn borrow_call_operand_loan(

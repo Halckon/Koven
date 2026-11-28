@@ -16,7 +16,7 @@ publish = false
 license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
-libc = { version = "=0.2.189", default-features = false }
+libc = { version = "=0.2.191", default-features = false }
 fluent-uri = { version = "=0.1.4", default-features = false, features = ["unstable"] }
 inkwell = { version = "0.11.0", default-features = false, features = ["llvm21-1-prefer-dynamic", "target-aarch64", "target-x86", "no-libffi-linking"] }
 lang-codegen = { path = "crates/lang-codegen" }
@@ -24,7 +24,7 @@ lang-frontend = { path = "crates/lang-frontend" }
 lsp-server = "0.10.0"
 lsp-types = { version = "0.97.0", default-features = false }
 serde_json = "1.0.140"
-toml = { version = "=1.1.8", default-features = false, features = ["std", "parse", "serde"] }
+toml = { version = "=1.2.2", default-features = false, features = ["std", "parse", "serde"] }
 
 [workspace.lints.rust]
 missing_docs = "warn"

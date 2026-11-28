@@ -1,0 +1,50 @@
+// 共享所有权 DAG 与复合资源析构：覆盖 Rc<T> 构造、.share()、.value 只读读取，
+// 以及带 deinit 的资源装入 Rc、Box<enum> 与 MutableList 时的确定性析构顺序。
+
+class TraceResource(val id: Int, val name: String) {
+    deinit() {
+        println("  drop #${this.id} " + this.name)
+    }
+}
+
+value class SharedBox(val res: TraceResource)
+
+enum class Holder {
+    Full(res: TraceResource),
+    Empty
+}
+
+class Edge(val tag: String, val target: Rc<SharedBox>) {
+    fun describe(): String = this.tag + " -> " + this.target.value.res.name
+}
+
+fun runSharedDag(): Unit {
+    println("[rc-dag]")
+    val root = Rc(SharedBox(TraceResource(1, "shared-root")))
+    val left = Edge("L", root.share())
+    val right = Edge("R", root.share())
+    println("  " + left.describe())
+    println("  " + right.describe())
+    println("  leaving scope")
+}
+
+fun describeHolder(h: Holder): String = when (h) {
+    is Holder.Full -> "boxed holds id=${h.res.id}"
+    is Holder.Empty -> "boxed empty"
+}
+
+fun runCompositeHolders(): Unit {
+    println("[composite]")
+    val boxed = Box(Holder.Full(TraceResource(2, "boxed-enum")))
+    var list: MutableList<TraceResource> = mutableListOf()
+    list.add(TraceResource(3, "list-first"))
+    list.add(TraceResource(4, "list-second"))
+    println("  " + describeHolder(boxed.value))
+    println("  list size=${list.size}")
+}
+
+fun main(): Unit {
+    runSharedDag()
+    runCompositeHolders()
+    println("done")
+}

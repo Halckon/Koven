@@ -130,7 +130,10 @@ pub fn complete_file_types<'a>(
     if sources.source_text(parsed.source_id()).is_err()
         || parsed.source_id() != typed.source_id()
         || !typed.is_compatible_with_names(names)
-        || !Arc::ptr_eq(typed.environment_owner(), environment.owner())
+        || !Arc::ptr_eq(
+            typed.environment_snapshot_owner(),
+            environment.snapshot_owner(),
+        )
     {
         return Err(FinalTypeAdmissionInternalError::MismatchedAnalysisIdentity.into());
     }

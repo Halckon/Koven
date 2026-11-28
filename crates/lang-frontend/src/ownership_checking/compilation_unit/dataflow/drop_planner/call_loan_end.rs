@@ -1,37 +1,53 @@
 //! 普通直接调用的观测切片；从实际 pending loan 和同一 cleanup 序列发布。
-use super::{DropPlanner, PlannerDropPoint, ValueState};
+use super::{DropPlanner, PlannerDropPoint, TemporaryArgumentUnwinds, ValueState};
 use crate::{
     ast::ExpressionId,
+    name_resolution::SymbolKind,
     ownership_checking::{
         LoanKind, UnitDirectCallLoanEndFact, UnitIterationCleanupAction as Action, UnitLoanFact,
         UnitLoanTarget,
     },
     parser::{Expression, LiteralKind},
     type_checking::{
-        BuiltinType, CallableResultSource, Copyability, ExpressionCategory, UnitCallTarget,
-        UnitTypeKind,
+        BuiltinType, CallableResultSource, Copyability, ExpressionCategory,
+        IntrinsicTypeConstructor, NominalKind, ParameterMode, UnitCallDescriptor,
+        UnitCallReceiverOrigin, UnitCallTarget, UnitExpressionId, UnitTypeKind,
     },
 };
 use std::collections::BTreeMap;
 
 impl DropPlanner<'_, '_> {
-    fn observes_direct_call_loan(&self, loan: &UnitLoanFact) -> bool {
-        self.observes_call_loan(loan, LoanKind::Shared)
+    fn direct_call_for_loan(
+        &self,
+        loan: &UnitLoanFact,
+        kind: LoanKind,
+    ) -> Option<&UnitCallDescriptor> {
+        self.checker.typed.call(loan.call()).filter(|call| {
+            loan.kind() == kind
+                && (matches!(
+                    call.target(),
+                    UnitCallTarget::Declaration(_) | UnitCallTarget::Symbol(_)
+                ) || kind == LoanKind::Exclusive
+                    && matches!(call.target(), UnitCallTarget::External(_)))
+                && call.result_source() == CallableResultSource::Owned
+                && self
+                    .checker
+                    .borrow_result_call(loan.argument().expression())
+                    .is_none()
+        })
     }
 
     // Shared also admits proven temporary owners and field parents. Exclusive
     // remains root-only; both reuse registered tokens and the existing unwind traversal.
-    fn observes_call_loan(&self, loan: &UnitLoanFact, kind: LoanKind) -> bool {
-        let Some(call) = self.checker.typed.call(loan.call()) else {
-            return false;
-        };
-        if loan.kind() != kind
-            || call.receiver().is_some()
-            || !(matches!(call.target(), UnitCallTarget::Declaration(_) | UnitCallTarget::Symbol(_))
-                || kind == LoanKind::Exclusive && matches!(call.target(), UnitCallTarget::External(_)))
-            || call.result_source() != CallableResultSource::Owned
-            // 既有 borrow/range operand 已有来源交接；本片不能替它结束祖先。
-            || self.checker.borrow_result_call(loan.argument().expression()).is_some()
+    fn observes_call_loan(
+        &self,
+        loan: &UnitLoanFact,
+        kind: LoanKind,
+        control_transfer: bool,
+    ) -> bool {
+        if self
+            .direct_call_for_loan(loan, kind)
+            .is_none_or(|call| call.receiver().is_some())
         {
             return false;
         }
@@ -78,13 +94,24 @@ impl DropPlanner<'_, '_> {
                             });
                 }
                 Expression::Call { .. } => {
-                    // A checked construction forms its own owner. Other call
-                    // results still need a dedicated ownership-source proof.
+                    // The actual unwind can also expose a loan of an owned String
+                    // result from a source call.
+                    let expression = self.checker.unit_expression(operand);
+                    let owned_string_result = control_transfer
+                        && self.checker.typed.call(expression).is_some_and(|call| {
+                            matches!(
+                                call.target(),
+                                UnitCallTarget::Declaration(_) | UnitCallTarget::Symbol(_)
+                            ) && call.result_source() == CallableResultSource::Owned
+                                && self.checker.typed.types().get(call.return_type())
+                                    == Some(&UnitTypeKind::Builtin(BuiltinType::String))
+                        });
                     return kind == LoanKind::Shared
-                        && self
+                        && (self
                             .checker
                             .construction_descriptors
-                            .contains_key(&self.checker.unit_expression(operand))
+                            .contains_key(&expression)
+                            || owned_string_result)
                         && self.is_move_only_temporary(loan.argument().expression())
                         && matches!(loan.target(), UnitLoanTarget::Temporary(owner) if *owner == loan.argument());
                 }
@@ -140,7 +167,7 @@ impl DropPlanner<'_, '_> {
                 continue;
             };
             if loan.call() != self.checker.unit_expression(call)
-                || !self.observes_direct_call_loan(loan)
+                || !self.observes_call_loan(loan, LoanKind::Shared, false)
             {
                 continue;
             }
@@ -177,12 +204,163 @@ impl DropPlanner<'_, '_> {
         }
     }
 
-    /// 不从最终 descriptor 列表推测执行；只投影 traversal 实际发布的动作。
+    fn names_singleton(&self, source: UnitExpressionId) -> bool {
+        if source.source_unit() != self.checker.source_unit {
+            return false;
+        }
+        let mut expression = source.expression();
+        while let Ok(node) = self.checker.parsed.ast().expressions().get(expression) {
+            match node.payload() {
+                Expression::Group { expression: inner } => expression = *inner,
+                Expression::Name => {
+                    return self
+                        .checker
+                        .reference_symbol(node.span())
+                        .and_then(|symbol| self.checker.symbol_kind(symbol))
+                        == Some(SymbolKind::ObjectValue);
+                }
+                _ => return false,
+            }
+        }
+        false
+    }
+
+    fn is_named_singleton_prefix(
+        &self,
+        call: &UnitCallDescriptor,
+        expression: UnitExpressionId,
+    ) -> bool {
+        call.receiver().is_some_and(|receiver| {
+            matches!(call.target(), UnitCallTarget::Symbol(_))
+                && receiver.mode() == ParameterMode::Borrow
+                // The observed exit may be one arm of a call that dispatches on another.
+                && self.checker.call_dispatch.contains_key(&expression)
+                && self.is_stateless_object_type(receiver.ty())
+                && matches!(receiver.origin(), UnitCallReceiverOrigin::Expression(source)
+                    if self.names_singleton(source))
+        })
+    }
+
+    fn singleton_temporary_argument(&self, loan: &UnitLoanFact) -> bool {
+        let argument = loan.argument();
+        if argument.source_unit() != self.checker.source_unit {
+            return false;
+        }
+        let owner = self
+            .checker
+            .constant_temporary_origin(argument.expression())
+            .map_or(argument, |(owner, _)| owner);
+        let types = self.checker.typed.types();
+        let kind = self
+            .checker
+            .typed
+            .expression_type(argument)
+            .and_then(|ty| types.get(ty));
+        let handle = match kind {
+            Some(UnitTypeKind::Nullable(inner)) => types.get(*inner),
+            _ => kind,
+        };
+        let supported = matches!(
+            kind,
+            Some(
+                UnitTypeKind::Builtin(BuiltinType::String)
+                    | UnitTypeKind::Intrinsic {
+                        constructor: IntrinsicTypeConstructor::Array
+                            | IntrinsicTypeConstructor::List
+                            | IntrinsicTypeConstructor::MutableList,
+                        ..
+                    }
+            )
+        ) || matches!(
+            handle,
+            Some(UnitTypeKind::Intrinsic {
+                constructor: IntrinsicTypeConstructor::Box
+                    | IntrinsicTypeConstructor::Rc
+                    | IntrinsicTypeConstructor::Map
+                    | IntrinsicTypeConstructor::MutableMap,
+                ..
+            })
+        );
+        supported
+            && loan.target() == &UnitLoanTarget::Temporary(owner)
+            && self.is_move_only_temporary(argument.expression())
+            && self
+                .direct_call_for_loan(loan, LoanKind::Shared)
+                .is_some_and(|call| self.is_named_singleton_prefix(call, loan.call()))
+    }
+
+    fn class_result_argument(&self, loan: &UnitLoanFact) -> bool {
+        let argument = loan.argument();
+        let Some(call) = self.direct_call_for_loan(loan, LoanKind::Shared) else {
+            return false;
+        };
+        if !self.is_move_only_temporary(argument.expression())
+            || loan.target() != &UnitLoanTarget::Temporary(argument)
+        {
+            return false;
+        }
+        let singleton_prefix = self.is_named_singleton_prefix(call, loan.call());
+        if call.receiver().is_some() && !singleton_prefix {
+            return false;
+        }
+        let mut operand = argument.expression();
+        loop {
+            let Ok(node) = self.checker.parsed.ast().expressions().get(operand) else {
+                return false;
+            };
+            match node.payload() {
+                Expression::Group { expression } => operand = *expression,
+                Expression::Call { .. } => break,
+                _ => return false,
+            }
+        }
+        let typed = self.checker.typed;
+        let operand = self.checker.unit_expression(operand);
+        let result_type = if let Some(producer) = typed.call(operand).filter(|producer| {
+            matches!(
+                producer.target(),
+                UnitCallTarget::Declaration(_) | UnitCallTarget::Symbol(_)
+            ) && producer.result_source() == CallableResultSource::Owned
+        }) {
+            producer.return_type()
+        } else if singleton_prefix
+            && let Some(construction) = self.checker.construction_descriptors.get(&operand)
+        {
+            construction.result_type()
+        } else {
+            return false;
+        };
+        let Some(UnitTypeKind::Nominal { declaration, .. }) = typed.types().get(result_type) else {
+            return false;
+        };
+        typed
+            .signatures()
+            .declaration(*declaration)
+            .and_then(|sig| sig.nominal())
+            .is_some_and(|nominal| nominal.kind() == NominalKind::Class)
+    }
+
+    /// Project the call contracts from the same ordered cleanup actions.
+    pub(super) fn direct_call_unwinds(
+        &self,
+    ) -> (Vec<UnitDirectCallLoanEndFact>, TemporaryArgumentUnwinds) {
+        self.collect_direct_call_ends(true)
+    }
+
+    #[cfg(any(test, feature = "d10-catalog-experiment"))]
     pub(super) fn direct_call_loan_ends(&self) -> Vec<UnitDirectCallLoanEndFact> {
+        self.collect_direct_call_ends(false).0
+    }
+
+    fn collect_direct_call_ends(
+        &self,
+        include_supplemental_unwinds: bool,
+    ) -> (Vec<UnitDirectCallLoanEndFact>, TemporaryArgumentUnwinds) {
         // 本 planner 只处理一个 source 的 AST；稳定下标与 point 种类组成唯一计数 key。
         let mut preceding_drops: BTreeMap<(bool, usize), usize> = BTreeMap::new();
         let mut preceding_call_loan_ends = BTreeMap::<_, usize>::new();
         let mut ends = Vec::new();
+        let mut temporary_unwinds = TemporaryArgumentUnwinds::default();
         for (point, action) in self.iteration_actions.iter() {
             let key = match point {
                 PlannerDropPoint::CallReturn(call) => (false, call.index()),
@@ -194,8 +372,21 @@ impl DropPlanner<'_, '_> {
                 Action::Drop(_) => *count += 1,
                 Action::EndCallLoan(loan) => {
                     let loan_count = preceding_call_loan_ends.entry(key).or_default();
-                    if self.observes_direct_call_loan(loan) {
-                        ends.push(UnitDirectCallLoanEndFact {
+                    let destination = if self.observes_call_loan(loan, LoanKind::Shared, key.0) {
+                        Some(&mut ends)
+                    } else if include_supplemental_unwinds && key.0 {
+                        if self.singleton_temporary_argument(loan) {
+                            Some(&mut temporary_unwinds.singleton_temporaries)
+                        } else if self.class_result_argument(loan) {
+                            Some(&mut temporary_unwinds.class_results)
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    };
+                    if let Some(destination) = destination {
+                        destination.push(UnitDirectCallLoanEndFact {
                             loan: loan.clone(),
                             point: point.into_unit(self.checker.source_unit),
                             preceding_drops: *count,
@@ -207,7 +398,7 @@ impl DropPlanner<'_, '_> {
                 _ => {}
             }
         }
-        ends
+        (ends, temporary_unwinds)
     }
 
     /// Only actual unwind actions qualify; never infer execution from descriptors.
@@ -246,7 +437,7 @@ impl DropPlanner<'_, '_> {
                     let loan_count = preceding_call_loan_ends
                         .entry(transfer.index())
                         .or_default();
-                    if self.observes_call_loan(loan, LoanKind::Exclusive) {
+                    if self.observes_call_loan(loan, LoanKind::Exclusive, false) {
                         ends.push(crate::ownership_checking::UnitExclusiveCallPrefixEndFact {
                             loan: loan.clone(),
                             point: point.into_unit(self.checker.source_unit),

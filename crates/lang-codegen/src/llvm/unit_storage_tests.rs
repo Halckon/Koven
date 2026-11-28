@@ -592,7 +592,7 @@ fn unit_container_ir_keeps_sentinel_void_abi_and_signed_bounds_without_element_m
 }
 
 #[test]
-fn unit_container_value_parameter_and_explicit_ssa_return_remain_unsupported() {
+fn direct_unit_value_parameter_uses_zero_sized_storage_and_void_return() {
     use super::LlvmAdapterError;
 
     for parameter in [false, true] {
@@ -606,7 +606,7 @@ fn unit_container_value_parameter_and_explicit_ssa_return_remain_unsupported() {
             .expect("array");
         let returns = if parameter { vec![] } else { vec![unit] };
         let id = module
-            .add_function("unsupported", returns, origin.clone())
+            .add_function("unit_boundary", returns, origin.clone())
             .expect("SSA signature");
         let function = module.function_mut(id).expect("function");
         let parameters = if parameter {
@@ -633,10 +633,13 @@ fn unit_container_value_parameter_and_explicit_ssa_return_remain_unsupported() {
             .expect("return");
         verify_program(&program)
             .expect("valid SSA is broader than this storage-only backend slice");
-        assert!(matches!(
-            render_verified_program(&program),
-            Err(LlvmAdapterError::Unsupported(_))
-        ));
+        let llvm = render_verified_program(&program);
+        if parameter {
+            let llvm = llvm.expect("a private direct function accepts a Unit parameter");
+            assert!(llvm.contains("define internal void @f0.unit_boundary({} %v0)"));
+        } else {
+            assert!(matches!(llvm, Err(LlvmAdapterError::Unsupported(_))));
+        }
     }
 }
 

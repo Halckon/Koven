@@ -180,14 +180,6 @@ pub(in crate::ssa::unit_lower) mod branch {
     use crate::ssa::statement_core::{self, StatementLowering};
     use lang_frontend::parser::Statement;
 
-    /// Retain shared statement ordering while materializing a Nothing? tail in its
-    /// already checked control-result representation, including nested null controls.
-    struct NullTail<'a, 'b> {
-        lowerer: &'a mut UnitExpressionLowerer<'b>,
-        tail: ExpressionId,
-        string_result: (UnitTypeId, SsaTypeId),
-    }
-
     impl StatementLowering for UnitExpressionLowerer<'_> {
         fn lower_inner(&mut self, statement: StatementId) -> Result<LoweredValue, LoweringError> {
             self.lower_statement_inner(statement)
@@ -197,23 +189,6 @@ pub(in crate::ssa::unit_lower) mod branch {
             self.emit_drops(UnitDropPoint::AfterStatement(
                 lang_frontend::type_checking::UnitStatementId::new(self.source_unit, statement),
             ))
-        }
-    }
-
-    impl StatementLowering for NullTail<'_, '_> {
-        fn lower_inner(&mut self, statement: StatementId) -> Result<LoweredValue, LoweringError> {
-            if matches!(self.lowerer.parsed.ast().statements().get(statement)
-                .map(|node| node.payload()), Ok(Statement::Expression { expression }) if *expression == self.tail)
-            {
-                return self
-                    .lowerer
-                    .lower_joined_null(self.tail, self.string_result);
-            }
-            self.lowerer.lower_statement_inner(statement)
-        }
-
-        fn emit_after_statement(&mut self, statement: StatementId) -> Result<(), LoweringError> {
-            StatementLowering::emit_after_statement(self.lowerer, statement)
         }
     }
 
@@ -268,20 +243,8 @@ pub(in crate::ssa::unit_lower) mod branch {
             } else {
                 None
             };
-            let string_result = result_plan.string;
-            let null_tail =
-                result_expression
-                    .zip(string_result)
-                    .and_then(|(tail, string_result)| {
-                        let ty = self
-                            .typed
-                            .expression_type(UnitExpressionId::new(self.source_unit, tail))?;
-                        (matches!(self.typed.types().get(ty), Some(UnitTypeKind::Nullable(inner))
-                            if builtin_type(self.typed, *inner) == Some(BuiltinType::Nothing)))
-                        .then_some((tail, string_result))
-                    });
             let mut result = if result_required {
-                self.lower_tail_value_body_with_null(statement, null_tail)?
+                self.lower_tail_value_body(statement)?
             } else {
                 self.lower_statement(statement)?
             };
@@ -295,27 +258,40 @@ pub(in crate::ssa::unit_lower) mod branch {
                         self.statement_span(statement)?,
                     ));
                 };
-                if let Some((expected, _)) = string_result.filter(|_| null_tail.is_none()) {
-                    let (value, transferred) = self.adapt_owned_value_to_expected(
-                        expression,
-                        value,
-                        expected,
-                        self.statement_span(statement)?,
-                    )?;
-                    if !transferred {
-                        self.transfer_owned_expression(
-                            expression,
-                            value,
-                            self.statement_span(statement)?,
+                let span = self.statement_span(statement)?;
+                let (value, transferred) = match result_plan.nullable {
+                    Some((expected, storage)) => {
+                        let actual = self
+                            .typed
+                            .expression_type(UnitExpressionId::new(self.source_unit, expression))
+                            .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+                        let actual = resolve_concrete_type(
+                            self.typed,
+                            actual,
+                            self.substitutions,
+                            self.static_self,
+                            span,
                         )?;
+                        if crate::ssa::lowering_support::is_null_only(self.typed, actual) {
+                            // The Nothing? expression has already completed with its own ABI.
+                            let null = self.append_scalar(
+                                Operation::NullableNull { nullable: storage },
+                                storage,
+                                span,
+                            )?;
+                            result = null;
+                            (value, false)
+                        } else {
+                            let (adapted, transferred) = self
+                                .adapt_owned_value_to_expected(expression, value, expected, span)?;
+                            result = LoweredValue::Value(adapted);
+                            (adapted, transferred)
+                        }
                     }
-                    result = LoweredValue::Value(value);
-                } else if null_tail.is_none() {
-                    self.transfer_owned_expression(
-                        expression,
-                        value,
-                        self.statement_span(statement)?,
-                    )?;
+                    None => (value, false),
+                };
+                if !transferred {
+                    self.transfer_owned_expression(expression, value, span)?;
                 }
             }
             let expected_result = if result_required {
@@ -345,7 +321,7 @@ pub(in crate::ssa::unit_lower) mod branch {
             }))
         }
 
-        fn control_tail_expression(
+        pub(in crate::ssa::unit_lower) fn control_tail_expression(
             &self,
             statement: StatementId,
         ) -> Result<Option<ExpressionId>, LoweringError> {
@@ -378,10 +354,9 @@ pub(in crate::ssa::unit_lower) mod branch {
             })
         }
 
-        fn lower_tail_value_body_with_null(
+        fn lower_tail_value_body(
             &mut self,
             statement: StatementId,
-            null_tail: Option<(ExpressionId, (UnitTypeId, SsaTypeId))>,
         ) -> Result<LoweredValue, LoweringError> {
             let node =
                 self.parsed
@@ -393,133 +368,12 @@ pub(in crate::ssa::unit_lower) mod branch {
                         span: None,
                     })?;
             let elements = match node.payload() {
-                lang_frontend::parser::Statement::ControlBody { elements }
-                | lang_frontend::parser::Statement::LambdaBody { elements } => elements,
-                _ => {
-                    return if let Some((tail, string_result)) = null_tail {
-                        statement_core::lower_statement(
-                            &mut NullTail {
-                                lowerer: self,
-                                tail,
-                                string_result,
-                            },
-                            statement,
-                        )
-                    } else {
-                        self.lower_statement(statement)
-                    };
+                Statement::ControlBody { elements } | Statement::LambdaBody { elements } => {
+                    elements.clone()
                 }
+                _ => return self.lower_statement(statement),
             };
-            let elements = elements.clone();
-            if let Some((tail, string_result)) = null_tail {
-                statement_core::lower_tail_sequence(
-                    &mut NullTail {
-                        lowerer: self,
-                        tail,
-                        string_result,
-                    },
-                    statement,
-                    &elements,
-                )
-            } else {
-                statement_core::lower_tail_sequence(self, statement, &elements)
-            }
-        }
-
-        /// Preserve nested control evaluation and Group cleanup in the published joined type.
-        fn lower_joined_null(
-            &mut self,
-            expression: ExpressionId,
-            string_result: (UnitTypeId, SsaTypeId),
-        ) -> Result<LoweredValue, LoweringError> {
-            let span = self
-                .parsed
-                .ast()
-                .expressions()
-                .get(expression)
-                .map_err(|_| LoweringError {
-                    kind: LoweringErrorKind::MissingFact,
-                    span: None,
-                })?
-                .span();
-            let operands = self.nullable_when_group_chain(
-                UnitExpressionId::new(self.source_unit, expression),
-                span,
-            )?;
-            for &id in &operands {
-                self.guard_nullable_when_expression(id, span)?;
-                let ty = self
-                    .typed
-                    .expression_type(id)
-                    .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-                if !matches!(self.typed.types().get(ty), Some(UnitTypeKind::Nullable(inner))
-                    if builtin_type(self.typed, *inner) == Some(BuiltinType::Nothing))
-                    || self.typed.copyability(ty) != Copyability::Copyable
-                {
-                    return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-                }
-            }
-            let literal = operands
-                .last()
-                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-            let node = self
-                .parsed
-                .ast()
-                .expressions()
-                .get(literal.expression())
-                .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, span))?;
-            let terminal = literal.expression();
-            let terminal_span = node.span();
-            let payload = node.payload().clone();
-            let result = match payload {
-                Expression::Literal(LiteralKind::Null) => self.append_scalar(
-                    Operation::NullableNull {
-                        nullable: string_result.1,
-                    },
-                    string_result.1,
-                    terminal_span,
-                )?,
-                Expression::If {
-                    condition,
-                    then_branch,
-                    else_branch,
-                    ..
-                } => {
-                    let plan = self.control_result(terminal, Some(string_result), terminal_span)?;
-                    self.lower_conditional(
-                        terminal,
-                        condition,
-                        then_branch,
-                        else_branch,
-                        0,
-                        1,
-                        terminal_span,
-                        plan,
-                    )?
-                }
-                Expression::When {
-                    subject, entries, ..
-                } => self.lower_boolean_when(
-                    terminal,
-                    subject,
-                    &entries,
-                    terminal_span,
-                    Some(string_result),
-                )?,
-                _ => {
-                    return Err(lowering_error(
-                        LoweringErrorKind::UnsupportedNode,
-                        terminal_span,
-                    ));
-                }
-            };
-            if result == LoweredValue::Diverged {
-                return Ok(result);
-            }
-            for id in operands.into_iter().rev() {
-                self.emit_drops(UnitDropPoint::AfterExpression(id))?;
-            }
-            Ok(result)
+            statement_core::lower_tail_sequence(self, statement, &elements)
         }
 
         pub(in crate::ssa::unit_lower) fn statement_span(

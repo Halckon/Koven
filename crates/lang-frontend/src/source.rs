@@ -1,10 +1,17 @@
 //! 源码身份、字节范围与展示位置的统一基础设施。
+#![allow(unexpected_cfgs)]
 
 use std::{
+    collections::{BTreeMap, BTreeSet},
     error::Error,
     fmt,
-    sync::atomic::{AtomicU64, Ordering},
+    sync::{
+        Arc, OnceLock,
+        atomic::{AtomicU64, Ordering},
+    },
 };
+
+const COLUMN_CHECKPOINT_INTERVAL: usize = 128;
 
 static NEXT_SOURCE_MAP_ID: AtomicU64 = AtomicU64::new(1);
 
@@ -13,7 +20,7 @@ static NEXT_SOURCE_MAP_ID: AtomicU64 = AtomicU64::new(1);
 /// ID 只在分配它的 source map 内有意义；内部 owner identity 会拒绝来自其他 map 的同下标
 /// ID，并从稳定 `Debug` 表示中隐藏。ID 不等同于文件系统路径，也不能作为稳定输出的排序
 /// 依据。
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SourceId {
     map_id: u64,
     index: usize,
@@ -69,6 +76,23 @@ impl Span {
     pub const fn is_empty(self) -> bool {
         self.start == self.end
     }
+
+    #[cfg(any(test, kani))]
+    pub(crate) const fn synthetic_for_verification() -> Self {
+        Self::synthetic_range_for_verification(0, 0)
+    }
+
+    #[cfg(any(test, kani))]
+    pub(crate) const fn synthetic_range_for_verification(start: usize, end: usize) -> Self {
+        Self {
+            source_id: SourceId {
+                map_id: 0,
+                index: 0,
+            },
+            start,
+            end,
+        }
+    }
 }
 
 /// 面向用户展示的 1-based 源码行列位置。
@@ -92,6 +116,17 @@ impl SourcePosition {
     pub const fn column(self) -> usize {
         self.column
     }
+}
+
+/// 将零起点 UTF-16 位置转换到源码字节范围的结果。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Utf16Offset {
+    /// 位置对应的有效 UTF-8 字节边界。
+    Byte(usize),
+    /// 行不存在或列超出行内容。
+    OutOfRange,
+    /// 位置位于一个补充平面字符的代理对中间。
+    InsideSurrogatePair,
 }
 
 /// source / span 校验失败的具体原因。
@@ -196,6 +231,7 @@ impl Error for SourceError {}
 pub struct SourceMap {
     map_id: u64,
     sources: Vec<Source>,
+    names: BTreeSet<Arc<str>>,
 }
 
 impl Default for SourceMap {
@@ -211,6 +247,7 @@ impl SourceMap {
         Self {
             map_id: next_source_map_id(),
             sources: Vec::new(),
+            names: BTreeSet::new(),
         }
     }
 
@@ -248,8 +285,11 @@ impl SourceMap {
         text: String,
         file_name: Option<String>,
     ) -> Result<SourceId, SourceError> {
-        if self.sources.iter().any(|source| source.name == name) {
-            return Err(SourceError::DuplicateSourceName { name });
+        let name: Arc<str> = name.into();
+        if !self.names.insert(Arc::clone(&name)) {
+            return Err(SourceError::DuplicateSourceName {
+                name: name.to_string(),
+            });
         }
 
         let source_id = SourceId {
@@ -257,12 +297,28 @@ impl SourceMap {
             index: self.sources.len(),
         };
         let line_starts = line_starts(&text);
+        // Short lines never need a column index. Long lines build theirs on first use.
+        let columns = line_starts
+            .iter()
+            .copied()
+            .zip(
+                line_starts
+                    .iter()
+                    .skip(1)
+                    .copied()
+                    .chain(std::iter::once(text.len())),
+            )
+            .enumerate()
+            .filter(|&(_, (start, end))| end - start >= COLUMN_CHECKPOINT_INTERVAL)
+            .map(|(line, _)| (line, OnceLock::new()))
+            .collect();
 
         self.sources.push(Source {
             name,
             file_name,
             text,
             line_starts,
+            columns,
         });
 
         Ok(source_id)
@@ -331,6 +387,18 @@ impl SourceMap {
         Ok(&source.text[span.start..span.end])
     }
 
+    /// True if the span contains an LF, including the LF in a CRLF pair.
+    pub(crate) fn span_has_line_break(&self, span: Span) -> Result<bool, SourceError> {
+        let source = self.source_for_span(span)?;
+        let next = source
+            .line_starts
+            .partition_point(|&start| start <= span.start);
+        Ok(source
+            .line_starts
+            .get(next)
+            .is_some_and(|&start| start <= span.end))
+    }
+
     /// 把字节偏移转换为统一的 1-based 行列位置。
     ///
     /// `\n` 后的第一个字节开始新行；在 `\r\n` 中，`\r` 与 `\n` 的 offset 都仍属于前一
@@ -345,8 +413,75 @@ impl SourceMap {
         source_id: SourceId,
         offset: usize,
     ) -> Result<SourcePosition, SourceError> {
-        let source = self.source(source_id)?;
+        let (source, line) = self.checked_position(source_id, offset)?;
+        let checkpoint = source.checkpoint_before_offset(line, offset);
+        let column = checkpoint.scalars + source.text[checkpoint.offset..offset].chars().count();
+        Ok(SourcePosition {
+            line: line + 1,
+            column: column + 1,
+        })
+    }
 
+    /// 将字节偏移换算为零起点的行和 UTF-16 列。
+    /// 行分隔符和无效字节偏移的处理与 [`Self::position`] 一致。
+    pub fn position_utf16(
+        &self,
+        source_id: SourceId,
+        offset: usize,
+    ) -> Result<(usize, usize), SourceError> {
+        let (source, line) = self.checked_position(source_id, offset)?;
+        let checkpoint = source.checkpoint_before_offset(line, offset);
+        let column = checkpoint.utf16
+            + source.text[checkpoint.offset..offset]
+                .encode_utf16()
+                .count();
+        Ok((line, column))
+    }
+
+    /// 将零起点的行和 UTF-16 列换算为字节偏移。
+    /// 可寻址列不包含行尾 LF 或 CRLF。
+    pub fn byte_offset_utf16(
+        &self,
+        source_id: SourceId,
+        line: usize,
+        column: usize,
+    ) -> Result<Utf16Offset, SourceError> {
+        let source = self.source(source_id)?;
+        let Some(&start) = source.line_starts.get(line) else {
+            return Ok(Utf16Offset::OutOfRange);
+        };
+        let end = source.line_end(line);
+        let crlf = source.text.as_bytes().get(end) == Some(&b'\n')
+            && source.text[start..end].ends_with('\r');
+        let content_end = end - usize::from(crlf);
+        if column > content_end - start {
+            return Ok(Utf16Offset::OutOfRange);
+        }
+
+        let checkpoint = source.checkpoint_before_column(line, start, content_end, column);
+        let mut utf16 = checkpoint.utf16;
+        for (relative, character) in source.text[checkpoint.offset..content_end].char_indices() {
+            if utf16 == column {
+                return Ok(Utf16Offset::Byte(checkpoint.offset + relative));
+            }
+            utf16 += character.len_utf16();
+            if utf16 > column {
+                return Ok(Utf16Offset::InsideSurrogatePair);
+            }
+        }
+        Ok(if utf16 == column {
+            Utf16Offset::Byte(content_end)
+        } else {
+            Utf16Offset::OutOfRange
+        })
+    }
+
+    fn checked_position(
+        &self,
+        source_id: SourceId,
+        offset: usize,
+    ) -> Result<(&Source, usize), SourceError> {
+        let source = self.source(source_id)?;
         if offset > source.text.len() {
             return Err(SourceError::OffsetOutOfBounds {
                 source_id,
@@ -362,13 +497,7 @@ impl SourceMap {
             .line_starts
             .partition_point(|&line_start| line_start <= offset)
             .saturating_sub(1);
-        let line_start = source.line_starts[line_index];
-        let column = source.text[line_start..offset].chars().count() + 1;
-
-        Ok(SourcePosition {
-            line: line_index + 1,
-            column,
-        })
+        Ok((source, line_index))
     }
 
     fn source(&self, source_id: SourceId) -> Result<&Source, SourceError> {
@@ -429,10 +558,89 @@ fn next_source_map_id() -> u64 {
 }
 
 struct Source {
-    name: String,
+    name: Arc<str>,
     file_name: Option<String>,
     text: String,
     line_starts: Vec<usize>,
+    columns: BTreeMap<usize, OnceLock<Vec<ColumnCheckpoint>>>,
+}
+
+#[derive(Clone, Copy)]
+struct ColumnCheckpoint {
+    offset: usize,
+    scalars: usize,
+    utf16: usize,
+}
+
+impl ColumnCheckpoint {
+    fn line_start(offset: usize) -> Self {
+        Self {
+            offset,
+            scalars: 0,
+            utf16: 0,
+        }
+    }
+}
+
+impl Source {
+    fn line_end(&self, line: usize) -> usize {
+        self.line_starts
+            .get(line + 1)
+            .map_or(self.text.len(), |&next| next - 1)
+    }
+
+    fn checkpoint_before_offset(&self, line: usize, offset: usize) -> ColumnCheckpoint {
+        let start = self.line_starts[line];
+        if offset - start < COLUMN_CHECKPOINT_INTERVAL {
+            return ColumnCheckpoint::line_start(start);
+        }
+        let checkpoints = self.column_checkpoints(line);
+        let end = checkpoints.partition_point(|point| point.offset <= offset);
+        checkpoints[..end]
+            .last()
+            .copied()
+            .unwrap_or_else(|| ColumnCheckpoint::line_start(start))
+    }
+
+    fn checkpoint_before_column(
+        &self,
+        line: usize,
+        start: usize,
+        end: usize,
+        column: usize,
+    ) -> ColumnCheckpoint {
+        if end - start < COLUMN_CHECKPOINT_INTERVAL || column < COLUMN_CHECKPOINT_INTERVAL / 4 {
+            return ColumnCheckpoint::line_start(start);
+        }
+        let checkpoints = self.column_checkpoints(line);
+        let index =
+            checkpoints.partition_point(|point| point.offset <= end && point.utf16 <= column);
+        checkpoints[..index]
+            .last()
+            .copied()
+            .unwrap_or_else(|| ColumnCheckpoint::line_start(start))
+    }
+
+    fn column_checkpoints(&self, line: usize) -> &[ColumnCheckpoint] {
+        let Some(columns) = self.columns.get(&line) else {
+            return &[];
+        };
+        columns.get_or_init(|| {
+            let start = self.line_starts[line];
+            let mut checkpoints = Vec::new();
+            let mut column = ColumnCheckpoint::line_start(start);
+            for (relative, character) in self.text[start..self.line_end(line)].char_indices() {
+                let offset = start + relative;
+                if offset - column.offset >= COLUMN_CHECKPOINT_INTERVAL {
+                    column.offset = offset;
+                    checkpoints.push(column);
+                }
+                column.scalars += 1;
+                column.utf16 += character.len_utf16();
+            }
+            checkpoints
+        })
+    }
 }
 
 fn line_starts(text: &str) -> Vec<usize> {
@@ -445,4 +653,31 @@ fn line_starts(text: &str) -> Vec<usize> {
     }
 
     starts
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SourceMap;
+
+    #[test]
+    fn indexed_line_break_query_matches_lf_in_a_checked_slice() {
+        let text = "甲\r\n乙\r丙\n";
+        let mut map = SourceMap::new();
+        let root = map.add_source("lines.ko", text).unwrap();
+        let offsets: Vec<_> = text
+            .char_indices()
+            .map(|(offset, _)| offset)
+            .chain(std::iter::once(text.len()))
+            .collect();
+        for (first, &start) in offsets.iter().enumerate() {
+            for &end in &offsets[first..] {
+                let span = map.span(root, start, end).unwrap();
+                assert_eq!(
+                    map.span_has_line_break(span).unwrap(),
+                    text[start..end].contains('\n'),
+                    "{start}..{end}"
+                );
+            }
+        }
+    }
 }

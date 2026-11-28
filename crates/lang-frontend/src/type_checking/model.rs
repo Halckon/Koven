@@ -10,7 +10,8 @@ use crate::{
     ast::{ExpressionId, StatementId, TypeRefId},
     diagnostic::Diagnostic,
     name_resolution::{
-        EnumCaseId, ExternalSymbolId, ExternalSymbolKind, NameEnvironment, NameResolution, SymbolId,
+        CompilationUnitNames, EnumCaseId, ExternalDeclarations, ExternalSymbol, ExternalSymbolId,
+        ExternalSymbolKind, NameEnvironment, NameResolution, SymbolId,
     },
     source::SourceId,
 };
@@ -713,8 +714,8 @@ pub(crate) enum ExternalTypeBinding {
 /// 与一个显式 [`NameEnvironment`] 绑定的不可变类型环境构建器。
 #[derive(Clone, Debug)]
 pub struct TypeEnvironment {
-    owner: Arc<()>,
-    symbol_kinds: Vec<ExternalSymbolKind>,
+    external_declarations: ExternalDeclarations,
+    snapshot_owner: Arc<()>,
     bindings: BTreeMap<ExternalSymbolId, ExternalTypeBinding>,
     pub(super) range_sources: Vec<SourceId>,
     pub(super) range_extension_sources: Vec<SourceId>,
@@ -726,8 +727,8 @@ impl TypeEnvironment {
     #[must_use]
     pub fn new(names: &NameEnvironment) -> Self {
         Self {
-            owner: names.owner(),
-            symbol_kinds: names.symbols().iter().map(|symbol| symbol.kind()).collect(),
+            external_declarations: names.declarations().clone(),
+            snapshot_owner: Arc::new(()),
             bindings: BTreeMap::new(),
             range_sources: Vec::new(),
             range_extension_sources: Vec::new(),
@@ -843,17 +844,46 @@ impl TypeEnvironment {
         binding: ExternalTypeBinding,
         expected: ExternalSymbolKind,
     ) -> Result<(), TypeCheckingError> {
-        if self.symbol_kinds.get(symbol.index()).copied() != Some(expected)
+        if self
+            .external_declarations
+            .symbol(symbol)
+            .map(ExternalSymbol::kind)
+            != Some(expected)
             || self.bindings.contains_key(&symbol)
         {
             return Err(TypeCheckingError::InvalidExternalBinding);
         }
         self.bindings.insert(symbol, binding);
+        self.advance_snapshot();
         Ok(())
     }
 
+    pub(super) fn advance_snapshot(&mut self) {
+        // Published analyses and unchanged clones retain the previous configuration.
+        if Arc::get_mut(&mut self.snapshot_owner).is_none() {
+            self.snapshot_owner = Arc::new(());
+        }
+    }
+
+    pub(super) fn snapshot_owner(&self) -> &Arc<()> {
+        &self.snapshot_owner
+    }
+
     pub(crate) fn owner(&self) -> &Arc<()> {
-        &self.owner
+        self.external_declarations.owner()
+    }
+
+    pub(super) fn is_compatible_with_names(&self, names: &NameResolution) -> bool {
+        self.external_declarations
+            .has_compatible_ids(names.external_declarations())
+    }
+
+    pub(super) fn is_compatible_with_unit_names(&self, names: &CompilationUnitNames) -> bool {
+        // The Unit resolver uses one declaration snapshot for every source.
+        names
+            .source_units()
+            .first()
+            .is_none_or(|source| self.is_compatible_with_names(source.resolution()))
     }
 
     pub(crate) fn binding(&self, id: ExternalSymbolId) -> Option<&ExternalTypeBinding> {
@@ -869,6 +899,7 @@ pub struct TypedFile {
     constants: Option<super::ValidatedConstants>,
     source_id: SourceId,
     environment_owner: Arc<()>,
+    environment_snapshot_owner: Arc<()>,
     name_analysis_owner: Arc<()>,
     analysis_owner: Arc<()>,
     types: TypeTable,

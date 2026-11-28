@@ -4,13 +4,13 @@
 [![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE-MIT)
 [![Rust](https://img.shields.io/badge/rust-1.96.0-orange.svg)](rust-toolchain.toml)
 
-[English](README.md) | [简体中文](README_CN.md)
+[English](README.md) | [简体中文](README_CN.md) | [Website](https://koven-lang.github.io/koven-site/)
 
-**Koven** is a systems language under development, with Kotlin-inspired syntax, explicit ownership, call-site loans, and LLVM native code generation.
+**Koven** is a compiled systems programming language with Kotlin-inspired syntax, explicit ownership without a garbage collector, and LLVM native code generation. Programs are checked by a borrow checker with call-site loans — no lifetime annotations — and compiled to native executables for AArch64 macOS and x86_64 Linux.
 
-The runtime uses no tracing garbage collector. Memory and resources follow checked ownership facts: pure-memory values use ASAP drop, while resource values use lexical cleanup. Implementation and native support are bounded; design goals are not claims that every feature or memory-safety property has been verified.
+The current specification is [Guide v0.47](docs/guide/README.md); start with the [executable tutorial](docs/tutorials/README.md). The native subset includes sequential collections, Map lookup/update/removal and bounded borrowed iteration, ordinary borrow results, and borrowed List/View ranges with bounded local control flow. These are specific supported combinations, not a promise of arbitrary collection APIs or control flow. See the [current tour notes](docs/tutorials/koven-tour.md#collections-and-borrow-results), [Spec index](docs/specs/README.md), and [architecture](docs/architecture/README.md) for the boundaries.
 
-The current specification is [Guide v0.47](docs/guide/README.md); start with the [executable tutorial](docs/tutorials/README.md). The native subset includes sequential collections, Map lookup/update/removal and bounded borrowed iteration, ordinary borrow results, and borrowed List/View ranges with bounded local control flow. These are specific supported combinations, not a promise of arbitrary collection APIs or control flow. See the [current tour notes](docs/tutorials/koven-tour.md#collections-and-borrow-results), [Spec index](docs/specs/README.md), and [architecture](docs/architecture/README.md) for the boundaries. Performance and cost acceptance remains deferred.
+The runtime uses no tracing garbage collector. Memory and resources follow checked ownership facts: pure-memory values use ASAP drop, while resource values use lexical cleanup. Implementation and native support are bounded; design goals are not claims that every feature or memory-safety property has been verified. Performance and cost acceptance remains deferred.
 
 ---
 

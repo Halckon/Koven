@@ -6,7 +6,9 @@ use lang_frontend::{
     ownership_checking::{UnitDropPoint, UnitDropTarget},
     parser::{AssignmentOperator, BinaryOperator as Operator, Expression},
     source::Span,
-    type_checking::{Copyability, IntrinsicTypeConstructor, UnitExpressionId, UnitTypeKind},
+    type_checking::{
+        BuiltinType, Copyability, IntrinsicTypeConstructor, UnitExpressionId, UnitTypeKind,
+    },
 };
 
 use super::{
@@ -16,7 +18,7 @@ use super::{
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
     integer::assignment_operator,
-    model::{EntityId, EntityType, Operation, Origin, SsaTypeKind, ValueId},
+    model::{ComparisonOperator, EntityId, EntityType, Operation, Origin, SsaTypeKind, ValueId},
 };
 
 fn require_lowered_value(value: LoweredValue, span: Span) -> Result<ValueId, LoweringError> {
@@ -143,7 +145,10 @@ impl UnitExpressionLowerer<'_> {
             .typed
             .map_contains(id)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let (owner, _) = self.map_owner_operand(descriptor.receiver().expression(), span)?;
+        let Some((owner, _)) = self.lower_map_operand(descriptor.receiver().expression(), span)?
+        else {
+            return Ok(LoweredValue::Diverged);
+        };
         let pending_start = self.pending_operands.len();
         self.pending_operands.push(owner);
         let key_span = self
@@ -188,7 +193,16 @@ impl UnitExpressionLowerer<'_> {
             .typed
             .map_put(id)
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-        let (owner, root) = self.extract_map_owner_val(descriptor.receiver(), span)?;
+        let receiver = descriptor.receiver();
+        if receiver.source_unit() != self.source_unit {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        }
+        let Some((owner, root)) = self.lower_map_operand(receiver.expression(), span)? else {
+            return Ok(LoweredValue::Diverged);
+        };
+        let EntityId::Value(owner) = owner else {
+            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        };
         let pending_start = self.pending_operands.len();
         self.pending_operands.push(EntityId::Value(owner));
         let lowered_key = self.lower(descriptor.key().expression())?;
@@ -277,21 +291,6 @@ impl UnitExpressionLowerer<'_> {
         self.emit_drops(UnitDropPoint::AfterExpression(descriptor.value()))?;
         self.emit_drops(UnitDropPoint::CallReturn(id))?;
         Ok(LoweredValue::Unit)
-    }
-
-    fn extract_map_owner_val(
-        &mut self,
-        receiver: UnitExpressionId,
-        span: Span,
-    ) -> Result<(ValueId, Option<UnitSymbolId>), LoweringError> {
-        if receiver.source_unit() != self.source_unit {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        }
-        let (owner, root) = self.map_owner_operand(receiver.expression(), span)?;
-        let EntityId::Value(owner_val) = owner else {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-        };
-        Ok((owner_val, root))
     }
 
     fn map_owner_operand(
@@ -476,7 +475,8 @@ impl UnitExpressionLowerer<'_> {
                         self.adapt_owned_value_to_expected(value, assigned, target_type, span)?;
                     (LoweredValue::Value(assigned), transferred)
                 }
-                assigned => (assigned, false),
+                LoweredValue::Unit => (self.unit_binding_value(value, target_type, span)?, false),
+                LoweredValue::Diverged => return Ok(LoweredValue::Diverged),
             },
             AssignmentOperator::AddAssign
             | AssignmentOperator::SubtractAssign
@@ -671,6 +671,13 @@ impl UnitExpressionLowerer<'_> {
         if !matches!(operator, Operator::Equal | Operator::NotEqual) {
             return Ok(None);
         }
+        // A Copyable floating temporary has no cleanup fact to authorize the
+        // MoveOnly path below. Its typed operands already establish the representation.
+        if let Some(result) =
+            self.lower_typed_nullable_equality(expression, left, operator, right, span)?
+        {
+            return Ok(Some(result));
+        }
         let operand = if crate::ssa::lowering_support::is_null_literal(self.parsed, right) {
             left
         } else if crate::ssa::lowering_support::is_null_literal(self.parsed, left) {
@@ -691,21 +698,36 @@ impl UnitExpressionLowerer<'_> {
         };
         let point =
             UnitDropPoint::AfterBinaryOperands(UnitExpressionId::new(self.source_unit, expression));
-        let target = UnitDropTarget::Temporary(UnitExpressionId::new(self.source_unit, leaf));
-        let mut facts = self
-            .owned
-            .drops()
-            .iter()
-            .filter(|fact| fact.point() == point && fact.target() == target);
-        let Some(fact) = facts.next() else {
-            return Ok(None);
-        };
-        if facts.next().is_some() || fact.value_origin() != origin {
-            return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+        let leaf_id = UnitExpressionId::new(self.source_unit, leaf);
+        // A Copyable Char? has no temporary drop fact. Its typed result and planned
+        // inline layout suffice to read the presence tag without extracting a payload.
+        let copyable_char = self.typed.expression_type(leaf_id).is_some_and(|ty| {
+            matches!(self.typed.types().get(ty), Some(UnitTypeKind::Nullable(inner))
+                if self.typed.types().get(*inner) == Some(&UnitTypeKind::Builtin(BuiltinType::Char)))
+                && matches!(
+                    self.type_ids.get(&ty).and_then(|storage| self.ssa_types.get(storage.index())),
+                    Some(SsaTypeKind::InlineNullable { inner, niche: false })
+                        if self.ssa_types.get(inner.index()) == Some(&SsaTypeKind::Char)
+                )
+        });
+        if !copyable_char {
+            let target = UnitDropTarget::Temporary(leaf_id);
+            let mut facts = self
+                .owned
+                .drops()
+                .iter()
+                .filter(|fact| fact.point() == point && fact.target() == target);
+            let Some(fact) = facts.next() else {
+                return Ok(None);
+            };
+            if facts.next().is_some() || fact.value_origin() != origin {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            }
         }
         let target = self.expression_ssa_type(leaf, origin)?;
         let aggregate_presence = self.map_results.contains_key(&target);
-        if !aggregate_presence
+        if !copyable_char
+            && !aggregate_presence
             && !self.nullable_maps.contains_key(&target)
             && !matches!(
                 self.ssa_types.get(target.index()),
@@ -734,6 +756,84 @@ impl UnitExpressionLowerer<'_> {
             result = self.append_scalar(Operation::BooleanNot { operand }, boolean, span)?;
         }
         self.emit_drops(point)?;
+        Ok(Some(result))
+    }
+
+    fn lower_typed_nullable_equality(
+        &mut self,
+        expression: ExpressionId,
+        left: ExpressionId,
+        operator: Operator,
+        right: ExpressionId,
+        span: Span,
+    ) -> Result<Option<LoweredValue>, LoweringError> {
+        let ty = |operand| {
+            self.typed
+                .expression_type(UnitExpressionId::new(self.source_unit, operand))
+        };
+        let (Some(left_ty), Some(right_ty)) = (ty(left), ty(right)) else {
+            return Ok(None);
+        };
+        let kind = |ty| self.typed.types().get(ty);
+        let may_be_nullable = |ty| {
+            matches!(
+                kind(ty),
+                Some(
+                    UnitTypeKind::Nullable(_)
+                        | UnitTypeKind::TypeParameter(_)
+                        | UnitTypeKind::StaticSelf(_)
+                )
+            )
+        };
+        if kind(left_ty) == Some(&UnitTypeKind::Builtin(BuiltinType::Nothing))
+            || !(may_be_nullable(left_ty) || may_be_nullable(right_ty))
+        {
+            return Ok(None);
+        }
+        let concrete =
+            |ty| resolve_concrete_type(self.typed, ty, self.substitutions, self.static_self, span);
+        let (left_ty, right_ty) = (concrete(left_ty)?, concrete(right_ty)?);
+        if let Some(on_left) = crate::ssa::lowering_support::nullable_string_presence_on_left(
+            self.typed, left_ty, right_ty,
+        ) && !crate::ssa::lowering_support::is_null_literal(self.parsed, left)
+            && !crate::ssa::lowering_support::is_null_literal(self.parsed, right)
+        {
+            return self
+                .lower_nullable_text_presence(expression, left, operator, right, on_left, span)
+                .map(Some);
+        }
+        let Some(nullable) =
+            crate::ssa::lowering_support::nullable_equality_storage(self.typed, left_ty, right_ty)
+        else {
+            return Ok(None);
+        };
+        let Some(left_value) = self.lower_optional_expression_value(left)? else {
+            return Ok(Some(LoweredValue::Diverged));
+        };
+        let (left, _) = self.adapt_owned_value_to_expected(left, left_value, nullable, span)?;
+        let Some(right_value) = self.lower_optional_expression_value(right)? else {
+            return Ok(Some(LoweredValue::Diverged));
+        };
+        let (right, _) = self.adapt_owned_value_to_expected(right, right_value, nullable, span)?;
+        let operator = if operator == Operator::Equal {
+            ComparisonOperator::Equal
+        } else {
+            ComparisonOperator::NotEqual
+        };
+        let ty = self.expression_ssa_type(expression, span)?;
+        let result = self.append_scalar(
+            Operation::Compare {
+                operator,
+                left,
+                right,
+            },
+            ty,
+            span,
+        )?;
+        self.emit_drops(UnitDropPoint::AfterBinaryOperands(UnitExpressionId::new(
+            self.source_unit,
+            expression,
+        )))?;
         Ok(Some(result))
     }
 }

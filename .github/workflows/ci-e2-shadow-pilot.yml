@@ -159,7 +159,7 @@ jobs:
 
       - name: Restore isolated arm cache (exact key only, no prefix fallback)
         id: shadow-cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: |
             ~/.cargo/registry/index
@@ -221,7 +221,7 @@ jobs:
 
       - name: Save isolated arm cache after cold miss
         if: steps.shadow-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: |
             ~/.cargo/registry/index

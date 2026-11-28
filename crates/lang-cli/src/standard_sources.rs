@@ -3,7 +3,7 @@ use std::collections::BTreeSet;
 
 use crate::unit_build::UnitBuildError;
 use lang_frontend::{
-    analysis::UnitSourceDescriptor,
+    analysis::{DISPLAY_PATH, UnitSourceDescriptor, append_builtin_display},
     name_resolution::NameEnvironment,
     source::{SourceError, SourceId, SourceMap},
     type_checking::TypeEnvironment,
@@ -19,7 +19,7 @@ const STANDARD_ROOT: &str = "koven-std";
 
 // CLI caller 必须为 map 中每份既有 source 登记一个 descriptor；后续 single adapter 也须保持。
 // N 份既有 source 最多占用 N 个候选展示名；不把该私有边界推广为任意 SourceMap 的计数 API。
-// 依次追加 ranges、result、text，既有标准 descriptor 位置保持不变。
+// 依次追加 ranges、result、text、display，既有标准 descriptor 位置保持不变。
 pub(crate) fn append_standard_sources(
     sources: &mut SourceMap,
     descriptors: &mut Vec<UnitSourceDescriptor>,
@@ -46,17 +46,18 @@ pub(crate) fn append_standard_sources(
         .authorize_text_source(sources, text)
         .map_err(UnitBuildError::StandardSource)?;
     descriptors.push(UnitSourceDescriptor::new(&root, TEXT_PATH, text));
+    append_builtin_display(sources, descriptors, names, &root).map_err(UnitBuildError::Source)?;
     Ok(())
 }
 
-// 用户 root/path 不变；只避让实际重合的完整键，三份标准源共享同一宿主 root。
+// 用户 root/path 不变；只避让实际重合的完整键，标准源共享同一宿主 root。
 fn available_standard_root(descriptors: &[UnitSourceDescriptor]) -> String {
     let occupied = descriptors
         .iter()
         .filter(|source| {
             matches!(
                 source.logical_path(),
-                Some(RANGE_PATH | RESULT_PATH | TEXT_PATH)
+                Some(RANGE_PATH | RESULT_PATH | TEXT_PATH | DISPLAY_PATH)
             )
         })
         .filter_map(UnitSourceDescriptor::root_identity)

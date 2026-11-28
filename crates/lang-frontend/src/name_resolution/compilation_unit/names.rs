@@ -55,6 +55,7 @@ struct UnitResolver<'a> {
     diagnostics: Vec<Diagnostic>,
     suppressed_unresolved: Vec<BTreeSet<(usize, usize)>>,
     builtin: Option<builtin::BuiltinResult>,
+    builtin_display: Option<DeclarationId>,
 }
 
 /// 解析一个显式 compilation unit 的 import、可见性、限定路径与普通名称。
@@ -130,6 +131,7 @@ impl<'a> UnitResolver<'a> {
         }
         let builtin =
             builtin::BuiltinResult::locate(environment, &index, &local, &declaration_symbols)?;
+        let builtin_display = builtin::locate_display(environment, &index, &inputs)?;
         let unit_count = inputs.len();
         Ok(Self {
             sources,
@@ -145,6 +147,7 @@ impl<'a> UnitResolver<'a> {
             diagnostics: Vec::new(),
             suppressed_unresolved: (0..unit_count).map(|_| BTreeSet::new()).collect(),
             builtin,
+            builtin_display,
         })
     }
 
@@ -173,7 +176,7 @@ impl<'a> UnitResolver<'a> {
             all_diagnostics.extend(filtered.iter().cloned());
             let resolution = NameResolution::new(
                 resolution.source_id(),
-                resolution.environment_owner().clone(),
+                resolution.external_declarations().clone(),
                 resolution.scopes().to_vec(),
                 resolution.symbols().to_vec(),
                 resolution.enum_cases().to_vec(),
@@ -208,7 +211,7 @@ impl<'a> UnitResolver<'a> {
             diagnostics,
         )
         .with_value_lookup_hints(self.value_lookup_hints)
-        .with_builtin_result(builtin_result))
+        .with_builtins(builtin_result, self.builtin_display))
     }
 
     fn build_automatic_bindings(&mut self) {

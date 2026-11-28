@@ -722,7 +722,7 @@ fn project_output_preflight_and_operational_errors_are_non_clobbering() {
 
     project.write(
         "src/app/Unsupported.ko",
-        "package app\nfun unsupported(): Unit { val output = println(\"${1}\") }\n",
+        "package app\nfun unsupported(): Unit { val output = println(\"${1.0}\") }\n",
     );
     let unsupported_output = project.join("unsupported");
     let unsupported = project_build(&manifest, "app.unsupported", &unsupported_output, None);

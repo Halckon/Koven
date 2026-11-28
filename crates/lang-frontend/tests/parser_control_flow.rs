@@ -12,6 +12,12 @@ mod parser_test_assertions;
 
 use parser_test_assertions::{parse_block_twice, parse_expression_twice, parse_file_twice};
 
+#[path = "parser_control_flow/when_operand_recovery.rs"]
+mod when_operand_recovery;
+
+#[path = "parser_control_flow/when_separator_recovery.rs"]
+mod when_separator_recovery;
+
 fn add_source(sources: &mut SourceMap, text: &str) -> SourceId {
     sources
         .add_source("control.ko", text)
@@ -627,6 +633,221 @@ fn unpaired_when_group_keeps_the_block_recovery_boundary() {
     assert_eq!(sources.slice(previous_body.span()), Ok("produce"));
     let otherwise = entries.last().unwrap();
     assert!(otherwise.else_span.is_some());
+    assert_eq!(sources.slice(otherwise.span), Ok("else -> 3"));
+}
+
+#[test]
+fn missing_when_closer_does_not_require_an_entry_separator_at_the_boundary() {
+    for (text, boundary) in [
+        ("when { else -> 3", None),
+        ("when { else -> 3\r\n", None),
+        ("consume(when { else -> 3)", Some(')')),
+        ("values[when { else -> 3]", Some(']')),
+    ] {
+        let (sources, parsed) = expression(text);
+        assert_eq!(codes(parsed.diagnostics()), ["L0010"], "{text:?}");
+        let stop = boundary.map_or(text.len(), |value| text.rfind(value).unwrap());
+        let primary = parsed.diagnostics()[0].primary_span();
+        assert_eq!((primary.start(), primary.end()), (stop, stop), "{text:?}");
+        let (_, node) = parsed
+            .ast()
+            .expressions()
+            .iter()
+            .find(|(_, node)| matches!(node.payload(), Expression::When { .. }))
+            .unwrap();
+        let Expression::When { entries, .. } = node.payload() else {
+            unreachable!()
+        };
+        let [last] = entries.as_slice() else {
+            panic!("one real entry: {entries:?}");
+        };
+        assert_eq!(sources.slice(node.span()), Ok("when { else -> 3"));
+        assert_eq!(sources.slice(last.span), Ok("else -> 3"));
+        if boundary.is_some() {
+            let root = parsed.ast().expressions().get(parsed.root()).unwrap();
+            assert_eq!(sources.slice(root.span()), Ok(text));
+        }
+    }
+}
+
+#[test]
+fn same_line_when_entry_without_separator_keeps_the_second_selector() {
+    let text = "when { false -> 1 true -> 2; else -> 3 }";
+    let (sources, parsed) = expression(text);
+    assert_eq!(codes(parsed.diagnostics()), ["L0065"]);
+    assert_eq!(
+        sources.slice(parsed.diagnostics()[0].primary_span()),
+        Ok("true")
+    );
+    let Expression::When { entries, .. } = expression_payload(&parsed, parsed.root()) else {
+        panic!("when expression");
+    };
+    let [first, second, otherwise] = entries.as_slice() else {
+        panic!("three real entries: {entries:?}");
+    };
+    assert_eq!(sources.slice(first.span), Ok("false -> 1"));
+    assert_eq!(sources.slice(second.span), Ok("true -> 2"));
+    assert_eq!(sources.slice(otherwise.span), Ok("else -> 3"));
+}
+
+#[test]
+fn missing_when_closer_leaves_the_enclosing_call_and_later_declaration_intact() {
+    let first = "fun probe(): Int = consume(when { else -> 3)";
+    let after = "fun after(): Int = 7";
+    let text = format!("{first}\r\n{after}");
+    let mut sources = SourceMap::new();
+    let source_id = add_source(&mut sources, &text);
+    let parsed = parse_file_twice(&sources, source_id, &text);
+    assert_eq!(codes(parsed.diagnostics()), ["L0010"]);
+    assert_eq!(
+        parsed.diagnostics()[0].primary_span().start(),
+        first.len() - 1
+    );
+    let [probe, following] = parsed.roots() else {
+        panic!("both top-level declarations are preserved");
+    };
+    for (id, expected) in [(*probe, first), (*following, after)] {
+        let item = parsed.ast().items().get(id).unwrap();
+        assert_eq!(sources.slice(item.span()), Ok(expected));
+    }
+}
+
+#[test]
+fn missing_call_closer_in_a_when_arm_preserves_the_next_arm() {
+    for separator in ["\n", "\r\n", "; "] {
+        for selector in [
+            "else",
+            "flag",
+            "((flag)) && if (flag) true else false",
+            "check<Boolean>(flag)",
+        ] {
+            let tail = if selector == "else" {
+                ""
+            } else {
+                "; else -> 3"
+            };
+            let first = format!(
+                "fun probe(flag: Boolean): Int = when {{ false -> take(1{separator}{selector} -> 2{tail} }}"
+            );
+            let text = format!("{first}\nfun after(): Int = 7");
+            let mut sources = SourceMap::new();
+            let source_id = add_source(&mut sources, &text);
+            let parsed = parse_file_twice(&sources, source_id, &text);
+            assert_eq!(codes(parsed.diagnostics()), ["L0010"], "{text:?}");
+            let offset = if separator.starts_with(';') {
+                text.find(';').unwrap()
+            } else {
+                text.find(&format!("{selector} ->")).unwrap()
+            };
+            let primary = parsed.diagnostics()[0].primary_span();
+            assert_eq!(
+                (primary.start(), primary.end()),
+                (offset, offset),
+                "{text:?}"
+            );
+            let [probe, after] = parsed.roots() else {
+                panic!("both declarations are preserved: {text:?}");
+            };
+            assert_eq!(
+                sources.slice(parsed.ast().items().get(*probe).unwrap().span()),
+                Ok(first.as_str())
+            );
+            assert_eq!(
+                sources.slice(parsed.ast().items().get(*after).unwrap().span()),
+                Ok("fun after(): Int = 7")
+            );
+            let entries = parsed
+                .ast()
+                .expressions()
+                .iter()
+                .find_map(|(_, node)| {
+                    if let Expression::When { entries, .. } = node.payload() {
+                        Some(entries)
+                    } else {
+                        None
+                    }
+                })
+                .expect("when remains in the first declaration");
+            assert_eq!(
+                entries.len(),
+                if selector == "else" { 2 } else { 3 },
+                "{text:?}"
+            );
+            assert_eq!(sources.slice(entries[0].span), Ok("false -> take(1"));
+            assert_eq!(
+                sources.slice(entries[1].span),
+                Ok(format!("{selector} -> 2").as_str())
+            );
+            let body = parsed.ast().statements().get(entries[0].body).unwrap();
+            let Statement::Expression { expression } = body.payload() else {
+                panic!("the first arm retains its call");
+            };
+            let call = parsed.ast().expressions().get(*expression).unwrap();
+            let Expression::Call { arguments, .. } = call.payload() else {
+                panic!("the first arm retains its argument list");
+            };
+            let [argument] = arguments.as_slice() else {
+                panic!("the following selector is not an argument");
+            };
+            assert_eq!(sources.slice(argument.span), Ok("1"));
+        }
+    }
+}
+
+#[test]
+fn damaged_unclosed_call_keeps_outer_selectors_instead_of_nested_arrows() {
+    for (argument, code) in [("1 :", "L0034"), (":", "L0033")] {
+        let text =
+            format!("when {{ false -> take({argument} (\ninner -> 4)\nflag -> 2\nelse -> 3 }}");
+        let (sources, parsed) = expression(&text);
+        assert_eq!(codes(parsed.diagnostics()), [code, "L0010"], "{text:?}");
+        let primary = parsed.diagnostics()[1].primary_span();
+        let offset = text.find("flag ->").unwrap();
+        assert_eq!((primary.start(), primary.end()), (offset, offset));
+        let Expression::When { entries, .. } = expression_payload(&parsed, parsed.root()) else {
+            panic!("expected a when expression");
+        };
+        let [damaged, flag, fallback] = entries.as_slice() else {
+            panic!("both outer selectors survive recovery: {entries:?}");
+        };
+        assert_eq!(
+            sources.slice(damaged.span),
+            Ok(format!("false -> take({argument} (\ninner -> 4)").as_str())
+        );
+        assert_eq!(sources.slice(flag.span), Ok("flag -> 2"));
+        assert_eq!(sources.slice(fallback.span), Ok("else -> 3"));
+    }
+}
+
+#[test]
+fn paired_call_in_a_when_arm_owns_nested_arrows_and_multiline_arguments() {
+    let text = "when { false -> take(1,\nwhen { true -> 4; else -> 5 },\n{ x -> x })\nflag -> 2\nelse -> 3 }";
+    let (sources, parsed) = expression(text);
+    assert!(
+        parsed.diagnostics().is_empty(),
+        "{:?}",
+        parsed.diagnostics()
+    );
+    let Expression::When { entries, .. } = expression_payload(&parsed, parsed.root()) else {
+        panic!("when expression");
+    };
+    let [first, next, otherwise] = entries.as_slice() else {
+        panic!("three outer arms: {entries:?}");
+    };
+    let body = parsed.ast().statements().get(first.body).unwrap();
+    let Statement::Expression { expression } = body.payload() else {
+        panic!("call body");
+    };
+    let Expression::Call { arguments, .. } = expression_payload(&parsed, *expression) else {
+        panic!("call with nested arguments");
+    };
+    assert_eq!(arguments.len(), 3);
+    assert_eq!(
+        sources.slice(arguments[1].span),
+        Ok("when { true -> 4; else -> 5 }")
+    );
+    assert_eq!(sources.slice(arguments[2].span), Ok("{ x -> x }"));
+    assert_eq!(sources.slice(next.span), Ok("flag -> 2"));
     assert_eq!(sources.slice(otherwise.span), Ok("else -> 3"));
 }
 

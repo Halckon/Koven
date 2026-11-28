@@ -187,8 +187,11 @@ impl Module {
     pub(crate) fn type_ownership(&self, id: SsaTypeId) -> Option<Ownership> {
         match self.type_kind(id)? {
             SsaTypeKind::Unit
+            | SsaTypeKind::Uninhabited
             | SsaTypeKind::Boolean
             | SsaTypeKind::Char
+            | SsaTypeKind::Float32
+            | SsaTypeKind::Float64
             | SsaTypeKind::Integer { .. } => Some(Ownership::Copyable),
             SsaTypeKind::SharedReference { .. } | SsaTypeKind::CallableView { .. } => {
                 Some(Ownership::Copyable)
@@ -248,12 +251,12 @@ impl Module {
         }
     }
 
-    pub(crate) fn nullable_inner(&self, id: SsaTypeId) -> Option<SsaTypeId> {
-        match self.type_kind(id)? {
+    pub(crate) fn nullable_inner(&self, ty: SsaTypeId) -> Option<SsaTypeId> {
+        match self.type_kind(ty)? {
             SsaTypeKind::NullableHandle { inner } | SsaTypeKind::InlineNullable { inner, .. } => {
-                Some(*inner)
+                (!self.is_null_only(ty)).then_some(*inner)
             }
-            _ => self.presence_payload_type(id),
+            _ => self.presence_payload_type(ty),
         }
     }
 
@@ -438,8 +441,10 @@ pub(super) fn valid_deinit_signature(
 
 /// `Some(niche)` when `inner` may carry an inline nullable wrapper, `None` otherwise.
 pub(super) fn inline_nullable_niche(module: &Module, inner: SsaTypeId) -> Option<bool> {
+    use SsaTypeKind::{Boolean, Char, Float32, Float64, Integer, Uninhabited};
+
     match module.type_kind(inner)? {
-        SsaTypeKind::Boolean | SsaTypeKind::Char | SsaTypeKind::Integer { .. } => Some(false),
+        Boolean | Char | Float32 | Float64 | Integer { .. } | Uninhabited => Some(false),
         SsaTypeKind::Aggregate { .. } if module.presence_payload_type(inner).is_none() => {
             Some(false)
         }

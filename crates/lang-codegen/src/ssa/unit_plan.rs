@@ -5,6 +5,7 @@ mod call_routes;
 mod call_scope_index;
 mod callable_instances;
 mod concrete_types;
+mod interpolation;
 use concrete_types::deinit;
 mod recipe_validation;
 mod runtime_layout;
@@ -430,6 +431,7 @@ pub(super) fn plan_unit_root_set_from_facts(
     }
 
     let calls_by_template = index_calls(typed, owned, parsed_by_source, &templates)?;
+    let display_reads = interpolation::index_display_reads(owned, parsed_by_source, &templates)?;
     let mut pending = roots
         .into_iter()
         .map(UnitFunctionInstanceKey::for_entry)
@@ -574,8 +576,25 @@ pub(super) fn plan_unit_root_set_from_facts(
                     )
                 })
                 .transpose()?;
-            let mut target_key =
-                resolve_unit_call_instance(typed, owned, target, arguments, receiver, *span)?;
+            if let Some((_, builtin)) =
+                super::lowering_support::builtin_display_call(typed, call, receiver)
+            {
+                if super::lowering_support::is_float_builtin(builtin) {
+                    return Err(lowering_error(LoweringErrorKind::UnsupportedNode, *span));
+                }
+                continue;
+            }
+            let mut target_key = call_routes::resolve_unit_call_instance_with_recipe_failures(
+                typed,
+                owned,
+                target,
+                arguments,
+                receiver,
+                call_routes::ReceiverDispatch::at_call(typed, call),
+                *span,
+                &UnitRecipeRootFacts::new(),
+                &mut Vec::new(),
+            )?;
             let target_template_index = template_by_target
                 .get(&target_key.key().target())
                 .copied()
@@ -627,6 +646,14 @@ pub(super) fn plan_unit_root_set_from_facts(
             }
         }
 
+        callables.freeze_display_calls(
+            source_token,
+            &display_reads[template_index],
+            &substitutions,
+            key.static_self(),
+            &mut pending,
+            &mut runtime_type_demands,
+        )?;
         callables.freeze_runtime_callbacks(
             source_token,
             &substitutions,

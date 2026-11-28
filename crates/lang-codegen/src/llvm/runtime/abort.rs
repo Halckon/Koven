@@ -17,11 +17,9 @@ use inkwell::{
 };
 
 use super::{RuntimeAbi, add_noreturn_attribute};
-use crate::llvm::LlvmAdapterError;
+use crate::llvm::{LlvmAdapterError, decimal};
 
 const STDERR: u64 = 2;
-/// `u64::MAX` has 20 decimal digits; one more byte holds the sign.
-const DECIMAL_BUFFER: u32 = 21;
 
 /// What the `abort: <message>` line prints.
 #[derive(Clone, Copy)]
@@ -360,7 +358,6 @@ fn define_write_decimal<'ctx>(
     write_bytes: FunctionValue<'ctx>,
 ) -> Result<FunctionValue<'ctx>, LlvmAdapterError> {
     let i64_type = context.i64_type();
-    let i8_type = context.i8_type();
     let function = llvm.add_function(
         "koven.abort.write_i64",
         context.void_type().fn_type(&[i64_type.into()], false),
@@ -368,95 +365,12 @@ fn define_write_decimal<'ctx>(
     );
     let value = function.get_nth_param(0).expect("value").into_int_value();
     let builder = context.create_builder();
-    let entry = context.append_basic_block(function, "entry");
-    let digits = context.append_basic_block(function, "digit");
-    let sign = context.append_basic_block(function, "sign");
-    let emit = context.append_basic_block(function, "emit");
-
-    builder.position_at_end(entry);
-    let buffer_type = i8_type.array_type(DECIMAL_BUFFER);
-    let buffer = builder.build_alloca(buffer_type, "buffer")?;
-    let negative =
-        builder.build_int_compare(IntPredicate::SLT, value, i64_type.const_zero(), "negative")?;
-    // Two's-complement negation yields the unsigned magnitude, including for i64::MIN.
-    let negated = builder.build_int_sub(i64_type.const_zero(), value, "negated")?;
-    let magnitude = builder
-        .build_select(negative, negated, value, "magnitude")?
-        .into_int_value();
-    builder.build_unconditional_branch(digits)?;
-
-    builder.position_at_end(digits);
-    let position = builder.build_phi(i64_type, "position")?;
-    let remaining = builder.build_phi(i64_type, "remaining")?;
-    position.add_incoming(&[(&i64_type.const_int(u64::from(DECIMAL_BUFFER), false), entry)]);
-    remaining.add_incoming(&[(&magnitude, entry)]);
-    let ten = i64_type.const_int(10, false);
-    let slot = builder.build_int_sub(
-        position.as_basic_value().into_int_value(),
-        i64_type.const_int(1, false),
-        "slot",
+    builder.position_at_end(context.append_basic_block(function, "entry"));
+    let buffer = builder.build_alloca(
+        context.i8_type().array_type(decimal::BUFFER_BYTES),
+        "buffer",
     )?;
-    let digit = builder.build_int_unsigned_rem(
-        remaining.as_basic_value().into_int_value(),
-        ten,
-        "digit.value",
-    )?;
-    let digit = builder.build_int_truncate(digit, i8_type, "digit.byte")?;
-    let digit = builder.build_int_add(digit, i8_type.const_int(u64::from(b'0'), false), "digit")?;
-    // SAFETY: slot is in 1..=20 while digits remain; the buffer has 21 bytes.
-    let digit_pointer = unsafe {
-        builder.build_in_bounds_gep(
-            buffer_type,
-            buffer,
-            &[i64_type.const_zero(), slot],
-            "digit.pointer",
-        )?
-    };
-    builder.build_store(digit_pointer, digit)?;
-    let quotient = builder.build_int_unsigned_div(
-        remaining.as_basic_value().into_int_value(),
-        ten,
-        "quotient",
-    )?;
-    position.add_incoming(&[(&slot, digits)]);
-    remaining.add_incoming(&[(&quotient, digits)]);
-    let more =
-        builder.build_int_compare(IntPredicate::NE, quotient, i64_type.const_zero(), "more")?;
-    let after_digits =
-        builder.build_and(builder.build_not(more, "done")?, negative, "needs.sign")?;
-    let finished = context.append_basic_block(function, "finished");
-    builder.build_conditional_branch(more, digits, finished)?;
-
-    builder.position_at_end(finished);
-    builder.build_conditional_branch(after_digits, sign, emit)?;
-
-    builder.position_at_end(sign);
-    let sign_slot = builder.build_int_sub(slot, i64_type.const_int(1, false), "sign.slot")?;
-    // SAFETY: at most 20 digits leave slot >= 1, so sign.slot >= 0.
-    let sign_pointer = unsafe {
-        builder.build_in_bounds_gep(
-            buffer_type,
-            buffer,
-            &[i64_type.const_zero(), sign_slot],
-            "sign.pointer",
-        )?
-    };
-    builder.build_store(sign_pointer, i8_type.const_int(u64::from(b'-'), false))?;
-    builder.build_unconditional_branch(emit)?;
-
-    builder.position_at_end(emit);
-    let start = builder.build_phi(i64_type, "start")?;
-    start.add_incoming(&[(&slot, finished), (&sign_slot, sign)]);
-    let start = start.as_basic_value().into_int_value();
-    // SAFETY: start indexes the written suffix of the 21-byte buffer.
-    let text = unsafe {
-        builder.build_in_bounds_gep(buffer_type, buffer, &[i64_type.const_zero(), start], "text")?
-    };
-    let length = builder.build_int_sub(
-        i64_type.const_int(u64::from(DECIMAL_BUFFER), false),
-        start,
-        "length",
-    )?;
+    let (text, length) = decimal::format_into(&builder, function, buffer, value, true)?;
     let length = builder.build_int_cast(length, size_type, "length.size")?;
     call(&builder, write_bytes, &[text.into(), length.into()])?;
     builder.build_return(None)?;

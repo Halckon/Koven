@@ -46,6 +46,8 @@
 | 正反例见证 | 复用 [guide-amendment-draft.md](guide-amendment-draft.md#kotlin-对照实跑门槛) 的 7 组 Kotlin 2.2.21 对照与 Koven 专属边界（`f();\n{}`、未闭合 `<...>`、caller boundary） |
 | 演练结论 | 门禁成功捕获了该版最小块文法下 D1 的真实 `NL` 双推导冲突，表明不能把该规则未经消歧地直接并入块文法，必须在 Guide 正文与对应消歧规则／外部谓词中显式锁定唯一附着规则 |
 
+- **后续演练**：OD4 约定的 L2/L3 候选语法前三项（`flows … into`、`view T`、`p.origins`；排除 `borrow var`）的完整 F5 演练与 Bison 2.3 冲突实测见 [F5 OD4 演练账本](f5-od4-l2-l3-syntax-gate-drill.md)。
+
 ## 4. 验证与未运行项
 
 - **已运行**：macOS AArch64 下 GNU Bison 2.3 最小块文法基线（`0 conflicts`）与 D1 增量（`1 shift/reduce`）实测（临时目录已清理）；`python3 scripts/check_docs.py`。

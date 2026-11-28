@@ -418,7 +418,11 @@ pub(in crate::ssa::refine::subset) mod receiver {
         name_resolution::DeclarationId,
         ownership_checking::{UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget},
         parser::Expression,
-        type_checking::{Copyability, ParameterMode, UnitCallReceiverOrigin, UnitTypeId},
+        source::Span,
+        type_checking::{
+            CallableResultSource, Copyability, ExpressionCategory, ParameterMode,
+            UnitCallReceiverOrigin, UnitCallTarget, UnitExpressionId, UnitTypeId,
+        },
     };
 
     use super::super::Checker;
@@ -719,6 +723,48 @@ pub(in crate::ssa::refine::subset) mod receiver {
                 }
             }
             if let UnitReceiverOwnershipTarget::Temporary(receiver_expr) = fact.target() {
+                // Ordinary exits end the singleton's pending loan. A singleton
+                // has no receiver drop after that loan ends.
+                let dispatch = self.inputs.owned.call_may_dispatch(id);
+                let singleton = std::cell::OnceCell::new();
+                let object_prefix = || {
+                    *singleton.get_or_init(|| {
+                        receiver.mode() == ParameterMode::Borrow
+                            && self.inputs.carrier_return.is_none()
+                            && receiver_expr.source_unit() == self.inputs.source_unit
+                            && typed.call(id).is_some_and(|call| {
+                                matches!(call.target(), UnitCallTarget::Symbol(_))
+                                    && call.result_source() == CallableResultSource::Owned
+                            })
+                            && self
+                                .inputs
+                                .source_plan
+                                .call_site(self.inputs.source_token, id)
+                                .is_some_and(|site| {
+                                    let planned_dispatch = site.dispatch_key().is_some();
+                                    site.delegation().is_empty()
+                                        && dispatch == Some(planned_dispatch)
+                                        && (planned_dispatch
+                                            || typed.expression_falls_through(id) == Some(false))
+                                })
+                            && self.object_name(receiver_expr.expression())
+                    })
+                };
+                let allow_return = receiver.mode() == ParameterMode::Borrow
+                    && self.class(receiver_ty)
+                    && self.inputs.borrow_return.is_none()
+                    && self.inputs.carrier_return.is_none()
+                    && typed.call(id).is_some_and(|call| {
+                        matches!(
+                            call.target(),
+                            UnitCallTarget::Declaration(_) | UnitCallTarget::Symbol(_)
+                        ) && call.result_source() == CallableResultSource::Owned
+                    })
+                    && self
+                        .inputs
+                        .source_plan
+                        .call_site(self.inputs.source_token, id)
+                        .is_some_and(|site| site.delegation().is_empty());
                 let temp_ok = matches!(
                     (receiver.mode(), fact.kind()),
                     (ParameterMode::Borrow, UnitReceiverOwnershipKind::SharedLoan)
@@ -729,7 +775,26 @@ pub(in crate::ssa::refine::subset) mod receiver {
                 ) && receiver.origin()
                     == UnitCallReceiverOrigin::Expression(*receiver_expr)
                     && receiver_expr.source_unit() == self.inputs.source_unit
-                    && !self.span_has_control_transfer(call_node.span())
+                    && !self.span_has_unhandled_control_transfer(call_node.span(), None, |exit| {
+                        if object_prefix() {
+                            return self.inputs.parsed.ast().expressions().get(exit).is_ok_and(
+                                |node| match node.payload() {
+                                    Expression::Return { .. }
+                                    | Expression::Break { .. }
+                                    | Expression::Continue { .. } => {
+                                        self.pending_call_loans_end_on(exit)
+                                    }
+                                    // A syntactic Abort can be in an unreachable suffix or
+                                    // have operands that exit before it is invoked.
+                                    _ => {
+                                        self.inputs.owned.call_may_dispatch(self.id(exit))
+                                            != Some(true)
+                                    }
+                                },
+                            );
+                        }
+                        allow_return && self.temporary_receiver_return(*receiver_expr, exit, call)
+                    })
                     && self.expression(receiver_expr.expression());
                 self.migrated |= temp_ok;
                 return temp_ok;
@@ -770,6 +835,49 @@ pub(in crate::ssa::refine::subset) mod receiver {
                 self.migrated |= ok;
             }
             ok
+        }
+
+        /// The builder lends the completed receiver before arguments. Ordinary
+        /// return ends those pending loans before applying the edge's drop facts.
+        fn temporary_receiver_return(
+            &self,
+            receiver: UnitExpressionId,
+            transfer: ExpressionId,
+            call: ExpressionId,
+        ) -> bool {
+            let nodes = self.inputs.parsed.ast().expressions();
+            let (Ok(exit), Ok(call_node)) = (nodes.get(transfer), nodes.get(call)) else {
+                return false;
+            };
+            let Expression::Call { arguments, .. } = call_node.payload() else {
+                return false;
+            };
+            let contains_exit = |span: Span| {
+                span.source_id() == exit.span().source_id()
+                    && span.start() <= exit.span().start()
+                    && exit.span().end() <= span.end()
+            };
+            // AST arguments are in source order, including named arguments.
+            let argument = arguments.partition_point(|arg| arg.span.end() < exit.span().end());
+            if !matches!(exit.payload(), Expression::Return { .. })
+                || !arguments
+                    .get(argument)
+                    .is_some_and(|argument| contains_exit(argument.span))
+                || self.inputs.typed.expression_falls_through(receiver) != Some(true)
+            {
+                return false;
+            }
+            let Ok(origin) = nodes.get(receiver.expression()) else {
+                return false;
+            };
+            self.inputs.typed.expression_category(receiver) == Some(ExpressionCategory::Temporary)
+                && super::super::super::SubsetDropIndex::unconditional_temporary_drop(
+                    self.inputs.subset_drop_index,
+                    self.inputs.owned.drops(),
+                    self.id(transfer),
+                    receiver,
+                    origin.span(),
+                )
         }
     }
 }

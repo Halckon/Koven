@@ -249,16 +249,17 @@ fn every_closed_scalar_type_repeats_value_delivery_without_runtime_owners() {
 
 #[test]
 fn deferred_ownership_does_not_publish_constant_capability() {
-    let (_, _, owned) = analyzed(
-        r#"
+    let text = r#"
 const val TEXT = "hi"
 class Holder(val text: String)
 fun use(): String = Holder(TEXT).text
-"#,
-    );
+"#;
+    let (_, _, owned) = analyzed(text);
     assert!(owned.diagnostics().is_empty(), "{:?}", owned.diagnostics());
     assert!(!owned.deferred().is_empty());
     assert!(owned.constant_materializations().is_none());
+
+    unit_materialization::rejects_moving_constant_backed_field(text);
 }
 
 #[test]

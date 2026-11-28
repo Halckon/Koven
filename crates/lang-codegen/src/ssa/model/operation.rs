@@ -14,6 +14,15 @@ pub(crate) enum Operation {
         string: SsaTypeId,
         bytes: Vec<u8>,
     },
+    /// Format a Boolean, Char, or supported integer into an independent String owner.
+    StringFromScalar {
+        scalar: ValueId,
+    },
+    /// Consumes the interpolation accumulator while borrowing the next fragment.
+    StringAppend {
+        owner: ValueId,
+        fragment: EntityId,
+    },
     /// 读取两个 String view 并创建新的唯一 owner，不消费具名 operand。
     StringConcat {
         left: EntityId,
@@ -62,6 +71,12 @@ pub(crate) enum Operation {
         operator: BinaryOperator,
         left: ValueId,
         right: ValueId,
+    },
+    /// Width-preserving IEEE floating arithmetic. Negation has no right operand.
+    FloatArithmetic {
+        operator: crate::ssa::model::FloatOperator,
+        left: ValueId,
+        right: Option<ValueId>,
     },
     /// 返回算术结果与失败标志；lowering 必须把失败标志导向 `Abort`。
     CheckedArithmetic {
@@ -485,10 +500,16 @@ pub(crate) enum Operation {
 impl Operation {
     pub(crate) fn entities(&self) -> Vec<EntityId> {
         match self {
+            Self::FloatArithmetic { left, right, .. } => std::iter::once(*left)
+                .chain(*right)
+                .map(EntityId::Value)
+                .collect(),
             Self::Constant(_)
             | Self::PrintLiteral { .. }
             | Self::StringLiteral { .. }
             | Self::NullableNull { .. } => Vec::new(),
+            Self::StringFromScalar { scalar } => vec![EntityId::Value(*scalar)],
+            Self::StringAppend { owner, fragment } => vec![EntityId::Value(*owner), *fragment],
             Self::StringConcat { left, right } | Self::StringEqual { left, right } => {
                 vec![*left, *right]
             }
@@ -760,6 +781,8 @@ pub(crate) enum ScalarConstant {
     Boolean(bool),
     /// Verifier rejects surrogate and out-of-range codepoints.
     Char(u32),
+    Float32(u32),
+    Float64(u64),
     Integer(i128),
 }
 

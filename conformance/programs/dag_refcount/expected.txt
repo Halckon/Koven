@@ -1,0 +1,12 @@
+[rc-dag]
+  L -> shared-root
+  R -> shared-root
+  leaving scope
+  drop #1 shared-root
+[composite]
+  boxed holds id=2
+  list size=2
+  drop #4 list-second
+  drop #3 list-first
+  drop #2 boxed-enum
+done

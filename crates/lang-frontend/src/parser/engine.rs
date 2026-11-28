@@ -1,4 +1,8 @@
+#![allow(unexpected_cfgs)]
+
 mod block;
+#[cfg(kani)]
+mod block_kani;
 mod borrow_result;
 mod boundary;
 mod class;
@@ -6,18 +10,49 @@ mod core;
 mod declaration;
 mod declaration_head;
 mod destructuring;
+#[cfg(kani)]
+mod destructuring_kani;
+#[cfg(test)]
+mod destructuring_tests;
 mod expression;
 mod file;
+#[cfg(kani)]
+mod file_kani;
+#[cfg(test)]
+mod file_tests;
 mod lambda;
+#[cfg(kani)]
+mod lexeme_stream_kani;
+#[cfg(test)]
+mod lexeme_stream_tests;
 mod operator;
 mod postfix;
+#[cfg(kani)]
+mod postfix_kani;
+mod postfix_kernel;
+#[cfg(test)]
+mod postfix_tests;
+#[cfg(kani)]
+mod pratt_kani;
+#[cfg(test)]
+mod pratt_tests;
 mod recovery;
 #[cfg(test)]
 mod separator_tests;
+#[cfg(kani)]
+mod stops_kani;
+#[cfg(test)]
+mod stops_tests;
 #[cfg(test)]
 mod tests;
 mod type_ref;
+#[cfg(kani)]
+mod type_ref_kani;
+#[cfg(test)]
+mod type_ref_tests;
 mod when_boundary;
+#[cfg(kani)]
+mod when_boundary_kani;
 
 use block::unsupported_block_element_kind;
 use boundary::*;
@@ -283,6 +318,59 @@ pub(super) fn parse_block(
     })
 }
 
+#[inline]
+fn validate_lexeme_step(
+    start: usize,
+    end: usize,
+    is_eof: bool,
+    is_last: bool,
+    source_len: usize,
+    next_start: &mut usize,
+    saw_eof: &mut bool,
+) -> bool {
+    if start > end || end > source_len || start != *next_start {
+        return false;
+    }
+    if is_eof {
+        if *saw_eof || !is_last || start != end || start != source_len {
+            return false;
+        }
+        *saw_eof = true;
+    } else {
+        if start == end {
+            return false;
+        }
+        *next_start = end;
+    }
+    true
+}
+
+#[cfg(any(test, kani))]
+fn validate_lexeme_spans_core(spans: &[(usize, usize, bool)], source_len: usize) -> bool {
+    if spans.is_empty() {
+        return false;
+    }
+    let mut next_start = 0usize;
+    let mut saw_eof = false;
+    let mut index = 0usize;
+    while index < spans.len() {
+        let (start, end, is_eof) = spans[index];
+        if !validate_lexeme_step(
+            start,
+            end,
+            is_eof,
+            index + 1 == spans.len(),
+            source_len,
+            &mut next_start,
+            &mut saw_eof,
+        ) {
+            return false;
+        }
+        index += 1;
+    }
+    saw_eof && next_start == source_len
+}
+
 fn validate_lexemes(
     sources: &SourceMap,
     lexed: &LexedFile,
@@ -294,26 +382,22 @@ fn validate_lexemes(
 
     let mut next_start = 0;
     let mut saw_eof = false;
+    let len = lexed.lexemes().len();
     for (index, lexeme) in lexed.lexemes().iter().enumerate() {
         let span = lexeme.span();
         sources.slice(span)?;
-        if span.source_id() != lexed.source_id() || span.start() != next_start {
+        if span.source_id() != lexed.source_id()
+            || !validate_lexeme_step(
+                span.start(),
+                span.end(),
+                matches!(lexeme.kind(), LexemeKind::Eof),
+                index + 1 == len,
+                source_len,
+                &mut next_start,
+                &mut saw_eof,
+            )
+        {
             return Err(ParserInternalError::InvalidLexemeStream);
-        }
-        if matches!(lexeme.kind(), LexemeKind::Eof) {
-            if saw_eof
-                || index + 1 != lexed.lexemes().len()
-                || !span.is_empty()
-                || span.start() != source_len
-            {
-                return Err(ParserInternalError::InvalidLexemeStream);
-            }
-            saw_eof = true;
-        } else {
-            if span.is_empty() {
-                return Err(ParserInternalError::InvalidLexemeStream);
-            }
-            next_start = span.end();
         }
     }
     if !saw_eof || next_start != source_len {
@@ -416,7 +500,7 @@ enum InfixKind {
     Assignment(AssignmentOperator),
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum NonAssociativeGroup {
     Range = 0,
     Membership = 1,

@@ -10,7 +10,7 @@
 | 基线 | `feature/spec-0491-tree-sitter-remaining-drifts@92abcd74` |
 | 分支 | `feature/spec-0492-f6-ordinary-groups-proof` |
 
-本 Spec 承接 [F6 局部机器证明前置设计](../../proposals/parser-formal-verification/f6-machine-proof-design.md) 中的 **候选 B** 与 [SPEC-0490](../../specs/active/0490-f6-angle-group-machine-proof.md)，
+本 Spec 承接 [F6 局部机器证明前置设计](../../proposals/parser-formal-verification/f6-machine-proof-design.md) 中的 **候选 B** 与 [SPEC-0490](0490-f6-angle-group-machine-proof.md)，
 对 [ordinary_groups.rs](../../../crates/lang-frontend/src/parser/engine/recovery/ordinary_groups.rs) 中的 `OrdinaryGroups` 栈计数机、`RecoveryBoundaries::include_unclosed` 水位合并以及 `GroupClosers::confirmed_closer` 跳转守卫交付 **Lean 4（无限长算法模型定理）+ Kani（有界生产 Rust 符号检验）** 双轨证明，并接入路径触发的 `.github/workflows/parser-formal-f6.yml`。
 不改变生产解析行为或公开 Rust API，不引入 Cargo 生产依赖，不宣称全输入生产 G4。
 

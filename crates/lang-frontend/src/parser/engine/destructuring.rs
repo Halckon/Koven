@@ -1,5 +1,124 @@
 use super::*;
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum DestructuringEvent {
+    EmptyComma,
+    Binding,
+    SeparatorComma,
+    MissingSeparatorIdent,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum DestructuringExitKind {
+    RightParen,
+    Boundary,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) struct DestructuringLoopState {
+    pub(super) has_bindings: bool,
+    pub(super) comma_already_reported_as_empty: bool,
+    pub(super) needs_binding: bool,
+}
+
+impl DestructuringLoopState {
+    pub(super) const fn new() -> Self {
+        Self {
+            has_bindings: false,
+            comma_already_reported_as_empty: false,
+            needs_binding: true,
+        }
+    }
+}
+
+pub(super) const fn is_local_destructuring_start_kinds(
+    keyword: Keyword,
+    first: LexemeKind,
+    second: Option<LexemeKind>,
+) -> bool {
+    matches!(first, LexemeKind::Token(TokenKind::Keyword(k)) if k as u8 == keyword as u8)
+        && matches!(
+            second,
+            Some(LexemeKind::Token(TokenKind::Symbol(Symbol::LeftParen)))
+        )
+}
+
+pub(super) const fn is_const_local_destructuring_start_kinds(
+    first: LexemeKind,
+    second: Option<LexemeKind>,
+    third: Option<LexemeKind>,
+) -> bool {
+    matches!(first, LexemeKind::Token(TokenKind::Keyword(Keyword::Const)))
+        && matches!(
+            second,
+            Some(LexemeKind::Token(TokenKind::Keyword(Keyword::Val)))
+        )
+        && matches!(
+            third,
+            Some(LexemeKind::Token(TokenKind::Symbol(Symbol::LeftParen)))
+        )
+}
+
+pub(super) const fn destructuring_exit_emits_missing_binding(
+    exit: DestructuringExitKind,
+    state: DestructuringLoopState,
+) -> bool {
+    match exit {
+        DestructuringExitKind::RightParen => !state.has_bindings,
+        DestructuringExitKind::Boundary => {
+            state.needs_binding && !state.comma_already_reported_as_empty
+        }
+    }
+}
+
+pub(super) const fn step_destructuring_loop(
+    state: DestructuringLoopState,
+    event: DestructuringEvent,
+) -> DestructuringLoopState {
+    match event {
+        DestructuringEvent::EmptyComma => DestructuringLoopState {
+            has_bindings: true,
+            comma_already_reported_as_empty: true,
+            needs_binding: true,
+        },
+        DestructuringEvent::Binding => DestructuringLoopState {
+            has_bindings: true,
+            comma_already_reported_as_empty: false,
+            needs_binding: false,
+        },
+        DestructuringEvent::SeparatorComma | DestructuringEvent::MissingSeparatorIdent => {
+            DestructuringLoopState {
+                needs_binding: true,
+                ..state
+            }
+        }
+    }
+}
+
+#[cfg(any(test, kani))]
+pub(super) fn run_destructuring_loop(
+    initial: DestructuringLoopState,
+    events: &[DestructuringEvent],
+) -> DestructuringLoopState {
+    let mut state = initial;
+    let mut index = 0usize;
+    while index < events.len() {
+        state = step_destructuring_loop(state, events[index]);
+        index += 1;
+    }
+    state
+}
+
+pub(super) const fn destructuring_initializer_missing_diagnostic(
+    has_equals: bool,
+    boundary: bool,
+    starts_primary: bool,
+    terminal_lexer_root: bool,
+    is_poison: bool,
+) -> bool {
+    has_equals && boundary && !starts_primary && !terminal_lexer_root && !is_poison
+}
+
 impl Parser<'_> {
     pub(super) fn parse_local_variable_declaration(
         &mut self,
@@ -50,29 +169,37 @@ impl Parser<'_> {
     }
 
     pub(super) fn local_destructuring_start(&self, keyword: Keyword) -> bool {
-        self.current_is_keyword(keyword)
-            && self.peek(1).is_some_and(|lexeme| {
-                matches!(
-                    lexeme.kind(),
-                    LexemeKind::Token(TokenKind::Symbol(Symbol::LeftParen))
-                )
-            })
+        let Some(first) = self.peek(0) else {
+            return false;
+        };
+        if !matches!(first.kind(), LexemeKind::Token(TokenKind::Keyword(k)) if k == keyword) {
+            return false;
+        }
+        is_local_destructuring_start_kinds(keyword, first.kind(), self.peek(1).map(Lexeme::kind))
     }
 
     pub(super) fn const_local_destructuring_start(&self) -> bool {
-        self.current_is_keyword(Keyword::Const)
-            && self.peek(1).is_some_and(|lexeme| {
-                matches!(
-                    lexeme.kind(),
-                    LexemeKind::Token(TokenKind::Keyword(Keyword::Val))
-                )
-            })
-            && self.peek(2).is_some_and(|lexeme| {
-                matches!(
-                    lexeme.kind(),
-                    LexemeKind::Token(TokenKind::Symbol(Symbol::LeftParen))
-                )
-            })
+        let Some(first) = self.peek(0) else {
+            return false;
+        };
+        if !matches!(
+            first.kind(),
+            LexemeKind::Token(TokenKind::Keyword(Keyword::Const))
+        ) {
+            return false;
+        }
+        let second = self.peek(1).map(Lexeme::kind);
+        if !matches!(
+            second,
+            Some(LexemeKind::Token(TokenKind::Keyword(Keyword::Val)))
+        ) {
+            return false;
+        }
+        is_const_local_destructuring_start_kinds(
+            first.kind(),
+            second,
+            self.peek(2).map(Lexeme::kind),
+        )
     }
 
     pub(super) fn parse_unsupported_destructuring_context(
@@ -127,13 +254,15 @@ impl Parser<'_> {
     ) -> Result<StatementId, ParserInternalError> {
         let left_paren_span = self.bump()?.span();
         let mut bindings = Vec::new();
-        let mut comma_already_reported_as_empty = false;
-        let mut needs_binding = true;
+        let mut loop_state = DestructuringLoopState::new();
 
         loop {
             let current = self.current()?;
             if self.current_is_symbol(Symbol::RightParen) {
-                if bindings.is_empty() {
+                if destructuring_exit_emits_missing_binding(
+                    DestructuringExitKind::RightParen,
+                    loop_state,
+                ) {
                     let missing = self.empty_at(current.span().start())?;
                     self.emit(
                         codes::EXPECTED_DESTRUCTURING_BINDING,
@@ -148,16 +277,17 @@ impl Parser<'_> {
                 || initializer_stops.contains(current)
                 || matches!(current.kind(), LexemeKind::Eof)
             {
-                if needs_binding {
+                if destructuring_exit_emits_missing_binding(
+                    DestructuringExitKind::Boundary,
+                    loop_state,
+                ) {
                     let missing = self.empty_at(current.span().start())?;
-                    if !comma_already_reported_as_empty {
-                        self.emit(
-                            codes::EXPECTED_DESTRUCTURING_BINDING,
-                            "expected destructuring binding",
-                            missing,
-                        )?;
-                        bindings.push(NameMarker::Missing(missing));
-                    }
+                    self.emit(
+                        codes::EXPECTED_DESTRUCTURING_BINDING,
+                        "expected destructuring binding",
+                        missing,
+                    )?;
+                    bindings.push(NameMarker::Missing(missing));
                 }
                 break;
             }
@@ -169,8 +299,7 @@ impl Parser<'_> {
                     comma,
                 )?;
                 bindings.push(NameMarker::Missing(self.empty_at(comma.start())?));
-                comma_already_reported_as_empty = true;
-                needs_binding = true;
+                loop_state = step_destructuring_loop(loop_state, DestructuringEvent::EmptyComma);
                 if self.current_is_symbol(Symbol::RightParen) {
                     break;
                 }
@@ -204,8 +333,7 @@ impl Parser<'_> {
                 NameMarker::Error(self.span(first.start(), end.max(first.end()))?)
             };
             bindings.push(binding);
-            comma_already_reported_as_empty = false;
-            needs_binding = false;
+            loop_state = step_destructuring_loop(loop_state, DestructuringEvent::Binding);
 
             if self.current_is_symbol(Symbol::Comma) {
                 let comma = self.bump()?.span();
@@ -217,7 +345,8 @@ impl Parser<'_> {
                     )?;
                     break;
                 }
-                needs_binding = true;
+                loop_state =
+                    step_destructuring_loop(loop_state, DestructuringEvent::SeparatorComma);
                 continue;
             }
             let current = self.current()?;
@@ -235,7 +364,8 @@ impl Parser<'_> {
                     "expected destructuring separator",
                     missing,
                 )?;
-                needs_binding = true;
+                loop_state =
+                    step_destructuring_loop(loop_state, DestructuringEvent::MissingSeparatorIdent);
                 continue;
             }
             if self.current_is_symbol(Symbol::Colon) || self.current_is_symbol(Symbol::LeftParen) {
@@ -247,7 +377,8 @@ impl Parser<'_> {
                 self.recover_destructuring_region(initializer_stops)?;
                 if self.current_is_symbol(Symbol::Comma) {
                     self.bump()?;
-                    needs_binding = true;
+                    loop_state =
+                        step_destructuring_loop(loop_state, DestructuringEvent::SeparatorComma);
                 }
                 continue;
             }
@@ -261,7 +392,8 @@ impl Parser<'_> {
             self.recover_destructuring_region(initializer_stops)?;
             if self.current_is_symbol(Symbol::Comma) {
                 self.bump()?;
-                needs_binding = true;
+                loop_state =
+                    step_destructuring_loop(loop_state, DestructuringEvent::SeparatorComma);
             }
         }
 
@@ -348,7 +480,13 @@ impl Parser<'_> {
                 let empty = self.empty_at(current.span().start())?;
                 let terminal_lexer_root = matches!(current.kind(), LexemeKind::Eof)
                     && self.lexical_recoveries.terminal_error_at_eof;
-                if !terminal_lexer_root && !self.is_poison() {
+                if destructuring_initializer_missing_diagnostic(
+                    true,
+                    boundary,
+                    starts_primary,
+                    terminal_lexer_root,
+                    self.is_poison(),
+                ) {
                     self.emit(
                         codes::EXPECTED_DESTRUCTURING_INITIALIZER,
                         "expected destructuring initializer",

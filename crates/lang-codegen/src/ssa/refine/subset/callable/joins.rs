@@ -228,6 +228,7 @@ impl Checker<'_, '_> {
                 }
                 let ok = has_else && self.callable_ssa_type(root).is_some();
                 self.migrated |= ok;
+                self.has_refine_only_when |= ok;
                 ok
             }
             _ => false,

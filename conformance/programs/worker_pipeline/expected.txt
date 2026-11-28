@@ -1,0 +1,5 @@
+sent: 3
+received: 3, counts: a=1 bb=1 ccc=1
+  bg-worker finished
+  after implicit join
+implicit join: bg-done

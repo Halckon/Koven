@@ -309,7 +309,7 @@ fn field_replace(heap: bool) -> EscapeFixture {
     (program, VerifyLocation::Instruction(instruction), delivery)
 }
 
-fn heap_field_exchange() -> EscapeFixture {
+fn heap_field_exchange(use_receiver: bool) -> EscapeFixture {
     let formation = origin();
     let delivery = delivery_origin("consume(closure)");
     let mut program = Program::default();
@@ -328,40 +328,73 @@ fn heap_field_exchange() -> EscapeFixture {
     module
         .define_heap_owner(owner_type, payload)
         .expect("payload");
-    let (main, entry, parameters) = add_function(
-        module,
-        "main",
-        &[owner_type, field_type],
-        vec![],
-        &formation,
-    );
+    let exclusive = |target| EntityType::Loan {
+        kind: LoanKind::Exclusive,
+        target,
+    };
+    let (main, entry, owner, replacement, borrow) = if use_receiver {
+        let main = module
+            .add_instance_function("main", exclusive(owner_type), vec![], formation.clone())
+            .expect("Inout receiver");
+        let function = module.function_mut(main).expect("main");
+        let entry = function
+            .add_block(
+                vec![exclusive(owner_type), EntityType::Value(field_type)],
+                formation.clone(),
+            )
+            .expect("receiver and replacement");
+        let parameters = &function.block(entry).expect("entry").parameters;
+        let EntityId::Loan(base) = parameters[0] else {
+            panic!("receiver loan");
+        };
+        (
+            main,
+            entry,
+            None,
+            value(parameters[1]),
+            Operation::ExclusiveHeapFieldLoan { base, field: 0 },
+        )
+    } else {
+        let (main, entry, parameters) = add_function(
+            module,
+            "main",
+            &[owner_type, field_type],
+            vec![],
+            &formation,
+        );
+        let function = module.function_mut(main).expect("main");
+        let owner = parameters[0];
+        let base = append_place(
+            function,
+            entry,
+            Operation::HeapPayloadPlace { owner },
+            payload,
+            &formation,
+        );
+        let place = append_place(
+            function,
+            entry,
+            Operation::FieldPlace { base, field: 0 },
+            field_type,
+            &formation,
+        );
+        (
+            main,
+            entry,
+            Some(owner),
+            parameters[1],
+            Operation::BorrowBegin {
+                place,
+                kind: LoanKind::Exclusive,
+            },
+        )
+    };
     let function = module.function_mut(main).expect("main");
-    let owner = parameters[0];
-    let base = append_place(
-        function,
-        entry,
-        Operation::HeapPayloadPlace { owner },
-        payload,
-        &formation,
-    );
-    let field = append_place(
-        function,
-        entry,
-        Operation::FieldPlace { base, field: 0 },
-        field_type,
-        &formation,
-    );
     let EntityId::Loan(loan) = function
         .append_instruction(
             entry,
-            Operation::BorrowBegin {
-                place: field,
-                kind: LoanKind::Exclusive,
-            },
-            vec![EntityType::Loan {
-                kind: LoanKind::Exclusive,
-                target: field_type,
-            }],
+            borrow,
+            vec![exclusive(field_type)],
             formation.clone(),
         )
         .expect("exact exclusive field loan")
@@ -369,20 +402,25 @@ fn heap_field_exchange() -> EscapeFixture {
     else {
         panic!("field loan");
     };
+    let operation = if let Some(owner) = owner {
+        Operation::HeapFieldExchange {
+            owner,
+            field: 0,
+            loan,
+            replacement,
+        }
+    } else {
+        Operation::HeapReceiverFieldExchange { loan, replacement }
+    };
     let (instruction, results) = function
         .append_instruction(
             entry,
-            Operation::HeapFieldExchange {
-                owner,
-                field: 0,
-                loan,
-                replacement: parameters[1],
-            },
+            operation,
             vec![EntityType::Value(field_type)],
             delivery.clone(),
         )
         .expect("exchange returns the old List and consumes its exact field loan");
-    for owner in [value(results[0]), owner] {
+    for owner in std::iter::once(value(results[0])).chain(owner) {
         append_values(function, entry, Operation::Drop { owner }, &[], &formation);
     }
     function
@@ -626,7 +664,12 @@ fn borrowed_closure_escape_rejects_inline_field_replace() {
 
 #[test]
 fn borrowed_closure_escape_rejects_heap_field_exchange() {
-    assert_owned_escape_rejected(heap_field_exchange());
+    assert_owned_escape_rejected(heap_field_exchange(false));
+}
+
+#[test]
+fn borrowed_closure_escape_rejects_heap_receiver_field_exchange() {
+    assert_owned_escape_rejected(heap_field_exchange(true));
 }
 
 #[test]

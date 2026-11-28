@@ -65,6 +65,23 @@ use super::{
     type_map::TypeMap,
 };
 
+/// Storage for a private function's values, including its direct parameters.
+fn local_value_type<'ctx>(
+    context: &'ctx Context,
+    module: &Module,
+    types: &TypeMap<'ctx>,
+    ty: SsaTypeId,
+) -> Result<inkwell::types::BasicTypeEnum<'ctx>, LlvmAdapterError> {
+    if matches!(
+        module.type_kind(ty),
+        Some(crate::ssa::model::SsaTypeKind::Unit)
+    ) {
+        Ok(context.struct_type(&[], false).into())
+    } else {
+        types.basic_type(ty)
+    }
+}
+
 pub(super) use module_lowering::emit_verified_object;
 #[cfg(any(test, feature = "d10-catalog-experiment"))]
 pub(super) use module_lowering::render_verified_program;
@@ -549,12 +566,62 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
         let [result] = results else {
             return Err(invalid_result_count("comparison", 1, results.len()));
         };
+        let ty = value_type(self.function, left)?;
+        if self.module.is_null_only(ty) {
+            let equal = match operator {
+                ComparisonOperator::Equal => true,
+                ComparisonOperator::NotEqual => false,
+                _ => return Err(unsupported("null-only comparison requires equality")),
+            };
+            self.values.insert(
+                *result,
+                self.context
+                    .bool_type()
+                    .const_int(u64::from(equal), false)
+                    .into(),
+            );
+            return Ok(());
+        }
+        if self.module.map_result_value(ty).is_some() {
+            return self.lower_map_result_comparison(operator, left, right, *result);
+        }
         if self
             .module
-            .map_result_value(value_type(self.function, left)?)
-            .is_some()
+            .inline_nullable(ty)
+            .is_some_and(|(inner, niche)| {
+                !niche
+                    && matches!(
+                        self.module.type_kind(inner),
+                        Some(
+                            crate::ssa::model::SsaTypeKind::Float32
+                                | crate::ssa::model::SsaTypeKind::Float64
+                        )
+                    )
+            })
         {
-            return self.lower_map_result_comparison(operator, left, right, *result);
+            return self.lower_nullable_float_comparison(operator, left, right, *result);
+        }
+        if matches!(
+            self.module.type_kind(ty),
+            Some(crate::ssa::model::SsaTypeKind::Float32 | crate::ssa::model::SsaTypeKind::Float64)
+        ) {
+            use inkwell::FloatPredicate;
+            let predicate = match operator {
+                ComparisonOperator::Equal => FloatPredicate::OEQ,
+                ComparisonOperator::NotEqual => FloatPredicate::UNE,
+                ComparisonOperator::LessThan => FloatPredicate::OLT,
+                ComparisonOperator::LessThanOrEqual => FloatPredicate::OLE,
+                ComparisonOperator::GreaterThan => FloatPredicate::OGT,
+                ComparisonOperator::GreaterThanOrEqual => FloatPredicate::OGE,
+            };
+            let value = self.builder.build_float_compare(
+                predicate,
+                self.value(left)?.into_float_value(),
+                self.value(right)?.into_float_value(),
+                &value_name(*result),
+            )?;
+            self.values.insert(*result, value.into());
+            return Ok(());
         }
         let predicate = scalar::comparison_predicate(self.module, self.function, left, operator)?;
         let value = self.builder.build_int_compare(
@@ -564,6 +631,68 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
             &value_name(*result),
         )?;
         self.values.insert(*result, value.into());
+        Ok(())
+    }
+
+    fn lower_nullable_float_comparison(
+        &mut self,
+        operator: ComparisonOperator,
+        left: ValueId,
+        right: ValueId,
+        result: ValueId,
+    ) -> Result<(), LlvmAdapterError> {
+        let negate = match operator {
+            ComparisonOperator::Equal => false,
+            ComparisonOperator::NotEqual => true,
+            _ => return Err(unsupported("nullable float comparison requires equality")),
+        };
+        let source = self.builder.get_insert_block().ok_or_else(|| {
+            LlvmAdapterError::Build("nullable comparison requires a current block".into())
+        })?;
+        let left_null = self.nullable_is_null(left, "nullable.left.null")?;
+        let right_null = self.nullable_is_null(right, "nullable.right.null")?;
+        let either_null = self
+            .builder
+            .build_or(left_null, right_null, "nullable.either.null")?;
+        let both_null = self
+            .builder
+            .build_and(left_null, right_null, "nullable.both.null")?;
+        let compare = self
+            .context
+            .append_basic_block(self.llvm_function, "nullable.compare.present");
+        let join = self
+            .context
+            .append_basic_block(self.llvm_function, "nullable.compare.join");
+        self.builder
+            .build_conditional_branch(either_null, join, compare)?;
+
+        // ADR-0033 leaves absent payloads undefined. Extract them only on the present edge.
+        self.builder.position_at_end(compare);
+        let payload = |value| {
+            self.inline_nullable_payload(value)?
+                .map(|(_, payload)| payload.into_float_value())
+                .ok_or_else(|| unsupported("nullable float comparison requires tagged payloads"))
+        };
+        let equal = self.builder.build_float_compare(
+            inkwell::FloatPredicate::OEQ,
+            payload(left)?,
+            payload(right)?,
+            "nullable.payload.equal",
+        )?;
+        self.builder.build_unconditional_branch(join)?;
+
+        self.builder.position_at_end(join);
+        let phi = self
+            .builder
+            .build_phi(self.context.bool_type(), "nullable.equal")?;
+        phi.add_incoming(&[(&both_null, source), (&equal, compare)]);
+        let equal = phi.as_basic_value().into_int_value();
+        let value = if negate {
+            self.builder.build_not(equal, &value_name(result))?
+        } else {
+            equal
+        };
+        self.values.insert(result, value.into());
         Ok(())
     }
 
@@ -607,19 +736,37 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                 when_non_null,
                 view,
             } => {
+                let ty = value_type(self.function, *owner)?;
+                let is_tagged = matches!(self.module.inline_nullable(ty), Some((_, false)))
+                    || self.module.presence_payload_type(ty).is_some();
+                let is_null = self.nullable_is_null(*owner, "nullable.is_null")?;
+                let null = self.block(when_null.target)?;
+                let non_null = self.block(when_non_null.target)?;
                 self.add_edge_incoming(llvm_source, when_null)?;
-                self.add_edge_incoming(llvm_source, when_non_null)?;
+                let present = if is_tagged {
+                    // The absent payload is undefined. Materialize the view on the proven edge.
+                    let present = self
+                        .context
+                        .append_basic_block(self.llvm_function, "nullable.branch.present");
+                    self.builder
+                        .build_conditional_branch(is_null, null, present)?;
+                    self.builder.position_at_end(present);
+                    present
+                } else {
+                    llvm_source
+                };
+                self.add_edge_incoming(present, when_non_null)?;
                 let pointer = self.nullable_view_pointer(*owner)?;
                 let phi = self.loan_phis.get(view).ok_or_else(|| {
                     LlvmAdapterError::InvalidSsa("non-null view 缺少 LLVM PHI".to_owned())
                 })?;
-                phi.add_incoming(&[(&pointer, llvm_source)]);
-                let is_null = self.nullable_is_null(*owner, "nullable.is_null")?;
-                self.builder.build_conditional_branch(
-                    is_null,
-                    self.block(when_null.target)?,
-                    self.block(when_non_null.target)?,
-                )?;
+                phi.add_incoming(&[(&pointer, present)]);
+                if is_tagged {
+                    self.builder.build_unconditional_branch(non_null)?;
+                } else {
+                    self.builder
+                        .build_conditional_branch(is_null, null, non_null)?;
+                }
             }
             TerminatorKind::NullableLoanBranch {
                 source,
@@ -779,6 +926,26 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                 "shared owner 不能是 place".to_owned(),
             )),
         }
+    }
+
+    /// A stack slot in the entry block, reused by every execution of the requesting operation.
+    fn entry_alloca(
+        &self,
+        ty: inkwell::types::BasicTypeEnum<'ctx>,
+        name: &str,
+    ) -> Result<inkwell::values::PointerValue<'ctx>, LlvmAdapterError> {
+        let entry = self.llvm_function.get_first_basic_block().ok_or_else(|| {
+            LlvmAdapterError::InvalidSsa(
+                "entry stack allocation requires function entry".to_owned(),
+            )
+        })?;
+        let allocator = self.context.create_builder();
+        if let Some(first) = entry.get_first_instruction() {
+            allocator.position_before(&first);
+        } else {
+            allocator.position_at_end(entry);
+        }
+        Ok(allocator.build_alloca(ty, name)?)
     }
 
     fn int_value(&self, id: ValueId) -> Result<IntValue<'ctx>, LlvmAdapterError> {

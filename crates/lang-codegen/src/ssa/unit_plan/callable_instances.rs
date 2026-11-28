@@ -7,6 +7,7 @@ use runtime_callback_scope::RuntimeCallbackScope;
 use lang_frontend::ownership_checking::UnitLoweringFacts;
 
 use super::*;
+mod display;
 use crate::ssa::lowering_support::callable_instances::{CallableArena, CallableKey};
 use lang_frontend::{
     ownership_checking::{UnitCallableOrigin, UnitPointerCallableReturnOrigin},
@@ -56,6 +57,7 @@ impl UnitPlannedCallableReturn {
 pub(crate) struct UnitCallablePlan {
     arena: CallableArena<UnitFunctionInstanceKey, UnitExpressionId>,
     routes: BTreeMap<SourceToken, BTreeMap<UnitExpressionId, PlannedUnitCallSite>>,
+    display_sites: BTreeMap<(SourceToken, UnitExpressionId), PlannedUnitCallSite>,
     returns: BTreeMap<SourceToken, UnitPlannedCallableReturn>,
     runtime_callbacks: BTreeMap<SourceToken, BTreeMap<UnitExpressionId, CallableToken>>,
     /// ADR-0034: concrete callables passed to Borrow function parameters, by caller and argument

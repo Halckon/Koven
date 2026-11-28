@@ -23,6 +23,47 @@ fn is_ordinary_poison(kind: LexemeKind) -> bool {
     )
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum ElsePoisonScan {
+    FoundElse { boundary: usize, last_poison: usize },
+    Rejected { boundary: usize },
+    Exhausted,
+}
+
+pub(super) fn scan_poison_before_else_core<F>(
+    len: usize,
+    start: usize,
+    mut kind_at: F,
+) -> ElsePoisonScan
+where
+    F: FnMut(usize) -> LexemeKind,
+{
+    let mut last_poison = None;
+    let mut index = start;
+    while index < len {
+        let kind = kind_at(index);
+        if matches!(kind, LexemeKind::Trivia(_)) {
+            index += 1;
+            continue;
+        }
+        if is_ordinary_poison(kind) {
+            last_poison = Some(index);
+            index += 1;
+            continue;
+        }
+        if let Some(last_poison) = last_poison
+            && kind == LexemeKind::Token(TokenKind::Keyword(Keyword::Else))
+        {
+            return ElsePoisonScan::FoundElse {
+                boundary: index,
+                last_poison,
+            };
+        }
+        return ElsePoisonScan::Rejected { boundary: index };
+    }
+    ElsePoisonScan::Exhausted
+}
+
 impl Parser<'_> {
     /// Else is an explicit caller delimiter, including across trivia and newlines.
     pub(in crate::parser::engine) fn recover_poison_before_else(
@@ -40,34 +81,30 @@ impl Parser<'_> {
             return Ok(None);
         }
 
-        let mut end = None;
-        for (offset, lexeme) in self.lexed.lexemes()[self.index..].iter().enumerate() {
+        let lexemes = self.lexed.lexemes();
+        match scan_poison_before_else_core(lexemes.len(), self.index, |index| {
             #[cfg(test)]
             self.significant_raw_visits
                 .set(self.significant_raw_visits.get() + 1);
-            let kind = lexeme.kind();
-            if matches!(kind, LexemeKind::Trivia(_)) {
-                continue;
-            }
-            if is_ordinary_poison(kind) {
-                end = Some(lexeme.span().end());
-                continue;
-            }
-            let boundary = self.index + offset;
-            if let Some(end) = end
-                && kind == LexemeKind::Token(TokenKind::Keyword(Keyword::Else))
-            {
-                self.index = boundary;
-                return Ok(Some(end));
-            }
-            // A rejected run cannot reach Else from any cursor within the same run.
-            cache.set(Some(ElsePoisonTail {
-                start: self.index,
+            lexemes[index].kind()
+        }) {
+            ElsePoisonScan::FoundElse {
                 boundary,
-            }));
-            return Ok(None);
+                last_poison,
+            } => {
+                self.index = boundary;
+                Ok(Some(lexemes[last_poison].span().end()))
+            }
+            ElsePoisonScan::Rejected { boundary } => {
+                // A rejected run cannot reach Else from any cursor within the same run.
+                cache.set(Some(ElsePoisonTail {
+                    start: self.index,
+                    boundary,
+                }));
+                Ok(None)
+            }
+            ElsePoisonScan::Exhausted => Err(ParserInternalError::InvalidLexemeStream),
         }
-        Err(ParserInternalError::InvalidLexemeStream)
     }
 
     pub(in crate::parser::engine) fn adjacent_poison_tail_boundary(

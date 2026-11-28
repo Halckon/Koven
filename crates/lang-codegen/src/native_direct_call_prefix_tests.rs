@@ -24,6 +24,10 @@ use lang_frontend::{
 };
 use std::collections::BTreeSet;
 
+#[path = "native_direct_call_prefix_tests/loop_exit.rs"]
+mod loop_exit;
+use loop_exit::break_destination;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Prefix {
     TemporaryBorrow,
@@ -352,66 +356,6 @@ fn edges(terminator: &TerminatorKind) -> Vec<&Edge> {
     }
 }
 
-// Break edges join the real while-false exit and use the while origin, not the jump span.
-fn break_destination(
-    source: &UnitSource,
-    function: &Function,
-    scope: Span,
-    exit: Span,
-) -> (Span, BlockId) {
-    let loops = source
-        .parsed
-        .ast()
-        .statements()
-        .iter()
-        .filter(|(_, node)| {
-            let span = node.span();
-            matches!(
-                node.payload(),
-                lang_frontend::parser::Statement::While { .. }
-            ) && span.source_id() == exit.source_id()
-                && scope.start() <= span.start()
-                && span.end() <= scope.end()
-                && span.start() <= exit.start()
-                && exit.end() <= span.end()
-        })
-        .collect::<Vec<_>>();
-    let [(_, statement)] = loops.as_slice() else {
-        panic!("one real enclosing while for the source break")
-    };
-    let span = statement.span();
-    let headers = function
-        .blocks
-        .iter()
-        .filter(|block| {
-            block.terminator.as_ref().is_some_and(|terminator| {
-                terminator.origin == Origin::Source(span)
-                    && matches!(terminator.kind, TerminatorKind::Conditional { .. })
-            })
-        })
-        .collect::<Vec<_>>();
-    let [header] = headers.as_slice() else {
-        panic!("one actual while header")
-    };
-    let TerminatorKind::Conditional { when_false, .. } = &header.terminator.as_ref().unwrap().kind
-    else {
-        unreachable!("the header was selected by its actual terminator")
-    };
-    let false_exit = function.block(when_false.target).unwrap();
-    assert_eq!(false_exit.origin, Origin::Source(span));
-    let terminator = false_exit.terminator.as_ref().unwrap();
-    assert_eq!(terminator.origin, Origin::Source(span));
-    let TerminatorKind::Branch(edge) = &terminator.kind else {
-        panic!("the actual while-false exit branches to the shared break join")
-    };
-    assert_ne!(edge.target, header.id);
-    assert_eq!(
-        function.block(edge.target).unwrap().origin,
-        Origin::Source(span)
-    );
-    (span, edge.target)
-}
-
 /// Only follow actual edge parameters; never fabricate an ID or equate same-typed entities.
 fn transported_aliases(function: &Function, seed: EntityId) -> BTreeSet<EntityId> {
     let mut aliases = BTreeSet::from([seed]);
@@ -575,7 +519,8 @@ impl Transaction<'_> {
         let terminator = block.terminator.as_ref().unwrap();
         let cancelled = if self.fixture.exit == Exit::Break {
             self.break_exit.is_some_and(|(span, target)| {
-                terminator.origin == Origin::Source(span)
+                [Some(span), self.exit].into_iter().flatten()
+                    .any(|origin| terminator.origin == Origin::Source(origin))
                     && matches!(&terminator.kind, TerminatorKind::Branch(edge) if edge.target == target)
             })
         } else {

@@ -44,11 +44,15 @@ fn link_with_driver(
     executable: &Path,
     control: Option<&RunControl>,
 ) -> Result<(), LinkerError> {
-    let arguments = [
+    let mut arguments = vec![
         object.as_os_str().to_owned(),
         "-o".into(),
         executable.as_os_str().to_owned(),
     ];
+    // LLVM lowers dynamic floating-point remainder to libm on Linux.
+    if cfg!(target_os = "linux") {
+        arguments.push("-lm".into());
+    }
     // run owns the cancellation scope until its private artifacts are cleaned.
     // build keeps its existing driver lifecycle without installing run handlers.
     let outcome = match control {

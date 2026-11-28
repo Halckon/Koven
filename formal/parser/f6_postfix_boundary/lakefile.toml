@@ -1,0 +1,6 @@
+name = "f6_postfix_boundary"
+version = "0.1.0"
+defaultTargets = ["F6PostfixBoundary"]
+
+[[lean_lib]]
+name = "F6PostfixBoundary"

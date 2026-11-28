@@ -350,17 +350,7 @@ impl PlannedBodyContext<'_> {
                 expression,
             )))?;
         }
-        let values = match (builtin_type(typed, plan.return_type), result) {
-            (Some(BuiltinType::Unit), LoweredValue::Unit) => Vec::new(),
-            (Some(BuiltinType::Unit), LoweredValue::Value(_))
-            | (_, LoweredValue::Unit | LoweredValue::Diverged) => {
-                return Err(lowering_error(
-                    LoweringErrorKind::MissingFact,
-                    plan.instance.span(),
-                ));
-            }
-            (_, LoweredValue::Value(value)) => vec![value],
-        };
+        let values = lowerer.return_values(result, plan.instance.span())?;
         lowerer
             .function
             .set_terminator(

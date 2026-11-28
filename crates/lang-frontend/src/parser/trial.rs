@@ -11,6 +11,7 @@ use crate::source::SourceMap;
 
 use super::{MAX_RECURSION_DEPTH, ParserInternalError};
 
+mod kernel;
 mod recovery;
 
 /// 一个调用点类型实参候选的严格识别结果。
@@ -50,6 +51,7 @@ impl CallTrial {
 /// 一次根解析内共享的 strict trial 只读索引。
 pub(super) struct StrictCallTrialIndex {
     raw_to_significant: Vec<Option<usize>>,
+    significant_to_raw: Vec<usize>,
     trials: Vec<Option<CallTrial>>,
     type_ends: Vec<Option<NonZeroUsize>>,
     recovered_type_closers: OnceCell<Result<Vec<Option<usize>>, ParserInternalError>>,
@@ -77,13 +79,7 @@ impl StrictCallTrialIndex {
         }
         // Parser cursor 指向“上一个已消费 token 之后”的 raw 位置，可能落在 trivia 上。
         // 反向填充使任意该类 checkpoint 都能 O(1) 定位其下一个 significant lexeme。
-        let mut next_significant = None;
-        for raw in (0..raw_to_significant.len()).rev() {
-            if let Some(current) = raw_to_significant[raw] {
-                next_significant = Some(current);
-            }
-            raw_to_significant[raw] = next_significant;
-        }
+        kernel::fill_next_significant(&mut raw_to_significant);
 
         let built = TrialBuilder::new(sources, &significant, false).build()?;
         let trials = built
@@ -140,6 +136,7 @@ impl StrictCallTrialIndex {
             .collect();
         Ok(Self {
             raw_to_significant,
+            significant_to_raw,
             trials,
             type_ends,
             recovered_type_closers: OnceCell::new(),
@@ -148,6 +145,14 @@ impl StrictCallTrialIndex {
             #[cfg(test)]
             evaluated_states: built.evaluated_states,
         })
+    }
+
+    /// A non-trivia lexeme relative to the first non-trivia lexeme at the raw cursor.
+    pub(super) fn significant_raw(&self, raw: usize, ordinal: usize) -> Option<usize> {
+        let first = self.raw_to_significant.get(raw).copied().flatten()?;
+        self.significant_to_raw
+            .get(first.checked_add(ordinal)?)
+            .copied()
     }
 
     /// The raw cursor after an already indexed strict type, including any function arrow.
@@ -179,10 +184,11 @@ impl StrictCallTrialIndex {
             additional_depth: 1,
             closed_list_raw: None,
         });
-        if baseline_depth
-            .checked_add(trial.additional_depth())
-            .is_none_or(|depth| depth > MAX_RECURSION_DEPTH)
-        {
+        if !kernel::check_recursion_budget(
+            baseline_depth,
+            trial.additional_depth(),
+            MAX_RECURSION_DEPTH,
+        ) {
             return Err(ParserInternalError::NestingLimitExceeded {
                 limit: MAX_RECURSION_DEPTH,
             });
@@ -296,16 +302,15 @@ impl<'a> TrialBuilder<'a> {
         let len = self.lexemes.len();
         let mut path_ends = vec![None; len];
         for index in (0..len).rev() {
-            if !self.is_identifier(index) {
-                continue;
-            }
+            let is_ident = self.is_identifier(index);
             let has_member =
-                self.is_symbol(index + 1, Symbol::Dot) && self.is_identifier(index + 2);
-            path_ends[index] = if has_member {
+                is_ident && self.is_symbol(index + 1, Symbol::Dot) && self.is_identifier(index + 2);
+            let member_end = if has_member {
                 path_ends[index + 2]
             } else {
-                Some(index + 1)
+                None
             };
+            path_ends[index] = kernel::resolve_path_end(is_ident, has_member, member_end, index);
         }
 
         let mut types = vec![ParseTrial::INVALID_TYPE; len];
@@ -318,22 +323,11 @@ impl<'a> TrialBuilder<'a> {
                 self.record_state();
                 let list = self.parse_list(index, Symbol::Greater, &types)?;
                 angle_lists[index] = list;
-                call_trials[index] = Some(match list.success {
-                    Some(success)
-                        if self.is_symbol(success.end, Symbol::LeftParen)
-                            || self.is_symbol(success.end, Symbol::LeftBrace) =>
-                    {
-                        SignificantCallTrial::Match {
-                            closing_significant: success.closing,
-                            suffix_significant: success.end,
-                            additional_depth: list.explored_depth,
-                        }
-                    }
-                    _ => SignificantCallTrial::NoMatch {
-                        additional_depth: list.explored_depth,
-                        closed_list_significant: list.success.map(|success| success.closing),
-                    },
+                let is_call_suffix = list.success.is_some_and(|success| {
+                    self.is_symbol(success.end, Symbol::LeftParen)
+                        || self.is_symbol(success.end, Symbol::LeftBrace)
                 });
+                call_trials[index] = Some(kernel::classify_call_trial(list, is_call_suffix));
             }
             if self.is_symbol(index, Symbol::LeftParen) {
                 self.record_state();

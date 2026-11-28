@@ -255,29 +255,106 @@ fn diverging_factory_receiver_preserves_only_the_evaluated_prefix() {
 }
 
 #[test]
-fn field_prefix_admission_does_not_authorize_other_lenders() {
-    for body in [
-        "fun entry(): Int { make(\"prefix\", return 9); return 0 }",
-        "fun number(prefix: String, own n: Int): Int = n\nfun entry(): Int = make(\"outer\", number(\"inner\", return 9)).value",
+fn non_dispatching_factory_calls_release_only_their_evaluated_prefixes() {
+    for (body, prefix_count) in [
+        (
+            "fun entry(): Int { make(\"prefix\", return 9); return 0 }",
+            1,
+        ),
+        (
+            "fun number(prefix: String, own n: Int): Int = n\nfun entry(): Int = make(\"outer\", number(\"inner\", return 9)).value",
+            2,
+        ),
     ] {
         let source = format!(
             "class Holder(val value: Int)\nfun make(prefix: String, own n: Int): Holder = Holder(n)\n{body}"
         );
         for constants in [false, true] {
-            let (result, routed) = refine::observe_routing(|| lower(&source, constants));
-            assert!(
-                !routed
+            let (program, _) =
+                lower(&source, constants).expect("direct and nested source call prefixes lower");
+            verify_program(&program).unwrap();
+            let function = entry(&program);
+            assert!(function.instructions.iter().all(|i| !matches!(
+                i.operation,
+                Operation::DirectCall { .. }
+                    | Operation::HeapAllocate { .. }
+                    | Operation::HeapFieldRead { .. }
+            )));
+            let owners = function
+                .instructions
+                .iter()
+                .filter_map(|i| {
+                    if matches!(i.operation, Operation::StringLiteral { .. }) {
+                        let [EntityId::Value(owner)] = i.results.as_slice() else {
+                            panic!("one owned String prefix");
+                        };
+                        Some(*owner)
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>();
+            let drops = function
+                .instructions
+                .iter()
+                .filter_map(|i| {
+                    if let Operation::Drop { owner } = i.operation {
+                        Some(owner)
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(owners.len(), prefix_count);
+            assert_eq!(drops, owners.iter().rev().copied().collect::<Vec<_>>());
+            for owner in owners {
+                let root = function
+                    .instructions
                     .iter()
-                    .any(|name| name.starts_with("koven.test.entry.d")),
-                "{routed:?}"
-            );
-            match result {
-                Ok((program, _)) => {
-                    verify_program(&program).unwrap();
-                    crate::llvm::render_verified_program(&program).unwrap();
-                }
-                Err(error) => assert_eq!(error.kind, LoweringErrorKind::UnsupportedNode),
+                    .find(|i| i.operation == Operation::RootPlace { owner })
+                    .unwrap();
+                let [EntityId::Place(place)] = root.results.as_slice() else {
+                    panic!("the prefix owner has a root place");
+                };
+                let begin = function.instructions.iter().find(|i| matches!(
+                    i.operation,
+                    Operation::BorrowBegin { place: p, kind: crate::ssa::model::LoanKind::Shared }
+                        if p == *place
+                )).unwrap();
+                let [EntityId::Loan(loan)] = begin.results.as_slice() else {
+                    panic!("the prefix establishes its own shared loan");
+                };
+                let end = function
+                    .instructions
+                    .iter()
+                    .position(|i| i.operation == Operation::BorrowEnd { loan: *loan })
+                    .unwrap();
+                let drop = function
+                    .instructions
+                    .iter()
+                    .position(|i| i.operation == Operation::Drop { owner })
+                    .unwrap();
+                assert!(end < drop, "each loan ends before its owner drops");
             }
+            let returns = function
+                .blocks
+                .iter()
+                .filter_map(|block| {
+                    use crate::ssa::model::TerminatorKind;
+                    match &block.terminator.as_ref()?.kind {
+                        TerminatorKind::Return { values } => Some(values.as_slice()),
+                        _ => None,
+                    }
+                })
+                .collect::<Vec<_>>();
+            let [[returned]] = returns.as_slice() else {
+                panic!("the abandoned call has exactly one early result");
+            };
+            let nine = Operation::Constant(crate::ssa::model::ScalarConstant::Integer(9));
+            assert!(function.instructions.iter().any(|i| {
+                i.operation == nine && i.results.as_slice() == [EntityId::Value(*returned)]
+            }));
+            crate::llvm::render_verified_program(&program).unwrap();
         }
     }
 }

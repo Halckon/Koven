@@ -13,8 +13,8 @@ use crate::{
 };
 
 use super::{
-    BodyChecker, CompilationUnitTypeParts, FlowKey, UnitExpressionId, UnitStatementId,
-    flow::FlowVersions,
+    BodyChecker, CompilationUnitTypeParts, UnitExpressionId, UnitStatementId,
+    flow::{FlowFacts, FlowVersions},
 };
 
 #[derive(Clone, Copy)]
@@ -31,7 +31,7 @@ pub(super) enum DeferredFact {
 #[derive(Clone)]
 pub(super) struct UnitTrialState {
     signatures: CompilationUnitSignatures,
-    flow_facts: BTreeMap<FlowKey, UnitTypeId>,
+    flow_facts: FlowFacts,
     flow_versions: FlowVersions,
     inactive_inout_calls: BTreeSet<UnitExpressionId>,
     pending_immutable_bindings: BTreeSet<UnitSymbolId>,

@@ -1,0 +1,6 @@
+name = "f6_pratt_precedence"
+version = "0.1.0"
+defaultTargets = ["F6PrattPrecedence"]
+
+[[lean_lib]]
+name = "F6PrattPrecedence"

@@ -7,6 +7,7 @@ use crate::{
     name_resolution::UnitSymbolId,
     ownership_checking::OwnershipCheckingError,
     parser::{Statement, WhenCondition, WhenEntry},
+    type_checking::{NominalKind, UnitTypeKind},
 };
 
 use super::owner_transport::EvaluatedOwner;
@@ -146,13 +147,15 @@ impl DropPlanner<'_, '_> {
             if !self.expression(subject, DropExpressionUse::Read, state)? {
                 return Ok(false);
             }
-            if self
-                .checker
-                .typed
-                .nullable_when(self.checker.unit_expression(id))
-                .is_some()
-                && self.is_move_only_temporary(subject)
+            if self.is_move_only_temporary(subject)
+                && (self
+                    .checker
+                    .typed
+                    .nullable_when(self.checker.unit_expression(id))
+                    .is_some()
+                    || self.enum_when_temporary(subject))
             {
+                // The subject is still owned while selecting and evaluating the arm.
                 let origin = self.checker.parsed.ast().expressions().get(subject)?.span();
                 self.register_pending_temporary(id, subject, origin, false, state)?;
             }
@@ -278,6 +281,25 @@ impl DropPlanner<'_, '_> {
         let continues = !exits.is_empty();
         *state = self.merge_resource_states(id, exits);
         Ok(continues)
+    }
+
+    fn enum_when_temporary(&self, subject: ExpressionId) -> bool {
+        let typed = self.checker.typed;
+        let Some(ty) = typed.expression_type(self.checker.unit_expression(subject)) else {
+            return false;
+        };
+        let root = match typed.types().get(ty) {
+            Some(UnitTypeKind::EnumCase { root, .. }) => *root,
+            _ => ty,
+        };
+        let Some(UnitTypeKind::Nominal { declaration, .. }) = typed.types().get(root) else {
+            return false;
+        };
+        typed
+            .signatures()
+            .declaration(*declaration)
+            .and_then(|signature| signature.nominal())
+            .is_some_and(|nominal| nominal.kind() == NominalKind::EnumClass)
     }
 
     /// 让 control result 的内部 owner 交付只作用于分支 body 的最后一个表达式。

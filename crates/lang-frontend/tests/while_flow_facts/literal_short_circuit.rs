@@ -400,10 +400,29 @@ fn while_condition_without_backedge_preserves_the_entry_proof() {
             rejected: None,
         },
         Case {
+            name: "body_write_is_unreachable_from_the_negated_condition",
+            text: "fun cond(value: Int, stop: Boolean): Boolean = stop\n\
+                   fun test(initial: Int?): Unit { var x = initial; if (x != null) {\
+                       loop { while (!cond(/*condition*/x, break)) { x = null } };\
+                       val after: Int = /*after*/x\
+                   } }",
+            marks: vec![read("condition", Shape::Int), read("after", Shape::Int)],
+            rejected: None,
+        },
+        Case {
             name: "body_write_can_reach_the_next_condition",
             text: "fun cond(value: Int, stop: Boolean): Boolean = stop\n\
                    fun test(initial: Int?, flag: Boolean): Unit { var x = initial; if (x != null) {\
                        while (cond(/*condition*/x, flag)) { x = null }\
+                   } }",
+            marks: vec![read("condition", Shape::Error)],
+            rejected: Some("condition"),
+        },
+        Case {
+            name: "body_write_can_reach_the_next_negated_condition",
+            text: "fun cond(value: Int, stop: Boolean): Boolean = stop\n\
+                   fun test(initial: Int?, flag: Boolean): Unit { var x = initial; if (x != null) {\
+                       while (!cond(/*condition*/x, flag)) { x = null }\
                    } }",
             marks: vec![read("condition", Shape::Error)],
             rejected: Some("condition"),
@@ -422,6 +441,198 @@ fn while_condition_without_backedge_preserves_the_entry_proof() {
                 read("later", Shape::Error),
             ],
             rejected: Some("later"),
+        },
+    ]);
+}
+
+#[test]
+fn loop_prescan_follows_the_evaluated_when_prefix() {
+    for (name, body, rejects) in [
+        (
+            "subject_stops_before_arms",
+            "when (break) { else -> { x = null } }",
+            false,
+        ),
+        (
+            "subject_stops_before_tail",
+            "when ((break)) { else -> {} }; x = null",
+            false,
+        ),
+        (
+            "subject_continue_bypasses_writes",
+            "when (continue) { else -> { x = null } }; x = null",
+            false,
+        ),
+        (
+            "selector_stops_before_arms",
+            "when { keep(quiet(), break) -> { x = null }; else -> { x = null } }",
+            false,
+        ),
+        (
+            "known_miss_reaches_jump",
+            "when { false, keep(quiet(), break) -> { x = null }; else -> { x = null } }",
+            false,
+        ),
+        (
+            "subjectful_selector_stops",
+            "when (flag) { keep(quiet(), break) -> { x = null }; else -> { x = null } }",
+            false,
+        ),
+        (
+            "all_arms_stop_before_tail",
+            "when { flag -> { break }; else -> { break } }; x = null",
+            false,
+        ),
+        (
+            "earlier_alternative_can_match",
+            "when { flag, keep(quiet(), break) -> { x = null }; else -> {} }",
+            true,
+        ),
+        (
+            "known_match_bypasses_jump",
+            "when { true, keep(quiet(), break) -> { x = null }; else -> {} }",
+            true,
+        ),
+        (
+            "one_arm_reaches_tail",
+            "when { flag -> { break }; else -> {} }; x = null",
+            true,
+        ),
+        (
+            "nested_body_break_keeps_the_outer_tail_reachable",
+            "when (flag) { else -> { loop { break } } }; x = null",
+            true,
+        ),
+        (
+            "nested_header_break_leaves_the_outer_loop",
+            "when (flag) { else -> { while (break) {}; x = null } }; x = null",
+            false,
+        ),
+        (
+            "subject_writes_before_jump",
+            "when (keep(clear(&x), break)) { else -> {} }",
+            true,
+        ),
+        (
+            "selector_writes_before_jump",
+            "when { keep(clear(&x), break) -> {}; else -> {} }",
+            true,
+        ),
+    ] {
+        let text = format!(
+            "fun cond(value: Int, flag: Boolean): Boolean = flag
+             fun quiet(): Unit {{}}
+             fun clear(inout target: Int?): Unit {{ target = null }}
+             fun keep(value: Unit, flag: Boolean): Boolean = flag
+             fun inspect(input: Int?, flag: Boolean): Int {{
+                 var x = input
+                 if (x == null) {{ return 0 }}
+                 while (cond(/*head*/x, flag)) {{ {body} }}
+                 return 7
+             }}"
+        );
+        assert_cases(&[Case {
+            name,
+            text: &text,
+            marks: vec![read(
+                "head",
+                if rejects { Shape::Error } else { Shape::Int },
+            )],
+            rejected: rejects.then_some("head"),
+        }]);
+    }
+
+    assert_cases(&[Case {
+        name: "subject_break_does_not_kill_the_existing_exit_proof",
+        text: "fun inspect(input: Int?): Int {
+            var x = input
+            if (x == null) { return 0 }
+            loop { when (break) { else -> { x = null } } }
+            return /*after*/x
+        }",
+        marks: vec![read("after", Shape::Int)],
+        rejected: None,
+    }]);
+}
+
+#[test]
+fn ordinary_member_conditions_keep_entry_proofs_only_when_there_is_no_backedge() {
+    assert_cases(&[
+        Case {
+            name: "object_call_argument_breaks_before_the_loop_body",
+            text: "object Gate { fun cond(value: Int, stop: Boolean): Boolean = stop }\n\
+                   fun test(initial: Int?): Unit { var x = initial; if (x != null) {\n\
+                       loop { while (Gate.cond(/*condition*/x, break)) { x = null } };\n\
+                       val after: Int = /*after*/x\n\
+                   } }",
+            marks: vec![read("condition", Shape::Int), read("after", Shape::Int)],
+            rejected: None,
+        },
+        Case {
+            name: "instance_call_argument_breaks_before_the_loop_body",
+            text: "class Gate { fun cond(value: Int, stop: Boolean): Boolean = stop }\n\
+                   fun test(initial: Int?): Unit { val gate = Gate(); var x = initial; if (x != null) {\n\
+                       loop { while (gate.cond(/*condition*/x, break)) { x = null } };\n\
+                       val after: Int = /*after*/x\n\
+                   } }",
+            marks: vec![read("condition", Shape::Int), read("after", Shape::Int)],
+            rejected: None,
+        },
+        Case {
+            name: "super_call_argument_breaks_before_the_loop_body",
+            text: "interface I { fun cond(value: Int, stop: Boolean): Boolean = stop }\n\
+                   class Gate: I { fun test(initial: Int?): Unit { var x = initial; if (x != null) {\n\
+                       loop { while (super<I>.cond(/*condition*/x, break)) { x = null } };\n\
+                       val after: Int = /*after*/x\n\
+                   } } }",
+            marks: vec![read("condition", Shape::Int), read("after", Shape::Int)],
+            rejected: None,
+        },
+        Case {
+            name: "instance_call_receiver_breaks_before_the_arguments",
+            text: "class Gate { fun cond(value: Int, stop: Boolean): Boolean = stop }\n\
+                   fun gate(stop: Int): Gate = Gate()\n\
+                   fun test(initial: Int?, flag: Boolean): Unit { var x = initial; if (x != null) {\n\
+                       loop { while (gate(break).cond(/*condition*/x, flag)) { x = null } };\n\
+                       val after: Int = /*after*/x\n\
+                   } }",
+            marks: vec![read("condition", Shape::Int), read("after", Shape::Int)],
+            rejected: None,
+        },
+        Case {
+            name: "member_chain_receiver_breaks_before_the_arguments",
+            text: "class Gate { fun cond(value: Int, stop: Boolean): Boolean = stop }\n\
+                   class Holder(val gate: Gate)\n\
+                   fun holder(stop: Int): Holder = Holder(Gate())\n\
+                   fun test(initial: Int?, flag: Boolean): Unit { var x = initial; if (x != null) {\n\
+                       loop { while (holder(break).gate.cond(/*condition*/x, flag)) { x = null } };\n\
+                       val after: Int = /*after*/x\n\
+                   } }",
+            marks: vec![read("condition", Shape::Int), read("after", Shape::Int)],
+            rejected: None,
+        },
+        Case {
+            name: "receiver_continue_skips_argument_write_on_the_backedge",
+            text: "class Gate { fun cond(value: Int, stop: Boolean): Boolean = stop }\n\
+                   fun gate(stop: Int): Gate = Gate()\n\
+                   fun test(initial: Int?, flag: Boolean): Unit { var x = initial; if (x != null) {\n\
+                       while (flag) {\n\
+                           val before: Int = /*before*/x;\n\
+                           gate(continue).cond(if (flag) { x = null; 7 } else { 7 }, flag)\n\
+                       };\n\
+                       val after: Int = /*after*/x\n\
+                   } }",
+            marks: vec![read("before", Shape::Int), read("after", Shape::Int)],
+            rejected: None,
+        },
+        Case {
+            name: "completed_member_call_still_allows_body_write_to_reach_the_next_condition",
+            text: "class Gate { fun cond(value: Int, stop: Boolean): Boolean = stop }\n\
+                   fun test(initial: Int?, flag: Boolean): Unit { val gate = Gate(); var x = initial; if (x != null) {\n\
+                       while (gate.cond(/*condition*/x, flag)) { x = null }\n\
+                   } }",
+            marks: vec![read("condition", Shape::Error)],
+            rejected: Some("condition"),
         },
     ]);
 }

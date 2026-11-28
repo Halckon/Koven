@@ -58,6 +58,13 @@
       "review": "SPEC-0312 独立审阅核对3行注册及独立测试职责，有限上限2007；SPEC-0314独立审阅3行新return测试注册，有限上限2010；再次增长或扩职责须复审。",
       "max_lines": 2010
     },
+    "crates/lang-frontend/src/ownership_checking/compilation_unit/dataflow.rs": {
+      "max_lines": 1003,
+      "reason": "SPEC-0392 §491 在 Unit 所有权编排中增加独立退出事实的字段、汇集、撤销和交付。退出事实算法位于原 drop planner 模块，保留现有编排顺序。",
+      "owner": "lang-frontend compilation-unit ownership",
+      "split_plan": "后续把按 source 收集、撤销并发布的 planner 产物作为一个完整职责提取，保留错误和 deferred 的原子边界。",
+      "review": "§491 独立复核已覆盖事实发布和撤销。再次超过 1003 行或新增编排职责时重新评审。"
+    },
     "crates/lang-frontend/src/type_checking/checker/callable.rs": {
       "max_lines": 1010,
       "reason": "SPEC-0368 在既有成员候选入口增加 String 分流八行与模块登记一行；可信来源、签名及候选算法均位于独立 text_extension 模块，不为有限接线机械切片。",

@@ -1,0 +1,6 @@
+class Ordinary(val x: Int)
+
+fun main(): Unit {
+    val b = Box(Ordinary(1))
+    println("bad")
+}

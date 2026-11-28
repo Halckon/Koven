@@ -763,7 +763,7 @@ mod legacy_only {
     fn paired_interpolation_rejection_keeps_exact_unsupported_span() {
         use crate::native_tests::boxed_enum_tests::unit_source::UnitSource;
 
-        for literal in [r#""${17}""#, r#"(("before${17}after"))"#] {
+        for literal in [r#""${17.0}""#, r#"(("before${17.0}after"))"#] {
             let mut sources = SourceMap::new();
             let text = format!("package pair\nfun entry(): String = {literal}");
             let unit = UnitSource::analyze("pair/entry.ko", &text)

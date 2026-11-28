@@ -56,8 +56,16 @@ fn matches_frozen_unit_recovery_diagnostics_and_every_definition_offset() {
 }
 
 pub(super) fn source_unit(analysis: &UnitAnalysisSnapshot, source_id: SourceId) -> SourceUnitId {
-    let units = analysis.name_snapshot().names().index().source_units();
-    assert_eq!(units.len(), 1, "one explicitly registered document");
+    let names = analysis.name_snapshot().names();
+    let units = names.index().source_units();
+    assert_eq!(
+        units
+            .iter()
+            .filter(|unit| Some(unit.source_id()) != names.builtin_display_source())
+            .count(),
+        1,
+        "one explicitly registered document",
+    );
     units
         .iter()
         .find(|unit| unit.source_id() == source_id)

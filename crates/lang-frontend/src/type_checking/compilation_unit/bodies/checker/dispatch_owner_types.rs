@@ -2,16 +2,27 @@
 
 use super::type_graph::{ConcreteTypes, substitute};
 use super::*;
-use crate::type_checking::{UnitCallDescriptor, UnitCallTarget, UnitCallableTarget, UnitTypeTable};
+use crate::type_checking::{
+    UnitCallDescriptor, UnitCallTarget, UnitCallableTarget, UnitNominalSignature, UnitTypeTable,
+};
+
+pub(super) struct BodyRoute {
+    pub(super) target: UnitCallTarget,
+    pub(super) arguments: Vec<UnitTypeId>,
+    pub(super) receiver: UnitTypeId,
+}
 
 pub(super) struct StaticDispatchOwners {
-    interface_members: BTreeSet<UnitSymbolId>,
+    interface_members: BTreeMap<UnitSymbolId, bool>,
+    routes: DelegationSteps,
     contextual: BTreeSet<UnitCallableTarget>,
     receivers: BTreeMap<UnitTypeId, BTreeSet<UnitCallableTarget>>,
 }
 
 impl StaticDispatchOwners {
-    pub(super) fn new(signatures: &CompilationUnitSignatures) -> Self {
+    pub(super) fn new(
+        signatures: &CompilationUnitSignatures,
+    ) -> Result<Self, CompilationUnitTypeError> {
         let interface_members = signatures
             .declarations()
             .iter()
@@ -19,15 +30,16 @@ impl StaticDispatchOwners {
             .filter(|nominal| nominal.kind() == NominalKind::Interface)
             .flat_map(|nominal| nominal.members())
             .filter_map(|member| match member.target() {
-                UnitCallableTarget::Symbol(symbol) => Some(symbol),
+                UnitCallableTarget::Symbol(symbol) => Some((symbol, member.has_body())),
                 UnitCallableTarget::Declaration(_) => None,
             })
             .collect();
-        Self {
+        Ok(Self {
             interface_members,
+            routes: delegation_steps(signatures)?,
             contextual: BTreeSet::new(),
             receivers: BTreeMap::new(),
-        }
+        })
     }
 
     pub(super) fn call(
@@ -37,7 +49,7 @@ impl StaticDispatchOwners {
         let UnitCallTarget::Symbol(symbol) = call.target() else {
             return None;
         };
-        if !self.interface_members.contains(&symbol) {
+        if !self.interface_members.contains_key(&symbol) {
             return None;
         }
         Some((call.receiver()?.ty(), UnitCallableTarget::Symbol(symbol)))
@@ -60,6 +72,77 @@ impl StaticDispatchOwners {
         }
     }
 
+    /// Follow the checked receiver route while retaining the callable's own type slots.
+    pub(super) fn body_route(
+        &self,
+        signatures: &mut CompilationUnitSignatures,
+        receiver: UnitTypeId,
+        requirement: UnitCallableTarget,
+        arguments: Vec<UnitTypeId>,
+        contextual: bool,
+    ) -> Result<Option<BodyRoute>, CompilationUnitTypeError> {
+        let direct = |arguments| {
+            Some(BodyRoute {
+                target: call_target(requirement),
+                arguments,
+                receiver,
+            })
+        };
+        let Some(UnitTypeKind::Nominal { declaration, .. }) = signatures.types().get(receiver)
+        else {
+            return Ok(direct(arguments));
+        };
+        if self
+            .routes
+            .get(declaration)
+            .is_some_and(|steps| steps.contains_key(&requirement))
+        {
+            return Ok(follow_delegation_chain(
+                signatures,
+                &self.routes,
+                receiver,
+                requirement,
+                Some(arguments),
+            )?
+            .and_then(|route| {
+                route.arguments.map(|arguments| BodyRoute {
+                    target: call_target(route.target),
+                    arguments,
+                    receiver: route.receiver,
+                })
+            }));
+        }
+        let UnitCallableTarget::Symbol(symbol) = requirement else {
+            return Ok(direct(arguments));
+        };
+        if !contextual && self.interface_members.get(&symbol) == Some(&true) {
+            return Ok(direct(arguments));
+        }
+        let (nominal, substitutions) = receiver_owner(signatures, receiver)?;
+        let Some(route) = nominal
+            .static_dispatch_overrides()
+            .iter()
+            .find(|route| route.requirement() == requirement)
+            .copied()
+        else {
+            return Ok(direct(arguments));
+        };
+        let arguments = remap_owner_arguments(
+            signatures,
+            &substitutions,
+            &mut BTreeMap::new(),
+            route.requirement_owner(),
+            route.implementation_owner(),
+            Some(arguments),
+        )?
+        .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
+        Ok(Some(BodyRoute {
+            target: call_target(route.implementation()),
+            arguments,
+            receiver,
+        }))
+    }
+
     pub(super) fn publish(
         self,
         signatures: &mut CompilationUnitSignatures,
@@ -68,7 +151,6 @@ impl StaticDispatchOwners {
         if self.receivers.is_empty() {
             return Ok(());
         }
-        let routes = delegation_steps(signatures)?;
         let mut concrete = ConcreteTypes::for_closed_arguments();
         for (root, targets) in self.receivers {
             let mut pending = BTreeSet::from([root]);
@@ -120,7 +202,8 @@ impl StaticDispatchOwners {
                 for owner in roots {
                     substitute(signatures.types_mut(), owner, &substitutions, &mut memo)?;
                 }
-                for &target in routes
+                for &target in self
+                    .routes
                     .get(&declaration)
                     .into_iter()
                     .flat_map(|steps| steps.keys())
@@ -137,10 +220,10 @@ impl StaticDispatchOwners {
                         continue;
                     }
                     *count = count.saturating_add(1);
-                    if let Some(delegate) =
-                        publish_delegation_chain(signatures, &routes, receiver, target)?
+                    if let Some(route) =
+                        follow_delegation_chain(signatures, &self.routes, receiver, target, None)?
                     {
-                        pending.insert(delegate);
+                        pending.insert(route.receiver);
                     }
                 }
             }
@@ -153,8 +236,20 @@ impl StaticDispatchOwners {
 struct DelegationStep {
     field: UnitTypeId,
     requirement_owner: UnitTypeId,
-    effective_owner: UnitTypeId,
-    next_target: Option<UnitCallableTarget>,
+    destination: Option<DelegationDestination>,
+}
+
+#[derive(Clone, Copy)]
+struct DelegationDestination {
+    owner: UnitTypeId,
+    target: UnitCallableTarget,
+    forward: bool,
+}
+
+struct DelegationRoute {
+    receiver: UnitTypeId,
+    target: UnitCallableTarget,
+    arguments: Option<Vec<UnitTypeId>>,
 }
 
 type DelegationSteps = BTreeMap<DeclarationId, BTreeMap<UnitCallableTarget, DelegationStep>>;
@@ -178,20 +273,27 @@ fn delegation_steps(
             })
             .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
         for forwarder in plan.forwarders() {
-            let (effective_owner, next_target) = if let Some(hop) = forwarder.next_hop() {
-                (hop.receiver_type(), Some(hop.requirement()))
-            } else if let Some(implementation) = forwarder.implementation() {
-                (implementation.receiver_type(), None)
+            let destination = if let Some(hop) = forwarder.next_hop() {
+                Some(DelegationDestination {
+                    owner: hop.receiver_type(),
+                    target: hop.requirement(),
+                    forward: true,
+                })
             } else {
-                continue;
+                forwarder
+                    .implementation()
+                    .map(|implementation| DelegationDestination {
+                        owner: implementation.receiver_type(),
+                        target: implementation.target(),
+                        forward: false,
+                    })
             };
             routes.entry(plan.owner()).or_default().insert(
                 forwarder.requirement(),
                 DelegationStep {
                     field: field.ty(),
                     requirement_owner: forwarder.receiver_type(),
-                    effective_owner,
-                    next_target,
+                    destination,
                 },
             );
         }
@@ -201,18 +303,16 @@ fn delegation_steps(
 
 /// Follow a single frozen forwarding chain. A repeated declaration and target is a
 /// cycle even if the concrete field arguments change at each hop.
-fn publish_delegation_chain(
+fn follow_delegation_chain(
     signatures: &mut CompilationUnitSignatures,
     routes: &DelegationSteps,
     mut receiver: UnitTypeId,
     mut target: UnitCallableTarget,
-) -> Result<Option<UnitTypeId>, CompilationUnitTypeError> {
+    mut arguments: Option<Vec<UnitTypeId>>,
+) -> Result<Option<DelegationRoute>, CompilationUnitTypeError> {
     let mut visited = BTreeSet::new();
     loop {
-        let Some(UnitTypeKind::Nominal {
-            declaration,
-            arguments,
-        }) = signatures.types().get(receiver)
+        let Some(UnitTypeKind::Nominal { declaration, .. }) = signatures.types().get(receiver)
         else {
             return Ok(None);
         };
@@ -223,32 +323,113 @@ fn publish_delegation_chain(
         else {
             return Ok(None);
         };
+        let Some(destination) = step.destination else {
+            return Ok(None);
+        };
         if !visited.insert((*declaration, target)) {
             return Ok(None);
         }
-        let nominal = signatures
-            .declaration(*declaration)
-            .and_then(|sig| sig.nominal())
-            .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
-        let substitutions = nominal
-            .type_parameters()
-            .iter()
-            .copied()
-            .zip(arguments.iter().copied())
-            .collect();
+        let (_, substitutions) = receiver_owner(signatures, receiver)?;
         let mut memo = BTreeMap::new();
-        for owner in [step.requirement_owner, step.effective_owner] {
-            substitute(signatures.types_mut(), owner, &substitutions, &mut memo)?;
-        }
+        arguments = remap_owner_arguments(
+            signatures,
+            &substitutions,
+            &mut memo,
+            step.requirement_owner,
+            destination.owner,
+            arguments,
+        )?;
         receiver = substitute(
             signatures.types_mut(),
             step.field,
             &substitutions,
             &mut memo,
         )?;
-        let Some(next_target) = step.next_target else {
-            return Ok(Some(receiver));
-        };
-        target = next_target;
+        target = destination.target;
+        if !destination.forward {
+            return Ok(Some(DelegationRoute {
+                receiver,
+                target,
+                arguments,
+            }));
+        }
     }
+}
+
+fn call_target(target: UnitCallableTarget) -> UnitCallTarget {
+    match target {
+        UnitCallableTarget::Symbol(symbol) => UnitCallTarget::Symbol(symbol),
+        UnitCallableTarget::Declaration(declaration) => UnitCallTarget::Declaration(declaration),
+    }
+}
+
+fn receiver_owner(
+    signatures: &CompilationUnitSignatures,
+    receiver: UnitTypeId,
+) -> Result<(&UnitNominalSignature, BTreeMap<UnitSymbolId, UnitTypeId>), CompilationUnitTypeError> {
+    let Some(UnitTypeKind::Nominal {
+        declaration,
+        arguments,
+    }) = signatures.types().get(receiver)
+    else {
+        return Err(CompilationUnitTypeError::MissingDeclarationSymbol);
+    };
+    let nominal = signatures
+        .declaration(*declaration)
+        .and_then(|sig| sig.nominal())
+        .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
+    let substitutions = nominal
+        .type_parameters()
+        .iter()
+        .copied()
+        .zip(arguments.iter().copied())
+        .collect();
+    Ok((nominal, substitutions))
+}
+
+fn remap_owner_arguments(
+    signatures: &mut CompilationUnitSignatures,
+    substitutions: &BTreeMap<UnitSymbolId, UnitTypeId>,
+    memo: &mut BTreeMap<UnitTypeId, UnitTypeId>,
+    requirement_owner: UnitTypeId,
+    implementation_owner: UnitTypeId,
+    arguments: Option<Vec<UnitTypeId>>,
+) -> Result<Option<Vec<UnitTypeId>>, CompilationUnitTypeError> {
+    let required = substitute(
+        signatures.types_mut(),
+        requirement_owner,
+        substitutions,
+        memo,
+    )?;
+    let implementation = substitute(
+        signatures.types_mut(),
+        implementation_owner,
+        substitutions,
+        memo,
+    )?;
+    let Some(arguments) = arguments else {
+        return Ok(None);
+    };
+    let (
+        Some(UnitTypeKind::Nominal {
+            arguments: required,
+            ..
+        }),
+        Some(UnitTypeKind::Nominal {
+            arguments: implementation,
+            ..
+        }),
+    ) = (
+        signatures.types().get(required),
+        signatures.types().get(implementation),
+    )
+    else {
+        return Err(CompilationUnitTypeError::MissingDeclarationSymbol);
+    };
+    let callable = arguments
+        .strip_prefix(required.as_slice())
+        .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
+    Ok(Some(
+        implementation.iter().chain(callable).copied().collect(),
+    ))
 }

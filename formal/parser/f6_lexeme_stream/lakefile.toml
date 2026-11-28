@@ -1,0 +1,6 @@
+name = "f6_lexeme_stream"
+version = "0.1.0"
+defaultTargets = ["F6LexemeStream"]
+
+[[lean_lib]]
+name = "F6LexemeStream"

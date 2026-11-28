@@ -8,7 +8,7 @@ use lang_frontend::{
     ast::{ExpressionId, StatementId},
     name_resolution::UnitSymbolId,
     ownership_checking::{UnitDropPoint, UnitShortCircuitPlan, UnitShortCircuitRhs},
-    parser::{BinaryOperator, Expression, LiteralKind, WhenEntry},
+    parser::{BinaryOperator, Expression, WhenEntry},
     source::Span,
     type_checking::{BuiltinType, UnitExpressionId, UnitTypeId, UnitTypeKind},
 };
@@ -21,6 +21,7 @@ use super::{
 };
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
+    lowering_support::boolean_literal_when_arms,
     model::{
         BlockId, EntityId, EntityType, Operation, Origin, ScalarConstant, SsaTypeId,
         TerminatorKind, ValueId,
@@ -32,10 +33,8 @@ use crate::ssa::{
 pub(in crate::ssa::unit_lower) struct ControlResult {
     pub(in crate::ssa::unit_lower) control: UnitExpressionId,
     pub(in crate::ssa::unit_lower) required: bool,
-    pub(in crate::ssa::unit_lower) string: Option<(UnitTypeId, SsaTypeId)>,
+    pub(in crate::ssa::unit_lower) nullable: Option<(UnitTypeId, SsaTypeId)>,
 }
-
-type BooleanWhenArms = ((StatementId, usize), (StatementId, usize));
 
 pub(super) struct PreparedShortCircuit {
     pub(super) left: ExpressionId,
@@ -318,7 +317,7 @@ impl UnitExpressionLowerer<'_> {
         else_branch: Option<StatementId>,
         span: Span,
     ) -> Result<LoweredValue, LoweringError> {
-        let result = self.control_result(expression, None, span)?;
+        let result = self.control_result(expression, span)?;
         self.lower_conditional(
             expression,
             condition,
@@ -337,7 +336,6 @@ impl UnitExpressionLowerer<'_> {
         subject: Option<ExpressionId>,
         entries: &[WhenEntry],
         span: Span,
-        expected_string: Option<(UnitTypeId, SsaTypeId)>,
     ) -> Result<LoweredValue, LoweringError> {
         if let Some(subject) = subject
             && self
@@ -359,12 +357,9 @@ impl UnitExpressionLowerer<'_> {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
         if self.typed.nullable_when(control).is_some() {
-            if expected_string.is_some() {
-                return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
-            }
             return self.lower_nullable_when(control, span);
         }
-        let result = self.control_result(expression, expected_string, span)?;
+        let result = self.control_result(expression, span)?;
         if let Some(subject) = subject {
             let subject_id = UnitExpressionId::new(self.source_unit, subject);
             let subject_type = self
@@ -385,7 +380,9 @@ impl UnitExpressionLowerer<'_> {
                 return self.missing_nullable_when_descriptor(entries, span);
             }
             if builtin_type(self.typed, subject_type) == Some(BuiltinType::Boolean)
-                && let Some((when_true, when_false)) = self.boolean_literal_two_arms(entries)?
+                && let Some((when_true, when_false)) =
+                    boolean_literal_when_arms(self.parsed, entries)
+                        .map_err(|span| lowering_error(LoweringErrorKind::MissingFact, span))?
             {
                 return self.lower_conditional(
                     expression,
@@ -414,46 +411,6 @@ impl UnitExpressionLowerer<'_> {
         Err(lowering_error(LoweringErrorKind::UnsupportedNode, span))
     }
 
-    fn boolean_literal_two_arms(
-        &self,
-        entries: &[WhenEntry],
-    ) -> Result<Option<BooleanWhenArms>, LoweringError> {
-        let mut when_true = None;
-        let mut when_false = None;
-        for (index, entry) in entries.iter().enumerate() {
-            if entry.else_span.is_some() {
-                let arm = (entry.body, index);
-                when_true.get_or_insert(arm);
-                when_false.get_or_insert(arm);
-                break;
-            }
-            for condition in &entry.conditions {
-                let lang_frontend::parser::WhenCondition::Expression(condition) = condition else {
-                    return Ok(None);
-                };
-                let node = self
-                    .parsed
-                    .ast()
-                    .expressions()
-                    .get(*condition)
-                    .map_err(|_| lowering_error(LoweringErrorKind::MissingFact, entry.span))?;
-                match node.payload() {
-                    Expression::Literal(LiteralKind::Boolean(true)) => {
-                        when_true.get_or_insert((entry.body, index));
-                    }
-                    Expression::Literal(LiteralKind::Boolean(false)) => {
-                        when_false.get_or_insert((entry.body, index));
-                    }
-                    _ => return Ok(None),
-                }
-            }
-        }
-        match (when_true, when_false) {
-            (Some(t), Some(f)) if t != f => Ok(Some((t, f))),
-            _ => Ok(None),
-        }
-    }
-
     pub(in crate::ssa::unit_lower) fn ssa_builtin(
         &self,
         builtin: BuiltinType,
@@ -470,28 +427,53 @@ impl UnitExpressionLowerer<'_> {
             .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))
     }
 
-    /// Exact existing String? storage, without widening pointer-only storage recipes.
-    fn string_nullable_storage(
-        &self,
-        ty: lang_frontend::type_checking::UnitTypeId,
-    ) -> Option<SsaTypeId> {
+    /// Returns a supported planned nullable layout whose payload matches the typed result.
+    fn nullable_control_storage(&self, ty: UnitTypeId) -> Option<SsaTypeId> {
+        use crate::ssa::model::SsaTypeKind;
+
         let Some(UnitTypeKind::Nullable(inner)) = self.typed.types().get(ty) else {
             return None;
         };
-        if builtin_type(self.typed, *inner) != Some(BuiltinType::String) {
-            return None;
+        let storage = *self.type_ids.get(&ty)?;
+        let payload = *self.type_ids.get(inner)?;
+        match self.ssa_types.get(storage.index())? {
+            SsaTypeKind::NullableHandle { inner } if *inner == payload => Some(storage),
+            SsaTypeKind::Aggregate { .. } if self.nullable_maps.get(&storage) == Some(&payload) => {
+                Some(storage)
+            }
+            SsaTypeKind::InlineNullable {
+                inner,
+                niche: false,
+            } if *inner == payload
+                && matches!(
+                    self.ssa_types.get(payload.index()),
+                    Some(
+                        SsaTypeKind::Boolean
+                            | SsaTypeKind::Char
+                            | SsaTypeKind::Integer { .. }
+                            | SsaTypeKind::Float32
+                            | SsaTypeKind::Float64
+                    )
+                ) =>
+            {
+                Some(storage)
+            }
+            SsaTypeKind::InlineNullable {
+                inner: actual,
+                niche: true,
+            } if *actual == payload
+                && builtin_type(self.typed, *inner) == Some(BuiltinType::String)
+                && self.ssa_types.get(payload.index()) == Some(&SsaTypeKind::StringOwner) =>
+            {
+                Some(storage)
+            }
+            _ => None,
         }
-        self.type_ids.get(&ty).copied().filter(|storage| {
-            matches!(self.ssa_types.get(storage.index()),
-                Some(crate::ssa::model::SsaTypeKind::InlineNullable { inner, niche: true })
-                if self.ssa_types.get(inner.index()) == Some(&crate::ssa::model::SsaTypeKind::StringOwner))
-        })
     }
 
     pub(in crate::ssa::unit_lower) fn control_result(
         &self,
         expression: ExpressionId,
-        expected_string: Option<(UnitTypeId, SsaTypeId)>,
         span: Span,
     ) -> Result<ControlResult, LoweringError> {
         let expression_type = self
@@ -506,24 +488,12 @@ impl UnitExpressionLowerer<'_> {
             span,
         )?;
         let control = UnitExpressionId::new(self.source_unit, expression);
-        if let Some((ty, storage)) = expected_string {
-            if !matches!(self.typed.types().get(concrete_type), Some(UnitTypeKind::Nullable(inner))
-                if builtin_type(self.typed, *inner) == Some(BuiltinType::Nothing))
-                || self.string_nullable_storage(ty) != Some(storage)
-            {
-                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
-            }
-            return Ok(ControlResult {
-                control,
-                required: true,
-                string: expected_string,
-            });
-        }
         let result_required = builtin_type(self.typed, concrete_type) != Some(BuiltinType::Unit);
+        let nullable_storage = self.nullable_control_storage(concrete_type);
         if result_required
             && builtin_type(self.typed, concrete_type) != Some(BuiltinType::Nothing)
             && !is_supported_storage_type(self.typed, concrete_type)
-            && self.string_nullable_storage(concrete_type).is_none()
+            && nullable_storage.is_none()
             && !self
                 .type_ids
                 .get(&concrete_type)
@@ -534,9 +504,7 @@ impl UnitExpressionLowerer<'_> {
         Ok(ControlResult {
             control,
             required: result_required,
-            string: self
-                .string_nullable_storage(concrete_type)
-                .map(|storage| (concrete_type, storage)),
+            nullable: nullable_storage.map(|storage| (concrete_type, storage)),
         })
     }
 }
@@ -660,9 +628,9 @@ pub(in crate::ssa::unit_lower) mod scalar {
             let operand_type = self.expression_builtin_type(operand, span)?;
             let supported = match operator {
                 PrefixOperator::Not => operand_type == Some(BuiltinType::Boolean),
-                PrefixOperator::Plus | PrefixOperator::Minus => {
-                    operand_type.is_some_and(is_integer_builtin)
-                }
+                PrefixOperator::Plus | PrefixOperator::Minus => operand_type.is_some_and(|b| {
+                    is_integer_builtin(b) || crate::ssa::lowering_support::is_float_builtin(b)
+                }),
             };
             if !supported {
                 return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
@@ -702,6 +670,17 @@ pub(in crate::ssa::unit_lower) mod scalar {
                 }
                 PrefixOperator::Minus => {
                     let ty = self.expression_ssa_type(expression, span)?;
+                    if operand_type.is_some_and(crate::ssa::lowering_support::is_float_builtin) {
+                        return self.append_scalar(
+                            Operation::FloatArithmetic {
+                                operator: crate::ssa::model::FloatOperator::Negate,
+                                left: operand,
+                                right: None,
+                            },
+                            ty,
+                            span,
+                        );
+                    }
                     let zero = self.append_scalar(
                         Operation::Constant(ScalarConstant::Integer(0)),
                         ty,
@@ -731,24 +710,32 @@ pub(in crate::ssa::unit_lower) mod scalar {
                 return self.lower_string_binary(left, operator, right, expression, span);
             }
             let left_is_bottom = operand_type == Some(BuiltinType::Nothing);
+            let float_operand =
+                operand_type.is_some_and(crate::ssa::lowering_support::is_float_builtin);
+            let char_operand = operand_type == Some(BuiltinType::Char);
             let supported = match operator {
                 BinaryOperator::Add
                 | BinaryOperator::Subtract
                 | BinaryOperator::Multiply
                 | BinaryOperator::Divide
-                | BinaryOperator::Remainder
-                | BinaryOperator::BitwiseAnd
+                | BinaryOperator::Remainder => {
+                    float_operand || operand_type.is_some_and(is_integer_builtin)
+                }
+                BinaryOperator::BitwiseAnd
                 | BinaryOperator::BitwiseOr
                 | BinaryOperator::BitwiseXor
                 | BinaryOperator::Shl
                 | BinaryOperator::Shr
-                | BinaryOperator::Ushr
-                | BinaryOperator::Less
+                | BinaryOperator::Ushr => operand_type.is_some_and(is_integer_builtin),
+                BinaryOperator::Less
                 | BinaryOperator::LessEqual
                 | BinaryOperator::Greater
-                | BinaryOperator::GreaterEqual => operand_type.is_some_and(is_integer_builtin),
+                | BinaryOperator::GreaterEqual => {
+                    float_operand || char_operand || operand_type.is_some_and(is_integer_builtin)
+                }
                 BinaryOperator::Equal | BinaryOperator::NotEqual => {
-                    left_is_bottom
+                    float_operand
+                        || left_is_bottom
                         || matches!(operand_type, Some(BuiltinType::Boolean | BuiltinType::Char))
                         || operand_type.is_some_and(is_integer_builtin)
                 }
@@ -771,6 +758,17 @@ pub(in crate::ssa::unit_lower) mod scalar {
             };
             let ty = self.expression_ssa_type(expression, span)?;
             if let Some(operator) = checked_operator(operator) {
+                if float_operand {
+                    return self.append_scalar(
+                        Operation::FloatArithmetic {
+                            operator: operator.into(),
+                            left,
+                            right: Some(right),
+                        },
+                        ty,
+                        span,
+                    );
+                }
                 return self.checked(operator, left, right, ty, span);
             }
             if let Some(operator) = bitwise_operator(operator) {
@@ -841,7 +839,7 @@ pub(in crate::ssa::unit_lower) mod scalar {
             self.append_scalar(Operation::BooleanNot { operand: result }, ty, span)
         }
 
-        fn lower_string_view(
+        pub(in crate::ssa::unit_lower) fn lower_string_view(
             &mut self,
             expression: ExpressionId,
             span: Span,

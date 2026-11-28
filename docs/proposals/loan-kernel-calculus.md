@@ -1377,18 +1377,26 @@ fun probe(borrow h: A): Unit {
 | `return &fa`（签名声明 `from hb`） | `K6` | `TYPE` | `TYPE` + `K6` |
 | 实参重借、字段投影、显式 `Slot(fm)` 与 `write_item(fa)` | 接受 / `K1` | 接受 / `K1` | 接受 / `K1` |
 
-结论：当前 `undecided` 的扁平化实现在局部借用变量上存在多处可复现的类型/借用漏洞（共享借用经 `&mut fa` / `write_int(&mut r)` / `Slot(&mut fa)` 提权为可写、绕过 `<T>` 可逃逸上界、经 `*rb = Item(9)` 写入非借用值、以及 `from x.origins` 丢失内层来源）。后续裁决须在 **1A-ext（`forbid`，零新增类型语法，直接把 1A 扩展到所有局部借用变量）** 与 **显式二层借用（`second_order`，须引入一等 `borrow (borrow T)` / `inout (borrow T)` 类型、视图构造器/标量层级校验、`*rb = &b` 槽位来源更新及 `.origins` 内层来源保留）** 之间二选一，不可长期停留在扁平化状态。
+结论：当前 `undecided` 的扁平化实现在局部借用变量上存在 **6 处**可复现的类型/借用漏洞（共享借用经 `&mut fa` / `write_int(&mut r)` / `Slot(&mut fa)` 提权为可写、绕过 `<T>` 可逃逸上界、经 `*rb = Item(9)` 写入非借用值、以及 `from x.origins` 丢失内层来源）。
+
+**2026-11-26 三轮讨论纪要收口与原型落地（详见[裁决纪要 §1](kernel-open-decisions-2026-11.md#1-od1--a11a-ext收口禁止对裸借用绑定槽形成二层借用)）**：四方确认采用 **A1（1A-ext / `forbid`）**——首版不对裸借用绑定槽形成二层借用，显式取址与落到该槽的隐式调整均拒绝；对所指对象的合法接收者重借、`borrow val`、投影、`for` 来源及合法 place 的 `replace`/`swap` 不受影响；新绑定可换局部来源、`Slot` 可写固定目标，均不能原地换绑调用方借用来源；`<view T>` 另案。`checker.py` 默认策略已切换为 `"forbid"`（同步更新 `Z44.lk` / `Z46.lk` 标记，保留 `undecided` 与 `second_order` 显式对照），并新增 `Z47.lk` 与 `test_od1_binding_slot_rejection_vs_legal_reborrow` 覆盖绑定槽拒绝与合法接收者重借正反例。
 
 ## 85. 来源记账生成器补齐：泛型 `view T` 持有者与分支/循环流向（2026-11-25 补充）
 
-补齐 §23.3 与覆盖清单 §4 中“来源记账用例生成器”余下的两项具体空白（不修改现行 Guide，不涉及生产编译器），生成器总规模由 1218 段增至 **1352 段**（新增 134 段，其余 321 个不适用组合保持带说明跳过），全部与预期 `(规则, 行号)` 逐行一致，未发现新的 `checker.py` 漏报或误报：
+补齐 §23.3 与覆盖清单 §4 中“来源记账用例生成器”余下的两项具体空白（不修改现行 Guide，不涉及生产编译器），生成器总规模由 1218 段增至 **1397 段**（新增 179 段，其余 321 个不适用组合保持带说明跳过），全部与预期 `(规则, 行号)` 逐行一致，并顺带在 PR #467 / PR #471 复审中发现并修掉六处 `checker.py` 漏洞：
 
-- **泛型函数体内以 `view T` 为持有者（59 段，`generic_view_holders`）**：
+- **发现并修掉的六处原型漏洞（PR #467 / PR #471 复审）**：
+  1. **经重借写入后，从同一重借读回丢失新来源（`current_fields` / `star_origins`）**：`val w = passGeneric(h); flowGeneric(w, s)` 后调用 `readGeneric(w)` 时，`held_fields` 原先跳过 `"*"` 键，导致 `w` 看不到写入 `h` 的新来源 `s`。现通过 `star_origins` 在所指类型为容器或 `view T` 时从拥有者现查最新来源（保持 `borrow Int` 等非容器引用不误继承），并按 `key = ".".join(path) or "*"` 与 `record_flow` 对齐，同时覆盖嵌套容器 `h.inner` 的重借读回，并纳入 K20 现查变异检验。
+  2. **借用容器形参经泛型读取转发漏报已有来源（`check_fun`）**：原先仅对 `own` 模式的容器形参初始化 `P(h.*)`，导致 `fun wrap(borrow h: Bag): borrow Int { return readGeneric(h) }`（及 `Slot`、`inout` 形参）漏报 `K6`。现对全部模式的容器形参初始化 `P(h.*)`。
+  3. **整体替换容器槽位后仍保留旧来源（`store`）**：`inout h: Bag` 带初始 `P(h.*)` 后，执行 `*h = Bag(0)` 替换唯一槽位时，原先 `store` 仅在新值携带来源时才覆盖旧账，导致后续 `return readGeneric(h)` 误报 `K6`。现对唯一目标的容器/视图/`view T` 整值替换允许以空来源集合清账（单臂替换仍保守保留旧来源）。
+  4. **泛型 `flows` 目标实例化为不可携带来源类型未统一拦截（`bind_types` / `call` / `start`）**：调用 `genFlow(&mut h, &s)` 或 `start suspendGenFlow(&mut h, &s)` 将 `<view T>` 的 `flows` 目标实例化为 `Arr`、无捕获闭包 `Closure`、函数类型 `fn S`、可逃逸 `<T>` 或打开的存在类型时，统一在 `bind_types` 中按 `self.escapable(actual)`（§23.4 K14 目标）报 `SIG`，使普通调用与 `start` 任务入口保持一致。
+- **泛型函数体内以 `view T` 为持有者（104 段，`generic_view_holders`）**：
   - **按值 `own h: T` 参数（12 段）**：`readGeneric(&h)` 读回、`move h` 整值转交、交给可逃逸 `<T>` 报 `K17`、装入容器 `Bag` 返回、流向调用方 `Bag` 及参数来源经 `flowGeneric(&mut h, s)` 并入（漏 `from` 或 `flows` 均报 `K6`）。
   - **局部 `view T` 持有者与 K3 可观察寿命（6 段）**：无 `EarlyDrop` 上界的 `view T` 按 K3 可观察活到析构或显式移走——来源先于持有者声明时，读后未释放写来源仍报 `K1`，经 `dropGeneric(move h)` 移走后可写；持有者先于来源声明（或向 `own h: T` 放入局部来源）时，在 `flowGeneric` / `readGeneric` 处报 `K22`、函数出口报 `K9`。
-  - **借用 `borrow h: T` / `inout h: T` 参数（29 段）**：只读转发、`flowGeneric(h, s)` 直线与 `passGeneric(h)` 重借流向（覆盖 `borrow`/`inout` 来源、漏流向 `K6`、漏返回来源 `K6`、读前/放入后写来源 `K4`，并纳入 K20 存活变异检验）、分支单臂 `*h = move v` 整体替换（含不替换/必然替换单路径对照）以及分支双臂与 `while` 循环流向。
-  - **具体调用方实例化（12 段）**：以 `V`、`Bag`、`Slot` 调用 `genFlow(&mut h, &s)` 后读回，验证新旧来源均受 `K1` 保护、无关来源可写、最后一次使用后均放行。
-- **循环与分支里的 `flows` 放入（75 段，`branch_and_loop_flows`）**：跨越局部视图 `V`、不透明容器 `Bag` 与内部可变槽 `Slot` 三类持有者，系统覆盖六种控制流形态——局部单臂 `if`、局部双臂不同来源（验证 `flows` 即使两臂都写入仍保守保留旧来源 `o`）、局部 `while` 单步、局部 `while` 二轮回边（经 `mid` 在第二轮流入 `s`，将 `while (*)` 改为 `if (*)` 后在三类持有者上均恰好只漏报 `写二轮来源`），以及调用方持有者的分支双臂与 `while` 循环不读回流向（去掉放入后 `K4`/`K6` 诊断清零，且全部进入 K20 存活变异检验）。
+  - **借用 `borrow h: T` / `inout h: T` 参数（37 段）**：只读转发、`flowGeneric(h, s)` 直线、`passGeneric(h)` 重借后从 `h` 读回与从同一重借 `w` 读回（覆盖 `borrow`/`inout` 来源、漏流向 `K6`、漏返回来源 `K6`、读前/放入后写来源 `K4`，并纳入 K20 存活与现查变异检验）、分支单臂 `*h = move v` 整体替换（含不替换/必然替换单路径对照）以及分支双臂与 `while` 循环流向。
+  - **具体调用方实例化（32 段）**：以 `V`、`Bag`、`Slot` 分别调用 `genFlow` 与 `genFlowReadReborrow`（覆盖从 `h` 与从 `w` 读回，验证新旧来源均受 `K1` 保护、无关来源可写、最后一次使用后放行），以及以 `Arr`（局部与参数）、可逃逸 `<T>`、无捕获 `Closure`、`fn Body` 与 `start suspendGenFlow` 实例化 `flows` 目标报 `SIG` 对照。
+  - **借用容器经泛型转发（17 段）**：`borrow`/`inout` 的 `Bag` 与 `Slot` 经 `readGeneric(h)` 转发（声明 `from h.origins` 接受、省略报 `K6`，调用方写原来源报 `K1`）、嵌套容器 `BoxBag.inner` 经重借读回（缺 `from` 报 `K6`、局部写来源报 `K1`），以及 `*h = Bag(0)` 唯一槽位整值替换清空旧来源与单臂保留旧来源对照。
+- **循环与分支里的 `flows` 放入（75 段，`branch_and_loop_flows`）**：跨越局部视图 `V`、不透明容器 `Bag` 与内部可变槽 `Slot` 三类持有者，系统覆盖六类控制流形态（测试显式断言全部 75 段均存在，并对单臂/单步清空、双臂分别去左/右臂、调用方双臂去左/右臂、循环二轮回边剪枝为 `if` 以及调用方循环清空逐一做变异检验）。
 
 
 

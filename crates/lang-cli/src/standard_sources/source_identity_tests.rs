@@ -12,6 +12,7 @@ fn standard_source_key_collision_preserves_user_diagnostics_and_authority() {
         (RANGE_PATH, "koven.algorithms"),
         (RESULT_PATH, "koven.core"),
         (TEXT_PATH, "koven.text"),
+        (DISPLAY_PATH, "koven.core"),
     ] {
         let mut sources = SourceMap::new();
         let text = format!("package {package}\nfun probe(): Unit {{ missing }}\n");

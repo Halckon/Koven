@@ -1,5 +1,51 @@
 //! 单文件与 compilation-unit adapter 共用的中立 lowering 支撑。
 
+pub(in crate::ssa) const NULL_ASSERTION_MESSAGE: &str = "null assertion failed";
+
+pub(in crate::ssa) const fn is_integer_builtin(
+    ty: lang_frontend::type_checking::BuiltinType,
+) -> bool {
+    use lang_frontend::type_checking::BuiltinType::*;
+    matches!(
+        ty,
+        Byte | Short | Int | Long | UByte | UShort | UInt | ULong
+    )
+}
+
+pub(in crate::ssa) fn builtin_display_call(
+    typed: &lang_frontend::type_checking::CompilationUnitTypes,
+    call: &lang_frontend::type_checking::UnitCallDescriptor,
+    concrete_receiver: Option<lang_frontend::type_checking::UnitTypeId>,
+) -> Option<(
+    lang_frontend::type_checking::UnitExpressionId,
+    lang_frontend::type_checking::BuiltinType,
+)> {
+    use lang_frontend::type_checking::{
+        BuiltinType, CallableResultSource, ParameterMode, UnitCallReceiverOrigin, UnitTypeKind,
+    };
+    let receiver = call.receiver()?;
+    let UnitCallReceiverOrigin::Expression(operand) = receiver.origin() else {
+        return None;
+    };
+    let UnitTypeKind::Builtin(builtin) = *typed.types().get(concrete_receiver?)? else {
+        return None;
+    };
+    (call.is_display_requirement()
+        && !receiver.is_qualified_super()
+        && receiver.mode() == ParameterMode::Borrow
+        && call.arguments().is_empty()
+        && call.instance().type_arguments().is_empty()
+        && call.result_source() == CallableResultSource::Owned
+        && typed.types().get(call.return_type())
+            == Some(&UnitTypeKind::Builtin(BuiltinType::String))
+        && (matches!(
+            builtin,
+            BuiltinType::String | BuiltinType::Boolean | BuiltinType::Char
+        ) || is_integer_builtin(builtin)
+            || is_float_builtin(builtin)))
+    .then_some((operand, builtin))
+}
+
 pub(in crate::ssa) mod callable_instances {
     //! Plan-local source identities refer to earlier records rather than recursively enclosing keys.
 
@@ -205,12 +251,94 @@ pub(in crate::ssa) mod callable_instances {
 }
 
 use lang_frontend::{
-    ast::ExpressionId,
+    ast::{ExpressionId, StatementId},
     name_resolution::{SourceUnitInput, ValidatedCompilationUnitNames},
-    parser::{Expression, IntegerLiteralKind, LiteralKind, NameMarker, ParsedFile},
+    ownership_checking::UnitLoweringFacts,
+    parser::{
+        Expression, IntegerLiteralKind, LiteralKind, NameMarker, ParsedFile, WhenCondition,
+        WhenEntry,
+    },
     source::Span,
-    type_checking::{CompilationUnitTypes, UnitCallReceiverOrigin, UnitExpressionId},
+    type_checking::{
+        BuiltinType, CompilationUnitTypes, ParameterMode, UnitCallDescriptor,
+        UnitCallReceiverOrigin, UnitCallTarget, UnitExpressionId, UnitTypeId, UnitTypeKind,
+    },
 };
+
+type BooleanWhenArms = ((StatementId, usize), (StatementId, usize));
+
+/// The two distinct outcomes supported by ordinary Boolean when lowering.
+pub(in crate::ssa) fn boolean_literal_when_arms(
+    parsed: &ParsedFile,
+    entries: &[WhenEntry],
+) -> Result<Option<BooleanWhenArms>, Span> {
+    let mut when_true = None;
+    let mut when_false = None;
+    for (index, entry) in entries.iter().enumerate() {
+        if entry.else_span.is_some() {
+            let arm = (entry.body, index);
+            when_true.get_or_insert(arm);
+            when_false.get_or_insert(arm);
+            break;
+        }
+        for condition in &entry.conditions {
+            let WhenCondition::Expression(condition) = condition else {
+                return Ok(None);
+            };
+            let node = parsed
+                .ast()
+                .expressions()
+                .get(*condition)
+                .map_err(|_| entry.span)?;
+            match node.payload() {
+                Expression::Literal(LiteralKind::Boolean(true)) => {
+                    when_true.get_or_insert((entry.body, index));
+                }
+                Expression::Literal(LiteralKind::Boolean(false)) => {
+                    when_false.get_or_insert((entry.body, index));
+                }
+                _ => return Ok(None),
+            }
+        }
+    }
+    match (when_true, when_false) {
+        (Some(t), Some(f)) if t != f => Ok(Some((t, f))),
+        _ => Ok(None),
+    }
+}
+
+/// Heap layouts supported by the ordinary nullable When lowering.
+pub(in crate::ssa) fn ordinary_nullable_when_heap_types(
+    typed: &CompilationUnitTypes,
+    nullable: UnitTypeId,
+    inner: UnitTypeId,
+) -> bool {
+    use lang_frontend::type_checking::Copyability;
+
+    nullable_heap_owner_payload(typed, inner)
+        && typed.copyability(nullable) == Copyability::MoveOnly
+        && typed.copyability(inner) == Copyability::MoveOnly
+}
+
+pub(in crate::ssa) fn nullable_heap_owner_payload(
+    typed: &CompilationUnitTypes,
+    inner: UnitTypeId,
+) -> bool {
+    use lang_frontend::type_checking::{IntrinsicTypeConstructor, NominalKind};
+
+    match typed.types().get(inner) {
+        Some(UnitTypeKind::Nominal { declaration, .. }) => typed
+            .signatures()
+            .declaration(*declaration)
+            .and_then(|signature| signature.nominal())
+            .is_some_and(|nominal| nominal.kind() == NominalKind::Class),
+        Some(UnitTypeKind::Intrinsic { constructor, .. }) => matches!(
+            constructor,
+            IntrinsicTypeConstructor::Box | IntrinsicTypeConstructor::Rc
+        ),
+        _ => false,
+    }
+}
 
 pub(in crate::ssa) mod string_literal {
     //! 编译器封闭 effect 使用的静态 String literal 解码。
@@ -252,7 +380,7 @@ pub(in crate::ssa) mod string_literal {
         }
     }
 
-    fn decode_text(
+    pub(in crate::ssa) fn decode_text(
         source_text: &str,
         span: Span,
         output: &mut Vec<u8>,
@@ -337,6 +465,77 @@ pub(in crate::ssa) const fn span_key(span: Span) -> (usize, usize) {
     (span.start(), span.end())
 }
 
+pub(in crate::ssa) const fn is_float_builtin(
+    ty: lang_frontend::type_checking::BuiltinType,
+) -> bool {
+    use lang_frontend::type_checking::BuiltinType;
+    matches!(ty, BuiltinType::Float | BuiltinType::Double)
+}
+
+pub(in crate::ssa) fn is_nullable_string(typed: &CompilationUnitTypes, ty: UnitTypeId) -> bool {
+    matches!(typed.types().get(ty), Some(UnitTypeKind::Nullable(inner))
+        if matches!(typed.types().get(*inner), Some(UnitTypeKind::Builtin(BuiltinType::String))))
+}
+
+/// For a mixed nullable string/null-only comparison, identify the string operand.
+pub(in crate::ssa) fn nullable_string_presence_on_left(
+    typed: &CompilationUnitTypes,
+    left: UnitTypeId,
+    right: UnitTypeId,
+) -> Option<bool> {
+    if is_nullable_string(typed, left) && is_null_only(typed, right) {
+        Some(true)
+    } else if is_null_only(typed, left) && is_nullable_string(typed, right) {
+        Some(false)
+    } else {
+        None
+    }
+}
+
+/// Common equality storage for same-width nullable floats and null-only pairs.
+pub(in crate::ssa) fn nullable_equality_storage(
+    typed: &CompilationUnitTypes,
+    left: UnitTypeId,
+    right: UnitTypeId,
+) -> Option<UnitTypeId> {
+    if left == right && is_null_only(typed, left) {
+        return Some(left);
+    }
+    for (nullable, other) in [(left, right), (right, left)] {
+        if let Some(UnitTypeKind::Nullable(inner)) = typed.types().get(nullable)
+            && matches!(typed.types().get(*inner), Some(UnitTypeKind::Builtin(b)) if is_float_builtin(*b))
+            && (other == nullable
+                || other == *inner
+                || is_null_only(typed, other)
+                || (nullable == left
+                    && matches!(
+                        typed.types().get(right),
+                        Some(UnitTypeKind::Builtin(BuiltinType::Nothing))
+                    )))
+        {
+            return Some(nullable);
+        }
+    }
+    None
+}
+
+pub(in crate::ssa) fn is_null_only(typed: &CompilationUnitTypes, ty: UnitTypeId) -> bool {
+    matches!(typed.types().get(ty), Some(UnitTypeKind::Nullable(inner))
+        if matches!(typed.types().get(*inner), Some(UnitTypeKind::Builtin(BuiltinType::Nothing))))
+}
+
+pub(in crate::ssa) fn parse_char_literal(
+    sources: &lang_frontend::source::SourceMap,
+    span: Span,
+) -> Result<u32, LoweringError> {
+    let text = sources
+        .slice(span)
+        .map_err(|_| error(LoweringErrorKind::MismatchedSource, span))?;
+    lang_frontend::type_checking::decode_char_literal(text)
+        .map(u32::from)
+        .ok_or_else(|| error(LoweringErrorKind::InvalidLiteral, span))
+}
+
 pub(in crate::ssa) fn parse_integer_literal_text(
     text: &str,
     kind: IntegerLiteralKind,
@@ -391,4 +590,21 @@ pub(in crate::ssa) fn non_completing_call_receiver(
         return None;
     };
     (typed.expression_falls_through(receiver) == Some(false)).then_some(receiver)
+}
+
+/// An exact Unit value still runs its effects in a source declaration call
+/// prefix. No argument slot is needed when the call cannot dispatch.
+pub(in crate::ssa) fn unit_argument_in_nondispatching_call(
+    typed: &CompilationUnitTypes,
+    owned: &dyn UnitLoweringFacts,
+    call: &UnitCallDescriptor,
+    mode: ParameterMode,
+    parameter: UnitTypeId,
+    argument: Option<UnitTypeId>,
+) -> bool {
+    mode == ParameterMode::Value
+        && argument == Some(parameter)
+        && typed.types().get(parameter) == Some(&UnitTypeKind::Builtin(BuiltinType::Unit))
+        && matches!(call.target(), UnitCallTarget::Declaration(_))
+        && owned.call_may_dispatch(call.expression()) == Some(false)
 }

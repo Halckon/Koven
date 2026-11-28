@@ -123,12 +123,15 @@ def summarize_baseline_evolution(expectations: dict[str, Any]) -> dict[str, list
         "upgraded_to_compile_fail": [],
         "baseline_compile_fail_preserved": [],
         "remaining_known_unimplemented": [],
+        "post_baseline_added": [],
         "regressed_from_baseline_ok": [],
     }
     for name, spec in sorted(expectations["probes"].items()):
         bm = spec.get("baseline_marker", "")
         kind = spec["kind"]
-        if bm == "OK" and kind == "run_ok":
+        if bm == "POST_BASELINE":
+            buckets["post_baseline_added"].append(name)
+        elif bm == "OK" and kind == "run_ok":
             buckets["baseline_ok_preserved"].append(name)
         elif bm == "OK" and kind != "run_ok":
             buckets["regressed_from_baseline_ok"].append(name)
@@ -181,6 +184,7 @@ def summarize_oracle_origins(expectations: dict[str, Any]) -> dict[str, dict[str
         "v046_spec_contract",
         "baseline_diagnostic_audited",
         "baseline_unimplemented_audited",
+        "post_baseline_audited",
         "expected_txt_file",
     )
     summary: dict[str, dict[str, Any]] = {
@@ -751,7 +755,8 @@ def summarize_unimplemented_promotion_contracts(
 
 
 COMPILER_PHASE_CATALOG: dict[int, tuple[str, str]] = {
-    2: ("Phase 2 前端类型与解析", "名称解析、类型检查、运算符/协议约束与最终类型准入 (`crates/lang-frontend/src/type_checking`)"),
+    1: ("Phase 1 词法与语法解析", "Lexer 词法扫描、Parser AST 构建与恢复契约 (`crates/lang-frontend/src/{lexer,parser}`)"),
+    2: ("Phase 2 前端名称与类型", "名称解析、类型检查、运算符/协议约束与最终类型准入 (`crates/lang-frontend/src/type_checking`)"),
     3: ("Phase 3 所有权与析构", "借用冲突、部分移动、生命周期证明与逆序 `deinit` 调度 (`crates/lang-frontend/src/ownership`)"),
     4: ("Phase 4 SSA / LLVM / Runtime", "SSA 构建、所有权校验、LLVM IR 生成、原生链接与 `abort` 合同 (`crates/lang-codegen`)"),
     5: ("Phase 5 标准库与并发", "内建容器、文本/数值协议、`Box`/`Rc` 与原生线程运行时 (`crates/lang-std`)"),
@@ -762,7 +767,7 @@ def summarize_compiler_phase_matrix(
     expectations: dict[str, Any],
     roadmap_items: dict[str, dict[str, Any]] | None = None,
 ) -> dict[int, dict[str, Any]]:
-    """Summarize active negative diagnostics/aborts and remaining roadmap blockers across compiler Phases 2..5."""
+    """Summarize active negative diagnostics/aborts and remaining roadmap blockers across compiler Phases 1..5."""
     if roadmap_items is None:
         v1_json_path = Path(__file__).resolve().parents[1] / "docs" / "roadmap" / "v1.json"
         if v1_json_path.is_file():
@@ -771,7 +776,7 @@ def summarize_compiler_phase_matrix(
         else:
             roadmap_items = {}
 
-    phase_3_diags = {"L0132", "L0133", "L0135", "L0164"}
+    phase_3_diags = {"L0132", "L0133", "L0135", "L0138", "L0164"}
     phases_out: dict[int, dict[str, Any]] = {
         ph: {
             "phase": ph,
@@ -790,7 +795,12 @@ def summarize_compiler_phase_matrix(
         kind = spec["kind"]
         if kind == "compile_fail":
             codes = spec.get("all_diagnostics", [spec["diagnostic"]])
-            target_ph = 3 if any(c in phase_3_diags for c in codes) else 2
+            if any(int(c[1:]) < 80 for c in codes):
+                target_ph = 1
+            elif any(c in phase_3_diags for c in codes):
+                target_ph = 3
+            else:
+                target_ph = 2
             phases_out[target_ph]["active_negative_probes"].append(name)
             for c in codes:
                 tag = f"FE:{c}"

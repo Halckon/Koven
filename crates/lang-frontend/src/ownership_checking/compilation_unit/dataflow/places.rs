@@ -297,6 +297,11 @@ impl Checker<'_> {
         &self,
         expression: ExpressionId,
     ) -> Result<Option<UnitExpressionId>, OwnershipCheckingError> {
+        if let Expression::Group { expression } =
+            self.parsed.ast().expressions().get(expression)?.payload()
+        {
+            return self.temporary_projection_owner(*expression);
+        }
         if let Some(owner) = self.temporary_rc_payload_owner(expression)? {
             return Ok(Some(owner));
         }
