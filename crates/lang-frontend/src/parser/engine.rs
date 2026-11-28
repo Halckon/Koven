@@ -4,6 +4,10 @@ mod block;
 #[cfg(kani)]
 mod block_kani;
 mod borrow_result;
+#[cfg(kani)]
+mod borrow_result_kani;
+#[cfg(test)]
+mod borrow_result_tests;
 mod boundary;
 mod class;
 mod core;

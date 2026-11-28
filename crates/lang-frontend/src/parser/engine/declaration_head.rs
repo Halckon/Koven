@@ -1,15 +1,35 @@
 //! 具名函数头部；扩展 receiver 复用正式 TypeRef，不创建第二套类型语法。
 use super::*;
 
+#[inline]
+pub(super) const fn is_extension_receiver_follow_kind(kind: LexemeKind) -> bool {
+    matches!(
+        kind,
+        LexemeKind::Token(TokenKind::Symbol(
+            Symbol::Dot | Symbol::Less | Symbol::Question
+        ))
+    )
+}
+
+#[cfg(any(test, kani))]
+#[inline]
+pub(super) const fn is_extension_receiver_head_kind(
+    current_is_identifier: bool,
+    next1: LexemeKind,
+) -> bool {
+    current_is_identifier && is_extension_receiver_follow_kind(next1)
+}
+
 impl Parser<'_> {
     pub(super) fn parse_function_head(
         &mut self,
         stops: Stops,
     ) -> Result<(NameMarker, Option<ExtensionReceiverSyntax>), ParserInternalError> {
         let extension = self.current_is_identifier()
-            && (self.peek_is_symbol(1, Symbol::Dot)
-                || self.peek_is_symbol(1, Symbol::Less)
-                || self.peek_is_symbol(1, Symbol::Question));
+            && self
+                .peek(1)
+                .map(Lexeme::kind)
+                .is_some_and(is_extension_receiver_follow_kind);
         if !extension {
             let name = self.parse_name_marker(
                 codes::EXPECTED_DECLARATION_NAME,
