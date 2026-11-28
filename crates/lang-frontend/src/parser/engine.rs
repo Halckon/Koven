@@ -11,6 +11,10 @@ mod borrow_result_tests;
 mod boundary;
 mod class;
 mod core;
+#[cfg(kani)]
+mod core_kani;
+#[cfg(test)]
+mod core_tests;
 mod declaration;
 mod declaration_head;
 #[cfg(kani)]
