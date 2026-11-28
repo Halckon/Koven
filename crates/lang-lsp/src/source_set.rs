@@ -135,6 +135,20 @@ impl SourceSetConfig {
     pub(crate) fn sources(&self) -> &[BaseSource] {
         &self.sources
     }
+
+    /// 更新指定 URI 对应的 base 源码文本（供 `didSave` / `didChangeWatchedFiles` 同步磁盘状态）。
+    pub(crate) fn update_base_text(&mut self, uri: &Uri, text: String) -> bool {
+        if let Some(source) = self
+            .sources
+            .iter_mut()
+            .find(|s| s.uri.as_str() == uri.as_str())
+        {
+            source.text = text;
+            true
+        } else {
+            false
+        }
+    }
 }
 
 /// source-set 中一份不可变 base source。

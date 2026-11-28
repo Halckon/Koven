@@ -3,13 +3,16 @@
 use lang_frontend::{name_resolution::SourceUnitId, source::SourceId};
 use lsp_types::{
     CodeActionParams, CodeActionResponse, DocumentHighlight, DocumentHighlightParams, FoldingRange,
-    FoldingRangeParams, GotoDefinitionResponse, SemanticTokensParams, SemanticTokensResult, Uri,
-    request::GotoTypeDefinitionParams,
+    FoldingRangeParams, GotoDefinitionResponse, SemanticTokensDeltaParams,
+    SemanticTokensFullDeltaResult, SemanticTokensParams, SemanticTokensResult, Uri,
+    request::{GotoImplementationParams, GotoTypeDefinitionParams},
 };
 
 use super::{OpenDocument, RequestError, SessionState, map_position_error};
 use crate::{
-    code_actions, navigation_extras, position_adapter::byte_offset, semantic_tokens,
+    code_actions, navigation_extras,
+    position_adapter::byte_offset,
+    semantic_tokens::{self, SemanticTokenCache},
     unit_analysis_snapshot::UnitAnalysisSnapshot,
 };
 
@@ -77,6 +80,7 @@ fn resolve_doc_context<'a>(
 pub(super) fn semantic_tokens_full_response(
     params: serde_json::Value,
     state: &SessionState,
+    token_cache: &mut SemanticTokenCache,
 ) -> Result<Option<SemanticTokensResult>, RequestError> {
     let params: SemanticTokensParams = serde_json::from_value(params)
         .map_err(|error| RequestError::InvalidParams(error.to_string()))?;
@@ -86,7 +90,61 @@ pub(super) fn semantic_tokens_full_response(
     let tokens =
         semantic_tokens::semantic_tokens_full(ctx.snapshot, ctx.source_unit, ctx.source_id)
             .map_err(map_position_error)?;
-    Ok(Some(SemanticTokensResult::Tokens(tokens)))
+    let stored = token_cache.store_full(params.text_document.uri.as_str(), tokens);
+    Ok(Some(SemanticTokensResult::Tokens(stored)))
+}
+
+pub(super) fn semantic_tokens_full_delta_response(
+    params: serde_json::Value,
+    state: &SessionState,
+    token_cache: &mut SemanticTokenCache,
+) -> Result<Option<SemanticTokensFullDeltaResult>, RequestError> {
+    let params: SemanticTokensDeltaParams = serde_json::from_value(params)
+        .map_err(|error| RequestError::InvalidParams(error.to_string()))?;
+    let Some(ctx) = resolve_doc_context(state, &params.text_document.uri)? else {
+        return Ok(None);
+    };
+    let tokens =
+        semantic_tokens::semantic_tokens_full(ctx.snapshot, ctx.source_unit, ctx.source_id)
+            .map_err(map_position_error)?;
+    Ok(Some(token_cache.compute_delta(
+        params.text_document.uri.as_str(),
+        &params.previous_result_id,
+        tokens,
+    )))
+}
+
+pub(super) fn implementation_response(
+    params: serde_json::Value,
+    state: &SessionState,
+) -> Result<Option<GotoDefinitionResponse>, RequestError> {
+    let params: GotoImplementationParams = serde_json::from_value(params)
+        .map_err(|error| RequestError::InvalidParams(error.to_string()))?;
+    let pos = params.text_document_position_params;
+    let uri = &pos.text_document.uri;
+    let Some(ctx) = resolve_doc_context(state, uri)? else {
+        return Ok(None);
+    };
+    let sources = ctx.snapshot.name_snapshot().sources();
+    let Some(offset) =
+        byte_offset(sources, ctx.source_id, pos.position).map_err(map_position_error)?
+    else {
+        return Ok(None);
+    };
+    match state {
+        SessionState::Unit { session, .. } if session.contains_uri(uri) => {
+            navigation_extras::implementations(ctx.snapshot, ctx.source_unit, offset, |target_su| {
+                session.uri_for_source_unit(target_su)
+            })
+            .map_err(map_position_error)
+        }
+        _ => {
+            navigation_extras::implementations(ctx.snapshot, ctx.source_unit, offset, |target_su| {
+                (target_su == ctx.source_unit).then(|| uri.clone())
+            })
+            .map_err(map_position_error)
+        }
+    }
 }
 
 pub(super) fn document_highlight_response(

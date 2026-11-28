@@ -434,3 +434,158 @@ where
         uri, range,
     ))))
 }
+
+/// 查找光标处接口或接口方法的全部具体实现（`textDocument/implementation`）。
+pub(crate) fn implementations<F>(
+    snapshot: &UnitAnalysisSnapshot,
+    source_unit: SourceUnitId,
+    offset: usize,
+    uri_for_unit: F,
+) -> Result<Option<GotoDefinitionResponse>, PositionMappingError>
+where
+    F: Fn(SourceUnitId) -> Option<Uri>,
+{
+    let Some(typed) = snapshot.typed() else {
+        return Ok(None);
+    };
+    let names = snapshot.name_snapshot().names();
+    let sources = snapshot.name_snapshot().sources();
+    let Some((_, targets)) = snapshot.definitions().entry_at(source_unit, offset) else {
+        return Ok(None);
+    };
+    let Some(target) = targets.first().copied() else {
+        return Ok(None);
+    };
+
+    // Case 1: Cursor is on an `interface` declaration/reference -> find all concrete implementing types.
+    if let Some(iface_decl) = names.index().declarations().iter().find(|d| {
+        d.source_unit() == target.source_unit
+            && d.name_span() == target.span
+            && d.namespace() == Namespace::Type
+    }) && typed
+        .signatures()
+        .declaration(iface_decl.id())
+        .and_then(|s| s.nominal())
+        .is_some_and(|n| n.kind() == lang_frontend::type_checking::NominalKind::Interface)
+    {
+        let mut locations = Vec::new();
+        for decl in names.index().declarations() {
+            if decl.namespace() != Namespace::Type || decl.id() == iface_decl.id() {
+                continue;
+            }
+            let Some(nominal) = typed
+                .signatures()
+                .declaration(decl.id())
+                .and_then(|s| s.nominal())
+            else {
+                continue;
+            };
+            if nominal.kind() == lang_frontend::type_checking::NominalKind::Interface {
+                continue;
+            }
+            let implements = nominal.interfaces().iter().any(|&ty| {
+                matches!(
+                    typed.types().get(ty),
+                    Some(UnitTypeKind::Nominal { declaration, .. }) if *declaration == iface_decl.id()
+                )
+            });
+            if implements && let Some(uri) = uri_for_unit(decl.source_unit()) {
+                let range = span_range(sources, decl.name_span())?;
+                locations.push(Location::new(uri, range));
+            }
+        }
+        return finish_implementation_locations(locations);
+    }
+
+    // Case 2: Cursor is on an `interface` method -> find overriding methods in concrete implementors.
+    let mut iface_owner_and_method: Option<(
+        lang_frontend::name_resolution::DeclarationId,
+        String,
+    )> = None;
+    for decl in names.index().declarations() {
+        if decl.namespace() != Namespace::Type {
+            continue;
+        }
+        let Some(nominal) = typed
+            .signatures()
+            .declaration(decl.id())
+            .and_then(|s| s.nominal())
+        else {
+            continue;
+        };
+        if nominal.kind() != lang_frontend::type_checking::NominalKind::Interface {
+            continue;
+        }
+        if let Some(member) = nominal
+            .members()
+            .iter()
+            .find(|m| m.name_span() == target.span)
+        {
+            iface_owner_and_method = Some((decl.id(), member.name().to_owned()));
+            break;
+        }
+    }
+    if let Some((iface_id, method_name)) = iface_owner_and_method {
+        let mut locations = Vec::new();
+        for decl in names.index().declarations() {
+            if decl.namespace() != Namespace::Type || decl.id() == iface_id {
+                continue;
+            }
+            let Some(nominal) = typed
+                .signatures()
+                .declaration(decl.id())
+                .and_then(|s| s.nominal())
+            else {
+                continue;
+            };
+            if nominal.kind() == lang_frontend::type_checking::NominalKind::Interface {
+                continue;
+            }
+            let implements = nominal.interfaces().iter().any(|&ty| {
+                matches!(
+                    typed.types().get(ty),
+                    Some(UnitTypeKind::Nominal { declaration, .. }) if *declaration == iface_id
+                )
+            });
+            if !implements {
+                continue;
+            }
+            for member in nominal.members() {
+                if member.name() == method_name
+                    && let Some(uri) = uri_for_unit(decl.source_unit())
+                {
+                    let range = span_range(sources, member.name_span())?;
+                    locations.push(Location::new(uri, range));
+                }
+            }
+        }
+        return finish_implementation_locations(locations);
+    }
+
+    Ok(None)
+}
+
+fn finish_implementation_locations(
+    mut locations: Vec<Location>,
+) -> Result<Option<GotoDefinitionResponse>, PositionMappingError> {
+    if locations.is_empty() {
+        return Ok(None);
+    }
+    locations.sort_by(|a, b| {
+        (
+            a.uri.as_str(),
+            a.range.start.line,
+            a.range.start.character,
+            a.range.end.line,
+            a.range.end.character,
+        )
+            .cmp(&(
+                b.uri.as_str(),
+                b.range.start.line,
+                b.range.start.character,
+                b.range.end.line,
+                b.range.end.character,
+            ))
+    });
+    Ok(Some(GotoDefinitionResponse::Array(locations)))
+}

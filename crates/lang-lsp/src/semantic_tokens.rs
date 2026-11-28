@@ -13,7 +13,8 @@ use lang_frontend::{
     type_checking::{CompilationUnitTypes, NominalKind},
 };
 use lsp_types::{
-    SemanticToken, SemanticTokenModifier, SemanticTokenType, SemanticTokens, SemanticTokensLegend,
+    SemanticToken, SemanticTokenModifier, SemanticTokenType, SemanticTokens, SemanticTokensDelta,
+    SemanticTokensEdit, SemanticTokensFullDeltaResult, SemanticTokensLegend,
 };
 
 use crate::{
@@ -297,6 +298,83 @@ pub(crate) fn semantic_tokens_full(
         result_id: None,
         data,
     })
+}
+
+/// 按文档 URI 缓存最近一次 `SemanticTokens` 结果以支持 `textDocument/semanticTokens/full/delta`。
+#[derive(Default)]
+pub(crate) struct SemanticTokenCache {
+    next_id: u64,
+    by_uri: BTreeMap<String, (String, Vec<SemanticToken>)>,
+}
+
+impl SemanticTokenCache {
+    /// 登记一次完整语义高亮并返回带单调 `result_id` 的 `SemanticTokens`。
+    pub(crate) fn store_full(&mut self, uri: &str, mut tokens: SemanticTokens) -> SemanticTokens {
+        self.next_id += 1;
+        let id = self.next_id.to_string();
+        tokens.result_id = Some(id.clone());
+        self.by_uri
+            .insert(uri.to_owned(), (id, tokens.data.clone()));
+        tokens
+    }
+
+    /// 计算与 `previous_result_id` 之间的最小增量 `SemanticTokensDelta`；缓存未命中时回退完整 `Tokens`。
+    pub(crate) fn compute_delta(
+        &mut self,
+        uri: &str,
+        previous_result_id: &str,
+        new_tokens: SemanticTokens,
+    ) -> SemanticTokensFullDeltaResult {
+        let prev = self
+            .by_uri
+            .get(uri)
+            .filter(|(id, _)| id == previous_result_id)
+            .map(|(_, data)| data.clone());
+        let stored = self.store_full(uri, new_tokens);
+        let Some(prev_data) = prev else {
+            return SemanticTokensFullDeltaResult::Tokens(stored);
+        };
+        let edits = diff_semantic_tokens(&prev_data, &stored.data);
+        SemanticTokensFullDeltaResult::TokensDelta(SemanticTokensDelta {
+            result_id: stored.result_id,
+            edits,
+        })
+    }
+
+    /// 文档关闭或移除时清理对应缓存。
+    pub(crate) fn remove(&mut self, uri: &str) {
+        self.by_uri.remove(uri);
+    }
+}
+
+/// 计算前后两版 `SemanticToken` 序列的最小单一连续区间编辑（以 u32 槽位计数，每个 token 占 5 个 u32）。
+pub(crate) fn diff_semantic_tokens(
+    prev: &[SemanticToken],
+    next: &[SemanticToken],
+) -> Vec<SemanticTokensEdit> {
+    if prev == next {
+        return Vec::new();
+    }
+    let prefix = prev
+        .iter()
+        .zip(next.iter())
+        .take_while(|(a, b)| a == b)
+        .count();
+    let max_suffix = (prev.len() - prefix).min(next.len() - prefix);
+    let suffix = prev[prefix..]
+        .iter()
+        .rev()
+        .zip(next[prefix..].iter().rev())
+        .take(max_suffix)
+        .take_while(|(a, b)| a == b)
+        .count();
+    let delete_tokens = prev.len() - prefix - suffix;
+    let insert_slice = &next[prefix..next.len() - suffix];
+    vec![SemanticTokensEdit {
+        start: (prefix * 5) as u32,
+        delete_count: (delete_tokens * 5) as u32,
+        data: (!insert_slice.is_empty()).then(|| insert_slice.to_vec()),
+    }]
 }
 
 fn target_key(su: SourceUnitId, span: Span) -> TargetKey {

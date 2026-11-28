@@ -1,6 +1,7 @@
 //! source-set base/overlay 生命周期与原子 compilation-unit diagnostic snapshot。
 
 mod errors;
+mod hot_reload;
 
 use std::collections::BTreeMap;
 
@@ -14,14 +15,13 @@ use lang_frontend::{
     type_checking::{check_compilation_unit_types, standard_environments},
 };
 use lsp_types::{
-    CompletionItem, DocumentSymbol, Hover, InlayHint, Location, Position, PrepareRenameResponse,
-    Range, SignatureHelp, SymbolInformation, Uri, WorkspaceEdit,
+    DocumentSymbol, Hover, InlayHint, Location, Position, PrepareRenameResponse, Range,
+    SignatureHelp, SymbolInformation, Uri, WorkspaceEdit,
 };
 
 pub(crate) use self::errors::{UnitDefinitionQueryError, UnitSessionError};
 
 use crate::{
-    completion,
     definition::UnitDefinitionTarget,
     diagnostic_adapter::convert_unit_diagnostics_with_context,
     ide_features,
@@ -63,6 +63,7 @@ struct Overlay {
 
 /// 一次 source-set 事件完整构造、尚未提交的状态。
 pub(crate) struct UnitUpdate {
+    config: Option<SourceSetConfig>,
     overlays: BTreeMap<String, Overlay>,
     snapshot: UnitSnapshot,
     publications: Vec<UnitPublication>,
@@ -194,8 +195,16 @@ impl UnitSession {
 
     /// 在全部 publication 成功发送后提交候选状态。
     pub(crate) fn commit(&mut self, update: UnitUpdate) {
+        if let Some(config) = update.config {
+            self.config = config;
+        }
         self.overlays = update.overlays;
         self.snapshot = update.snapshot;
+    }
+
+    /// 返回当前已打开 overlay 的源码文本（供增量 `didChange` 拼接）。
+    pub(crate) fn overlay_text(&self, uri: &Uri) -> Option<&str> {
+        self.overlays.get(uri.as_str()).map(|o| o.text.as_str())
     }
 
     /// 查询当前 last-good snapshot 中的跨文件 definition locations。
@@ -263,15 +272,6 @@ impl UnitSession {
             new_name,
             supports_document_changes,
         )
-    }
-
-    /// 查询当前 last-good snapshot 中的补全候选。
-    pub(crate) fn completions(
-        &self,
-        uri: &Uri,
-        position: Position,
-    ) -> Result<Vec<CompletionItem>, UnitDefinitionQueryError> {
-        self.snapshot.completions(&self.config, uri, position)
     }
 
     /// 查询当前 last-good snapshot 中的签名帮助。
@@ -395,6 +395,7 @@ impl UnitSession {
         let publications =
             snapshot.publications_with_options(&self.config, &overlays, self.enrich_diagnostics)?;
         Ok(UnitUpdate {
+            config: None,
             overlays,
             snapshot,
             publications,
@@ -841,25 +842,6 @@ impl UnitSnapshot {
             edits_by_doc,
             new_name,
             supports_document_changes,
-        ))
-    }
-
-    fn completions(
-        &self,
-        config: &SourceSetConfig,
-        uri: &Uri,
-        position: Position,
-    ) -> Result<Vec<CompletionItem>, UnitDefinitionQueryError> {
-        let Some((source_id, source_unit, offset)) =
-            self.resolve_source_and_offset(config, uri, position)?
-        else {
-            return Ok(Vec::new());
-        };
-        Ok(completion::completions_at(
-            &self.analysis,
-            source_unit,
-            source_id,
-            offset,
         ))
     }
 
