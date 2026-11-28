@@ -1,0 +1,6 @@
+name = "f6_destructuring"
+version = "0.1.0"
+defaultTargets = ["F6Destructuring"]
+
+[[lean_lib]]
+name = "F6Destructuring"

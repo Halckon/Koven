@@ -1,16 +1,16 @@
 # SPEC-0514：F6 第十四片 `block` 块语句分隔符、换行边界、显式 `block {` 与缺失块根扫描双轨证明
 
-> **性质**：交付合同 · **状态**：in-progress · **读取时机**：实施或验收 F6 第十四片局部机器证明与双轨 CI 时 · **唯一真源**：本页验收账本
+> **性质**：交付合同 · **状态**：done（历史归档） · **读取时机**：实施或验收 F6 第十四片局部机器证明与双轨 CI 时 · **唯一真源**：本页验收账本
 
 | 字段 | 值 |
 |---|---|
-| 状态 | in-progress |
+| 状态 | done |
 | 所属 Phase | Phase 1 局部形式化验证（F6 延伸） |
 | 语言规范 | [Guide v0.47](../../guide/README.md) |
-| 基线 | `main@36012f86` |
+| 基线 | `main@36012f86`（随 PR #491 验收合入 `main@f2ea2feb`） |
 | 分支 | `feature/spec-0514-f6-block-boundary` |
 
-本 Spec 承接 [F6 局部机器证明前置设计](../../proposals/parser-formal-verification/f6-machine-proof-design.md) 与 [SPEC-0513](../../archive/specs/0513-f6-supertypes-boundary-machine-proof.md)，
+本 Spec 承接 [F6 局部机器证明前置设计](../../proposals/parser-formal-verification/f6-machine-proof-design.md) 与 [SPEC-0513](0513-f6-supertypes-boundary-machine-proof.md)，
 对 [block.rs](../../../crates/lang-frontend/src/parser/engine/block.rs) 中块不支持元素识别、块表达式换行续行边界、显式 `block {` 起始守卫、同行语句分隔符要求（含 `while`/`for` 豁免）及缺失块根尾部扫描内核交付 **Lean 4（无界状态与任意长度词法流模型定理）+ Kani（零堆分配生产 Rust 符号检验）** 双轨证明，并接入 [.github/workflows/parser-formal-f6.yml](../../../.github/workflows/parser-formal-f6.yml)。
 生产解析行为与公开 Rust API 零变化，不引入 Cargo 生产依赖，不宣称全输入生产 G4。
 
@@ -40,4 +40,4 @@
 
 - [x] `F6BlockBoundary.lean` 零告警构建与 7 条定理核心公理白名单本机通过（仅依赖 `propext`）
 - [x] `verify_block_unsupported_line_break_and_explicit_start`、`verify_block_element_separator_required_matrix` 与 `verify_missing_block_root_end_run_len_6` 本机 Kani 0.68.0 实跑通过（3/3 harnesses, 0 failures），`block`（5/5）/ `separator_tests`（13/13）单测、`cargo fmt --check` 与 `cargo clippy --all-targets` 通过
-- [ ] 接入 `parser-formal-f6.yml`（14 片 / 95 定理 / 35 harness），待 PR 远端主 CI 与 F6 双轨作业实跑验收后归档
+- [x] 接入 `parser-formal-f6.yml`（14 片 / 95 定理 / 35 harness）并经 PR #491 远端主 CI 与 F6 双轨作业验收合入 `main@f2ea2feb`

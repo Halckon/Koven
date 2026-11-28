@@ -1,5 +1,6 @@
 # 完成 Specs
 
+- [SPEC-0514](0514-f6-block-boundary-machine-proof.md)：F6 第十四片 `block` 块语句分隔符、换行边界、显式 `block {` 与缺失块根扫描双轨证明，经 PR #491 验收合入 `main@f2ea2feb` 并归档（14 片 / 95 条 Lean 定理 / 35 个 Kani harness）。
 - [SPEC-0513](0513-f6-supertypes-boundary-machine-proof.md)：F6 第十三片 `supertypes` 委托边界、`deinit` 后缀决策与 Lambda 尾扫描双轨证明，经 PR #490 验收合入 `main@36012f86` 并归档（13 片 / 88 条 Lean 定理 / 32 个 Kani harness）。
 - [SPEC-0512](0512-f6-when-boundary-machine-proof.md)：F6 第十二片 `WhenEntryBody` / `SelectorScanState` 换行新选择器与 `if`/`else` 平衡双轨证明，随 PR #486 归档（合并树 12 片 / 82 条 Lean 定理 / 29 个 Kani harness）。
 - [SPEC-0510](0510-f6-lexical-owner-events-machine-proof.md)：F6 第十一片词法 owner 栈与 `verified_events` 构造，按 PR #483 的 [F6 双轨作业](https://github.com/Halckon/Koven/actions/runs/45922470309) 验收归档。
@@ -52,7 +53,7 @@
 
 > **性质**：历史验收索引 · **状态**：frozen · **读取时机**：按 SPEC ID 追溯已完成 Goal 时 · **唯一真源**：各 Spec 正文
 
-本目录共 481 份 `done`/`superseded` Spec。它们不是当前工作队列。
+本目录共 482 份 `done`/`superseded` Spec。它们不是当前工作队列。
 
 全量依赖拓扑（含 active/draft 与本目录全部 Spec）见生成物
 [dependency-graph-full.md](dependency-graph-full.md) / [dependency-graph-full.svg](dependency-graph-full.svg)，
