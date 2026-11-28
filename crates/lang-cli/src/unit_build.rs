@@ -7,7 +7,10 @@ use lang_codegen::{
     emit_native_owned_unit_object,
 };
 use lang_frontend::{
-    analysis::{UnitNameAnalysisError, UnitNameSnapshot, analyze_basic_unit_ownership},
+    analysis::{
+        UnitNameAnalysisError, UnitNameSnapshot, analyze_basic_unit_ownership,
+        complete_unit_display_types,
+    },
     ast::AstError,
     diagnostic::Diagnostic,
     lexer::LexerInternalError,
@@ -233,6 +236,28 @@ pub(crate) fn check_unit_frontend<'a>(
     };
     let typed = check_compilation_unit_types(sources, &inputs, names, type_environment)
         .map_err(UnitBuildError::Type)?;
+    let checked = check_typed_unit(snapshot, names, type_environment, typed)?;
+    let (typed, owned) = match &checked.products {
+        CheckedProducts::Basic { typed, owned } => (typed.types(), owned.ownership()),
+        CheckedProducts::Constant { typed, owned } => (typed.types(), owned.ownership()),
+    };
+    if let Some(completed) =
+        complete_unit_display_types(sources, &inputs, names, type_environment, typed, owned)
+            .map_err(UnitBuildError::Type)?
+    {
+        return check_typed_unit(snapshot, names, type_environment, completed);
+    }
+    Ok(checked)
+}
+
+fn check_typed_unit<'a>(
+    snapshot: &'a UnitNameSnapshot,
+    names: &'a ValidatedCompilationUnitNames,
+    type_environment: &TypeEnvironment,
+    typed: lang_frontend::type_checking::CompilationUnitTypes,
+) -> Result<CheckedUnit<'a>, UnitBuildError> {
+    let sources = snapshot.sources();
+    let inputs = snapshot.inputs();
     if !typed.diagnostics().is_empty() {
         return Err(frontend_diagnostics(
             sources,
@@ -756,6 +781,7 @@ mod tests {
                     .collect::<Vec<_>>(),
                 [
                     "koven-std/koven/algorithms/ranges.ko",
+                    "koven-std/koven/core/display.ko",
                     "koven-std/koven/core/result.ko",
                     "koven-std/koven/text/text.ko",
                     "User.ko",

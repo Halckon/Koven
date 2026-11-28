@@ -7,8 +7,8 @@ use lang_frontend::{
     name_resolution::{DeclarationId, UnitSymbolId},
     source::Span,
     type_checking::{
-        CompilationUnitTypes, IntrinsicTypeConstructor, NominalKind, UnitCallableTarget,
-        UnitNominalSignature, UnitTypeId, UnitTypeKind,
+        CompilationUnitTypes, IntrinsicTypeConstructor, NominalKind, UnitCallDescriptor,
+        UnitCallableTarget, UnitNominalSignature, UnitTypeId, UnitTypeKind,
     },
 };
 
@@ -118,10 +118,35 @@ pub(crate) fn resolve_unit_call_instance(
         target,
         type_arguments,
         receiver,
+        ReceiverDispatch::Ordinary,
         span,
         &UnitRecipeRootFacts::new(),
         &mut Vec::new(),
     )
+}
+
+#[derive(Clone, Copy)]
+pub(super) enum ReceiverDispatch {
+    Ordinary,
+    ConcreteInterface,
+    QualifiedSuper,
+}
+
+impl ReceiverDispatch {
+    pub(super) fn at_call(typed: &CompilationUnitTypes, call: &UnitCallDescriptor) -> Self {
+        match call.receiver() {
+            Some(receiver) if receiver.is_qualified_super() => Self::QualifiedSuper,
+            Some(receiver)
+                if matches!(
+                    typed.types().get(receiver.ty()),
+                    Some(UnitTypeKind::TypeParameter(_) | UnitTypeKind::StaticSelf(_))
+                ) =>
+            {
+                Self::ConcreteInterface
+            }
+            _ => Self::Ordinary,
+        }
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -131,6 +156,7 @@ pub(super) fn resolve_unit_call_instance_with_recipe_failures(
     target: UnitCallableTarget,
     type_arguments: Vec<UnitTypeId>,
     receiver: Option<UnitTypeId>,
+    dispatch: ReceiverDispatch,
     span: Span,
     recipe_facts: &UnitRecipeRootFacts,
     recipe_failures: &mut Vec<UnitRecipeFailure>,
@@ -142,6 +168,7 @@ pub(super) fn resolve_unit_call_instance_with_recipe_failures(
                 target,
                 type_arguments.clone(),
                 receiver,
+                matches!(dispatch, ReceiverDispatch::ConcreteInterface),
                 span,
                 recipe_failures,
             )
@@ -151,6 +178,9 @@ pub(super) fn resolve_unit_call_instance_with_recipe_failures(
                 dependent_owner_types: key.1,
             })
         };
+    }
+    if matches!(dispatch, ReceiverDispatch::QualifiedSuper) {
+        return direct!();
     }
     let Some(receiver) = receiver else {
         return direct!();
@@ -336,6 +366,7 @@ pub(super) fn resolve_unit_call_instance_with_recipe_failures(
             implementation.target(),
             implementation_arguments,
             Some(delegate_receiver),
+            false,
             span,
             recipe_failures,
         )?;
@@ -403,12 +434,33 @@ fn resolve_direct_unit_call_instance(
     target: UnitCallableTarget,
     type_arguments: Vec<UnitTypeId>,
     receiver: Option<UnitTypeId>,
+    concrete_dispatch: bool,
     span: Span,
     recipe_failures: &mut Vec<UnitRecipeFailure>,
 ) -> Result<(UnitFunctionInstanceKey, BTreeSet<UnitTypeId>), LoweringError> {
     let callable = unit_callable_signature(typed, target)
         .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-    if callable.has_body() {
+    let receiver_nominal = receiver.and_then(|ty| match typed.types().get(ty) {
+        Some(UnitTypeKind::Nominal {
+            declaration,
+            arguments,
+        }) => Some((
+            *declaration,
+            arguments,
+            typed.signatures().declaration(*declaration)?.nominal()?,
+        )),
+        _ => None,
+    });
+    let dispatch = receiver_nominal.and_then(|(_, _, nominal)| {
+        nominal
+            .static_dispatch_overrides()
+            .iter()
+            .find(|dispatch| dispatch.requirement() == target)
+            .copied()
+    });
+    // An interface-bound or static Self call selects the override even when the requirement has a default body.
+    // An explicit `super` keeps the exact body chosen by the frontend.
+    if callable.has_body() && !(concrete_dispatch && dispatch.is_some()) {
         let failures_before = recipe_failures.len();
         preflight_direct_inherited_owner_recipes(
             typed,
@@ -434,24 +486,13 @@ fn resolve_direct_unit_call_instance(
     }
 
     let receiver = receiver.ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-    let Some(UnitTypeKind::Nominal {
-        declaration,
-        arguments: owner_arguments,
-    }) = typed.types().get(receiver)
-    else {
+    if concrete_dispatch && matches!(typed.types().get(receiver), Some(UnitTypeKind::Builtin(_))) {
+        return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+    }
+    let Some((declaration, owner_arguments, nominal)) = receiver_nominal else {
         return Err(lowering_error(LoweringErrorKind::MissingFact, span));
     };
-    let nominal = typed
-        .signatures()
-        .declaration(*declaration)
-        .and_then(|signature| signature.nominal())
-        .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
-    let dispatch = nominal
-        .static_dispatch_overrides()
-        .iter()
-        .find(|dispatch| dispatch.requirement() == target)
-        .copied()
-        .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+    let dispatch = dispatch.ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
     let implementation = dispatch.implementation();
     let implementation_callable = unit_callable_signature(typed, implementation)
         .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
@@ -469,7 +510,7 @@ fn resolve_direct_unit_call_instance(
     )?;
     let mut dependent_owner_types = BTreeSet::new();
     let (implementation_owner, implementation_owner_arguments) =
-        if implementation_declaration == *declaration {
+        if implementation_declaration == declaration {
             instantiate_dispatch_owner_arguments(
                 typed,
                 dispatch.implementation_owner(),

@@ -1,5 +1,6 @@
 //! Source-qualified unit expression drop planning in evaluation order.
 use super::*;
+use crate::type_checking::UnitInterpolationPart;
 
 impl<'a, 'checker> DropPlanner<'a, 'checker> {
     /// Keep the temporary handle through a field chain or its consuming shared call.
@@ -211,24 +212,38 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                 Ok(true)
             }
             Expression::String { parts } => {
-                for part in parts {
-                    if let StringPart::Interpolation { expression, .. } = part {
-                        if !self.expression(expression, DropExpressionUse::Read, state)? {
-                            state
-                                .pending_temporaries
-                                .retain(|pending| pending.control != id);
-                            return Ok(false);
-                        }
-                        if self.is_move_only_temporary(expression) {
-                            let origin = self
-                                .checker
-                                .parsed
-                                .ast()
-                                .expressions()
-                                .get(expression)?
-                                .span();
-                            self.register_pending_temporary(id, expression, origin, false, state)?;
-                        }
+                let plan = self
+                    .checker
+                    .typed
+                    .interpolation_plan(self.checker.unit_expression(id));
+                let planned = plan.into_iter().flatten().filter_map(|part| match part {
+                    UnitInterpolationPart::Format { operand, .. }
+                    | UnitInterpolationPart::Exit(operand) => Some(operand.expression()),
+                    UnitInterpolationPart::Text(_) => None,
+                });
+                // Unresolved operands still need the recovery walk and its ownership diagnostics.
+                let recovered = parts.into_iter().filter_map(|part| match part {
+                    StringPart::Interpolation { expression, .. } if plan.is_none() => {
+                        Some(expression)
+                    }
+                    _ => None,
+                });
+                for expression in planned.chain(recovered) {
+                    if !self.expression(expression, DropExpressionUse::Read, state)? {
+                        state
+                            .pending_temporaries
+                            .retain(|pending| pending.control != id);
+                        return Ok(false);
+                    }
+                    if self.is_move_only_temporary(expression) {
+                        let origin = self
+                            .checker
+                            .parsed
+                            .ast()
+                            .expressions()
+                            .get(expression)?
+                            .span();
+                        self.register_pending_temporary(id, expression, origin, false, state)?;
                     }
                 }
                 *owner_result = self.define_string_owner(id);
@@ -250,7 +265,17 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
             jump @ (Expression::Break { .. } | Expression::Continue { .. }) => self
                 .owner_loop_jump_expression(id, matches!(jump, Expression::Continue { .. }), state),
             Expression::NonNullAssert { operand, .. } => {
-                self.expression(operand, DropExpressionUse::Consume, state)
+                let completes = self
+                    .checker
+                    .typed
+                    .expression_falls_through(self.checker.unit_expression(id))
+                    != Some(false);
+                let usage = if completes {
+                    DropExpressionUse::Consume
+                } else {
+                    DropExpressionUse::Read
+                };
+                Ok(self.expression(operand, usage, state)? && completes)
             }
             Expression::Prefix { operand, .. }
             | Expression::Cast {
@@ -354,6 +379,11 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                     .checker
                     .contracts_by_call
                     .get(&self.checker.unit_expression(id));
+                let display_requirement = self
+                    .checker
+                    .typed
+                    .call(self.checker.unit_expression(id))
+                    .is_some_and(|call| call.is_display_requirement());
                 let function_value = self
                     .checker
                     .typed
@@ -412,6 +442,17 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                                             );
                                         }
                                     } else {
+                                        // Rc projections borrow their backing handle even without
+                                        // an ordinary place for the payload itself.
+                                        if display_requirement
+                                            && contract.kind()
+                                                == UnitCallArgumentOwnershipKind::SharedLoan
+                                            && let Some(backing) =
+                                                self.checker.loan_place(receiver)?
+                                            && state.position(backing.root()).is_some()
+                                        {
+                                            state.pending_borrows.push((id, backing.root()));
+                                        }
                                         if !self.expression(
                                             receiver,
                                             DropExpressionUse::Place,
@@ -419,15 +460,26 @@ impl<'a, 'checker> DropPlanner<'a, 'checker> {
                                         )? {
                                             return Ok(false);
                                         }
+                                        let origin = if display_requirement
+                                            && contract.kind()
+                                                == UnitCallArgumentOwnershipKind::SharedLoan
+                                        {
+                                            self.checker.temporary_projection_owner(receiver)?
+                                        } else {
+                                            None
+                                        };
                                         if contract.kind()
                                             == UnitCallArgumentOwnershipKind::SharedLoan
-                                            && let Some(temporary) = self
-                                                .checker
-                                                .temporary_expression_origin(receiver)?
-                                                .map(UnitExpressionId::expression)
-                                                .filter(|temporary| {
-                                                    self.is_move_only_temporary(*temporary)
-                                                })
+                                            && let Some(temporary) = match origin {
+                                                Some(origin) => Some(origin),
+                                                None => self
+                                                    .checker
+                                                    .temporary_expression_origin(receiver)?,
+                                            }
+                                            .map(UnitExpressionId::expression)
+                                            .filter(|temporary| {
+                                                self.is_move_only_temporary(*temporary)
+                                            })
                                         {
                                             let origin = self
                                                 .checker

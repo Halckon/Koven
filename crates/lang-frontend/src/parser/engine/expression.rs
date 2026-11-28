@@ -22,7 +22,10 @@ impl Parser<'_> {
 
         loop {
             let current = self.current()?;
-            if stops.contains(current) || self.at_block_expression_line_break(left, stops)? {
+            if stops.contains(current)
+                || self.at_when_operand_boundary(stops)?
+                || self.at_block_expression_line_break(left, stops)?
+            {
                 break;
             }
             if stops.when_entry_body.is_some()
@@ -102,10 +105,21 @@ impl Parser<'_> {
         &mut self,
         stops: Stops,
     ) -> Result<ExpressionId, ParserInternalError> {
+        if self.at_when_operand_boundary(stops)? {
+            return self.recover_missing_when_prefix();
+        }
         self.enter_recursion()?;
         let result = self.parse_prefix_inner(stops);
         self.recursion_depth -= 1;
         result
+    }
+
+    fn recover_missing_when_prefix(&mut self) -> Result<ExpressionId, ParserInternalError> {
+        let at = self.empty_at(self.current()?.span().start())?;
+        self.emit(codes::EXPECTED_EXPRESSION, "expected expression", at)?;
+        // The missing operand contributes no bytes to the preceding arm.
+        let end = self.empty_at(self.previous_significant_end())?;
+        self.add_expression(end, Expression::Error)
     }
 
     pub(super) fn parse_prefix_inner(
@@ -267,7 +281,10 @@ impl Parser<'_> {
         let keyword_span = self.bump()?.span();
         let condition = self.parse_parenthesized_condition(keyword_span, outer_stops)?;
         let then_branch = self.parse_control_body(outer_stops.with(Stops::ELSE))?;
-        let (else_span, else_branch) = if self.current_is_keyword(Keyword::Else) {
+        let (else_span, else_branch) = if self.current_is_keyword(Keyword::Else)
+            && !self.at_committed_when_arm_boundary(outer_stops)?
+            && !self.unclosed_when_operand_boundary(outer_stops)?
+        {
             let else_span = self.bump()?.span();
             let branch = self.parse_control_body(outer_stops)?;
             (Some(else_span), Some(branch))
@@ -326,6 +343,14 @@ impl Parser<'_> {
         &mut self,
         outer_stops: Stops,
     ) -> Result<StatementId, ParserInternalError> {
+        if self.at_committed_when_arm_boundary(outer_stops)?
+            || self.unclosed_when_operand_boundary(outer_stops)?
+        {
+            let at = self.empty_at(self.current()?.span().start())?;
+            self.emit(codes::EXPECTED_CONTROL_BODY, "expected control body", at)?;
+            let end = self.empty_at(self.previous_significant_end())?;
+            return self.add_statement(end, Statement::Error);
+        }
         if self.current_is_symbol(Symbol::LeftBrace) {
             return self.parse_control_block(outer_stops);
         }
@@ -436,18 +461,21 @@ impl Parser<'_> {
                 },
             );
         }
+        let opener_raw = self.current_raw()?;
         let opener = self.bump()?.span();
         let mut entries = Vec::new();
         while !self.current_is_symbol(Symbol::RightBrace)
             && !outer_stops.contains_hard(self.current()?)
-            && !matches!(self.current()?.kind(), LexemeKind::Eof)
         {
             let before = self.index;
-            entries.push(self.parse_when_entry(outer_stops, subject.is_some())?);
+            entries.push(self.parse_when_entry(outer_stops, subject.is_some(), opener_raw)?);
             if self.index <= before {
                 return Err(ParserInternalError::InvalidLexemeStream);
             }
-            if self.current_is_symbol(Symbol::RightBrace) {
+            // A caller delimiter or EOF ends recovery without starting another arm.
+            if self.current_is_symbol(Symbol::RightBrace)
+                || outer_stops.contains_hard(self.current()?)
+            {
                 break;
             }
             if self.current_is_symbol(Symbol::Semicolon) {
@@ -486,6 +514,7 @@ impl Parser<'_> {
         &mut self,
         outer_stops: Stops,
         has_subject: bool,
+        when_opener: usize,
     ) -> Result<WhenEntry, ParserInternalError> {
         let start = self.current()?.span().start();
         let (conditions, else_span) = if self.current_is_keyword(Keyword::Else) {
@@ -509,11 +538,19 @@ impl Parser<'_> {
             self.emit(codes::EXPECTED_WHEN_ARROW, "expected when arrow", span)?;
             self.empty_at(self.previous_significant_end())?
         };
+        let previous = self
+            .lexical_recoveries
+            .active_when_body_opener
+            .replace(Some(when_opener));
         let body = self.parse_control_body(
             outer_stops
                 .with(Stops::RIGHT_BRACE)
                 .as_when_entry_body(has_subject),
-        )?;
+        );
+        self.lexical_recoveries
+            .active_when_body_opener
+            .set(previous);
+        let body = body?;
         let end = self.statement_span(body)?.end().max(arrow_span.end());
         Ok(WhenEntry {
             span: self.span(start, end)?,

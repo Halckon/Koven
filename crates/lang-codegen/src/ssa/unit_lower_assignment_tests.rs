@@ -676,9 +676,9 @@ pub(in crate::ssa) mod lower_frontend_string_io_unit_comparison_tests {
         for (name, text) in [
             (
                 "abortInterpolated",
-                "fun abortInterpolated(): Unit { error(\"${1}\") }",
+                "fun abortInterpolated(): Unit { error(\"${1.0}\") }",
             ),
-            ("output", "fun output(): Unit { println(\"${1}\") }"),
+            ("output", "fun output(): Unit { println(\"${1.0}\") }"),
         ] {
             let unit = analyze(text);
             let declaration = unit.declaration(name, SymbolKind::Function);
@@ -695,7 +695,7 @@ pub(in crate::ssa) mod lower_frontend_string_io_unit_comparison_tests {
                 .span
                 .expect("nested interpolation retains source span");
             assert_eq!(span.source_id(), unit.parsed().source_id());
-            assert_eq!(unit.sources().slice(span), Ok("\"${1}\""));
+            assert_eq!(unit.sources().slice(span), Ok("\"${1.0}\""));
             assert_eq!(span.start(), text.find('"').unwrap());
             assert_eq!(span.end(), text.rfind('"').unwrap() + 1);
         }

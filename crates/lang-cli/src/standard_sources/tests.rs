@@ -342,7 +342,7 @@ fn standard_display_without_collision_keeps_the_canonical_name() {
     let mut descriptors = vec![original.clone()];
     let (mut environment, mut types) = standard_environments();
     append_standard_sources(&mut sources, &mut descriptors, &mut environment, &mut types).unwrap();
-    assert_eq!(descriptors.len(), 4);
+    assert_eq!(descriptors.len(), 5);
     assert_eq!(descriptors[0], original);
     let standard = descriptors[1].source_id();
     assert_ne!(standard, user);
@@ -370,7 +370,7 @@ fn standard_display_collision_preserves_the_user_source_and_standard_key() {
     let mut descriptors = vec![original.clone()];
     let (mut environment, mut types) = standard_environments();
     append_standard_sources(&mut sources, &mut descriptors, &mut environment, &mut types).unwrap();
-    assert_eq!(descriptors.len(), 4);
+    assert_eq!(descriptors.len(), 5);
     assert_eq!(descriptors[0], original);
     let standard = descriptors[1].source_id();
     assert_ne!(standard, user);
@@ -419,7 +419,7 @@ fn standard_display_collision_reaches_the_last_bounded_candidate() {
         let (mut environment, mut types) = standard_environments();
         append_standard_sources(&mut sources, &mut descriptors, &mut environment, &mut types)
             .unwrap();
-        assert_eq!(descriptors.len(), 6);
+        assert_eq!(descriptors.len(), 7);
         assert_eq!(&descriptors[..3], originals.as_slice());
         let standard = descriptors[3].source_id();
         for (original, index) in originals.iter().zip(order) {
@@ -469,7 +469,7 @@ fn standard_display_collision_uses_the_first_free_candidate() {
     let originals = descriptors.clone();
     let (mut environment, mut types) = standard_environments();
     append_standard_sources(&mut sources, &mut descriptors, &mut environment, &mut types).unwrap();
-    assert_eq!(descriptors.len(), 6);
+    assert_eq!(descriptors.len(), 7);
     assert_eq!(&descriptors[..3], originals.as_slice());
     let standard = descriptors[3].source_id();
     for (original, (display, text, _)) in originals.iter().zip(users) {
@@ -501,7 +501,7 @@ fn standard_display_collision_keeps_complete_user_diagnostic_locations() {
     let mut descriptors = vec![original.clone()];
     let (mut environment, mut types) = standard_environments();
     append_standard_sources(&mut sources, &mut descriptors, &mut environment, &mut types).unwrap();
-    assert_eq!(descriptors.len(), 4);
+    assert_eq!(descriptors.len(), 5);
     assert_eq!(descriptors[0], original);
     let standard = descriptors[1].source_id();
     assert_ne!(user, standard);
@@ -578,7 +578,7 @@ fn standard_display_collision_preserves_range_call_source_identities() {
     let mut descriptors = vec![original.clone()];
     let (mut environment, mut types) = standard_environments();
     append_standard_sources(&mut sources, &mut descriptors, &mut environment, &mut types).unwrap();
-    assert_eq!(descriptors.len(), 4);
+    assert_eq!(descriptors.len(), 5);
     assert_eq!(descriptors[0], original);
     let standard = descriptors[1].source_id();
     assert_ne!(user, standard);
@@ -722,7 +722,7 @@ fn loaded_result_source_alone_receives_builtin_name_authority() {
     let mut descriptors = vec![original.clone()];
     let (mut environment, mut types) = standard_environments();
     append_standard_sources(&mut sources, &mut descriptors, &mut environment, &mut types).unwrap();
-    assert_eq!(descriptors.len(), 4);
+    assert_eq!(descriptors.len(), 5);
     assert_eq!(descriptors[0], original);
     assert_eq!(
         descriptors[1].logical_path().expect("rooted source"),

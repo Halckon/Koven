@@ -566,7 +566,7 @@ impl UnitNominalSignature {
         &self.companion_members
     }
 
-    /// 返回非委托 abstract requirement 到 effective implementation 的确定映射。
+    /// 返回非委托接口成员到所选覆盖实现的确定映射。
     #[must_use]
     pub fn static_dispatch_overrides(&self) -> &[UnitStaticDispatchOverride] {
         &self.static_dispatch_overrides

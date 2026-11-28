@@ -95,28 +95,12 @@ pub(in crate::ssa::refine::build) mod receiver {
                         .source_plan
                         .call_site(self.inputs.source_token, call)
                     {
-                        for route in site.delegation() {
-                            let field = self
-                                .types
-                                .field_indices
-                                .get(&(route.outer_receiver(), route.field()))
-                                .copied()
-                                .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-                            let target = self.ssa_type(route.delegate_receiver(), span)?;
-                            let delegate = self.value(
-                                ROp::SharedHeapFieldLoan {
-                                    base: operand,
-                                    field,
-                                },
-                                EntityType::Loan {
-                                    kind: LoanKind::Shared,
-                                    target,
-                                },
-                                begin_span,
-                            )?;
-                            operand = delegate;
-                            loans.push(delegate);
-                        }
+                        operand = self.project_delegated_receiver(
+                            operand,
+                            site.delegation(),
+                            &mut loans,
+                            begin_span,
+                        )?;
                     }
                     Receiver::Ready { operand, loans }
                 }
@@ -184,6 +168,37 @@ pub(in crate::ssa::refine::build) mod receiver {
                     Receiver::Reserved(owner)
                 }
             }))
+        }
+
+        pub(in crate::ssa::refine::build) fn project_delegated_receiver(
+            &mut self,
+            mut operand: Slot,
+            routes: &[crate::ssa::unit_plan::UnitDelegatedCallRoute],
+            loans: &mut Vec<Slot>,
+            span: Span,
+        ) -> Result<Slot, LoweringError> {
+            for route in routes {
+                let field = self
+                    .types
+                    .field_indices
+                    .get(&(route.outer_receiver(), route.field()))
+                    .copied()
+                    .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
+                let target = self.ssa_type(route.delegate_receiver(), span)?;
+                operand = self.value(
+                    ROp::SharedHeapFieldLoan {
+                        base: operand,
+                        field,
+                    },
+                    EntityType::Loan {
+                        kind: LoanKind::Shared,
+                        target,
+                    },
+                    span,
+                )?;
+                loans.push(operand);
+            }
+            Ok(operand)
         }
 
         pub(in crate::ssa::refine::build) fn receiver_at_call(

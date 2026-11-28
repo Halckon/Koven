@@ -28,7 +28,9 @@ fn checked_construction_temporaries_publish_actual_ends_but_factory_results_do_n
             assert!(matches!(points[0], UnitDropPoint::ControlTransfer(_)));
             assert_eq!(points[1], UnitDropPoint::CallReturn(loan.call()));
             let ends = unit.direct_call_loan_ends();
+            let class_unwinds = unit.class_result_argument_unwinds();
             if observed_construction {
+                assert!(class_unwinds.is_empty());
                 assert_eq!(
                     ends.iter().map(|end| end.point()).collect::<Vec<_>>(),
                     points
@@ -42,6 +44,12 @@ fn checked_construction_temporaries_publish_actual_ends_but_factory_results_do_n
                     ends.is_empty(),
                     "a factory call has no direct construction proof"
                 );
+                let [unwind] = class_unwinds else {
+                    panic!("only the return edge abandons the class-result argument");
+                };
+                assert_eq!(unwind.loan(), loan);
+                assert_eq!(unwind.point(), points[0]);
+                assert_eq!(unwind.preceding_drops(), 0);
             }
         }
     }

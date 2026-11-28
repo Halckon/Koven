@@ -7,18 +7,65 @@ use lang_frontend::{
     parser::Expression,
     source::Span,
     type_checking::{
-        Copyability, ExpressionCategory, NominalKind, ParameterMode, UnitExpressionId, UnitTypeId,
-        UnitTypeKind,
+        BuiltinType, Copyability, ExpressionCategory, NominalKind, ParameterMode, UnitExpressionId,
+        UnitTypeId, UnitTypeKind,
     },
 };
 
-use super::{LoweredValue, UnitExpressionLowerer, lowering_error, span_key};
+use super::{LoweredValue, UnitExpressionLowerer, builtin_type, lowering_error, span_key};
 use crate::ssa::{
     LoweringError, LoweringErrorKind,
-    model::{EntityId, Operation, Origin, ValueId},
+    model::{EntityId, EntityType, Operation, Origin, ValueId},
 };
 
 impl UnitExpressionLowerer<'_> {
+    /// A Unit binding keeps a storage root when this unit has materialized Unit.
+    pub(super) fn unit_binding_value(
+        &mut self,
+        initializer: ExpressionId,
+        declared: UnitTypeId,
+        span: Span,
+    ) -> Result<LoweredValue, LoweringError> {
+        let concrete = super::resolve_concrete_type(
+            self.typed,
+            declared,
+            self.substitutions,
+            self.static_self,
+            span,
+        )?;
+        if builtin_type(self.typed, concrete) == Some(BuiltinType::Unit)
+            && self.type_ids.contains_key(&concrete)
+        {
+            self.materialize_unit_value(initializer, span)
+                .map(LoweredValue::Value)
+        } else {
+            Ok(LoweredValue::Unit)
+        }
+    }
+
+    pub(super) fn return_values(
+        &self,
+        result: LoweredValue,
+        span: Span,
+    ) -> Result<Vec<ValueId>, LoweringError> {
+        match (builtin_type(self.typed, self.return_type), result) {
+            (Some(BuiltinType::Unit), LoweredValue::Unit) => Ok(Vec::new()),
+            (Some(BuiltinType::Unit), LoweredValue::Value(value))
+                if self.function.entity(EntityId::Value(value)).is_some_and(|entity| {
+                    matches!(entity.ty, EntityType::Value(ty)
+                        if self.ssa_types.get(ty.index()) == Some(&crate::ssa::model::SsaTypeKind::Unit))
+                }) =>
+            {
+                Ok(Vec::new())
+            }
+            (Some(BuiltinType::Unit), LoweredValue::Value(_))
+            | (_, LoweredValue::Unit | LoweredValue::Diverged) => {
+                Err(lowering_error(LoweringErrorKind::MissingFact, span))
+            }
+            (_, LoweredValue::Value(value)) => Ok(vec![value]),
+        }
+    }
+
     pub(super) fn require_conditional_receiver_drop_obligation(
         &self,
         owner: DeclarationId,

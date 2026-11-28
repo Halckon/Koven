@@ -115,6 +115,10 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
         lines.append(
             f"| `abort:{ab['abort_message']}` | `SIGABRT (exit 134)` | [{ch}](../docs/guide/{ch}) | 1 | `{ab['probe']}` |"
         )
+    promoted_markers = " / ".join(
+        f"`{marker}`"
+        for marker in sorted({probes[name]["baseline_marker"] for name in base_evo["promoted_to_run_ok"]})
+    )
     lines.extend(
         [
             "",
@@ -123,7 +127,7 @@ def render_oracle_audit_markdown(expectations: dict[str, Any]) -> str:
             "| 演进分类 (`baseline_evolution`) | 历史基线状态 (`baseline-aef3f4f8.tsv`) | 当前强 Oracle 状态 (`expectations.json`) | Probe 数量 | 代表性 / 完整 Probe 列表 |",
             "|---|---|---|---:|---|",
             f"| `baseline_ok_preserved` | `OK` | `run_ok`（精确字节匹配） | {len(base_evo['baseline_ok_preserved'])} | 历史 `OK` 基线 100% 保持通过（含 `q12_companion_const` 匿名 `companion {{ }}` 语法更新） |",
-            f"| `promoted_to_run_ok` | `BE:InvalidSsa` / `BE:MissingFact` / `BE:UnsupportedNode` / `FE:L0080` / `FE:L0111` | `run_ok`（新晋能力通过） | {len(base_evo['promoted_to_run_ok'])} | " + ", ".join(f"`{p}`" for p in base_evo["promoted_to_run_ok"]) + " |",
+            f"| `promoted_to_run_ok` | {promoted_markers} | `run_ok`（新晋能力通过） | {len(base_evo['promoted_to_run_ok'])} | " + ", ".join(f"`{p}`" for p in base_evo["promoted_to_run_ok"]) + " |",
             f"| `upgraded_to_structured_abort` | `abort(exit 1,no msg)` | `runtime_abort`（`SIGABRT` + `abort: <msg>`） | {len(base_evo['upgraded_to_structured_abort'])} | " + ", ".join(f"`{p}`" for p in base_evo["upgraded_to_structured_abort"]) + " |",
             f"| `upgraded_to_compile_fail` | `FE:L0165` | `compile_fail`（`FE:L0167` 规范拒绝） | {len(base_evo['upgraded_to_compile_fail'])} | " + ", ".join(f"`{p}`" for p in base_evo["upgraded_to_compile_fail"]) + " |",
             f"| `baseline_compile_fail_preserved` | `FE:L0080`..`FE:L0164` | `compile_fail`（精确诊断序列匹配） | {len(base_evo['baseline_compile_fail_preserved'])} | " + ", ".join(f"`{p}`" for p in base_evo["baseline_compile_fail_preserved"]) + " |",
@@ -911,9 +915,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     if not summary["gate_passed"]:
         for up_name in summary.get("unexpected_passes", []):
+            catalog = "PROGRAM_ALLOWED_MARKERS" if up_name in PROGRAM_ALLOWED_MARKERS else "V046_PROBE_OVERRIDES"
             print(
                 f"PROMOTE: {up_name} exited 0 with exact target_stdout in both modes; "
-                f"update V046_PROBE_OVERRIDES and run --init-expectations",
+                f"update {catalog} and run --init-expectations",
                 file=sys.stderr,
             )
         for failure in summary["failures"]:

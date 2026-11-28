@@ -1,12 +1,10 @@
-//! SPEC-0360: direct-tail whole-borrow cleanup and the adjacent rejected route.
-//! Keep the original terminal-argument negative route and the per-family fact guard.
+//! Whole-borrow cleanup for direct, terminal, and nested call prefixes.
 use super::*;
 use lang_frontend::ownership_checking::UnitDropPoint;
 
 #[test]
 fn string_when_with_bounded_tail_temporary_borrow_refines() {
     const WHEN: &str = "when (s) { \"a\" -> 1; else -> 0 }";
-    // This is the original route-negative source, unchanged.
     const TERMINAL: &str = "class Node()\nfun outer(node: Node, own r: Int): Int = r\n\
         fun f(flag: Boolean): Int = outer(Node(), when (flag) { true -> return 1\n else -> 0 })";
     let green = format!("fun f(s: String): Int = {WHEN}");
@@ -23,12 +21,12 @@ fn string_when_with_bounded_tail_temporary_borrow_refines() {
         .replace("else -> n }) }", "else -> n }); return result }");
     assert_ne!(direct_local, mixed);
     let mut comparison_counts = Vec::new();
-    for (source, expected_refine, has_string_when) in [
-        (green.as_str(), true, true),
-        (TERMINAL, false, false),
-        (mixed.as_str(), true, true),
-        (with_runtime_field.as_str(), false, true),
-        (direct_local.as_str(), true, true),
+    for (source, has_string_when) in [
+        (green.as_str(), true),
+        (TERMINAL, false),
+        (mixed.as_str(), true),
+        (with_runtime_field.as_str(), true),
+        (direct_local.as_str(), true),
     ] {
         let mut sources = SourceMap::new();
         let (id, file) = parsed(&mut sources, "p/main.ko", &format!("package p\n{source}"));
@@ -59,12 +57,10 @@ fn string_when_with_bounded_tail_temporary_borrow_refines() {
             lower_scalar_unit_with_entry(&sources, &inputs, &names, &te, &typed, &owned, entry)
         });
         let f_refined = routed.iter().any(|name| name.starts_with("koven.p.f.d"));
-        assert_eq!(f_refined, expected_refine, "{source}: {routed:?}");
-        if expected_refine {
-            let (program, _) = result.expect("accepted String when lowers");
-            crate::llvm::render_verified_program(&program).expect("accepted String when verifies");
-        }
-        // The original terminal fixture constrains routing, not fallback success.
+        assert!(f_refined, "{source}: {routed:?}");
+        let (program, _) = result.expect("the source-qualified call prefix lowers");
+        crate::ssa::verify::verify_program(&program).expect("the admitted prefix verifies");
+        crate::llvm::render_verified_program(&program).expect("the admitted prefix reaches LLVM");
     }
     assert_eq!(comparison_counts.len(), 4);
     assert!(
@@ -390,17 +386,18 @@ fun f(s: String, flag: Boolean): Int {
         let (ne, te) = standard_environments();
         let (names, typed, owned) = analyze(&sources, &inputs, &ne, &te);
 
-        // Only the direct initializer with one frame is admitted by production.
         let entry = declaration(&names, "p", "f");
         let (result, routes) = observe_routing(|| {
             lower_scalar_unit_with_entry(&sources, &inputs, &names, &te, &typed, &owned, entry)
         });
         let nested = expected_pending == 2;
-        assert_eq!(
+        assert!(
             routes.iter().any(|n| n.starts_with("koven.p.f.d")),
-            !nested,
             "{routes:?}"
         );
+        let (program, _) = result.expect("direct and nested initializers both lower");
+        crate::ssa::verify::verify_program(&program).expect("initializer call frames verify");
+        crate::llvm::render_verified_program(&program).expect("initializer reaches LLVM");
 
         let span = |id: UnitExpressionId| {
             file.ast()
@@ -409,24 +406,6 @@ fun f(s: String, flag: Boolean): Int {
                 .unwrap()
                 .span()
         };
-        // Absence from the observer alone would also allow a failed Refine. Pin the
-        // actual fallback failure at its String comparison, not at the local binding.
-        if nested {
-            let Err(error) = result else {
-                panic!("nested initializer has no successful compatibility lowering");
-            };
-            assert_eq!(
-                error.kind,
-                crate::ssa::lowering_support::LoweringErrorKind::UnsupportedNode
-            );
-            assert_eq!(
-                sources.slice(error.span.unwrap()).unwrap(),
-                r#"when (s) { "a" -> 1; else -> 0 }"#,
-            );
-        } else {
-            result.expect("direct local initializer must lower");
-        }
-
         let function_span = file
             .ast()
             .items()
@@ -760,7 +739,7 @@ fun f(s: String, flag: Boolean): Int {
 }
 
 #[test]
-fn terminal_call_group_position_matrix_keeps_exact_cleanup_and_route_boundary() {
+fn terminal_call_group_position_matrix_keeps_exact_cleanup() {
     use lang_frontend::{
         name_resolution::SourceUnitKey,
         ownership_checking::{LoanKind, UnitDropTarget, UnitLoanTarget},
@@ -774,48 +753,37 @@ fun f(s: String, flag: Boolean): Int {
     val n = when (s) { "a" -> 1; else -> 0 }
 "#;
     const CALL: &str = "outer(Node(), when (flag) { true -> return n\n else -> n })";
-    for ((shape, body, refined), rooted) in [
-        ("bare tail", format!("return {CALL}"), true),
-        ("grouped tail", format!("return ({CALL})"), false),
+    for ((shape, body), rooted) in [
+        ("bare tail", format!("return {CALL}")),
+        ("grouped tail", format!("return ({CALL})")),
         (
             "bare initializer",
             format!("val result = {CALL}\n    return result"),
-            true,
         ),
         (
             "single-group initializer",
             format!("val result = ({CALL})\n    return result"),
-            true,
         ),
         (
             "grouped pair inside explicit block",
             format!("block {{ val result = ({CALL})\n        return result }}"),
-            false,
         ),
         (
             "double-group initializer",
             format!("val result = (({CALL}))\n    return result"),
-            false,
         ),
         (
             "grouped binder use",
             format!("val result = ({CALL})\n    return (result)"),
-            false,
         ),
-        (
-            "mutable",
-            format!("var result = {CALL}\n    return result"),
-            false,
-        ),
+        ("mutable", format!("var result = {CALL}\n    return result")),
         (
             "different symbol",
             format!("val result = {CALL}\n    return n"),
-            false,
         ),
         (
             "intervening declaration",
             format!("val result = {CALL}\n    val extra = 3\n    return result"),
-            false,
         ),
     ]
     .into_iter()
@@ -943,29 +911,12 @@ fun f(s: String, flag: Boolean): Int {
         let (result, routes) = observe_routing(|| {
             lower_scalar_unit_with_entry(&sources, &inputs, &names, &te, &typed, &owned, entry)
         });
-        assert_eq!(
+        assert!(
             routes.iter().any(|n| n.starts_with("koven.p.f.d")),
-            refined,
             "{shape}: {routes:?}"
         );
-        if refined {
-            let (program, _) = result.unwrap_or_else(|error| panic!("{shape}: {error:?}"));
-            crate::ssa::verify::verify_program(&program).expect("admitted SSA verifies");
-            crate::llvm::render_verified_program(&program).expect("admitted LLVM verifies");
-            continue;
-        }
-        let Err(error) = result else {
-            panic!("{shape}: boundary must not successfully lower")
-        };
-        assert_eq!(
-            error.kind,
-            crate::ssa::lowering_support::LoweringErrorKind::UnsupportedNode,
-            "{shape}"
-        );
-        assert_eq!(
-            sources.slice(error.span.unwrap()).unwrap(),
-            r#"when (s) { "a" -> 1; else -> 0 }"#,
-            "{shape}: actual rejection remains at the shared fallback boundary",
-        );
+        let (program, _) = result.unwrap_or_else(|error| panic!("{shape}: {error:?}"));
+        crate::ssa::verify::verify_program(&program).expect("admitted SSA verifies");
+        crate::llvm::render_verified_program(&program).expect("admitted LLVM verifies");
     }
 }

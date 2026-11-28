@@ -4,7 +4,7 @@
 
 模块类型/deinit 与函数原有结构、类型、dominance、ownership 验证成功后，独立 guard 检查
 Return、Value 调用、aggregate/tagged/heap/shared/container 存储与 replacement、projected-place
-Mutate 的 owned 交付。错误使用现有 OperationContract，location 和 Origin 指向真实消费点。
+Mutate 的 owned 交付。普通堆字段交换与 Inout 接收者字段交换均按替换值在当前程序点的内容证明检查。错误使用现有 OperationContract，location 和 Origin 指向真实消费点。
 局部 ClosureConstruct、Drop、同步 Borrow 与 RootPlace 局部 Mutate 不一律拒绝。
 
 类型缓存用迭代图遍历沿实际 owned 存储传播 may-contain：Shared capture 是种子，Owned capture、

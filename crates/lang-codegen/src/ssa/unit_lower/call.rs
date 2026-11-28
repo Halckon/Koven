@@ -10,12 +10,15 @@ use crate::ssa::{
 };
 use lang_frontend::{
     ast::ExpressionId,
-    ownership_checking::{UnitDropPoint, UnitValueDeliveryKind},
+    ownership_checking::{
+        UnitDropPoint, UnitLoanTarget, UnitReceiverOwnershipKind, UnitReceiverOwnershipTarget,
+        UnitValueDeliveryKind,
+    },
     parser::{Expression, Statement},
     source::Span,
     type_checking::{
         BuiltinType, Copyability, ExpressionCategory, ParameterMode, UnitCallDescriptor,
-        UnitCallReceiverOrigin, UnitCallTarget, UnitExpressionId,
+        UnitCallReceiverOrigin, UnitCallTarget, UnitExpressionId, UnitTypeId,
     },
 };
 
@@ -36,7 +39,7 @@ impl UnitExpressionLowerer<'_> {
             .copied()
             .ok_or_else(|| lowering_error(LoweringErrorKind::UnsupportedNode, span))?;
         if let Some(value) = self.bindings.get(&symbol).copied() {
-            return Ok(value);
+            return self.lower_narrowed_char_name(expression, symbol, value, span);
         }
         let loan = self
             .borrow_bindings
@@ -180,6 +183,14 @@ impl UnitExpressionLowerer<'_> {
                 )
             })
             .transpose()?;
+        if let Some((operand, builtin)) =
+            crate::ssa::lowering_support::builtin_display_call(self.typed, descriptor, receiver)
+        {
+            if operand.source_unit() != self.source_unit {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            }
+            return self.lower_builtin_display(expression, descriptor, operand, builtin, span);
+        }
         // The planner already resolved receiver/recipe routing and every callback slot.
         let resolved = self
             .source_plan
@@ -459,6 +470,86 @@ impl UnitExpressionLowerer<'_> {
         }
     }
 
+    fn lower_builtin_display(
+        &mut self,
+        expression: ExpressionId,
+        descriptor: &UnitCallDescriptor,
+        operand: UnitExpressionId,
+        builtin: BuiltinType,
+        span: Span,
+    ) -> Result<LoweredValue, LoweringError> {
+        if crate::ssa::lowering_support::is_float_builtin(builtin) {
+            return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
+        }
+        let ty = self.expression_ssa_type(expression, span)?;
+        if builtin != BuiltinType::String {
+            let scalar = match self.lower(operand.expression())? {
+                LoweredValue::Value(value) => value,
+                LoweredValue::Diverged => return Ok(LoweredValue::Diverged),
+                LoweredValue::Unit => {
+                    return Err(lowering_error(LoweringErrorKind::InvalidModel, span));
+                }
+            };
+            let result = self.append_scalar(Operation::StringFromScalar { scalar }, ty, span)?;
+            self.emit_drops(UnitDropPoint::CallReturn(descriptor.expression()))?;
+            return Ok(result);
+        }
+        let call = descriptor.expression();
+        let root = self.ungroup_nullable_text_operand(operand.expression(), span)?;
+        let (source, loans) = if self
+            .typed
+            .aggregate_projection(UnitExpressionId::new(self.source_unit, root))
+            .is_some()
+        {
+            let fact = self
+                .owned
+                .receiver_fact(call)
+                .filter(|fact| {
+                    fact.kind() == UnitReceiverOwnershipKind::SharedLoan
+                        && fact.source() == UnitCallReceiverOrigin::Expression(operand)
+                        && descriptor
+                            .receiver()
+                            .is_some_and(|receiver| receiver.ty() == fact.receiver_type())
+                })
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            let target = match fact.target() {
+                UnitReceiverOwnershipTarget::Place(place) => UnitLoanTarget::Place(place.clone()),
+                UnitReceiverOwnershipTarget::Temporary(owner) => UnitLoanTarget::Temporary(*owner),
+                UnitReceiverOwnershipTarget::This(_) => {
+                    return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+                }
+            };
+            let Some(loans) = self.lower_shared_heap_field_chain(root, &target, span)? else {
+                return Ok(LoweredValue::Diverged);
+            };
+            let source = *loans
+                .last()
+                .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, span))?;
+            (source, loans.into_iter().map(|loan| (loan, span)).collect())
+        } else {
+            let Some(receiver) = self.lower_call_receiver(call, descriptor, span)? else {
+                return Ok(LoweredValue::Diverged);
+            };
+            let EntityId::Loan(source) = receiver.entity else {
+                return Err(lowering_error(LoweringErrorKind::MissingFact, span));
+            };
+            (source, receiver.created_loans)
+        };
+        let result = self.append_scalar(Operation::StringClone { source }, ty, span)?;
+        for (loan, end_span) in loans.into_iter().rev() {
+            self.function
+                .append_instruction(
+                    self.block,
+                    Operation::BorrowEnd { loan },
+                    Vec::new(),
+                    Origin::Source(end_span),
+                )
+                .map_err(|_| lowering_error(LoweringErrorKind::InvalidModel, end_span))?;
+        }
+        self.emit_drops(UnitDropPoint::CallReturn(call))?;
+        Ok(result)
+    }
+
     pub(super) fn emit_borrow_argument_expression_drops(
         &mut self,
         call: UnitExpressionId,
@@ -516,6 +607,10 @@ impl UnitExpressionLowerer<'_> {
         let direct_prefix = !general_prefix
             && self.supports_direct_control_prefix(call, arguments, descriptor, span)?;
         let control_prefix = general_prefix || direct_prefix;
+        let prefix_only = self
+            .source_plan
+            .call_site(self.source_token, call)
+            .is_some_and(|site| site.dispatch_key().is_none());
         let mut ordered = vec![None; descriptor.arguments().len()];
         let mut created_loans = Vec::new();
         for (argument_index, argument) in arguments.iter().enumerate() {
@@ -526,6 +621,38 @@ impl UnitExpressionLowerer<'_> {
                 .ok_or_else(|| lowering_error(LoweringErrorKind::MissingFact, argument.span))?;
             let entity = match mapping.mode() {
                 ParameterMode::Value => {
+                    if prefix_only
+                        && self.is_unit_value_call_prefix(
+                            descriptor,
+                            mapping.parameter_type(),
+                            argument,
+                        )
+                    {
+                        match self.lower(argument.value)? {
+                            LoweredValue::Unit => continue,
+                            LoweredValue::Diverged => {
+                                self.pending_operands.truncate(pending_start);
+                                return Ok(None);
+                            }
+                            LoweredValue::Value(value)
+                                if self
+                                    .function
+                                    .entity(EntityId::Value(value))
+                                    .map(|entity| entity.ty)
+                                    == Some(EntityType::Value(
+                                        self.expression_ssa_type(argument.value, argument.span)?,
+                                    )) =>
+                            {
+                                continue;
+                            }
+                            LoweredValue::Value(_) => {
+                                return Err(lowering_error(
+                                    LoweringErrorKind::InvalidModel,
+                                    argument.span,
+                                ));
+                            }
+                        }
+                    }
                     match self.lower_value_argument(
                         call,
                         argument.value,
@@ -692,6 +819,41 @@ impl UnitExpressionLowerer<'_> {
             arguments,
             created_loans,
         }))
+    }
+
+    fn is_unit_value_call_prefix(
+        &self,
+        descriptor: &UnitCallDescriptor,
+        parameter_type: UnitTypeId,
+        argument: &lang_frontend::parser::CallArgument,
+    ) -> bool {
+        let concrete = |ty| {
+            resolve_concrete_type(
+                self.typed,
+                ty,
+                self.substitutions,
+                self.static_self,
+                argument.span,
+            )
+            .ok()
+        };
+        let value = self
+            .typed
+            .expression_type(UnitExpressionId::new(self.source_unit, argument.value))
+            .and_then(concrete);
+        if value.and_then(|ty| builtin_type(self.typed, ty)) != Some(BuiltinType::Unit) {
+            return false;
+        }
+        concrete(parameter_type).is_some_and(|parameter| {
+            crate::ssa::lowering_support::unit_argument_in_nondispatching_call(
+                self.typed,
+                self.owned,
+                descriptor,
+                ParameterMode::Value,
+                parameter,
+                value,
+            )
+        })
     }
 
     pub(super) fn lower_value_argument(

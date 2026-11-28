@@ -10,29 +10,13 @@ use crate::ssa::{
         TerminatorKind, ValueId,
     },
 };
-use folding::merge_straight_lines;
+use folding::{merge_straight_lines, reachable};
 use lang_frontend::source::Span;
 use std::collections::{BTreeMap, BTreeSet};
 
 struct Shape {
     reachable: Vec<BlockRef>,
     live_in: BTreeMap<BlockRef, BTreeSet<Slot>>,
-}
-
-fn reachable(body: &RefinedBody, span: Span) -> Result<Vec<BlockRef>, LoweringError> {
-    let mut seen = BTreeSet::new();
-    let mut stack = vec![BlockRef(0)];
-    while let Some(block) = stack.pop() {
-        if !seen.insert(block) {
-            continue;
-        }
-        let (terminator, _) = body.blocks[block.0]
-            .terminator
-            .as_ref()
-            .ok_or_else(|| error(LoweringErrorKind::InvalidModel, span))?;
-        stack.extend(terminator.successors().into_iter().rev());
-    }
-    Ok(seen.into_iter().collect())
 }
 
 /// Upward-exposed uses and definitions of one block.
@@ -321,11 +305,18 @@ impl Emitter<'_> {
                 string: *string,
                 bytes: bytes.clone(),
             },
+            ROp::StringFromScalar { scalar } => Operation::StringFromScalar {
+                scalar: self.value(*scalar, span)?,
+            },
             ROp::PrintString { value } => Operation::PrintString {
                 value: loan(self.get(*value, span)?, span)?,
             },
             ROp::ReadLoan { loan: slot } => Operation::Read {
                 source: crate::ssa::model::PlaceAccess::Loan(loan(self.get(*slot, span)?, span)?),
+            },
+            ROp::StringAppend { owner, fragment } => Operation::StringAppend {
+                owner: self.value(*owner, span)?,
+                fragment: self.get(*fragment, span)?,
             },
             ROp::StringConcat { left, right } => Operation::StringConcat {
                 left: self.get(*left, span)?,
@@ -380,6 +371,15 @@ impl Emitter<'_> {
                 operator: *operator,
                 left: self.value(*left, span)?,
                 right: self.value(*right, span)?,
+            },
+            ROp::FloatArithmetic {
+                operator,
+                left,
+                right,
+            } => Operation::FloatArithmetic {
+                operator: *operator,
+                left: self.value(*left, span)?,
+                right: right.map(|value| self.value(value, span)).transpose()?,
             },
             ROp::CheckedArithmetic {
                 operator,
@@ -902,7 +902,9 @@ pub(super) fn emit(
                 RAbort::CheckedConversion { target: converted } => {
                     AbortReason::CheckedConversion { target: *converted }
                 }
-                RAbort::NullAssertion => AbortReason::Text("null assertion failed".to_owned()),
+                RAbort::NullAssertion => AbortReason::Text(
+                    crate::ssa::lowering_support::NULL_ASSERTION_MESSAGE.to_owned(),
+                ),
                 RAbort::NegativeSize => AbortReason::Text("negative size".to_owned()),
                 RAbort::UnmatchedWhen => {
                     AbortReason::Text("internal error: when subject matched no branch".to_owned())

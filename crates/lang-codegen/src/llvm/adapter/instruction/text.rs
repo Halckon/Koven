@@ -26,6 +26,88 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
         ))
     }
 
+    fn lower_scalar_string(
+        &mut self,
+        scalar: ValueId,
+        result: ValueId,
+    ) -> Result<(), LlvmAdapterError> {
+        use crate::{llvm::decimal, ssa::model::SsaTypeKind};
+
+        let name = value_name(result);
+        let string_type = self
+            .dependencies
+            .type_map
+            .basic_type(value_type(self.function, result)?)?
+            .into_struct_type();
+        let runtime = self.dependencies.runtime;
+        let value = self.int_value(scalar)?;
+        let string = match self.module.type_kind(value_type(self.function, scalar)?) {
+            Some(SsaTypeKind::Boolean) => {
+                let ty = value_type(self.function, result)?;
+                let literal = |bytes: &[u8], name: &str| {
+                    string::literal(
+                        self.llvm,
+                        &self.builder,
+                        self.dependencies.type_map,
+                        runtime,
+                        ty,
+                        bytes,
+                        name,
+                    )
+                };
+                let yes = literal(b"true".as_slice(), &format!("{name}.true"))?;
+                let no = literal(b"false".as_slice(), &format!("{name}.false"))?;
+                self.builder
+                    .build_select(value, yes, no, &name)?
+                    .into_struct_value()
+            }
+            Some(SsaTypeKind::Char) => string::from_char(
+                &self.builder,
+                self.llvm_function,
+                runtime,
+                string_type,
+                value,
+                &name,
+            )?,
+            Some(SsaTypeKind::Integer { signed, .. }) => {
+                let scratch = self.entry_alloca(
+                    self.context
+                        .i8_type()
+                        .array_type(decimal::BUFFER_BYTES)
+                        .into(),
+                    &format!("{name}.decimal"),
+                )?;
+                let (text, length) = decimal::format_into(
+                    &self.builder,
+                    self.llvm_function,
+                    scratch,
+                    value,
+                    *signed,
+                )?;
+                let length = self.builder.build_int_cast(
+                    length,
+                    runtime.size_type(),
+                    &format!("{name}.length"),
+                )?;
+                let owned = runtime.allocate_string_bytes(
+                    &self.builder,
+                    self.llvm_function,
+                    length,
+                    &name,
+                )?;
+                self.builder.build_memcpy(owned, 1, text, 1, length)?;
+                string::build_owner(&self.builder, string_type, owned, length, length, &name)?
+            }
+            _ => {
+                return Err(LlvmAdapterError::InvalidSsa(
+                    "invalid scalar for String conversion".to_owned(),
+                ));
+            }
+        };
+        self.values.insert(result, string.into());
+        Ok(())
+    }
+
     pub(super) fn lower_instruction_text(
         &mut self,
         instruction: &Instruction,
@@ -63,6 +145,22 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                 )?;
                 self.values.insert(*result, value.into());
             }
+            Operation::StringAppend { owner, fragment } => {
+                let [result] = results.as_slice() else {
+                    return Err(invalid_result_count("string append", 1, results.len()));
+                };
+                let value = string::append(
+                    self.context,
+                    &self.builder,
+                    self.llvm_function,
+                    self.dependencies.runtime,
+                    value_type(self.function, *owner)?,
+                    self.value(*owner)?.into_struct_value(),
+                    self.string_view(*fragment)?,
+                    &value_name(*result),
+                )?;
+                self.values.insert(*result, value.into());
+            }
             Operation::StringConcat { left, right } => {
                 let [result] = results.as_slice() else {
                     return Err(invalid_result_count("string concat", 1, results.len()));
@@ -81,6 +179,12 @@ impl<'ctx, 'llvm, 'ssa, 'functions, 'sources>
                     &value_name(*result),
                 )?;
                 self.values.insert(*result, value.into());
+            }
+            Operation::StringFromScalar { scalar } => {
+                let [result] = results.as_slice() else {
+                    return Err(invalid_result_count("string from scalar", 1, results.len()));
+                };
+                self.lower_scalar_string(*scalar, *result)?;
             }
             Operation::StringClone { .. }
             | Operation::StringCopyBytes { .. }

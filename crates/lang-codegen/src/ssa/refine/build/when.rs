@@ -1,9 +1,10 @@
 //! `when`: alternatives tested in source order; the first match enters its body. A scalar
 //! subject is evaluated once and compared by value or by integer Range membership; a
 //! Copyable enum subject is tested by case.
+mod boolean;
 mod joins;
 mod nullable;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use lang_frontend::{
     ast::ExpressionId,
@@ -77,13 +78,7 @@ impl Builder<'_, '_> {
         let result = if self.is_unit(ty) || self.is_nothing(ty) {
             None
         } else {
-            let ssa_ty = if matches!(self.inputs.typed.types().get(ty), Some(UnitTypeKind::Nullable(inner)) if self.is_nothing(*inner))
-            {
-                self.expected_nullable
-                    .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?
-            } else {
-                self.expression_ssa_type(expression, ty, span)?
-            };
+            let ssa_ty = self.expression_ssa_type(expression, ty, span)?;
             Some(self.body.slot(EntityType::Value(ssa_ty)))
         };
         // A Copyable enum subject is tested by case; its domain is closed.
@@ -135,12 +130,7 @@ impl Builder<'_, '_> {
                 return self.lower_boolean_single_arm_when(control, ty, result, body, span);
             }
         }
-        // One temporary is shared by mutually exclusive outgoing paths. Retain its
-        // source identity/slot for the unmatched continuation while constructing a match.
-        let subject_temporary = subject_expression.and_then(|expression| {
-            let id = self.unit(expression);
-            self.temporaries.get(&id).copied().map(|slot| (id, slot))
-        });
+        let mut continuing_temporaries = None;
         let subjectless = subject.is_none();
         let outer_pending_views = subjectless.then(|| std::mem::take(&mut self.pending_views));
         let nullable_drops = self.nullable_when_operand_drops(subject)?;
@@ -172,9 +162,11 @@ impl Builder<'_, '_> {
             self.short_ranges = outer_short_ranges.clone();
             let body = self.body.block();
             let mut matched_paths = Vec::new();
+            let mut matched_temporaries = None;
             if entry.else_span.is_some() {
                 falls_through = false;
                 self.goto(body, entry.span)?;
+                intersect_temporaries(&mut matched_temporaries, &self.temporaries);
             }
             let selector_count = self
                 .inputs
@@ -216,11 +208,13 @@ impl Builder<'_, '_> {
                     alternative,
                 };
                 let selector_views = subjectless.then(|| self.active_views.clone());
+                let selector_temporaries = self.temporaries.clone();
                 let matched_reached = self.body.blocks[matched.0].has_predecessor;
                 if matched_reached {
                     let mark = self.enter(matched);
                     self.leave_unclaimed(mark, entry.span)?;
                     self.drops(match_point)?;
+                    intersect_temporaries(&mut matched_temporaries, &self.temporaries);
                     if subjectless {
                         self.sync_dead();
                         matched_paths.push(PredecessorBranch {
@@ -253,9 +247,7 @@ impl Builder<'_, '_> {
                 }
                 let mark = self.enter(next);
                 self.leave_unclaimed(mark, entry.span)?;
-                if let Some((id, slot)) = subject_temporary {
-                    self.temporaries.insert(id, slot);
-                }
+                self.temporaries = selector_temporaries;
                 self.drops(miss_point)?;
             }
             let unmatched = self.block;
@@ -279,10 +271,21 @@ impl Builder<'_, '_> {
                 self.unreachable_drop_points.push(exit_point);
                 continue;
             }
+            let unmatched_temporaries = std::mem::replace(
+                &mut self.temporaries,
+                matched_temporaries.unwrap_or_default(),
+            );
             let mark = self.enter(body);
             if matches!(subject, Some(WhenSubject::Nullable { .. })) {
                 self.enter_nullable_when_arm(subject, index, body, span)?;
                 self.emit_drops(&nullable_drops)?;
+                for (_, target, _) in &nullable_drops {
+                    if let lang_frontend::ownership_checking::UnitDropTarget::Temporary(owner) =
+                        target
+                    {
+                        self.temporaries.remove(owner);
+                    }
+                }
             }
             let saved_expected = self.expected_nullable;
             if let Some(res) = result
@@ -312,6 +315,7 @@ impl Builder<'_, '_> {
                 self.drops(exit_point)?;
                 self.sync_dead();
                 if let Some(cur) = self.block {
+                    intersect_temporaries(&mut continuing_temporaries, &self.temporaries);
                     predecessors.push(PredecessorBranch {
                         block: cur,
                         views: self.active_views.clone(),
@@ -323,6 +327,7 @@ impl Builder<'_, '_> {
                 self.unreachable_drop_points.push(exit_point);
             }
             self.block = unmatched;
+            self.temporaries = unmatched_temporaries;
         }
         self.finish_drops(&nullable_drops);
         if falls_through
@@ -352,6 +357,7 @@ impl Builder<'_, '_> {
             })?;
             self.sync_dead();
             if let Some(cur) = self.block {
+                intersect_temporaries(&mut continuing_temporaries, &self.temporaries);
                 predecessors.push(PredecessorBranch {
                     block: cur,
                     views: self.active_views.clone(),
@@ -369,6 +375,7 @@ impl Builder<'_, '_> {
         }
         self.pending_call_loans = outer_pending_loans;
         self.short_ranges = outer_short_ranges;
+        self.temporaries = continuing_temporaries.unwrap_or_default();
         if subjectless {
             self.coalesce_borrowed_proofs(&mut predecessors, span)?;
         }
@@ -408,228 +415,6 @@ impl Builder<'_, '_> {
                 alternative,
             },
         ]);
-    }
-
-    fn boolean_single_arm(&self, entries: &[WhenEntry]) -> Option<lang_frontend::ast::StatementId> {
-        let [only] = entries else {
-            return None;
-        };
-        if only.else_span.is_some() {
-            return None;
-        }
-        let [
-            WhenCondition::Expression(left),
-            WhenCondition::Expression(right),
-        ] = only.conditions.as_slice()
-        else {
-            return None;
-        };
-        let (
-            Ok((Expression::Literal(lang_frontend::parser::LiteralKind::Boolean(a)), _)),
-            Ok((Expression::Literal(lang_frontend::parser::LiteralKind::Boolean(b)), _)),
-        ) = (self.node(*left), self.node(*right))
-        else {
-            return None;
-        };
-        (a != b).then_some(only.body)
-    }
-
-    fn lower_boolean_single_arm_when(
-        &mut self,
-        control: lang_frontend::type_checking::UnitExpressionId,
-        ty: UnitTypeId,
-        result: Option<Slot>,
-        branch: lang_frontend::ast::StatementId,
-        span: Span,
-    ) -> Result<Lowered, LoweringError> {
-        let arm_block = self.body.block();
-        let join = self.body.block();
-        self.body.blocks[join.0].origin = Some(span);
-        self.goto(arm_block, span)?;
-        let outer_views = self.active_views.clone();
-        let outer_pending_loans = self.pending_call_loans.clone();
-        let outer_short_ranges = self.short_ranges.clone();
-        let mut predecessors = Vec::new();
-        self.active_views = outer_views;
-        self.short_ranges = outer_short_ranges.clone();
-        let mark = self.enter(arm_block);
-        let saved_expected = self.expected_nullable;
-        if let Some(res) = result
-            && matches!(
-                self.inputs.typed.types().get(ty),
-                Some(UnitTypeKind::Nullable(_))
-            )
-            && let EntityType::Value(ssa_ty) = self.body.slots[res.0]
-        {
-            self.expected_nullable = Some(ssa_ty);
-        }
-        let value = self.branch_value(branch)?;
-        self.expected_nullable = saved_expected;
-        self.leave(mark, span)?;
-        if let Some(value) = value {
-            if let Some(result) = result {
-                let (slot, source) =
-                    value.ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-                let slot = self.adapt(slot, source, ty)?;
-                self.deliver(source);
-                self.push(ROp::Alias { source: slot }, vec![result], span)?;
-            }
-            self.drops(UnitDropPoint::BranchExit { control, branch: 0 })?;
-            self.sync_dead();
-            if let Some(cur) = self.block {
-                predecessors.push(PredecessorBranch {
-                    block: cur,
-                    views: self.active_views.clone(),
-                    dead: self.dead.clone(),
-                    this_dead: self.this_dead,
-                });
-            }
-        }
-        self.pending_call_loans = outer_pending_loans;
-        self.short_ranges = outer_short_ranges;
-        let fallthrough = self.collect_drops(UnitDropPoint::BranchExit { control, branch: 1 });
-        self.finish_drops(&fallthrough);
-        let reached = self.join_views(predecessors, join, span)?;
-        if !self.pending_views.is_empty() {
-            return Err(error(LoweringErrorKind::InvalidModel, span));
-        }
-        if !reached {
-            return Ok(Lowered::Diverged);
-        }
-        Ok(result.map_or(Lowered::Unit, Lowered::Value))
-    }
-
-    fn boolean_two_arms(
-        &self,
-        entries: &[WhenEntry],
-    ) -> Option<(
-        (usize, lang_frontend::ast::StatementId),
-        (usize, lang_frontend::ast::StatementId),
-    )> {
-        let [first, second] = entries else {
-            return None;
-        };
-        // `true -> ...; else -> ...` is the same closed Boolean decision as
-        // true/false arms. Keep its source control identity, not a literal's span.
-        if first.else_span.is_none()
-            && second.else_span.is_some()
-            && second.conditions.is_empty()
-            && let [WhenCondition::Expression(condition)] = first.conditions.as_slice()
-            && let Ok((Expression::Literal(lang_frontend::parser::LiteralKind::Boolean(value)), _)) =
-                self.node(*condition)
-        {
-            return Some(if value {
-                ((0, first.body), (1, second.body))
-            } else {
-                ((1, second.body), (0, first.body))
-            });
-        }
-        if first.else_span.is_some() || second.else_span.is_some() {
-            return None;
-        }
-        let ([WhenCondition::Expression(left)], [WhenCondition::Expression(right)]) =
-            (first.conditions.as_slice(), second.conditions.as_slice())
-        else {
-            return None;
-        };
-        let (
-            Ok((Expression::Literal(lang_frontend::parser::LiteralKind::Boolean(a)), _)),
-            Ok((Expression::Literal(lang_frontend::parser::LiteralKind::Boolean(b)), _)),
-        ) = (self.node(*left), self.node(*right))
-        else {
-            return None;
-        };
-        match (a, b) {
-            (true, false) => Some(((0, first.body), (1, second.body))),
-            (false, true) => Some(((1, second.body), (0, first.body))),
-            _ => None,
-        }
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn lower_boolean_two_arm_when(
-        &mut self,
-        control: lang_frontend::type_checking::UnitExpressionId,
-        ty: UnitTypeId,
-        result: Option<Slot>,
-        condition: Slot,
-        (true_index, true_body): (usize, lang_frontend::ast::StatementId),
-        (false_index, false_body): (usize, lang_frontend::ast::StatementId),
-        span: Span,
-    ) -> Result<Lowered, LoweringError> {
-        let when_true = self.body.block();
-        let when_false = self.body.block();
-        let join = self.body.block();
-        self.body.blocks[join.0].origin = Some(span);
-        self.terminate(
-            RTerm::Branch {
-                condition,
-                when_true,
-                when_false,
-            },
-            span,
-        )?;
-        let outer_views = self.active_views.clone();
-        let outer_pending_loans = self.pending_call_loans.clone();
-        let outer_short_ranges = self.short_ranges.clone();
-        let mut predecessors = Vec::new();
-        for (block, index, branch) in [
-            (when_true, true_index, true_body),
-            (when_false, false_index, false_body),
-        ] {
-            self.active_views = outer_views.clone();
-            self.pending_call_loans = outer_pending_loans.clone();
-            self.short_ranges = outer_short_ranges.clone();
-            let mark = self.enter(block);
-            let saved_expected = self.expected_nullable;
-            if let Some(res) = result
-                && matches!(
-                    self.inputs.typed.types().get(ty),
-                    Some(UnitTypeKind::Nullable(_))
-                )
-                && let EntityType::Value(ssa_ty) = self.body.slots[res.0]
-            {
-                self.expected_nullable = Some(ssa_ty);
-            }
-            let value = self.branch_value(branch)?;
-            self.expected_nullable = saved_expected;
-            self.leave(mark, span)?;
-            let Some(value) = value else {
-                continue;
-            };
-            if let Some(result) = result {
-                let (slot, source) =
-                    value.ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
-                let slot = self.adapt(slot, source, ty)?;
-                self.deliver(source);
-                self.push(ROp::Alias { source: slot }, vec![result], span)?;
-            }
-            self.drops(UnitDropPoint::BranchExit {
-                control,
-                branch: index,
-            })?;
-            self.sync_dead();
-            if let Some(cur) = self.block {
-                predecessors.push(PredecessorBranch {
-                    block: cur,
-                    views: self.active_views.clone(),
-                    dead: self.dead.clone(),
-                    this_dead: self.this_dead,
-                });
-            }
-        }
-        self.pending_call_loans = outer_pending_loans;
-        self.short_ranges = outer_short_ranges;
-        let fallthrough = self.collect_drops(UnitDropPoint::BranchExit { control, branch: 2 });
-        self.finish_drops(&fallthrough);
-        let reached = self.join_views(predecessors, join, span)?;
-        if !self.pending_views.is_empty() {
-            return Err(error(LoweringErrorKind::InvalidModel, span));
-        }
-        if !reached {
-            return Ok(Lowered::Diverged);
-        }
-        Ok(result.map_or(Lowered::Unit, Lowered::Value))
     }
 
     /// Ends the current block with a branch to `matched` / `next`.
@@ -977,4 +762,13 @@ impl Builder<'_, '_> {
             .ok_or_else(|| error(LoweringErrorKind::MissingFact, span))?;
         self.ssa_type(boolean, span)
     }
+}
+
+fn intersect_temporaries(
+    merged: &mut Option<BTreeMap<UnitExpressionId, Slot>>,
+    edge: &BTreeMap<UnitExpressionId, Slot>,
+) {
+    merged
+        .get_or_insert_with(|| edge.clone())
+        .retain(|id, slot| edge.get(id) == Some(slot));
 }

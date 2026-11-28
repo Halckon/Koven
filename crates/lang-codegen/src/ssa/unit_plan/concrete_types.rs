@@ -471,8 +471,13 @@ pub(in crate::ssa::unit_plan) mod deinit {
             if typed.is_resource_type(ty) == Some(false) {
                 continue;
             }
+            // Cleanup uses the concrete enum layout, including when this use is case-refined.
+            let layout = match typed.types().get(ty) {
+                Some(UnitTypeKind::EnumCase { root, .. }) => *root,
+                _ => ty,
+            };
             let concrete =
-                resolve_concrete_type(typed, ty, substitutions, key.static_self(), span)?;
+                resolve_concrete_type(typed, layout, substitutions, key.static_self(), span)?;
             if !contains_resource(typed, concrete, &mut BTreeSet::new(), span)? {
                 continue;
             }
@@ -587,10 +592,10 @@ pub(in crate::ssa::unit_plan) mod deinit {
         if !matches!(nominal.kind(), NominalKind::Class | NominalKind::ValueClass)
             || !arguments.is_empty()
             || !nominal.type_parameters().is_empty()
-            || !nominal.interfaces().is_empty()
         {
             return Err(lowering_error(LoweringErrorKind::UnsupportedNode, span));
         }
+        // Static interface conformance does not add storage to a concrete owner.
         if let Some(descriptor) = nominal.deinit() {
             if descriptor.owner() != *declaration || descriptor.receiver_type() != ty {
                 return Err(lowering_error(LoweringErrorKind::MissingFact, span));

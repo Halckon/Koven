@@ -5,7 +5,7 @@ use crate::{
     diagnostic::codes,
     name_resolution::SourceUnitId,
     source::Span,
-    type_checking::{DeferredReason, UnitExpressionId, UnitTypeId, UnitTypeKind},
+    type_checking::{BuiltinType, DeferredReason, UnitExpressionId, UnitTypeId, UnitTypeKind},
 };
 
 use super::{BodyChecker, CompilationUnitTypeError, ExpressionCheck};
@@ -80,7 +80,7 @@ impl BodyChecker<'_> {
         };
         Ok(ExpressionCheck {
             ty,
-            falls_through: checked.falls_through,
+            falls_through: checked.falls_through && !self.is_builtin(ty, BuiltinType::Nothing),
         })
     }
 

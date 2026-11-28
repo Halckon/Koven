@@ -22,6 +22,7 @@ pub struct UnitDelegationForwarderDescriptor {
     parameters: Vec<UnitCallableParameter>,
     return_type: UnitTypeId,
     declaration_span: Span,
+    ancestor_alias: bool,
 }
 
 impl UnitDelegationForwarderDescriptor {
@@ -45,7 +46,16 @@ impl UnitDelegationForwarderDescriptor {
             parameters,
             return_type,
             declaration_span,
+            ancestor_alias: false,
         }
+    }
+
+    pub(crate) const fn set_ancestor_alias(&mut self, value: bool) {
+        self.ancestor_alias = value;
+    }
+
+    pub(crate) const fn is_ancestor_alias(&self) -> bool {
+        self.ancestor_alias
     }
 
     /// 返回被转发的 interface member target。

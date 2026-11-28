@@ -1,4 +1,35 @@
-use crate::type_checking::{ParameterMode, StringOperationKind, UnitExpressionId, UnitTypeId};
+use crate::{
+    source::Span,
+    type_checking::{
+        BuiltinType, ParameterMode, StringOperationKind, UnitCallableTarget, UnitExpressionId,
+        UnitTypeId,
+    },
+};
+
+/// Phase 2 为可到达的插值操作数选定的显示转换。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum UnitDisplayTarget {
+    /// 由内建类型决定的显示转换。
+    Builtin(BuiltinType),
+    /// 标准 Display.toString 的静态协议成员，实例化后使用已有的静态分派合同。
+    Requirement(UnitCallableTarget),
+}
+
+/// 一个按源码顺序执行的插值步骤。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum UnitInterpolationPart {
+    /// 需解码并追加的源码文本。
+    Text(Span),
+    /// 一次求值后按 Borrow receiver 进行转换。
+    Format {
+        /// 带 source identity 的操作数。
+        operand: UnitExpressionId,
+        /// 已选定的显示转换。
+        target: UnitDisplayTarget,
+    },
+    /// 只求值。该操作数必然离开当前表达式，不进行转换或后续步骤。
+    Exit(UnitExpressionId),
+}
 
 /// Phase 2 已确认 builtin String receiver 的显式复制操作。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

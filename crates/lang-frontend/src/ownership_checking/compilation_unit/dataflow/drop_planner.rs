@@ -137,6 +137,7 @@ pub(super) struct Analysis {
         Vec<crate::ownership_checking::UnitBorrowForwardTransportFact>,
     pub(super) loan_action_observations: Vec<crate::ownership_checking::UnitLoanActionObservation>,
     pub(super) direct_call_loan_ends: Vec<crate::ownership_checking::UnitDirectCallLoanEndFact>,
+    pub(super) class_result_argument_unwinds: Vec<crate::ownership_checking::UnitDirectCallLoanEndFact>,
     pub(super) string_clone_loan_ends: Vec<crate::ownership_checking::UnitStringCloneLoanEndFact>,
     pub(super) drops: Vec<UnitDropFact>,
     pub(super) conditional_receiver_drops: Vec<UnitConditionalReceiverDropFact>,

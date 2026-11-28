@@ -258,7 +258,7 @@ fn standard_error_emits_object_while_interpolated_message_fails_before_writing()
 
     let unsupported = UnitSource::analyze(
         "interpolated-error.ko",
-        "fun abortEntry(): Unit { error(\"${1}\") }",
+        "fun abortEntry(): Unit { error(\"${1.0}\") }",
     )
     .expect("original source must pass strict Unit admission");
     unsupported.assert_frontend_clean();

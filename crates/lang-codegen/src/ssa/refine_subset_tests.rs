@@ -118,22 +118,11 @@ fn nullable_functions_inside_the_subset_are_routed() {
 /// These sources remain outside current refinement admission; the test constrains
 /// routing, not whether the selected per-family path succeeds.
 #[test]
-fn functions_outside_the_subset_keep_the_per_family_path() {
-    for (reason, source) in [
-        (
-            "jump out of a call argument past a borrowed temporary",
-            "class Node()\nfun outer(node: Node, own r: Int): Int = r\n\
-             fun f(flag: Boolean): Int = outer(Node(), when (flag) { true -> return 1\n else -> 0 })",
-        ),
-        (
-            "Inout class? parameter has no shared non-null proof",
-            "class Item()\nfun inspect(r: Item): Unit {}\n\
-             fun f(inout r: Item?): Unit { if (r != null) { inspect(r) } }",
-        ),
-    ] {
-        let (_, routed) = route(source);
-        assert!(!routed, "{reason}: {source}");
-    }
+fn inout_nullable_class_without_a_shared_non_null_proof_keeps_the_per_family_path() {
+    let source = "class Item()\nfun inspect(r: Item): Unit {}\n\
+                  fun f(inout r: Item?): Unit { if (r != null) { inspect(r) } }";
+    let (_, routed) = route(source);
+    assert!(!routed, "{source}");
 }
 
 #[test]

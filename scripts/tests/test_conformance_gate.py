@@ -902,8 +902,9 @@ sys.exit(1)
         parsed_audit = json.loads(audit_out.getvalue())
         self.assertEqual(parsed_audit["schema"], "koven.conformance-audit-summary.v1")
         self.assertEqual(parsed_audit["total_probes"], 164)
-        self.assertEqual(parsed_audit["probe_capability_passed"], 144)
-        self.assertEqual(parsed_audit["foundational_p2"]["group_a_runnable"], 58)
+        self.assertEqual(parsed_audit["probe_capability_passed"], 148)
+        self.assertEqual(parsed_audit["program_run_ok"], 2)
+        self.assertEqual(parsed_audit["foundational_p2"]["group_a_runnable"], 62)
         self.assertEqual(parsed_audit["project_transform"]["explicit_import_probes"], 7)
 
         # Verify parse_tsv_matrix accepts both frozen 154-row baseline and expanded 164-row baseline

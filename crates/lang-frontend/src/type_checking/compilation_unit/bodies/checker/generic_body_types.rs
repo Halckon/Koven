@@ -1,17 +1,54 @@
-//! Finite canonical publication from committed ordinary source calls, without rechecking bodies.
+//! Finite canonical publication from committed call sites, without rechecking bodies.
 
 use super::dispatch_owner_types::StaticDispatchOwners;
-use super::type_graph::{ConcreteTypes, substitute};
+use super::type_graph::{ConcreteTypes, substitute_for_receiver};
 use super::*;
 use crate::parser::NameMarker;
-use crate::type_checking::{IntrinsicTypeConstructor, UnitCallTarget, UnitCallableTarget};
+use crate::type_checking::CompletedUnitCalls;
+use crate::type_checking::{
+    IntrinsicTypeConstructor, UnitCallDescriptor, UnitCallTarget, UnitCallableTarget,
+    UnitDisplayTarget, UnitInterpolationPart,
+};
 
-type Instance = (UnitCallTarget, Vec<UnitTypeId>);
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
+struct Instance {
+    target: UnitCallTarget,
+    arguments: Vec<UnitTypeId>,
+    static_self: Option<UnitTypeId>,
+}
+
+impl Instance {
+    fn is_specialized(&self) -> bool {
+        !self.arguments.is_empty() || self.static_self.is_some()
+    }
+
+    fn is_closed(
+        &self,
+        concrete: &mut ConcreteTypes,
+        signatures: &CompilationUnitSignatures,
+    ) -> Result<bool, CompilationUnitTypeError> {
+        for ty in self.arguments.iter().copied().chain(self.static_self) {
+            if !concrete.is_concrete(signatures.types(), ty)? {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+}
 
 struct Template {
     parameters: Vec<UnitSymbolId>,
+    contextual: bool,
     types: BTreeSet<UnitTypeId>,
     calls: Vec<usize>,
+    display_reads: Vec<DisplayRead>,
+}
+
+#[derive(Clone, Copy)]
+struct DisplayRead {
+    operand: UnitExpressionId,
+    receiver: UnitTypeId,
+    requirement: UnitCallableTarget,
 }
 
 #[cfg(test)]
@@ -24,6 +61,22 @@ impl BodyChecker<'_> {
         &mut self,
         limit: usize,
     ) -> Result<(), CompilationUnitTypeError> {
+        self.materialize_generic_body_types(limit, None)
+    }
+
+    pub(super) fn materialize_completed_display_bodies(
+        &mut self,
+        limit: usize,
+        completed: &CompletedUnitCalls,
+    ) -> Result<(), CompilationUnitTypeError> {
+        self.materialize_generic_body_types(limit, Some(completed))
+    }
+
+    fn materialize_generic_body_types(
+        &mut self,
+        limit: usize,
+        completed: Option<&CompletedUnitCalls>,
+    ) -> Result<(), CompilationUnitTypeError> {
         if self
             .signatures
             .diagnostics()
@@ -33,24 +86,48 @@ impl BodyChecker<'_> {
         {
             return Ok(());
         }
-        let templates = self.generic_body_templates()?;
-        let mut dispatch = StaticDispatchOwners::new(&self.signatures);
+        let display_reads = match completed {
+            Some(completed) => self.display_reads(completed)?,
+            None => Vec::new(),
+        };
+        let templates = self.generic_body_templates(&display_reads)?;
+        let mut dispatch = StaticDispatchOwners::new(&self.signatures)?;
         let mut concrete = ConcreteTypes::for_closed_arguments();
         let mut seeds = BTreeMap::new();
-        for call in &self.parts.calls {
-            if let Some((receiver, target)) = dispatch.call(call) {
-                dispatch.record(self.signatures.types(), receiver, target);
-            }
-            let target = call.target();
-            if !templates.contains_key(&target) {
+        let contextual_calls = completed.map(|_| {
+            templates
+                .values()
+                .flat_map(|template| template.calls.iter().copied())
+                .collect::<BTreeSet<_>>()
+        });
+        for (index, call) in self.parts.calls.iter().enumerate() {
+            if completed.is_some_and(|calls| !calls.explicit.contains(&call.expression()))
+                || contextual_calls
+                    .as_ref()
+                    .is_some_and(|calls| calls.contains(&index))
+            {
                 continue;
             }
-            let args = call.instance().type_arguments();
-            let mut closed = true;
-            for &arg in args {
-                closed &= concrete.is_concrete(self.signatures.types(), arg)?;
+            if let Some((receiver, target)) = dispatch.call(call) {
+                dispatch.record(self.signatures.types(), receiver, target);
+                if !concrete.is_concrete(self.signatures.types(), receiver)? {
+                    continue;
+                }
+            } else if !templates.contains_key(&call.target()) {
+                continue;
             }
-            if closed {
+            let Some(instance) = body_call_instance(
+                &mut self.signatures,
+                &dispatch,
+                &templates,
+                call,
+                call.receiver().map(|receiver| receiver.ty()),
+                call.instance().type_arguments().to_vec(),
+            )?
+            else {
+                continue;
+            };
+            if instance.is_closed(&mut concrete, &self.signatures)? {
                 let expression = call.expression();
                 let span = self
                     .file(expression.source_unit())
@@ -59,7 +136,36 @@ impl BodyChecker<'_> {
                     .get(expression.expression())
                     .map_err(TypeCheckingError::from)?
                     .span();
-                seeds.entry((target, args.to_vec())).or_insert(span);
+                seeds.entry(instance).or_insert(span);
+            }
+        }
+        let contextual_displays = templates
+            .values()
+            .flat_map(|template| template.display_reads.iter().map(|read| read.operand))
+            .collect::<BTreeSet<_>>();
+        for read in display_reads {
+            if contextual_displays.contains(&read.operand) {
+                continue;
+            }
+            dispatch.record(self.signatures.types(), read.receiver, read.requirement);
+            if !concrete.is_concrete(self.signatures.types(), read.receiver)? {
+                continue;
+            }
+            if let Some(instance) = display_body_instance(
+                &mut self.signatures,
+                &dispatch,
+                &templates,
+                read.requirement,
+                read.receiver,
+            )? {
+                let span = self
+                    .file(read.operand.source_unit())
+                    .ast()
+                    .expressions()
+                    .get(read.operand.expression())
+                    .map_err(TypeCheckingError::from)?
+                    .span();
+                seeds.entry(instance).or_insert(span);
             }
         }
         for (seed, call_span) in seeds {
@@ -70,10 +176,16 @@ impl BodyChecker<'_> {
                 if planned.contains(&key) {
                     continue;
                 }
-                if !key.1.is_empty() && count >= limit {
+                if key.is_specialized() && count >= limit {
                     // The original planner owns budget/recipe arbitration. Publish only its finite frontier.
                     if self
-                        .materialize_body_instance(&templates, &key, call_span, &mut dispatch)?
+                        .materialize_body_instance(
+                            &templates,
+                            &key,
+                            call_span,
+                            &mut dispatch,
+                            completed,
+                        )?
                         .is_some()
                     {
                         for next in pending.difference(&planned) {
@@ -83,6 +195,7 @@ impl BodyChecker<'_> {
                                     next,
                                     call_span,
                                     &mut dispatch,
+                                    completed,
                                 )?
                                 .is_none()
                             {
@@ -92,21 +205,24 @@ impl BodyChecker<'_> {
                     }
                     break;
                 }
-                let Some(callees) =
-                    self.materialize_body_instance(&templates, &key, call_span, &mut dispatch)?
+                let Some(callees) = self.materialize_body_instance(
+                    &templates,
+                    &key,
+                    call_span,
+                    &mut dispatch,
+                    completed,
+                )?
                 else {
                     break;
                 };
                 for callee in callees {
-                    let mut closed = true;
-                    for &arg in &callee.1 {
-                        closed &= concrete.is_concrete(self.signatures.types(), arg)?;
-                    }
-                    if closed && !planned.contains(&callee) {
+                    if callee.is_closed(&mut concrete, &self.signatures)?
+                        && !planned.contains(&callee)
+                    {
                         pending.insert(callee);
                     }
                 }
-                if !key.1.is_empty() {
+                if key.is_specialized() {
                     count += 1;
                 }
                 planned.insert(key);
@@ -121,35 +237,81 @@ impl BodyChecker<'_> {
         key: &Instance,
         call_span: Span,
         dispatch: &mut StaticDispatchOwners,
+        completed: Option<&CompletedUnitCalls>,
     ) -> Result<Option<Vec<Instance>>, CompilationUnitTypeError> {
         let template = templates
-            .get(&key.0)
+            .get(&key.target)
             .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
-        if template.parameters.len() != key.1.len() {
+        if template.parameters.len() != key.arguments.len() {
             return Err(CompilationUnitTypeError::MissingDeclarationSymbol);
         }
         let substitutions = template
             .parameters
             .iter()
             .copied()
-            .zip(key.1.iter().copied())
+            .zip(key.arguments.iter().copied())
             .collect();
         let checkpoint = self.signatures.types().len();
         let mut memo = BTreeMap::new();
         for &ty in &template.types {
-            substitute(self.signatures.types_mut(), ty, &substitutions, &mut memo)?;
+            substitute_for_receiver(
+                self.signatures.types_mut(),
+                ty,
+                &substitutions,
+                key.static_self,
+                &mut memo,
+            )?;
         }
         let mut callees = Vec::new();
         for &index in &template.calls {
             let call = &self.parts.calls[index];
+            if completed.is_some_and(|calls| !calls.explicit.contains(&call.expression())) {
+                continue;
+            }
             let arguments = call
                 .instance()
                 .type_arguments()
                 .iter()
-                .map(|&ty| substitute(self.signatures.types_mut(), ty, &substitutions, &mut memo))
+                .map(|&ty| {
+                    substitute_for_receiver(
+                        self.signatures.types_mut(),
+                        ty,
+                        &substitutions,
+                        key.static_self,
+                        &mut memo,
+                    )
+                })
                 .collect::<Result<Vec<_>, _>>()?;
-            if templates.contains_key(&call.target()) {
-                callees.push((call.target(), arguments));
+            let receiver = call
+                .receiver()
+                .and_then(|receiver| memo.get(&receiver.ty()).copied());
+            if let Some(callee) = body_call_instance(
+                &mut self.signatures,
+                dispatch,
+                templates,
+                call,
+                receiver,
+                arguments,
+            )? {
+                callees.push(callee);
+            }
+        }
+        for read in &template.display_reads {
+            let receiver = substitute_for_receiver(
+                self.signatures.types_mut(),
+                read.receiver,
+                &substitutions,
+                key.static_self,
+                &mut memo,
+            )?;
+            if let Some(callee) = display_body_instance(
+                &mut self.signatures,
+                dispatch,
+                templates,
+                read.requirement,
+                receiver,
+            )? {
+                callees.push(callee);
             }
         }
         if let Some(message) = self.invalid_storage_in_substitution(&memo) {
@@ -165,6 +327,12 @@ impl BodyChecker<'_> {
                     .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
                 dispatch.record(self.signatures.types(), *receiver, target);
             }
+        }
+        for read in &template.display_reads {
+            let receiver = memo
+                .get(&read.receiver)
+                .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
+            dispatch.record(self.signatures.types(), *receiver, read.requirement);
         }
         Ok(Some(callees))
     }
@@ -254,8 +422,45 @@ impl BodyChecker<'_> {
             })
     }
 
+    fn display_reads(
+        &self,
+        completed: &CompletedUnitCalls,
+    ) -> Result<Vec<DisplayRead>, CompilationUnitTypeError> {
+        let mut reads = Vec::new();
+        for parts in self.parts.interpolation_plans.values() {
+            for part in parts {
+                let UnitInterpolationPart::Format {
+                    operand,
+                    target: UnitDisplayTarget::Requirement(requirement),
+                } = *part
+                else {
+                    continue;
+                };
+                if completed.display.get(&operand) != Some(&requirement) {
+                    continue;
+                }
+                let &ty = self
+                    .parts
+                    .expression_types
+                    .get(&operand)
+                    .ok_or(CompilationUnitTypeError::MissingDeclarationSymbol)?;
+                let receiver = match self.signatures.types().get(ty) {
+                    Some(UnitTypeKind::EnumCase { root, .. }) => *root,
+                    _ => ty,
+                };
+                reads.push(DisplayRead {
+                    operand,
+                    receiver,
+                    requirement,
+                });
+            }
+        }
+        Ok(reads)
+    }
+
     fn generic_body_templates(
         &self,
+        display_reads: &[DisplayRead],
     ) -> Result<BTreeMap<UnitCallTarget, Template>, CompilationUnitTypeError> {
         let mut definitions = BTreeMap::<SourceUnitId, BTreeMap<usize, _>>::new();
         for declaration in self.names.index().declarations() {
@@ -263,7 +468,16 @@ impl BodyChecker<'_> {
                 continue;
             };
             let mut register = |callable: &UnitCallableSignature, owner: &[UnitSymbolId]| {
-                if owner.is_empty() && callable.type_parameters().is_empty() {
+                let contextual = callable.receiver().is_some_and(|receiver| {
+                    matches!(
+                        self.signatures.types().get(receiver.ty()),
+                        Some(UnitTypeKind::StaticSelf(_))
+                    )
+                });
+                if owner.is_empty()
+                    && callable.type_parameters().is_empty()
+                    && !(contextual && callable.has_body())
+                {
                     return;
                 }
                 let target = match callable.target() {
@@ -271,6 +485,7 @@ impl BodyChecker<'_> {
                     UnitCallableTarget::Symbol(id) => UnitCallTarget::Symbol(id),
                 };
                 let template = Template {
+                    contextual,
                     parameters: owner
                         .iter()
                         .chain(callable.type_parameters())
@@ -283,6 +498,7 @@ impl BodyChecker<'_> {
                         .chain(std::iter::once(callable.return_type()))
                         .collect(),
                     calls: Vec::new(),
+                    display_reads: Vec::new(),
                 };
                 definitions
                     .entry(declaration.source_unit())
@@ -408,6 +624,116 @@ impl BodyChecker<'_> {
                 }
             }
         }
+        for &read in display_reads {
+            let source = read.operand.source_unit();
+            if ranges.contains_key(&source) {
+                let span = self
+                    .file(source)
+                    .ast()
+                    .expressions()
+                    .get(read.operand.expression())
+                    .map_err(TypeCheckingError::from)?
+                    .span();
+                if let Some(template) =
+                    locate(source, span).and_then(|target| templates.get_mut(&target))
+                {
+                    template.display_reads.push(read);
+                }
+            }
+        }
         Ok(templates)
     }
+}
+
+fn body_call_instance(
+    signatures: &mut CompilationUnitSignatures,
+    dispatch: &StaticDispatchOwners,
+    templates: &BTreeMap<UnitCallTarget, Template>,
+    call: &UnitCallDescriptor,
+    mut receiver: Option<UnitTypeId>,
+    arguments: Vec<UnitTypeId>,
+) -> Result<Option<Instance>, CompilationUnitTypeError> {
+    let mut target = call.target();
+    let mut arguments = arguments;
+    if let Some((declared_receiver, requirement)) = dispatch.call(call) {
+        let Some(actual) = receiver else {
+            return Ok(None);
+        };
+        let contextual_dispatch = matches!(
+            signatures.types().get(declared_receiver),
+            Some(UnitTypeKind::TypeParameter(_) | UnitTypeKind::StaticSelf(_))
+        );
+        if contextual_dispatch
+            && matches!(
+                signatures.types().get(actual),
+                Some(UnitTypeKind::TypeParameter(_) | UnitTypeKind::StaticSelf(_))
+            )
+        {
+            // Defer selection until the enclosing body is instantiated.
+            return Ok(None);
+        }
+        if !call
+            .receiver()
+            .is_some_and(|receiver| receiver.is_qualified_super())
+        {
+            let Some(route) = dispatch.body_route(
+                signatures,
+                actual,
+                requirement,
+                arguments,
+                contextual_dispatch,
+            )?
+            else {
+                return Ok(None);
+            };
+            target = route.target;
+            arguments = route.arguments;
+            receiver = Some(route.receiver);
+        }
+    }
+    Ok(body_instance(templates, target, arguments, receiver))
+}
+
+fn display_body_instance(
+    signatures: &mut CompilationUnitSignatures,
+    dispatch: &StaticDispatchOwners,
+    templates: &BTreeMap<UnitCallTarget, Template>,
+    requirement: UnitCallableTarget,
+    receiver: UnitTypeId,
+) -> Result<Option<Instance>, CompilationUnitTypeError> {
+    if !matches!(
+        signatures.types().get(receiver),
+        Some(UnitTypeKind::Nominal { .. })
+    ) {
+        return Ok(None);
+    }
+    Ok(dispatch
+        .body_route(signatures, receiver, requirement, Vec::new(), false)?
+        .and_then(|route| {
+            body_instance(
+                templates,
+                route.target,
+                route.arguments,
+                Some(route.receiver),
+            )
+        }))
+}
+
+fn body_instance(
+    templates: &BTreeMap<UnitCallTarget, Template>,
+    target: UnitCallTarget,
+    arguments: Vec<UnitTypeId>,
+    receiver: Option<UnitTypeId>,
+) -> Option<Instance> {
+    let template = templates.get(&target)?;
+    let static_self = if template.contextual {
+        Some(receiver?)
+    } else {
+        None
+    };
+    Some(Instance {
+        target,
+        arguments,
+        static_self,
+    })
 }

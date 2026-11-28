@@ -1,5 +1,5 @@
 //! Shared iterative evaluator; adapters supply source identity, typed literals and selected values.
-use super::constant_value::{ConstValue as Value, decode_text};
+use super::constant_value::{ConstValue as Value, decode_char_literal, decode_text};
 use crate::{
     ast::ExpressionId,
     parser::{
@@ -58,16 +58,7 @@ pub(super) fn evaluate<C: ConstantEvaluationContext>(
                         value = context.integer_value(expression, span, kind, false)?;
                     }
                     Expression::Literal(LiteralKind::Char) => {
-                        let text = context.text(span)?;
-                        value = text
-                            .strip_prefix('\'')
-                            .and_then(|text| text.strip_suffix('\''))
-                            .and_then(decode_text)
-                            .and_then(|text| {
-                                let mut chars = text.chars();
-                                let first = chars.next()?;
-                                chars.next().is_none().then_some(Value::Char(first))
-                            });
+                        value = decode_char_literal(context.text(span)?).map(Value::Char);
                     }
                     Expression::String { parts } => {
                         let mut bytes = Vec::new();

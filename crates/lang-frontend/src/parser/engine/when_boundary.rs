@@ -1,7 +1,11 @@
-//! Read-only evidence for a line-leading group that starts a new when selector.
+//! Read-only evidence for a group that starts a new when selector.
 use super::*;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+mod compound;
+
+use compound::CompoundScan;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(super) enum WhenEntryBody {
     WithSubject,
     WithoutSubject,
@@ -141,46 +145,140 @@ pub(super) fn run_selector_events(events: &[SelectorEvent]) -> bool {
     false
 }
 
+impl Stops {
+    pub(super) const WHEN_CALL_OPERAND_RECOVERY: u16 = 1 << 11;
+    pub(super) const BODY_SOFT_STOPS: u16 = Self::LAMBDA_COMMA
+        | Self::ARROW
+        | Self::FILE_DECLARATION
+        | Self::SEMICOLON
+        | Self::WHEN_CALL_OPERAND_RECOVERY;
+}
+
 impl Parser<'_> {
-    pub(super) fn grouped_when_entry_follows(
+    pub(super) fn at_when_operand_boundary(
         &self,
-        receiver: ExpressionId,
-        body: WhenEntryBody,
-    ) -> Result<Option<bool>, ParserInternalError> {
-        if !self.current_is_symbol(Symbol::LeftParen)
-            || !self.gap_has_line_break(
-                self.expression_span(receiver)?.end(),
-                self.current()?.span().start(),
-            )?
-        {
-            return Ok(None);
+        stops: Stops,
+    ) -> Result<bool, ParserInternalError> {
+        if self.at_committed_when_arm_boundary(stops)? {
+            return Ok(true);
         }
-        let Some(closer) = self
-            .lexical_recoveries
-            .group_closer(self.lexed, self.current_raw()?)
-        else {
-            return Ok(None);
-        };
-        self.selector_arrow_after_group(closer, body).map(Some)
+        self.unclosed_when_operand_boundary(stops)
     }
 
-    pub(super) fn brace_when_entry_follows(
+    pub(super) fn commit_when_arm_boundary(
+        &self,
+        body: WhenEntryBody,
+    ) -> Result<(), ParserInternalError> {
+        self.lexical_recoveries
+            .committed_when_arm
+            .set(Some((self.current_raw()?, body)));
+        Ok(())
+    }
+
+    pub(super) fn at_committed_when_arm_boundary(
+        &self,
+        stops: Stops,
+    ) -> Result<bool, ParserInternalError> {
+        self.when_arm_is_committed(stops.when_entry_body)
+    }
+
+    pub(super) fn when_arm_is_committed(
+        &self,
+        when_body: Option<WhenEntryBody>,
+    ) -> Result<bool, ParserInternalError> {
+        if let Some((raw, body)) = self.lexical_recoveries.committed_when_arm.get()
+            && self.index <= raw
+            && when_body == Some(body)
+        {
+            return Ok(self.current_raw()? == raw);
+        }
+        Ok(false)
+    }
+
+    pub(super) fn unclosed_when_operand_boundary(
+        &self,
+        stops: Stops,
+    ) -> Result<bool, ParserInternalError> {
+        if stops.delimiters & Stops::WHEN_CALL_OPERAND_RECOVERY != 0
+            && let Some(body) = stops.when_entry_body
+        {
+            return self.when_arm_boundary_follows(self.previous_significant_end(), body);
+        }
+        Ok(false)
+    }
+
+    pub(super) fn strict_when_type_has_local_end(&self) -> Result<bool, ParserInternalError> {
+        let Some(end) = self.strict_trials.type_end(self.current_raw()?) else {
+            return Ok(false);
+        };
+        let closer = self.lexed.lexemes()[end - 1];
+        if closer.kind() == LexemeKind::Token(TokenKind::Symbol(Symbol::Greater))
+            && let Some((next_raw, next)) = self.selector_token(end)
+            && self.can_start_expression(next)
+            && !self.gap_has_line_break(closer.span().end(), next.span().start())?
+        {
+            // A soft infix name can continue the completed type only when it
+            // has a right operand. Otherwise the selector may use it as a name.
+            return Ok(self.infix_rule(next)?.is_some()
+                && self
+                    .selector_token(next_raw + 1)
+                    .is_some_and(|(_, right)| self.can_start_expression(right)));
+        }
+        Ok(true)
+    }
+
+    pub(super) fn paired_when_entry_follows(
         &self,
         previous_end: usize,
         body: WhenEntryBody,
-    ) -> Result<bool, ParserInternalError> {
-        if !self.current_is_symbol(Symbol::LeftBrace)
-            || !self.gap_has_line_break(previous_end, self.current()?.span().start())?
-        {
-            return Ok(false);
-        }
-        let Some(closer) = self
-            .lexical_recoveries
-            .group_closer(self.lexed, self.current_raw()?)
-        else {
-            return Ok(false);
+    ) -> Result<Option<bool>, ParserInternalError> {
+        let current = self.current()?;
+        let parenthesized = self.current_is_symbol(Symbol::LeftParen);
+        let opener = self.current_raw()?;
+        let Some(closer) = self.lexical_recoveries.group_closer(self.lexed, opener) else {
+            return Ok(None);
         };
-        self.selector_arrow_after_group(closer, body)
+        if self.gap_has_line_break(previous_end, current.span().start())? {
+            let follows = self.selector_arrow_after_group(closer, body)?;
+            return Ok((parenthesized || follows).then_some(follows));
+        }
+        if !self
+            .lexical_recoveries
+            .active_when_body_opener
+            .get()
+            .is_some_and(|owner| {
+                self.lexical_recoveries
+                    .enclosing_group_opener(self.lexed, opener)
+                    == Some(owner)
+            })
+        {
+            return Ok(None);
+        }
+        let first_suffix = closer + 1;
+        let Some((_, next)) = self.selector_token(first_suffix) else {
+            return Ok(None);
+        };
+        if next.kind() == LexemeKind::Token(TokenKind::Symbol(Symbol::Arrow)) {
+            return Ok(self.group_can_be_selector(opener, closer)?.then_some(true));
+        }
+        if previous_end >= current.span().start() {
+            return Ok(None);
+        }
+        let suffixes = &self.lexical_recoveries.when_compound_suffixes;
+        if let Some(&cached) = suffixes.borrow().get(&(first_suffix, body)) {
+            return Ok(cached.then_some(true));
+        }
+        let group_end = self.lexed.lexemes()[closer].span().end();
+        if !self.grouped_selector_can_continue(group_end, next)?
+            || !self.group_can_be_selector(opener, closer)?
+        {
+            return Ok(None);
+        }
+        let mut scan = CompoundScan::new(first_suffix);
+        self.selector_arrow(first_suffix, group_end, false, body, None, Some(&mut scan))?;
+        Ok(scan
+            .publish(body, &mut suffixes.borrow_mut())
+            .then_some(true))
     }
 
     fn selector_arrow_after_group(
@@ -188,20 +286,138 @@ impl Parser<'_> {
         closer: usize,
         body: WhenEntryBody,
     ) -> Result<bool, ParserInternalError> {
+        self.selector_arrow(
+            closer + 1,
+            self.lexed.lexemes()[closer].span().end(),
+            false,
+            body,
+            None,
+            None,
+        )
+    }
+
+    /// Only called when the current call has no paired closer.
+    pub(super) fn when_arm_boundary_follows(
+        &self,
+        previous_end: usize,
+        body: WhenEntryBody,
+    ) -> Result<bool, ParserInternalError> {
+        if self.current_is_symbol(Symbol::Semicolon) {
+            return Ok(true);
+        }
+        let current = self.current()?;
+        let raw = self.current_raw()?;
+        let is_else = self.current_is_keyword(Keyword::Else);
+        let boundaries = &self.lexical_recoveries.when_arm_boundaries;
+        let cached = boundaries.borrow().get(&(raw, body)).copied();
+        if cached == Some(false) {
+            return Ok(false);
+        }
+        if !is_else && !self.gap_has_line_break(previous_end, current.span().start())? {
+            return Ok(false);
+        }
+        if let Some(result) = cached {
+            return Ok(result);
+        }
+        let mut starts = Vec::new();
+        let boundary = if is_else {
+            self.selector_token(raw + 1).is_some_and(|(_, next)| {
+                next.kind() == LexemeKind::Token(TokenKind::Symbol(Symbol::Arrow))
+            })
+        } else {
+            self.selector_arrow(
+                raw,
+                current.span().start(),
+                true,
+                body,
+                Some(&mut starts),
+                None,
+            )?
+        };
+        let mut boundaries = boundaries.borrow_mut();
+        boundaries.insert((raw, body), boundary);
+        boundaries.extend(
+            starts
+                .into_iter()
+                .map(|(start, pending)| ((start, body), boundary && pending == 0)),
+        );
+        Ok(boundary)
+    }
+
+    fn selector_arrow(
+        &self,
+        mut raw: usize,
+        mut end: usize,
+        needs_operand: bool,
+        body: WhenEntryBody,
+        mut recovery_starts: Option<&mut Vec<(usize, usize)>>,
+        mut compound_scan: Option<&mut CompoundScan>,
+    ) -> Result<bool, ParserInternalError> {
         let lexemes = self.lexed.lexemes();
-        let mut end = lexemes[closer].span().end();
-        let mut raw = closer + 1;
-        let mut state = SelectorScanState::INITIAL;
+        let mut state = SelectorScanState {
+            needs_operand,
+            ..SelectorScanState::INITIAL
+        };
         while let Some((opener, lexeme)) = self.selector_token(raw) {
             raw = opener + 1;
             let LexemeKind::Token(kind) = lexeme.kind() else {
                 return Ok(false);
             };
+            if state.needs_operand
+                && !matches!(
+                    kind,
+                    TokenKind::Keyword(Keyword::Else) | TokenKind::Symbol(Symbol::Semicolon)
+                )
+                && let Some(starts) = recovery_starts.as_deref_mut()
+            {
+                // A fresh operand does not depend on the previous operand's span.
+                if state.pending_else == 0
+                    && let Some(&boundary) = self
+                        .lexical_recoveries
+                        .when_arm_boundaries
+                        .borrow()
+                        .get(&(opener, body))
+                {
+                    return Ok(boundary);
+                }
+                starts.push((opener, state.pending_else));
+            }
+            if compound_scan.is_some()
+                && (kind == TokenKind::Symbol(Symbol::ColonColon)
+                    || (!state.needs_operand
+                        && matches!(kind, TokenKind::Symbol(Symbol::Dot | Symbol::QuestionDot))))
+            {
+                // Member and reference names cannot introduce a soft move lambda.
+                let Some((name, member)) = self.selector_token(raw) else {
+                    return Ok(false);
+                };
+                if member.kind() != LexemeKind::Token(TokenKind::Identifier) {
+                    return Ok(false);
+                }
+                end = member.span().end();
+                raw = name + 1;
+                state.needs_operand = false;
+                continue;
+            }
             if !state.needs_operand {
                 // A line-leading group or lambda may start its own entry.
                 // Only a when with a subject can have a bare is/in selector.
                 let has_line_break = is_new_selector_after_line_break(body, kind)
                     && self.gap_has_line_break(end, lexeme.span().start())?;
+                if kind == TokenKind::Symbol(Symbol::Arrow)
+                    && state.pending_else > 0
+                    && let Some(starts) = recovery_starts.as_deref_mut()
+                {
+                    starts.retain(|&(_, debt)| debt < state.pending_else);
+                }
+                if let Some(scan) = compound_scan.as_deref_mut() {
+                    match kind {
+                        TokenKind::Symbol(Symbol::Arrow) => scan.reach_arrow(state.pending_else),
+                        TokenKind::Keyword(Keyword::Else) => scan.leave_then(state.pending_else),
+                        TokenKind::Symbol(Symbol::Comma) => scan.leave_body_expression(),
+                        _ => {}
+                    }
+                }
                 if let Some(step) = state.step_non_operand_control(body, kind, has_line_break) {
                     match step {
                         SelectorStep::Continue(next) => {
@@ -209,6 +425,23 @@ impl Parser<'_> {
                             continue;
                         }
                         SelectorStep::Finish(accepted) => return Ok(accepted),
+                    }
+                }
+                if let Some(scan) = compound_scan.as_deref_mut()
+                    && scan.collecting()
+                    && end < lexeme.span().start()
+                    && let Some(suffix) = self.separated_group_suffix(opener, kind)?
+                {
+                    let known = self
+                        .lexical_recoveries
+                        .when_compound_suffixes
+                        .borrow()
+                        .contains_key(&(suffix, body));
+                    if state.pending_else == 0 && known {
+                        return Ok(false);
+                    }
+                    if !known {
+                        scan.add_candidate(suffix, state.pending_else);
                     }
                 }
                 if kind == TokenKind::Symbol(Symbol::Less)
@@ -257,6 +490,15 @@ impl Parser<'_> {
                         Symbol::Comma | Symbol::Dot | Symbol::QuestionDot | Symbol::ColonColon
                     )
                 ) {
+                    if kind == TokenKind::Symbol(Symbol::Comma)
+                        && state.pending_else > 0
+                        && let Some(starts) = recovery_starts.as_deref_mut()
+                    {
+                        // A selector cannot carry its unfinished if across the comma.
+                        // A probe starting with less debt might reach a complete selector.
+                        starts.retain(|&(_, debt)| debt < state.pending_else);
+                        return Ok(false);
+                    }
                     let SelectorStep::Continue(next) =
                         state.step(SelectorEvent::NonOperandExpectsOperand)
                     else {
@@ -360,13 +602,26 @@ impl Parser<'_> {
                     }
                 }
                 TokenKind::StringStart => {
-                    let Some(string_end) = self
-                        .lexical_recoveries
-                        .string_owner_end(lexeme.span().start())
+                    let Some(string_end) = self.lexical_recoveries.string_owner_closer(opener)
                     else {
                         return Ok(false);
                     };
-                    raw += lexemes[raw..].partition_point(|token| token.span().end() <= string_end);
+                    raw = string_end + 1;
+                    SelectorEvent::OperandComplete
+                }
+                TokenKind::Identifier
+                    if compound_scan.is_some()
+                        && self.sources.slice(lexeme.span())? == "move"
+                        && let Some((brace, next)) = self.selector_token(raw)
+                        && next.kind()
+                            == LexemeKind::Token(TokenKind::Symbol(Symbol::LeftBrace)) =>
+                {
+                    // As in parse_primary, the brace belongs to the move lambda.
+                    let Some(closer) = self.lexical_recoveries.group_closer(self.lexed, brace)
+                    else {
+                        return Ok(false);
+                    };
+                    raw = closer + 1;
                     SelectorEvent::OperandComplete
                 }
                 TokenKind::Identifier
@@ -408,15 +663,7 @@ impl Parser<'_> {
     }
 
     fn selector_token(&self, raw: usize) -> Option<(usize, Lexeme)> {
-        for (offset, &lexeme) in self.lexed.lexemes().get(raw..)?.iter().enumerate() {
-            #[cfg(test)]
-            self.significant_raw_visits
-                .set(self.significant_raw_visits.get() + 1);
-            if !matches!(lexeme.kind(), LexemeKind::Trivia(_)) {
-                return Some((raw + offset, lexeme));
-            }
-        }
-        None
+        self.significant_from(raw, 0)
     }
 
     fn selector_group_close(&self, raw: usize, symbol: Symbol) -> Option<usize> {
@@ -452,6 +699,206 @@ mod tests {
         assert!(small_visits <= small_raw * 36);
         assert!(large_visits <= large_raw * 36);
         assert!(large_visits <= small_visits * 2 + 32);
+    }
+
+    #[test]
+    fn same_line_grouped_selector_recovery_checks_each_postfix_suffix_at_most_once() {
+        let metrics = |repetitions| {
+            block_dispatch_metrics(format!(
+                "{{ when {{ false -> produce{} ((true)) -> 2; else -> 3 }} }}",
+                "(1) /*臂*/".repeat(repetitions),
+            ))
+        };
+        let (small_raw, _, small_visits, small_diagnostics) = metrics(64);
+        let (large_raw, _, large_visits, large_diagnostics) = metrics(128);
+        assert_eq!((small_diagnostics, large_diagnostics), (1, 1));
+        assert!(small_visits <= small_raw * 36);
+        assert!(large_visits <= large_raw * 36);
+        assert!(
+            large_visits <= small_visits * 2 + 32,
+            "raw visits grew with postfix rescanning: {small_visits} -> {large_visits}"
+        );
+    }
+
+    #[test]
+    fn same_line_compound_recovery_bounds_scans_across_separated_calls() {
+        for (prefix, term, suffix, diagnostics) in [
+            ("", "check (1) && ", "", 0),
+            ("", "check () && ", "", 0),
+            ("", "check (1, 2) && ", "", 0),
+            ("", "check (1).ready() && ", "", 0),
+            ("", "check (1)(true) && ", "", 0),
+            ("", "check (1)[0] && ", "", 0),
+            ("", "check (1)!! && ", "", 0),
+            ("", "check (1)? && ", "", 0),
+            ("", "check (1)[0] && ", " (value)[0] -> 2", 1),
+            ("", "check (1)(true) && ", " (callback){ -> true } -> 2", 1),
+            ("", "check (1).ready() && ", " (true), false -> 2", 1),
+            (
+                "",
+                "check (1).ready() && ",
+                " (value).ready() && flag -> 2",
+                1,
+            ),
+            ("", "receiver.move { -> true } && ", "", 0),
+            ("", "receiver?.move { -> true } && ", "", 0),
+            ("", "receiver::move { -> true } && ", "", 0),
+            ("", "::move { -> true } && ", "", 0),
+            ("check (1) && ", "\"a\" == \"b\" && ", "", 0),
+            (
+                "",
+                "check (1) && ",
+                " ((true)) && if (flag) break else true -> 2",
+                1,
+            ),
+            ("check (1) && if (flag) ", "check (1) && ", " else true", 0),
+        ] {
+            let metrics = |terms| {
+                block_dispatch_metrics(format!(
+                    "{{ when {{ false -> {prefix}{}produce(1){suffix}; else -> 3 }} }}",
+                    term.repeat(terms),
+                ))
+            };
+            let (short_raw, _, short_visits, short_diagnostics) = metrics(64);
+            let (long_raw, _, long_visits, long_diagnostics) = metrics(128);
+            assert_eq!(
+                (short_diagnostics, long_diagnostics),
+                (diagnostics, diagnostics)
+            );
+            eprintln!("{term:?}: {short_visits} -> {long_visits} visits");
+            assert!(
+                short_visits <= short_raw * 36
+                    && long_visits <= long_raw * 36
+                    && long_visits <= short_visits * 2 + 64,
+                "raw visits grew for {term}: {short_visits} -> {long_visits}"
+            );
+        }
+    }
+
+    #[test]
+    fn nested_else_arms_reuse_the_same_direct_selector_shape() {
+        let metrics = |terms, separator| {
+            let prefix = "if (flag) { 0 } else ".repeat(terms);
+            let selector = "1 + ".repeat(terms);
+            block_dispatch_metrics(format!(
+                "{{ when {{ false -> {prefix}produce(1){separator} ({selector}1) -> 2; else -> 3 }} }}"
+            ))
+        };
+        let extra_visits = |terms| {
+            let (_, _, baseline, valid) = metrics(terms, ";");
+            let (_, _, recovered, invalid) = metrics(terms, "");
+            assert_eq!((valid, invalid), (0, 1));
+            assert!(baseline > terms && recovered > terms);
+            recovered.saturating_sub(baseline)
+        };
+        let (short, long) = (extra_visits(12), extra_visits(24));
+        eprintln!("12/24 nesting and selector terms: {short} -> {long} extra visits");
+        assert!(long <= short * 2 + 64);
+    }
+
+    #[test]
+    fn nested_else_arms_do_not_rescan_trivia_before_selector_followers() {
+        for tail in ["", "[0]", " { -> true }"] {
+            let metrics = |terms, separator| {
+                let prefix = "if (flag) { 0 } else ".repeat(terms);
+                let trivia = "/*x*/".repeat(terms * 16);
+                block_dispatch_metrics(format!(
+                    "{{ when {{ false -> {prefix}produce(1){separator} (value){trivia}{tail} -> 2; else -> 3 }} }}"
+                ))
+            };
+            let extra_visits = |terms| {
+                let (_, _, baseline, valid) = metrics(terms, ";");
+                let (_, _, recovered, invalid) = metrics(terms, "");
+                assert_eq!((valid, invalid), (0, 1), "{tail:?}");
+                assert!(baseline > terms && recovered > terms);
+                recovered.saturating_sub(baseline)
+            };
+            let (short, long) = (extra_visits(12), extra_visits(24));
+            eprintln!("{tail:?}: 12/24 nesting and trivia units: {short} -> {long} extra visits");
+            assert!(long <= short * 2 + 96, "{tail:?}: {short} -> {long}");
+        }
+    }
+
+    #[test]
+    fn nested_unclosed_calls_reuse_the_same_when_arm_boundary() {
+        let metrics = |depth| {
+            block_dispatch_metrics(format!(
+                "{{ when {{ false -> {}1\nflag{} -> 2\nelse -> 3 }} }}",
+                "take(".repeat(depth),
+                " && true".repeat(128),
+            ))
+        };
+        let (_, _, shallow_visits, shallow_diagnostics) = metrics(4);
+        let (_, _, deep_visits, deep_diagnostics) = metrics(16);
+        assert_eq!((shallow_diagnostics, deep_diagnostics), (4, 16));
+        assert!(
+            deep_visits <= shallow_visits + (16 - 4) * 96,
+            "raw visits grew with selector rescanning: {shallow_visits} -> {deep_visits}"
+        );
+    }
+
+    #[test]
+    fn nested_unclosed_type_arguments_reuse_the_same_when_arm_boundary() {
+        let metrics = |depth| {
+            block_dispatch_metrics(format!(
+                "{{ when {{ false -> take(value as {}\nflag{} -> 2\nelse -> 3 }} }}",
+                "List<".repeat(depth),
+                " && true".repeat(128),
+            ))
+        };
+        let (_, _, shallow_visits, shallow_diagnostics) = metrics(4);
+        let (_, _, deep_visits, deep_diagnostics) = metrics(16);
+        assert_eq!((shallow_diagnostics, deep_diagnostics), (6, 18));
+        assert!(
+            deep_visits <= shallow_visits + (16 - 4) * 96,
+            "raw visits grew with selector rescanning: {shallow_visits} -> {deep_visits}"
+        );
+    }
+
+    #[test]
+    fn multiline_unclosed_call_arguments_share_selector_suffixes() {
+        for argument in ["value", "if (flag) value"] {
+            let metrics = |count| {
+                block_dispatch_metrics(format!(
+                    "{{ when {{ false -> take({}\n{argument}\n}} }}",
+                    format!("\n{argument},").repeat(count),
+                ))
+            };
+            let (_, _, small_visits, small_diagnostics) = metrics(64);
+            let (_, _, large_visits, large_diagnostics) = metrics(128);
+            assert_eq!((small_diagnostics, large_diagnostics), (1, 1), "{argument}");
+            assert!(
+                large_visits <= small_visits * 2 + 64,
+                "{argument}: raw visits grew with argument rescanning: {small_visits} -> {large_visits}"
+            );
+        }
+    }
+
+    #[test]
+    fn damaged_call_reuses_failed_operand_suffixes() {
+        for (operand, tail) in [
+            ("flag", "flag"),
+            ("if (flag) flag", "flag"),
+            ("if (flag) flag", "flag -> 2"),
+        ] {
+            let metrics = |count| {
+                block_dispatch_metrics(format!(
+                    "{{ when {{ false -> take(:{}\n{tail}\n}} }}",
+                    format!("\n{operand} &&").repeat(count),
+                ))
+            };
+            let (_, _, small_visits, small_diagnostics) = metrics(64);
+            let (_, _, large_visits, large_diagnostics) = metrics(128);
+            assert_eq!(
+                (small_diagnostics, large_diagnostics),
+                (2, 2),
+                "{operand} {tail}"
+            );
+            assert!(
+                large_visits <= small_visits * 2 + 64,
+                "{operand} {tail}: {small_visits} -> {large_visits}"
+            );
+        }
     }
 
     #[test]

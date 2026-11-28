@@ -117,7 +117,7 @@ impl Parser<'_> {
         let left_span = self.expression_span(left)?;
         match rule.kind {
             InfixKind::Cast(operator) => {
-                let type_ref = self.parse_type_ref(TypeStops::from_expression(stops))?;
+                let type_ref = self.parse_operator_type_operand(stops)?;
                 let type_span = self.type_span(type_ref)?;
                 self.add_expression(
                     self.span(left_span.start(), type_span.end())?,
@@ -130,7 +130,7 @@ impl Parser<'_> {
                 )
             }
             InfixKind::TypeTest { negated } => {
-                let type_ref = self.parse_type_ref(TypeStops::from_expression(stops))?;
+                let type_ref = self.parse_operator_type_operand(stops)?;
                 let type_span = self.type_span(type_ref)?;
                 self.add_expression(
                     self.span(left_span.start(), type_span.end())?,
@@ -178,13 +178,37 @@ impl Parser<'_> {
     ) -> Result<ParsedRight, ParserInternalError> {
         let parsed = match rule.kind {
             InfixKind::Cast(_) | InfixKind::TypeTest { .. } => {
-                ParsedRight::Type(self.parse_type_ref(TypeStops::from_expression(stops))?)
+                ParsedRight::Type(self.parse_operator_type_operand(stops)?)
             }
             InfixKind::Binary(_) | InfixKind::Assignment(_) => {
                 ParsedRight::Expression(self.parse_expression_bp(rule.right_precedence, stops)?)
             }
         };
         Ok(parsed)
+    }
+
+    fn parse_operator_type_operand(
+        &mut self,
+        stops: Stops,
+    ) -> Result<TypeRefId, ParserInternalError> {
+        if self.at_committed_when_arm_boundary(stops)?
+            || (self.unclosed_when_operand_boundary(stops)?
+                && !self.complete_function_type_starts_here()?)
+        {
+            let at = self.empty_at(self.current()?.span().start())?;
+            self.emit(
+                codes::EXPECTED_TYPE_REFERENCE,
+                "expected type reference",
+                at,
+            )?;
+            let end = self.empty_at(self.previous_significant_end())?;
+            return self.add_type_ref(end, TypeRef::Error);
+        }
+        let mut type_stops = TypeStops::from_expression(stops);
+        if stops.delimiters & Stops::WHEN_CALL_OPERAND_RECOVERY != 0 {
+            type_stops.when_call_body = stops.when_entry_body;
+        }
+        self.parse_type_ref(type_stops)
     }
 }
 

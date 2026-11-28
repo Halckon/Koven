@@ -1,7 +1,8 @@
 #![allow(unexpected_cfgs)]
 
 use super::{class::ClassifierHeaderOwner, *};
-use std::cell::{Cell, OnceCell};
+use std::cell::{Cell, OnceCell, RefCell};
+use std::collections::HashMap;
 use std::num::NonZeroUsize;
 
 mod adjacent_poison;
@@ -18,6 +19,7 @@ pub(super) struct LexicalRecoveryIndex<'source> {
     source: &'source str,
     pub(super) source_len: usize,
     string_owner_ends: Vec<(usize, usize)>,
+    string_owner_closers: HashMap<usize, usize>,
     string_recoveries: Vec<(usize, usize)>,
     lexical_poison_string_recoveries: Vec<(usize, usize)>,
     diagnostic_anchor_prefix: Vec<usize>,
@@ -33,6 +35,11 @@ pub(super) struct LexicalRecoveryIndex<'source> {
     angle_terminal_hint: usize,
     // The same declaration starter can stop several nested TypeRefs during unwinding.
     pub(super) supertype_boundary: Cell<Option<(usize, ClassifierHeaderOwner, bool, bool)>>,
+    pub(super) when_arm_boundaries: RefCell<HashMap<(usize, WhenEntryBody), bool>>,
+    pub(super) when_group_shapes: RefCell<HashMap<usize, bool>>,
+    pub(super) when_compound_suffixes: RefCell<HashMap<(usize, WhenEntryBody), bool>>,
+    pub(super) committed_when_arm: Cell<Option<(usize, WhenEntryBody)>>,
+    pub(super) active_when_body_opener: Cell<Option<usize>>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -188,9 +195,10 @@ impl<'source> LexicalRecoveryIndex<'source> {
         )?;
         let mut active_strings: Vec<ActiveString> = Vec::new();
         let mut string_owner_ends = Vec::new();
+        let mut string_owner_closers = HashMap::new();
         let mut lexical_poison_string_recoveries = Vec::new();
         let mut next_exit = 0usize;
-        for lexeme in lexed.lexemes() {
+        for (raw, lexeme) in lexed.lexemes().iter().enumerate() {
             while string_exit_events
                 .get(next_exit)
                 .is_some_and(|(end, _)| *end <= lexeme.span().start())
@@ -212,6 +220,7 @@ impl<'source> LexicalRecoveryIndex<'source> {
                 LexemeKind::Token(TokenKind::StringStart) => {
                     active_strings.push(ActiveString {
                         opener: lexeme.span().start(),
+                        raw_opener: raw,
                         lexical_poison: false,
                     });
                 }
@@ -220,6 +229,7 @@ impl<'source> LexicalRecoveryIndex<'source> {
                         .pop()
                         .ok_or(ParserInternalError::InvalidLexemeStream)?;
                     string_owner_ends.push((owner.opener, lexeme.span().end()));
+                    string_owner_closers.insert(owner.raw_opener, raw);
                     if owner.lexical_poison {
                         lexical_poison_string_recoveries.push((owner.opener, lexeme.span().end()));
                     }
@@ -285,6 +295,7 @@ impl<'source> LexicalRecoveryIndex<'source> {
             source,
             source_len: source.len(),
             string_owner_ends,
+            string_owner_closers,
             string_recoveries,
             lexical_poison_string_recoveries,
             diagnostic_anchor_prefix,
@@ -298,6 +309,11 @@ impl<'source> LexicalRecoveryIndex<'source> {
             angle_group_closers: OnceCell::new(),
             poisoned_string_starts: OnceCell::new(),
             supertype_boundary: Cell::new(None),
+            when_arm_boundaries: RefCell::default(),
+            when_group_shapes: RefCell::default(),
+            when_compound_suffixes: RefCell::default(),
+            committed_when_arm: Cell::new(None),
+            active_when_body_opener: Cell::new(None),
             angle_terminal_hint: 0,
         })
     }
@@ -339,6 +355,10 @@ impl<'source> LexicalRecoveryIndex<'source> {
             .binary_search_by_key(&start, |(owner, _)| *owner)
             .ok()
             .map(|index| self.string_recoveries[index].1)
+    }
+
+    pub(super) fn string_owner_closer(&self, opener: usize) -> Option<usize> {
+        self.string_owner_closers.get(&opener).copied()
     }
 
     pub(super) fn string_owner_end(&self, start: usize) -> Option<usize> {
@@ -407,6 +427,7 @@ fn diagnostic_anchor_index(
 #[derive(Clone, Copy)]
 struct ActiveString {
     opener: usize,
+    raw_opener: usize,
     lexical_poison: bool,
 }
 
@@ -571,7 +592,7 @@ impl Parser<'_> {
         stops: DeclarationStops,
         proven_type_closer: Option<usize>,
     ) -> Result<usize, ParserInternalError> {
-        self.recover_declaration_tokens(stops, false, proven_type_closer)
+        self.recover_declaration_tokens(stops, false, proven_type_closer, None)
             .map(|(end, _)| end)
     }
 
@@ -579,14 +600,15 @@ impl Parser<'_> {
     pub(super) fn recover_declaration_string(
         &mut self,
     ) -> Result<(usize, bool), ParserInternalError> {
-        self.recover_declaration_tokens(DeclarationStops::EMPTY, true, None)
+        self.recover_declaration_tokens(DeclarationStops::EMPTY, true, None, None)
     }
 
-    fn recover_declaration_tokens(
+    pub(super) fn recover_declaration_tokens(
         &mut self,
         stops: DeclarationStops,
         stop_at_string_end: bool,
         proven_type_closer: Option<usize>,
+        when_arm: Option<WhenEntryBody>,
     ) -> Result<(usize, bool), ParserInternalError> {
         let mut delimiters = Vec::new();
         let mut paired_groups = Vec::new();
@@ -728,6 +750,13 @@ impl Parser<'_> {
                         && self.has_paired_lambda_header(raw_index)?))
                     || (stops.0 & DeclarationStops::LEFT_BRACE != 0
                         && self.explicit_block_start(current)?));
+            if outside_owner
+                && delimiters.is_empty()
+                && let Some(body) = when_arm
+                && self.when_arm_boundary_follows(end, body)?
+            {
+                break;
+            }
             if hard_stop
                 || (outside_owner
                     && !protected_suffix

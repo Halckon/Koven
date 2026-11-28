@@ -2,6 +2,10 @@
 
 #[path = "support/numeric_iteration_run.rs"]
 mod bounded_iteration_run;
+#[path = "native_cli/null_only_assertion.rs"]
+mod null_only_assertion;
+#[path = "native_cli/nullable_text_presence.rs"]
+mod nullable_text_presence;
 
 #[path = "support/build_outputs.rs"]
 mod build_outputs;
@@ -507,6 +511,51 @@ fn run<const N: usize>(arguments: [&OsStr; N]) -> Output {
         .args(arguments)
         .output()
         .expect("kovenc process must start")
+}
+
+fn assert_both_native_entries(source_text: &str, stdout: &[u8]) {
+    let directory = TestDirectory::create();
+    fs::create_dir(directory.join("src")).unwrap();
+    let source = directory.join("src/main.ko");
+    fs::write(&source, source_text).unwrap();
+    let manifest = directory.join("project.toml");
+    fs::write(
+        &manifest,
+        "schema = \"koven.project\"\nversion = 1\n[project]\nname = \"native-entry\"\nsource-roots = [\"src\"]\n",
+    )
+    .unwrap();
+
+    for label in ["single", "project"] {
+        let executable = directory.join(label);
+        let built = if label == "single" {
+            run([
+                OsStr::new("build"),
+                source.as_os_str(),
+                OsStr::new("-o"),
+                executable.as_os_str(),
+            ])
+        } else {
+            run([
+                OsStr::new("build"),
+                OsStr::new("--project"),
+                manifest.as_os_str(),
+                OsStr::new("--entry"),
+                OsStr::new("main"),
+                OsStr::new("-o"),
+                executable.as_os_str(),
+            ])
+        };
+        assert_eq!(built.status.code(), Some(0), "{label}: {built:?}");
+        assert!(
+            built.stdout.is_empty() && built.stderr.is_empty(),
+            "{built:?}"
+        );
+
+        let launched = bounded_iteration_run::run(&executable);
+        assert_eq!(launched.status.code(), Some(0), "{label}: {launched:?}");
+        assert_eq!(launched.stdout, stdout, "{label}");
+        assert!(launched.stderr.is_empty(), "{launched:?}");
+    }
 }
 
 /// SPEC-0355: `kovenc run` forwards the program's exit status, reporting SIGABRT as

@@ -16,7 +16,7 @@
 | Phase 1 Parser | 2 | 0 | 1 | 2 | 0 | 0 | 5 |
 | Phase 2 名称/类型 | 24 | 8 | 3 | 24 | 0 | 0 | 59 |
 | Phase 3 所有权 | 18 | 7 | 3 | 10 | 0 | 0 | 38 |
-| Phase 4 SSA/native | 22 | 8 | 3 | 19 | 0 | 0 | 52 |
+| Phase 4 SSA/native | 22 | 9 | 3 | 18 | 0 | 0 | 52 |
 | Phase 5 标准库 | 2 | 0 | 1 | 9 | 0 | 0 | 12 |
 | Phase 6 工具 | 8 | 1 | 1 | 1 | 0 | 0 | 11 |
 
@@ -62,7 +62,7 @@
 | ◐ 部分 | N02 | when：Int/String/Char/MoveOnly enum subject、enum 方法内 when (this)、project 模式 enum case 条件 | P2 | 已定义 |  |  | ● | ● | ● |  |  |
 | ◐ 部分 | N03 | nullable 全路径：标量 T?、nullable 参数、Elvis、?.、!! | P2 | 已定义 |  |  | ● | ● | ● |  |  |
 | ◐ 部分 | N04 | 闭包：lambda 直接作实参、函数引用 ::f、move 闭包返回与存储 | P2 | 已定义 |  |  | ● | ● | ● |  |  |
-| ☐ 未开始 | N05 | Double/Float 运算与 Char 比较的 native 支持 | P2 | 已定义 |  |  |  |  | ● |  |  |
+| ◐ 部分 | N05 | Double/Float 运算与 Char 比较的 native 支持 | P2 | 已定义 |  |  |  |  | ● |  |  |
 | ◐ 部分 | N06 | interface bound 泛型调用、companion 函数调用、interface 实现与默认方法（单文件） | P2 | 已定义 |  |  | ● | ● | ● |  |  |
 | ◐ 部分 | N07 | Box.value / unbox() 与 Rc.value 字段投影 | P2 | 已定义 |  |  | ● | ● | ● |  |  |
 | ☐ 未开始 | N08 | Result + 后缀 ? 的 Int 与 String payload 全路径 | P2 | 已定义 |  |  | ● | ● | ● |  |  |

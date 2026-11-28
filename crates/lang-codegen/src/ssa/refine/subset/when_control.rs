@@ -2,15 +2,24 @@
 use std::collections::BTreeSet;
 
 use lang_frontend::{
+    ast::ExpressionId,
     name_resolution::UnitSymbolId,
     parser::{WhenCondition, WhenEntry},
     source::Span,
-    type_checking::{ParameterMode, UnitTypeId},
+    type_checking::{ExpressionCategory, ParameterMode, UnitTypeId},
 };
 
 use super::Checker;
 
 impl Checker<'_, '_> {
+    /// The subject owner lives through the selected arm. The planner publishes
+    /// its cleanup after the when expression or on the actual control transfer.
+    pub(super) fn temporary_enum_when_subject(&mut self, subject: ExpressionId) -> bool {
+        self.inputs.typed.expression_category(self.id(subject))
+            == Some(ExpressionCategory::Temporary)
+            && self.expression(subject)
+    }
+
     fn intersect_when_views(
         intersection: &mut Option<BTreeSet<UnitSymbolId>>,
         views: &BTreeSet<UnitSymbolId>,

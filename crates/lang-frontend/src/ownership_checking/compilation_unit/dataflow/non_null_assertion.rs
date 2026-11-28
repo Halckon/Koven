@@ -55,7 +55,7 @@ impl Checker<'_> {
         } else {
             Default::default()
         };
-        let flows =
+        let mut flows =
             self.check_expression_with_escape(operand, state, usage, escaping && direct_control)?;
         if let Some(next) = &flows.next
             && escaping
@@ -81,6 +81,9 @@ impl Checker<'_> {
                     source_place: self.place(operand)?,
                     non_null_transfer: transfer,
                 });
+        }
+        if self.typed.expression_falls_through(key) == Some(false) {
+            flows.next = None;
         }
         Ok(flows)
     }

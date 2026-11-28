@@ -176,6 +176,7 @@ pub struct CompilationUnitNames {
     references: Vec<UnitNameReference>,
     value_lookup_hints: Vec<UnitNameReference>,
     builtin_result: Option<DeclarationId>,
+    builtin_display: Option<DeclarationId>,
     diagnostics: Vec<Diagnostic>,
 }
 impl CompilationUnitNames {
@@ -193,17 +194,35 @@ impl CompilationUnitNames {
             references,
             value_lookup_hints: Vec::new(),
             builtin_result: None,
+            builtin_display: None,
             diagnostics,
         }
     }
-    pub(super) fn with_builtin_result(mut self, declaration: Option<DeclarationId>) -> Self {
-        self.builtin_result = declaration;
+    pub(super) fn with_builtins(
+        mut self,
+        result: Option<DeclarationId>,
+        display: Option<DeclarationId>,
+    ) -> Self {
+        self.builtin_result = result;
+        self.builtin_display = display;
         self
     }
     /// 返回宿主授权标准源中的内建 `Result` 声明；未授权内建环境时为 `None`。
     #[must_use]
     pub const fn builtin_result_declaration(&self) -> Option<DeclarationId> {
         self.builtin_result
+    }
+    pub(crate) const fn builtin_display_declaration(&self) -> Option<DeclarationId> {
+        self.builtin_display
+    }
+
+    /// Returns the authorized Display source, which has no user document URI.
+    #[must_use]
+    pub fn builtin_display_source(&self) -> Option<crate::source::SourceId> {
+        self.index
+            .declarations()
+            .get(self.builtin_display?.index())
+            .map(|declaration| declaration.name_span().source_id())
     }
     pub(super) fn with_value_lookup_hints(mut self, hints: Vec<UnitNameReference>) -> Self {
         self.value_lookup_hints = hints;
